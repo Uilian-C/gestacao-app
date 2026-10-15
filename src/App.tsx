@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Heart, Stethoscope, FileText, Plus, Activity, Baby, Scale, 
   Loader2, MessageSquare, CheckSquare, Users, Calendar, 
-  TrendingUp, HelpCircle, ShieldCheck
+  TrendingUp, HelpCircle, ShieldCheck, Trash2, BarChart2, Filter
 } from 'lucide-react';
 import { sql } from './db';
 
@@ -84,8 +84,10 @@ export default function App() {
   const [activeAuthor, setActiveAuthor] = useState<'mae' | 'pai'>('mae');
   const [selectedWeek, setSelectedWeek] = useState<number>(4);
   const [activeTab, setActiveTab] = useState<'sintomas' | 'consultas' | 'metricas' | 'tarefas' | 'resumo'>('sintomas');
+  const [diaryFilterMode, setDiaryFilterMode] = useState<'semana' | 'todas'>('semana');
   const [loading, setLoading] = useState<boolean>(false);
 
+  // Estados locais
   const [symptoms, setSymptoms] = useState<SymptomItem[]>([]);
   const [newSymptom, setNewSymptom] = useState('');
   const [newIntensity, setNewIntensity] = useState(2);
@@ -188,6 +190,7 @@ export default function App() {
     loadData();
   }, []);
 
+  // Handlers de Adição
   const handleAddSymptom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSymptom.trim()) return;
@@ -218,25 +221,6 @@ export default function App() {
         VALUES (${selectedWeek}, NOW(), ${newQuestion}, ${activeAuthor}, ${newQuestionCategory})
       `;
       setNewQuestion('');
-      await loadData();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSaveDoctorAnswer = async (questionId: string) => {
-    if (!doctorAnswerText.trim()) return;
-    try {
-      setLoading(true);
-      await sql`
-        UPDATE medical_appointments 
-        SET doctor_answer = ${doctorAnswerText}, answered_at = NOW(), status = 'concluida'
-        WHERE id = ${questionId}
-      `;
-      setEditingAnswerId(null);
-      setDoctorAnswerText('');
       await loadData();
     } catch (err) {
       console.error(err);
@@ -282,6 +266,78 @@ export default function App() {
     }
   };
 
+  const handleSaveDoctorAnswer = async (questionId: string) => {
+    if (!doctorAnswerText.trim()) return;
+    try {
+      setLoading(true);
+      await sql`
+        UPDATE medical_appointments 
+        SET doctor_answer = ${doctorAnswerText}, answered_at = NOW(), status = 'concluida'
+        WHERE id = ${questionId}
+      `;
+      setEditingAnswerId(null);
+      setDoctorAnswerText('');
+      await loadData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handlers de Exclusão (DELETE)
+  const handleDeleteSymptom = async (id: string) => {
+    if (!confirm('Deseja realmente excluir este registro de sintoma?')) return;
+    try {
+      setLoading(true);
+      await sql`DELETE FROM symptoms_log WHERE id = ${id}`;
+      await loadData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteComment = async (id: string) => {
+    if (!confirm('Deseja excluir este comentário?')) return;
+    try {
+      setLoading(true);
+      await sql`DELETE FROM partner_comments WHERE id = ${id}`;
+      await loadData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteQuestion = async (id: string) => {
+    if (!confirm('Deseja excluir esta dúvida?')) return;
+    try {
+      setLoading(true);
+      await sql`DELETE FROM medical_appointments WHERE id = ${id}`;
+      await loadData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteMetric = async (id: string) => {
+    if (!confirm('Deseja excluir este registro de medição?')) return;
+    try {
+      setLoading(true);
+      await sql`DELETE FROM health_metrics_log WHERE id = ${id}`;
+      await loadData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleToggleTask = async (taskId: string, currentStatus: boolean) => {
     try {
       setLoading(true);
@@ -298,8 +354,15 @@ export default function App() {
     }
   };
 
+  // Filtragem do Diário por Semana Selecionada ou Visão Geral
+  const filteredSymptoms = diaryFilterMode === 'semana' 
+    ? symptoms.filter(s => s.week_number === selectedWeek)
+    : symptoms;
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
+      
+      {/* HEADER EXECUTIVO DO CASAL */}
       <header className="bg-gradient-to-r from-rose-500 via-pink-600 to-indigo-600 text-white p-6 shadow-md">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -307,7 +370,7 @@ export default function App() {
               <Heart className="fill-white w-6 h-6" /> Nossa Gestação
             </h1>
             <p className="text-white/90 text-xs mt-1 flex items-center gap-1.5">
-              <Users className="w-4 h-4 inline" /> Espaço Colaborativo do Casal & Registro Médico
+              <Users className="w-4 h-4 inline" /> Espaço Colaborativo do Casal & Diário Clínico
             </p>
           </div>
 
@@ -338,6 +401,7 @@ export default function App() {
 
       <main className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
 
+        {/* MÉTRICA TEMPORAL & RÉGUA GESTACIONAL */}
         <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-2">
             <div>
@@ -353,7 +417,7 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-xs text-slate-500 font-semibold">Visualizar Semana:</label>
+              <label className="text-xs text-slate-500 font-semibold">Navegar por Semana:</label>
               <select 
                 value={selectedWeek} 
                 onChange={(e) => setSelectedWeek(Number(e.target.value))}
@@ -414,6 +478,7 @@ export default function App() {
           </div>
         </section>
 
+        {/* NAVEGAÇÃO DE ABAS */}
         <div className="flex bg-slate-200/70 p-1.5 rounded-xl gap-1 overflow-x-auto">
           <button 
             onClick={() => setActiveTab('sintomas')}
@@ -431,7 +496,7 @@ export default function App() {
             onClick={() => setActiveTab('metricas')}
             className={`flex-1 py-2.5 px-3 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${activeTab === 'metricas' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
           >
-            <TrendingUp className="w-4 h-4" /> Métricas OMS & Saúde
+            <TrendingUp className="w-4 h-4" /> Métricas OMS & Gráficos
           </button>
           <button 
             onClick={() => setActiveTab('tarefas')}
@@ -453,12 +518,13 @@ export default function App() {
           </div>
         )}
 
+        {/* ABA 1: DIÁRIO & SINTOMAS COM NAVEGAÇÃO TEMPORAL E DELETE */}
         {activeTab === 'sintomas' && (
           <div className="space-y-4">
             <form onSubmit={handleAddSymptom} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
               <div className="flex items-center justify-between border-b pb-2">
                 <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Plus className="w-4 h-4 text-rose-500" /> Registrar Novo Sintoma ou Sensação
+                  <Plus className="w-4 h-4 text-rose-500" /> Registrar Sintoma na Semana {selectedWeek}
                 </span>
                 <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${activeAuthor === 'mae' ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'}`}>
                   Autor: {activeAuthor === 'mae' ? '💖 Mãe' : '💙 Pai'}
@@ -505,17 +571,37 @@ export default function App() {
               </div>
 
               <button type="submit" disabled={loading} className="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-2.5 rounded-xl text-sm transition shadow-sm">
-                Salvar no Diário do Casal
+                Salvar no Diário da Semana {selectedWeek}
               </button>
             </form>
 
+            {/* SELETOR DE MODO DE VISUALIZAÇÃO DO DIÁRIO */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-              <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Histórico de Sintomas com Transparência de Autoria</h3>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-3 gap-2">
+                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-slate-500" /> Diário de Registros do Casal
+                </h3>
+
+                <div className="flex bg-slate-100 p-1 rounded-lg gap-1 border border-slate-200">
+                  <button 
+                    onClick={() => setDiaryFilterMode('semana')}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition ${diaryFilterMode === 'semana' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-600'}`}
+                  >
+                    Apenas Semana {selectedWeek}
+                  </button>
+                  <button 
+                    onClick={() => setDiaryFilterMode('todas')}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition ${diaryFilterMode === 'todas' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-600'}`}
+                  >
+                    Ver Todo o Histórico
+                  </button>
+                </div>
+              </div>
               
-              {symptoms.length === 0 ? (
-                <p className="text-sm text-slate-400 py-6 text-center">Nenhum sintoma registrado ainda nesta gestação.</p>
+              {filteredSymptoms.length === 0 ? (
+                <p className="text-sm text-slate-400 py-6 text-center">Nenhum sintoma registrado para {diaryFilterMode === 'semana' ? `a Semana ${selectedWeek}` : 'o histórico'}.</p>
               ) : (
-                symptoms.map((s) => {
+                filteredSymptoms.map((s) => {
                   const symptomComments = comments.filter(c => c.symptom_id === s.id);
                   return (
                     <div key={s.id} className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3">
@@ -527,25 +613,44 @@ export default function App() {
                               {s.category}
                             </span>
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${s.created_by === 'mae' ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                              {s.created_by === 'mae' ? '💖 Anotado pela Mãe' : '💙 Anotado pelo Pai'}
+                              {s.created_by === 'mae' ? '💖 Mãe' : '💙 Pai'}
                             </span>
                           </div>
                           <span className="text-xs text-slate-400 block mt-0.5">{s.log_date} • Semana {s.week_number}</span>
                         </div>
 
-                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${s.intensity >= 4 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'}`}>
-                          Intensidade {s.intensity}/5
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold px-3 py-1 rounded-full ${s.intensity >= 4 ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'}`}>
+                            Intensidade {s.intensity}/5
+                          </span>
+                          <button 
+                            onClick={() => handleDeleteSymptom(s.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 transition"
+                            title="Excluir sintoma"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
 
+                      {/* Lista de Comentários / Notas de Apoio com Exclusão */}
                       {symptomComments.length > 0 && (
                         <div className="pl-3 border-l-2 border-indigo-400 space-y-1.5 pt-1">
                           {symptomComments.map(c => (
-                            <div key={c.id} className="text-xs bg-white p-2.5 rounded-lg border border-slate-100 text-slate-700">
-                              <span className="font-bold text-indigo-600 uppercase text-[10px] block mb-0.5">
-                                {c.author_role === 'pai' ? '💙 Nota do Pai:' : '💖 Nota da Mãe:'}
-                              </span>
-                              {c.comment_text}
+                            <div key={c.id} className="text-xs bg-white p-2.5 rounded-lg border border-slate-100 text-slate-700 flex justify-between items-start">
+                              <div>
+                                <span className="font-bold text-indigo-600 uppercase text-[10px] block mb-0.5">
+                                  {c.author_role === 'pai' ? '💙 Nota do Pai:' : '💖 Nota da Mãe:'}
+                                </span>
+                                {c.comment_text}
+                              </div>
+                              <button 
+                                onClick={() => handleDeleteComment(c.id)}
+                                className="text-slate-300 hover:text-rose-600 transition pl-2"
+                                title="Excluir comentário"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -555,7 +660,7 @@ export default function App() {
                         <div className="flex gap-2 pt-2">
                           <input 
                             type="text" 
-                            placeholder="Adicione um cuidado, medicação ministrada ou observação..." 
+                            placeholder="Adicione um cuidado, medicação ou observação..." 
                             value={commentText}
                             onChange={(e) => setCommentText(e.target.value)}
                             className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
@@ -583,6 +688,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ABA 2: Q&A DO OBSTETRA COM EXCLUSÃO */}
         {activeTab === 'consultas' && (
           <div className="space-y-4">
             <form onSubmit={handleAddQuestion} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
@@ -639,12 +745,22 @@ export default function App() {
                           {q.category}
                         </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${q.created_by === 'mae' ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                          {q.created_by === 'mae' ? '💖 Perguntado pela Mãe' : '💙 Perguntado pelo Pai'}
+                          {q.created_by === 'mae' ? '💖 Mãe' : '💙 Pai'}
                         </span>
                       </div>
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${q.doctor_answer ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>
-                        {q.doctor_answer ? 'Respondido na Consulta' : 'Pendente de Resposta'}
-                      </span>
+                      
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${q.doctor_answer ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>
+                          {q.doctor_answer ? 'Respondido' : 'Pendente'}
+                        </span>
+                        <button 
+                          onClick={() => handleDeleteQuestion(q.id)}
+                          className="text-slate-400 hover:text-rose-600 transition"
+                          title="Excluir dúvida"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     <p className="text-sm font-semibold text-slate-800 pt-1">
@@ -691,6 +807,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ABA 3: MÉTRICAS OMS & PAINEL VISUAL DE GRÁFICOS */}
         {activeTab === 'metricas' && (
           <div className="space-y-4">
             <form onSubmit={handleAddHealthMetric} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
@@ -735,38 +852,102 @@ export default function App() {
               </div>
 
               <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-sm transition">
-                Registrar Medições de Saúde
+                Registrar Medições de Saúde na Semana {selectedWeek}
               </button>
             </form>
 
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-              <div className="border-b pb-2">
-                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Acompanhamento Comparativo OMS (Ganho de Peso Esperado)</h3>
-                <p className="text-xs text-slate-500">Faixa de ganho ponderal recomendado para a Semana {selectedWeek}: <strong>{weekData.omsWeightMin} kg a {weekData.omsWeightMax} kg</strong></p>
+            {/* PAINEL DE GRÁFICOS VISUAIS SVG */}
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-6">
+              <div className="border-b pb-2 flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                    <BarChart2 className="w-4 h-4 text-emerald-600" /> Dashboard Visual de Acompanhamento
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Evolução do peso e histórico de sintomas ao longo do tempo</p>
+                </div>
               </div>
 
-              {healthMetrics.length === 0 ? (
-                <p className="text-sm text-slate-400 py-6 text-center">Nenhuma medição de peso ou pressão cadastrada.</p>
-              ) : (
-                <div className="space-y-2">
-                  {healthMetrics.map((m) => (
-                    <div key={m.id} className="flex justify-between items-center p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                      <div>
-                        <span className="font-bold text-sm text-slate-800">Semana {m.week_number} • {m.recorded_at}</span>
-                        <span className="text-xs text-slate-500 block">Pressão Arterial: {m.systolic_bp}/{m.diastolic_bp} mmHg</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-extrabold text-slate-800 text-base">{m.weight_kg} kg</span>
-                        <span className="text-[10px] font-bold block text-emerald-600">Dentro da meta OMS</span>
-                      </div>
+              {/* GRÁFICO 1: EVOLUÇÃO DE PESO REAL VS OMS */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                <span className="font-bold text-xs text-slate-700 uppercase tracking-wider block">1. Curva de Peso (kg) vs. Referência OMS</span>
+                
+                {healthMetrics.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-4 text-center">Cadastre as primeiras medições de peso acima para gerar o gráfico visual.</p>
+                ) : (
+                  <div className="h-40 flex items-end gap-2 pt-4 px-2 border-b border-l border-slate-300 relative">
+                    {healthMetrics.map((m, idx) => {
+                      const maxWeight = 80;
+                      const heightPercent = Math.min(100, Math.max(15, (m.weight_kg / maxWeight) * 100));
+                      return (
+                        <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative">
+                          {/* Tooltip Hover */}
+                          <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-slate-800 text-white text-[10px] font-bold py-0.5 px-2 rounded transition whitespace-nowrap z-10 pointer-events-none">
+                            Semana {m.week_number}: {m.weight_kg}kg
+                          </div>
+                          <div 
+                            className="w-full bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-all"
+                            style={{ height: `${heightPercent}%` }}
+                          />
+                          <span className="text-[10px] font-bold text-slate-500">{m.week_number}w</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* GRÁFICO 2: INTENSIDADE DE SINTOMAS */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+                <span className="font-bold text-xs text-slate-700 uppercase tracking-wider block">2. Curva de Intensidade dos Sintomas (Nível 1 a 5)</span>
+                
+                {symptoms.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-4 text-center">Cadastre os sintomas no diário para visualizar o mapa de intensidade.</p>
+                ) : (
+                  <div className="h-32 flex items-end gap-2 pt-4 px-2 border-b border-l border-slate-300">
+                    {symptoms.slice(0, 10).reverse().map((s, idx) => {
+                      const heightPercent = (s.intensity / 5) * 100;
+                      return (
+                        <div key={idx} className="flex-1 flex flex-col items-center gap-1">
+                          <div 
+                            className={`w-full rounded-t-md transition-all ${s.intensity >= 4 ? 'bg-rose-500' : 'bg-amber-400'}`}
+                            style={{ height: `${heightPercent}%` }}
+                          />
+                          <span className="text-[9px] font-bold text-slate-500 truncate max-w-[40px]">{s.symptom_name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* HISTÓRICO EM LISTA DE MEDIÇÕES DE SAÚDE */}
+              <div className="pt-2 space-y-2">
+                <span className="font-bold text-xs text-slate-700 uppercase tracking-wider block">Histórico de Medições de Saúde</span>
+                {healthMetrics.map((m) => (
+                  <div key={m.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <div>
+                      <span className="font-bold text-xs text-slate-800">Semana {m.week_number} • {m.recorded_at}</span>
+                      <span className="text-[11px] text-slate-500 block">Pressão Arterial: {m.systolic_bp}/{m.diastolic_bp} mmHg</span>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div className="flex items-center gap-3">
+                      <span className="font-extrabold text-slate-800 text-sm">{m.weight_kg} kg</span>
+                      <button 
+                        onClick={() => handleDeleteMetric(m.id)}
+                        className="text-slate-400 hover:text-rose-600 transition"
+                        title="Excluir medição"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
             </div>
           </div>
         )}
 
+        {/* ABA 4: TAREFAS DO CASAL */}
         {activeTab === 'tarefas' && (
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
             <div className="border-b pb-3">
@@ -801,6 +982,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ABA 5: RESUMO MÉDICO EXECUTIVO (1-CLICK) */}
         {activeTab === 'resumo' && (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
             <div className="border-b pb-4 flex justify-between items-start">
