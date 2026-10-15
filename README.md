@@ -1,6 +1,6 @@
 # Nossa Gestação
 
-App colaborativo para o casal acompanhar a gestação, da 4ª semana ao parto: diário de sintomas com comentários de apoio, dúvidas para o obstetra, peso e pressão, e tarefas divididas.
+App colaborativo para o casal acompanhar a gestação, da 4ª semana ao parto: diário de sintomas e medições, painel com os padrões dos sintomas, consultas por especialidade com resumo pronto para levar, e tarefas divididas.
 
 - Produção: [gestacao-app.vercel.app](https://gestacao-app.vercel.app)
 - Stack: React 19 + TypeScript, Vite, Tailwind CSS 4, PostgreSQL no Neon (`@neondatabase/serverless`)
@@ -29,11 +29,15 @@ src/
   App.tsx                 orquestra os dados, as abas e as ações
   db.ts                   conexão com o Neon
   types.ts                tipos dos registros
+  index.css               tema (cores claras e escuras como variáveis)
   lib/dates.ts            idade gestacional, DPP e datas no fuso local
   lib/health.ts           alerta de pressão e validação das medições
-  data/weeks.ts           referência de tamanho e peso por semana
+  lib/symptoms.ts         estatísticas e padrões dos sintomas
+  lib/weightGain.ts       IMC e faixa de ganho de peso (IOM 2009)
+  lib/report.ts           resumo da consulta por especialidade
+  data/                   semanas, especialidades, sintomas comuns, sugestões de tarefas
   hooks/                  carregamento dos dados e autor do aparelho
-  components/             cabeçalho, semana, avisos e uma pasta por aba
+  components/             componentes visuais, gráficos e uma tela por aba
 db/
   schema.sql              schema das tabelas
   migrations/             alterações numeradas, para rodar no console do Neon

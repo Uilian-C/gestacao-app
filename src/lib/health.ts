@@ -1,3 +1,7 @@
+import type { HealthMetric } from '../types';
+import { formatBR, parseLocalDate } from './dates';
+import { inPeriod, type Insight, type Period } from './symptoms';
+
 // Limite usado pela Caderneta da Gestante e pela Febrasgo para hipertensão na
 // gestação. É um aviso para procurar o obstetra, não um diagnóstico.
 export const HIGH_SYSTOLIC = 140;
@@ -35,4 +39,22 @@ export function parseMetricInput(input: MetricInput): ParsedMetric | { error: st
     }
   }
   return { weight, systolic, diastolic };
+}
+
+/** Pressões em 140/90 ou mais viram ponto de atenção (a mais recente do período). */
+export function pressureInsights(metrics: HealthMetric[], period: Period): Insight[] {
+  const high = metrics.filter(m => inPeriod(parseLocalDate(m.recorded_at), period) && isHighBloodPressure(m.systolic_bp, m.diastolic_bp));
+  if (high.length === 0) return [];
+  const last = high[high.length - 1];
+  return [
+    {
+      id: `pressao-${last.id}`,
+      tone: 'alerta',
+      title: `Pressão de ${last.systolic_bp}/${last.diastolic_bp} mmHg em ${formatBR(last.recorded_at)}`,
+      detail:
+        high.length > 1
+          ? `${high.length} medições em ${HIGH_SYSTOLIC}/${HIGH_DIASTOLIC} ou mais no período. Pressão alta na gestação pede avaliação do obstetra.`
+          : `Acima de ${HIGH_SYSTOLIC}/${HIGH_DIASTOLIC}. Pressão alta na gestação pede avaliação do obstetra.`,
+    },
+  ];
 }

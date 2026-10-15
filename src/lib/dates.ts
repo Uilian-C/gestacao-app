@@ -13,6 +13,18 @@ export function parseLocalDate(iso: string): Date {
   return new Date(y, m - 1, d);
 }
 
+/** Timestamp do Postgres ('2026-09-20 13:00:00+00') ou ISO, em hora local. */
+export function parseTimestamp(value: string): Date {
+  const iso = value.trim().replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00');
+  return new Date(iso);
+}
+
+/** O dia (local) de um timestamp, à meia-noite. */
+export function localDay(value: string): Date {
+  const d = parseTimestamp(value);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 export function toISODate(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');

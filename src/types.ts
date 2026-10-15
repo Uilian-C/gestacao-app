@@ -11,7 +11,11 @@ export interface SymptomItem {
   created_by: Author;
   category: string;
   notes?: string | null;
+  time_of_day?: TimeOfDay | null;
+  created_at?: string;
 }
+
+export type TimeOfDay = 'madrugada' | 'manha' | 'tarde' | 'noite';
 
 export interface QuestionItem {
   id: string;
@@ -21,6 +25,9 @@ export interface QuestionItem {
   doctor_answer?: string | null;
   created_at: string;
   status: string;
+  /** NULL = obstetra. */
+  specialty?: string | null;
+  answered_at?: string | null;
 }
 
 export interface PartnerTask {
@@ -40,6 +47,23 @@ export interface PartnerComment {
   symptom_id: string;
   comment_text: string;
   author_role: Author;
+  created_at?: string;
+}
+
+export interface Consultation {
+  id: string;
+  scheduled_at: string;
+  specialty: string;
+  professional_name?: string | null;
+  location?: string | null;
+  notes?: string | null;
+  created_by: Author;
+}
+
+export interface PregnancyProfile {
+  dumDate: string | null;
+  preWeightKg: number | null;
+  heightCm: number | null;
 }
 
 export interface HealthMetric {
@@ -52,4 +76,6 @@ export interface HealthMetric {
   created_by: Author;
 }
 
-export type DeletableKind = 'task' | 'symptom' | 'question' | 'comment' | 'metric';
+export type DeletableKind = 'task' | 'symptom' | 'question' | 'comment' | 'metric' | 'consultation';
+
+export type Tab = 'inicio' | 'diario' | 'painel' | 'consultas' | 'tarefas';
