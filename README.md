@@ -1,75 +1,51 @@
-# React + TypeScript + Vite
+# Nossa Gestação
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+App colaborativo para o casal acompanhar a gestação, da 4ª semana ao parto: diário de sintomas com comentários de apoio, dúvidas para o obstetra, peso e pressão, e tarefas divididas.
 
-Currently, two official plugins are available:
+- Produção: [gestacao-app.vercel.app](https://gestacao-app.vercel.app)
+- Stack: React 19 + TypeScript, Vite, Tailwind CSS 4, PostgreSQL no Neon (`@neondatabase/serverless`)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Rodando localmente
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
+echo "VITE_DATABASE_URL=postgresql://..." > .env.local
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+| Comando         | O que faz                                      |
+| --------------- | ---------------------------------------------- |
+| `npm run dev`   | Servidor de desenvolvimento                     |
+| `npm test`      | Testes das regras de datas e de saúde (Vitest) |
+| `npm run lint`  | ESLint                                          |
+| `npm run build` | Checagem de tipos + build de produção (Vercel) |
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+A CI no GitHub Actions roda lint, testes e build em todo PR. Se passar lá, passa na Vercel.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Estrutura
 
 ```
+src/
+  App.tsx                 orquestra os dados, as abas e as ações
+  db.ts                   conexão com o Neon
+  types.ts                tipos dos registros
+  lib/dates.ts            idade gestacional, DPP e datas no fuso local
+  lib/health.ts           alerta de pressão e validação das medições
+  data/weeks.ts           referência de tamanho e peso por semana
+  hooks/                  carregamento dos dados e autor do aparelho
+  components/             cabeçalho, semana, avisos e uma pasta por aba
+db/
+  schema.sql              schema das tabelas
+  migrations/             alterações numeradas, para rodar no console do Neon
+```
+
+## Banco de dados
+
+O schema está em `db/schema.sql`. Toda alteração de banco entra como um arquivo novo em `db/migrations/` e deve ser executada no SQL Editor do Neon antes do deploy que depende dela.
+
+## Regras importantes
+
+- **Datas**: sempre use `parseLocalDate` e `formatBR` de `lib/dates.ts`. `new Date('AAAA-MM-DD')` volta um dia no Brasil.
+- **Dados clínicos**: nunca preencha valores padrão em campos de saúde. Campo não medido é gravado como `NULL`.
+- **Autoria**: todo registro grava `created_by` com quem está usando o aparelho (`mae` ou `pai`).
+- **Build**: a Vercel falha com import ou variável sem uso. Rode `npm run build` antes de subir.
