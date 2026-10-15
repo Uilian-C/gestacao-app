@@ -209,7 +209,7 @@ export default function App() {
             <p className="text-3xl">🌧️</p>
             <p className="font-bold text-ink">Não foi possível carregar os dados.</p>
             <p className="text-sm text-ink-soft">Confiram a conexão e tentem de novo. Nada é exibido até a conexão voltar, para não mostrar informação errada.</p>
-            <button onClick={retry} className="bg-brand text-white font-bold px-5 py-2.5 rounded-2xl text-sm">Tentar de novo</button>
+            <button onClick={retry} className="bg-brand text-on-accent font-bold px-5 py-2.5 rounded-2xl text-sm">Tentar de novo</button>
           </Card>
         )}
       </Shell>
@@ -288,6 +288,7 @@ export default function App() {
         )}
         {activeTab === 'diario' && (
           <DiaryTab
+            author={author}
             age={age}
             symptoms={symptoms}
             comments={comments}

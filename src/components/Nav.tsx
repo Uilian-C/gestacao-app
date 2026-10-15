@@ -25,7 +25,7 @@ export default function Nav({ active, onChange, badges }: { active: Tab; onChang
             >
               {t.icon}
               {t.label}
-              {!!badges[t.id] && <span className="min-w-5 h-5 px-1.5 rounded-full bg-warm text-white text-[11px] flex items-center justify-center tabular">{badges[t.id]}</span>}
+              {!!badges[t.id] && <span className="min-w-5 h-5 px-1.5 rounded-full bg-warm text-on-accent text-[11px] flex items-center justify-center tabular">{badges[t.id]}</span>}
             </button>
           ))}
         </div>
@@ -46,7 +46,7 @@ export default function Nav({ active, onChange, badges }: { active: Tab; onChang
             >
               <span className={`px-4 py-1 rounded-full transition ${active === t.id ? 'bg-brand-soft' : ''}`}>{t.icon}</span>
               {t.label}
-              {!!badges[t.id] && <span className="absolute top-1.5 right-[calc(50%-22px)] min-w-4 h-4 px-1 rounded-full bg-warm text-white text-[10px] flex items-center justify-center tabular">{badges[t.id]}</span>}
+              {!!badges[t.id] && <span className="absolute top-1.5 right-[calc(50%-22px)] min-w-4 h-4 px-1 rounded-full bg-warm text-on-accent text-[10px] flex items-center justify-center tabular">{badges[t.id]}</span>}
             </button>
           ))}
         </div>

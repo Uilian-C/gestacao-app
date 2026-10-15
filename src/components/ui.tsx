@@ -50,7 +50,7 @@ export function Chip({ children, active = false, onClick }: { children: ReactNod
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`px-3.5 py-1.5 rounded-full text-sm font-semibold border transition ${active ? 'bg-brand text-white border-brand' : 'bg-surface text-ink-soft border-line hover:border-brand hover:text-brand'}`}
+      className={`px-3.5 py-1.5 rounded-full text-sm font-semibold border transition ${active ? 'bg-brand text-on-accent border-brand' : 'bg-surface text-ink-soft border-line hover:border-brand hover:text-brand'}`}
     >
       {children}
     </button>
@@ -68,10 +68,10 @@ export function EmptyState({ emoji, title, children }: { emoji: string; title: s
 }
 
 const BUTTON_TONES = {
-  primary: 'bg-brand text-white hover:bg-brand-strong',
+  primary: 'bg-brand text-on-accent hover:bg-brand-strong',
   soft: 'bg-brand-soft text-brand-strong hover:bg-brand-soft/70',
   ghost: 'bg-transparent text-ink-soft border border-line hover:border-brand hover:text-brand',
-  warm: 'bg-warm text-white hover:opacity-90',
+  warm: 'bg-warm text-on-accent hover:opacity-90',
 };
 
 export function Button({ children, tone = 'primary', type = 'button', onClick, disabled, className = '' }: { children: ReactNode; tone?: keyof typeof BUTTON_TONES; type?: 'button' | 'submit'; onClick?: () => void; disabled?: boolean; className?: string }) {

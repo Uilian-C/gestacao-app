@@ -17,8 +17,9 @@
   --c-brand: #4f7a66;
   --c-brand-strong: #3d6453;
   --c-brand-soft: #e5efe9;
-  --c-warm: #c9784a;
+  --c-warm: #a95b2b;
   --c-warm-soft: #fbeee4;
+  --c-on-accent: #ffffff;
 
   --c-mae: #b9566f;
   --c-mae-soft: #f8e5ea;
@@ -62,6 +63,7 @@
     --c-brand-soft: #25332c;
     --c-warm: #eba77c;
     --c-warm-soft: #3a2b21;
+    --c-on-accent: #1b1917;
 
     --c-mae: #ec9cb0;
     --c-mae-soft: #3b252b;
@@ -90,6 +92,38 @@
   }
 }
 
+/*
+  Cor de quem está usando o aparelho: a cor principal (botões, abas, destaques)
+  vira rosé para a mãe e azul para o pai, e o fundo ganha um leve tom da mesma
+  cor. Assim fica claro, em qualquer tela, em nome de quem o registro será feito.
+*/
+:root[data-author='mae'] {
+  --c-brand: #b0506a;
+  --c-brand-strong: #8f3f56;
+  --c-brand-soft: #f8e5ea;
+  --c-canvas: #faf5f4;
+}
+:root[data-author='pai'] {
+  --c-brand: #3f6d9b;
+  --c-brand-strong: #30577f;
+  --c-brand-soft: #e3edf7;
+  --c-canvas: #f4f6f8;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-author='mae'] {
+    --c-brand: #ec9cb0;
+    --c-brand-strong: #f4b8c7;
+    --c-brand-soft: #3b252b;
+    --c-canvas: #1d1819;
+  }
+  :root[data-author='pai'] {
+    --c-brand: #93b6de;
+    --c-brand-strong: #b3cdeb;
+    --c-brand-soft: #1f2c39;
+    --c-canvas: #171a1d;
+  }
+}
+
 @theme inline {
   --font-sans: "Nunito", ui-rounded, "Segoe UI", system-ui, sans-serif;
 
@@ -105,6 +139,7 @@
   --color-brand-soft: var(--c-brand-soft);
   --color-warm: var(--c-warm);
   --color-warm-soft: var(--c-warm-soft);
+  --color-on-accent: var(--c-on-accent);
   --color-mae: var(--c-mae);
   --color-mae-soft: var(--c-mae-soft);
   --color-pai: var(--c-pai);
@@ -133,6 +168,7 @@
     color: var(--c-ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    transition: background-color 300ms ease;
   }
 
   input,

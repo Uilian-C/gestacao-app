@@ -4,7 +4,7 @@ import { COMMON_SYMPTOMS, SYMPTOM_CATEGORIES, isAlertSymptom } from '../../data/
 import { formatBR, toISODate, type GestationalAge } from '../../lib/dates';
 import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure, parseMetricInput, type ParsedMetric } from '../../lib/health';
 import { TIME_OF_DAY, normalizeSymptomName, timeOfDayFromHour, timeOfDayLabel } from '../../lib/symptoms';
-import type { HealthMetric, PartnerComment, SymptomItem, TimeOfDay } from '../../types';
+import type { Author, HealthMetric, PartnerComment, SymptomItem, TimeOfDay } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import IntensityDots from '../IntensityDots';
 import { inputClass } from '../styles';
@@ -19,6 +19,7 @@ export interface NewSymptom {
 }
 
 interface Props {
+  author: Author;
   age: GestationalAge;
   symptoms: SymptomItem[];
   comments: PartnerComment[];
@@ -78,9 +79,9 @@ export default function DiaryTab(props: Props) {
           />
         </div>
         {mode === 'sintoma' ? (
-          <SymptomForm trimester={props.age.trimester} history={props.symptoms} busy={props.busy} currentWeek={props.currentWeek} onCreate={props.onCreateSymptom} />
+          <SymptomForm author={props.author} trimester={props.age.trimester} history={props.symptoms} busy={props.busy} currentWeek={props.currentWeek} onCreate={props.onCreateSymptom} />
         ) : (
-          <MetricForm busy={props.busy} currentWeek={props.currentWeek} onCreate={props.onCreateMetric} />
+          <MetricForm author={props.author} busy={props.busy} currentWeek={props.currentWeek} onCreate={props.onCreateMetric} />
         )}
       </Card>
 
@@ -130,7 +131,7 @@ function formatDayHeading(iso: string): string {
   return date.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
 }
 
-function SymptomForm({ trimester, history, busy, currentWeek, onCreate }: { trimester: 1 | 2 | 3; history: SymptomItem[]; busy: boolean; currentWeek: number; onCreate: (s: NewSymptom) => Promise<boolean> }) {
+function SymptomForm({ author, trimester, history, busy, currentWeek, onCreate }: { author: Author; trimester: 1 | 2 | 3; history: SymptomItem[]; busy: boolean; currentWeek: number; onCreate: (s: NewSymptom) => Promise<boolean> }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<string>('Físico');
   const [intensity, setIntensity] = useState(2);
@@ -235,13 +236,13 @@ function SymptomForm({ trimester, history, busy, currentWeek, onCreate }: { trim
       </Field>
 
       <Button type="submit" disabled={busy || !name.trim()} className="w-full">
-        Salvar no diário · semana {currentWeek}
+        Salvar como {author === 'pai' ? 'pai' : 'mãe'} · semana {currentWeek}
       </Button>
     </form>
   );
 }
 
-function MetricForm({ busy, currentWeek, onCreate }: { busy: boolean; currentWeek: number; onCreate: (m: ParsedMetric) => Promise<boolean> }) {
+function MetricForm({ author, busy, currentWeek, onCreate }: { author: Author; busy: boolean; currentWeek: number; onCreate: (m: ParsedMetric) => Promise<boolean> }) {
   const [weight, setWeight] = useState('');
   const [systolic, setSystolic] = useState('');
   const [diastolic, setDiastolic] = useState('');
@@ -278,7 +279,7 @@ function MetricForm({ busy, currentWeek, onCreate }: { busy: boolean; currentWee
       <p className="text-xs text-ink-mute">Preencha só o que foi medido. Peso e pressão podem ser registrados separados.</p>
       {error && <p className="text-sm font-semibold text-alert" role="alert">{error}</p>}
       <Button type="submit" disabled={busy} className="w-full">
-        <Scale className="w-4 h-4" /> Registrar medição · semana {currentWeek}
+        <Scale className="w-4 h-4" /> Registrar como {author === 'pai' ? 'pai' : 'mãe'} · semana {currentWeek}
       </Button>
     </form>
   );
