@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Heart, Stethoscope, FileText, CheckCircle, 
-  Plus, Activity, Baby, Scale, Loader2, MessageSquare, CheckSquare, 
-  Users, Calendar, TrendingUp, User, Tag, HelpCircle, Clock, ShieldCheck
+  Heart, Stethoscope, FileText, Plus, Activity, Baby, Scale, 
+  Loader2, MessageSquare, CheckSquare, Users, Calendar, 
+  TrendingUp, HelpCircle, ShieldCheck
 } from 'lucide-react';
 import { sql } from './db';
 
@@ -75,10 +75,9 @@ interface HealthMetric {
 }
 
 export default function App() {
-  // Estado da DUM e Cálculo Automático
   const [dumDate, setDumDate] = useState<string>(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 28); // Padrão: 4 semanas atrás
+    d.setDate(d.getDate() - 28);
     return d.toISOString().split('T')[0];
   });
 
@@ -87,7 +86,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'sintomas' | 'consultas' | 'metricas' | 'tarefas' | 'resumo'>('sintomas');
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Estados dos Dados do Neon
   const [symptoms, setSymptoms] = useState<SymptomItem[]>([]);
   const [newSymptom, setNewSymptom] = useState('');
   const [newIntensity, setNewIntensity] = useState(2);
@@ -109,7 +107,6 @@ export default function App() {
   const [newSystolic, setNewSystolic] = useState<string>('120');
   const [newDiastolic, setNewDiastolic] = useState<string>('80');
 
-  // Cálculos Automáticos de Idade Gestacional baseados na DUM
   const calculateGestationalAge = () => {
     const start = new Date(dumDate);
     const today = new Date();
@@ -120,7 +117,7 @@ export default function App() {
     const remainingDays = diffDays % 7;
 
     const dpp = new Date(start);
-    dpp.setDate(dpp.getDate() + 280); // 40 semanas = 280 dias
+    dpp.setDate(dpp.getDate() + 280);
 
     const daysToDpp = Math.ceil((dpp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -135,7 +132,6 @@ export default function App() {
   const currentGestational = calculateGestationalAge();
   const weekData = GESTATION_WEEKS.find(w => w.week === selectedWeek) || GESTATION_WEEKS[0];
 
-  // Carregar dados sincronizados do Neon.tech
   const loadData = async () => {
     try {
       setLoading(true);
@@ -182,7 +178,7 @@ export default function App() {
       setHealthMetrics(metricsData as HealthMetric[]);
 
     } catch (err) {
-      console.error('Erro ao carregar dados do Neon:', err);
+      console.error('Erro ao carregar do Neon:', err);
     } finally {
       setLoading(false);
     }
@@ -192,7 +188,6 @@ export default function App() {
     loadData();
   }, []);
 
-  // Handlers de Envio para o Banco
   const handleAddSymptom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSymptom.trim()) return;
@@ -305,8 +300,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-16">
-      
-      {/* HEADER EXECUTIVO DO CASAL */}
       <header className="bg-gradient-to-r from-rose-500 via-pink-600 to-indigo-600 text-white p-6 shadow-md">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -319,7 +312,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-            {/* Alternador de Autor Ativo (Quem está registrando agora) */}
             <div className="bg-white/10 backdrop-blur-md p-1 rounded-xl flex items-center gap-1 border border-white/20">
               <span className="text-[10px] uppercase font-bold text-white/70 px-2">Registrando como:</span>
               <button 
@@ -336,7 +328,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Badge Automática de Semanas + Dias */}
             <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl text-right border border-white/20">
               <span className="text-[10px] uppercase tracking-wider block font-semibold text-white/80">Idade Gestacional</span>
               <span className="text-lg font-extrabold">{currentGestational.weeks}ª Sem + {currentGestational.days}d</span>
@@ -347,7 +338,6 @@ export default function App() {
 
       <main className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
 
-        {/* MÉTRICA TEMPORAL & RÉGUA GESTACIONAL (WEEK SCRUBBER) */}
         <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-2">
             <div>
@@ -376,7 +366,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* RÉGUA VISUAL DE 4 a 40 SEMANAS */}
           <div className="space-y-1.5 pt-1">
             <div className="flex justify-between text-[11px] font-bold text-slate-400 px-1">
               <span>Semana 4 (Início)</span>
@@ -392,7 +381,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* CARDS DO BEBÊ */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
             <div className="bg-rose-50/50 p-4 rounded-xl border border-rose-100 flex items-center gap-3">
               <div className="p-3 bg-rose-500 text-white rounded-lg shadow-sm">
@@ -426,7 +414,6 @@ export default function App() {
           </div>
         </section>
 
-        {/* NAVEGAÇÃO DE ABAS */}
         <div className="flex bg-slate-200/70 p-1.5 rounded-xl gap-1 overflow-x-auto">
           <button 
             onClick={() => setActiveTab('sintomas')}
@@ -462,11 +449,10 @@ export default function App() {
 
         {loading && (
           <div className="flex items-center justify-center gap-2 text-xs text-rose-600 font-bold py-1">
-            <Loader2 className="w-4 h-4 animate-spin" /> Atualizando dados sincronizados no Neon.tech...
+            <Loader2 className="w-4 h-4 animate-spin" /> Sincronizando dados no Neon.tech...
           </div>
         )}
 
-        {/* ABA 1: DIÁRIO & SINTOMAS COM AUTORIA */}
         {activeTab === 'sintomas' && (
           <div className="space-y-4">
             <form onSubmit={handleAddSymptom} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
@@ -552,7 +538,6 @@ export default function App() {
                         </span>
                       </div>
 
-                      {/* Notação de Apoio/Comentário */}
                       {symptomComments.length > 0 && (
                         <div className="pl-3 border-l-2 border-indigo-400 space-y-1.5 pt-1">
                           {symptomComments.map(c => (
@@ -598,7 +583,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA 2: Q&A DO OBSTETRA E DÚVIDAS ESTRUTURADAS */}
         {activeTab === 'consultas' && (
           <div className="space-y-4">
             <form onSubmit={handleAddQuestion} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
@@ -667,7 +651,6 @@ export default function App() {
                       • {q.questions_to_ask}
                     </p>
 
-                    {/* Resposta/Conduta Orientada pelo Médico */}
                     {q.doctor_answer ? (
                       <div className="mt-2 p-3 bg-emerald-50/60 rounded-lg border border-emerald-200 text-xs text-emerald-900">
                         <span className="font-bold block uppercase text-[10px] text-emerald-700 mb-0.5 flex items-center gap-1">
@@ -708,7 +691,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA 3: MÉTRICAS OMS & SAÚDE */}
         {activeTab === 'metricas' && (
           <div className="space-y-4">
             <form onSubmit={handleAddHealthMetric} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
@@ -785,7 +767,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA 4: TAREFAS DO CASAL */}
         {activeTab === 'tarefas' && (
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
             <div className="border-b pb-3">
@@ -820,7 +801,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA 5: RESUMO MÉDICO EXECUTIVO (1-CLICK) */}
         {activeTab === 'resumo' && (
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
             <div className="border-b pb-4 flex justify-between items-start">
