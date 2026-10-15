@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampWeek, daysBetween, formatBR, gestationalAge, isOverdue, parseLocalDate, toISODate, trimesterOf } from './dates';
+import { localDay, clampWeek, daysBetween, formatBR, gestationalAge, isOverdue, parseLocalDate, toISODate, trimesterOf } from './dates';
 
 const at = (iso: string, hour = 12) => {
   const d = parseLocalDate(iso);
@@ -81,5 +81,15 @@ describe('isOverdue', () => {
     expect(isOverdue('2026-10-15', at('2026-10-15', 23))).toBe(false);
     expect(isOverdue('2026-10-14', at('2026-10-15', 0))).toBe(true);
     expect(isOverdue(null)).toBe(false);
+  });
+});
+
+describe('timestamps do Postgres', () => {
+  it('lê o formato com espaço e fuso curto no dia local', () => {
+    const d = localDay('2026-09-21 01:30:00+00');
+    // 01:30 UTC é 22:30 do dia 20 em São Paulo
+    const expected = new Date(Date.UTC(2026, 8, 21, 1, 30));
+    expect(d.getDate()).toBe(expected.getDate());
+    expect(d.getHours()).toBe(0);
   });
 });

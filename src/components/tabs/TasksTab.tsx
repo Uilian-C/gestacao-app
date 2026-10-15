@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { BarChart2, CheckCircle2, Clock, Filter, Plus, Trash2 } from 'lucide-react';
-import AuthorBadge from '../AuthorBadge';
+import { CheckCircle2, Clock, ListChecks, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { suggestionsFor, type TaskSuggestion } from '../../data/taskSuggestions';
 import { formatBR, isOverdue, trimesterOf } from '../../lib/dates';
 import type { Assignee, PartnerTask, Priority } from '../../types';
+import AuthorBadge from '../AuthorBadge';
+import { inputClass } from '../styles';
+import { Button, Card, Chip, EmptyState, Field, Pill, Segmented, SectionTitle } from '../ui';
 
 type AssigneeFilter = 'todos' | Assignee;
 type PeriodFilter = 'semana' | 'tri1' | 'tri2' | 'tri3' | 'todas';
@@ -14,189 +17,202 @@ export interface NewTask {
   priority: Priority;
   dueDate: string;
   notes: string;
+  week?: number;
 }
 
 interface Props {
   tasks: PartnerTask[];
   selectedWeek: number;
+  currentWeek: number;
   busy: boolean;
   onCreate: (task: NewTask) => Promise<boolean>;
   onToggle: (task: PartnerTask) => void;
   onDelete: (task: PartnerTask) => void;
 }
 
-const PRIORITY_DOT: Record<Priority, string> = { Baixa: '🟢', Média: '🟡', Alta: '🔴' };
+const PRIORITY_TONE: Record<Priority, 'neutral' | 'warn' | 'alert'> = { Baixa: 'neutral', Média: 'warn', Alta: 'alert' };
 
-export default function TasksTab({ tasks, selectedWeek, busy, onCreate, onToggle, onDelete }: Props) {
+export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCreate, onToggle, onDelete }: Props) {
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('todos');
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('semana');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todas');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pendentes');
-
-  const [title, setTitle] = useState('');
-  const [assignee, setAssignee] = useState<Assignee>('casal');
-  const [priority, setPriority] = useState<Priority>('Média');
-  const [dueDate, setDueDate] = useState('');
-  const [notes, setNotes] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
 
   const byAssignee = tasks.filter(t => assigneeFilter === 'todos' || t.assigned_to === assigneeFilter);
-  const filtered = byAssignee.filter(t => {
-    if (periodFilter === 'semana' && t.week_number !== selectedWeek) return false;
-    if (periodFilter === 'tri1' && trimesterOf(t.week_number) !== 1) return false;
-    if (periodFilter === 'tri2' && trimesterOf(t.week_number) !== 2) return false;
-    if (periodFilter === 'tri3' && trimesterOf(t.week_number) !== 3) return false;
-    if (statusFilter === 'pendentes' && t.is_completed) return false;
-    if (statusFilter === 'concluidas' && !t.is_completed) return false;
-    return true;
-  });
+  const filtered = byAssignee
+    .filter(t => {
+      if (periodFilter === 'semana' && t.week_number !== selectedWeek) return false;
+      if (periodFilter === 'tri1' && trimesterOf(t.week_number) !== 1) return false;
+      if (periodFilter === 'tri2' && trimesterOf(t.week_number) !== 2) return false;
+      if (periodFilter === 'tri3' && trimesterOf(t.week_number) !== 3) return false;
+      if (statusFilter === 'pendentes' && t.is_completed) return false;
+      if (statusFilter === 'concluidas' && !t.is_completed) return false;
+      return true;
+    })
+    .sort((a, b) => Number(a.is_completed) - Number(b.is_completed) || Number(isOverdue(b.due_date)) - Number(isOverdue(a.due_date)) || a.week_number - b.week_number);
 
   const total = byAssignee.length;
   const done = byAssignee.filter(t => t.is_completed).length;
   const overdue = byAssignee.filter(t => !t.is_completed && isOverdue(t.due_date)).length;
   const rate = total > 0 ? Math.round((done / total) * 100) : 0;
+  const suggestions = suggestionsFor(currentWeek, tasks.map(t => t.task_title));
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-    const ok = await onCreate({ title: title.trim(), assignee, priority, dueDate, notes: notes.trim() });
-    if (ok) {
-      setTitle('');
-      setNotes('');
-      setDueDate('');
-    }
-  };
+  const addSuggestion = (s: TaskSuggestion) => onCreate({ title: s.title, assignee: s.assignee, priority: s.priority, dueDate: '', notes: s.notes ?? '', week: Math.max(s.week, currentWeek) });
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b pb-4">
-          <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
-            <BarChart2 className="w-5 h-5 text-indigo-600" /> Painel de preparativos
-          </h3>
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200" role="group" aria-label="Filtrar por responsável">
-            {(['todos', 'mae', 'pai', 'casal'] as const).map(value => (
-              <button
-                key={value}
-                onClick={() => setAssigneeFilter(value)}
-                aria-pressed={assigneeFilter === value}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${assigneeFilter === value ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
-              >
-                {{ todos: '👥 Todos', mae: '💖 Mãe', pai: '💙 Pai', casal: '🤝 Casal' }[value]}
-              </button>
+    <div className="space-y-5">
+      <Card>
+        <SectionTitle
+          icon={<ListChecks className="w-5 h-5" />}
+          title="Preparativos do casal"
+          action={
+            <Segmented
+              label="Responsável"
+              size="sm"
+              value={assigneeFilter}
+              onChange={setAssigneeFilter}
+              options={[
+                { value: 'todos', label: 'Todos' },
+                { value: 'mae', label: 'Mãe' },
+                { value: 'pai', label: 'Pai' },
+                { value: 'casal', label: 'Casal' },
+              ]}
+            />
+          }
+        />
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-ink-soft">
+              <strong className="text-ink tabular">{done}</strong> de <span className="tabular">{total}</span> concluídas
+              {overdue > 0 && <span className="text-alert font-semibold"> · {overdue} {overdue === 1 ? 'atrasada' : 'atrasadas'}</span>}
+            </span>
+            <span className="font-bold text-brand tabular">{rate}%</span>
+          </div>
+          <div className="h-2.5 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={rate} aria-valuemin={0} aria-valuemax={100} aria-label="Tarefas concluídas">
+            <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${rate}%` }} />
+          </div>
+        </div>
+      </Card>
+
+      {suggestions.length > 0 && (
+        <Card tone="brand">
+          <SectionTitle icon={<Sparkles className="w-5 h-5" />} title="Sugestões para esta fase" subtitle="Marcos comuns do pré-natal nesta altura. Toque para adicionar." />
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map(s => (
+              <Chip key={s.title} onClick={() => addSuggestion(s)}>
+                <span className="inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" />{s.title}</span>
+              </Chip>
             ))}
           </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Stat label="Pendentes" value={total - done} className="bg-amber-50/60 border-amber-100 text-amber-800" />
-          <Stat label="Atrasadas" value={overdue} className={overdue > 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-100 text-slate-700'} />
-          <Stat label="Concluídas" value={done} className="bg-emerald-50/60 border-emerald-100 text-emerald-800" />
-          <Stat label="Progresso" value={`${rate}%`} className="bg-indigo-50/60 border-indigo-100 text-indigo-800" />
-        </div>
-      </div>
+        </Card>
+      )}
 
-      <form onSubmit={submit} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        <h3 className="font-bold text-slate-800 text-sm uppercase flex items-center gap-2">
-          <Plus className="w-4 h-4 text-indigo-600" /> Nova tarefa para a semana {selectedWeek}
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <input aria-label="Título da tarefa" type="text" placeholder="Título da tarefa..." value={title} onChange={e => setTitle(e.target.value)} className="md:col-span-2 border border-slate-200 rounded-xl px-3.5 py-2 text-sm" />
-          <select aria-label="Responsável" value={assignee} onChange={e => setAssignee(e.target.value as Assignee)} className="border border-slate-200 rounded-xl px-3.5 py-2 text-sm font-semibold">
-            <option value="mae">💖 Mãe</option>
-            <option value="pai">💙 Pai</option>
-            <option value="casal">🤝 Casal</option>
+      <Card>
+        <SectionTitle
+          title="Lista"
+          action={
+            <Button tone={formOpen ? 'ghost' : 'primary'} onClick={() => setFormOpen(v => !v)} className="!px-4 !py-2">
+              {formOpen ? 'Fechar' : <><Plus className="w-4 h-4" /> Nova tarefa</>}
+            </Button>
+          }
+        />
+        {formOpen && <TaskForm selectedWeek={selectedWeek} busy={busy} onCreate={async t => { const ok = await onCreate(t); if (ok) setFormOpen(false); return ok; }} />}
+
+        <div className="flex flex-wrap gap-2 mb-4">
+          <select aria-label="Período" value={periodFilter} onChange={e => setPeriodFilter(e.target.value as PeriodFilter)} className={`${inputClass} !w-auto !py-1.5 text-sm`}>
+            <option value="todas">Todas as semanas</option>
+            <option value="semana">Semana {selectedWeek}</option>
+            <option value="tri1">1º trimestre</option>
+            <option value="tri2">2º trimestre</option>
+            <option value="tri3">3º trimestre</option>
           </select>
-          <select aria-label="Prioridade" value={priority} onChange={e => setPriority(e.target.value as Priority)} className="border border-slate-200 rounded-xl px-3.5 py-2 text-sm font-semibold">
-            <option value="Baixa">🟢 Baixa</option>
-            <option value="Média">🟡 Média</option>
-            <option value="Alta">🔴 Alta</option>
-          </select>
-          <input aria-label="Prazo" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="border border-slate-200 rounded-xl px-3.5 py-2 text-sm" />
-          <input aria-label="Observação" type="text" placeholder="Observação..." value={notes} onChange={e => setNotes(e.target.value)} className="border border-slate-200 rounded-xl px-3.5 py-2 text-sm" />
-        </div>
-        <p className="text-[11px] text-slate-500">A tarefa fica na semana selecionada acima. Para planejar outra semana, troque a "semana visível".</p>
-        <button type="submit" disabled={busy || !title.trim()} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-sm transition">
-          Criar tarefa
-        </button>
-      </form>
-
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b pb-4">
-          <h3 className="font-bold text-slate-800 text-sm uppercase flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-500" /> Lista de tarefas
-          </h3>
-          <div className="flex gap-2">
-            <select aria-label="Período" value={periodFilter} onChange={e => setPeriodFilter(e.target.value as PeriodFilter)} className="bg-slate-100 border border-slate-200 text-xs font-bold rounded-lg px-3 py-1.5 text-slate-700">
-              <option value="semana">Semana {selectedWeek}</option>
-              <option value="tri1">1º trimestre</option>
-              <option value="tri2">2º trimestre</option>
-              <option value="tri3">3º trimestre</option>
-              <option value="todas">Todas</option>
-            </select>
-            <select aria-label="Situação" value={statusFilter} onChange={e => setStatusFilter(e.target.value as StatusFilter)} className="bg-slate-100 border border-slate-200 text-xs font-bold rounded-lg px-3 py-1.5 text-slate-700">
-              <option value="pendentes">Pendentes</option>
-              <option value="concluidas">Concluídas</option>
-              <option value="todas">Todas</option>
-            </select>
-          </div>
+          <Segmented
+            label="Situação"
+            size="sm"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: 'pendentes', label: 'Pendentes' },
+              { value: 'concluidas', label: 'Concluídas' },
+              { value: 'todas', label: 'Todas' },
+            ]}
+          />
         </div>
 
-        {filtered.length === 0 && (
-          <p className="text-sm text-slate-500 text-center py-6">
-            Nenhuma tarefa com esses filtros.{' '}
-            {periodFilter === 'semana' && (
-              <button onClick={() => setPeriodFilter('todas')} className="font-semibold text-indigo-600 underline underline-offset-2">Ver todas as semanas</button>
-            )}
-          </p>
-        )}
-
-        <div className="space-y-3">
-          {filtered.map(t => {
-            const late = !t.is_completed && isOverdue(t.due_date);
-            return (
-              <div key={t.id} className={`p-4 rounded-xl border transition-all ${t.is_completed ? 'bg-slate-50 opacity-75' : late ? 'bg-white border-rose-200 shadow-sm' : 'bg-white hover:border-indigo-300 shadow-sm'}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <button
-                      onClick={() => onToggle(t)}
-                      aria-label={t.is_completed ? `Reabrir "${t.task_title}"` : `Concluir "${t.task_title}"`}
-                      className="mt-0.5 text-slate-400 hover:text-indigo-600"
-                    >
-                      {t.is_completed ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <div className="w-5 h-5 rounded-full border-2 hover:border-indigo-500" />}
-                    </button>
-                    <div className="flex-1 space-y-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-sm font-bold ${t.is_completed ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                          {PRIORITY_DOT[t.priority] ?? ''} {t.task_title}
-                        </span>
-                        <AuthorBadge role={t.assigned_to} prefix="Resp.:" />
-                        <span className="text-[11px] text-slate-500 font-semibold">Semana {t.week_number}</span>
-                      </div>
+        {filtered.length === 0 ? (
+          <EmptyState emoji="🧺" title="Nada por aqui">Nenhuma tarefa com esses filtros.</EmptyState>
+        ) : (
+          <ul className="space-y-2.5">
+            {filtered.map(t => {
+              const late = !t.is_completed && isOverdue(t.due_date);
+              return (
+                <li key={t.id} className={`rounded-2xl border p-4 flex items-start gap-3 transition ${t.is_completed ? 'border-line bg-surface-2/60' : late ? 'border-alert/40 bg-canvas' : 'border-line bg-canvas'}`}>
+                  <button onClick={() => onToggle(t)} aria-label={t.is_completed ? `Reabrir "${t.task_title}"` : `Concluir "${t.task_title}"`} className="mt-0.5 shrink-0">
+                    {t.is_completed ? <CheckCircle2 className="w-6 h-6 text-ok" /> : <span className="block w-6 h-6 rounded-full border-2 border-ink-mute hover:border-brand" />}
+                  </button>
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <p className={`font-semibold ${t.is_completed ? 'line-through text-ink-mute' : 'text-ink'}`}>{t.task_title}</p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-ink-mute">
+                      <AuthorBadge role={t.assigned_to} />
+                      <Pill tone={PRIORITY_TONE[t.priority] ?? 'neutral'}>{t.priority}</Pill>
+                      <span>semana {t.week_number}</span>
                       {t.due_date && (
-                        <span className={`text-xs font-semibold flex items-center gap-1 pt-0.5 ${late ? 'text-rose-600' : 'text-indigo-600'}`}>
-                          <Clock className="w-3.5 h-3.5" /> {late ? 'Atrasada · prazo era' : 'Prazo:'} {formatBR(t.due_date)}
+                        <span className={`flex items-center gap-1 font-semibold ${late ? 'text-alert' : ''}`}>
+                          <Clock className="w-3.5 h-3.5" /> {late ? 'atrasada desde' : 'até'} {formatBR(t.due_date)}
                         </span>
                       )}
-                      {t.notes && <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border mt-2">💬 {t.notes}</p>}
-                      <p className="text-[11px] text-slate-500">Criada por {t.created_by === 'pai' ? 'Pai' : 'Mãe'}</p>
                     </div>
+                    {t.notes && <p className="text-sm text-ink-soft">{t.notes}</p>}
+                    <p className="text-xs text-ink-mute">Criada por {t.created_by === 'pai' ? 'pai' : 'mãe'}</p>
                   </div>
-                  <button onClick={() => onDelete(t)} aria-label={`Excluir "${t.task_title}"`} className="text-slate-400 hover:text-rose-600">
+                  <button onClick={() => onDelete(t)} aria-label={`Excluir "${t.task_title}"`} className="p-1.5 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft">
                     <Trash2 className="w-4 h-4" />
                   </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }
 
-function Stat({ label, value, className }: { label: string; value: number | string; className: string }) {
+function TaskForm({ selectedWeek, busy, onCreate }: { selectedWeek: number; busy: boolean; onCreate: (t: NewTask) => Promise<boolean> }) {
+  const [title, setTitle] = useState('');
+  const [assignee, setAssignee] = useState<Assignee>('casal');
+  const [priority, setPriority] = useState<Priority>('Média');
+  const [dueDate, setDueDate] = useState('');
+  const [notes, setNotes] = useState('');
   return (
-    <div className={`p-4 rounded-xl border ${className}`}>
-      <span className="text-xs font-semibold block opacity-90">{label}</span>
-      <span className="text-2xl font-extrabold">{value}</span>
-    </div>
+    <form
+      className="rounded-2xl bg-surface-2 p-4 space-y-4 mb-5"
+      onSubmit={async e => {
+        e.preventDefault();
+        if (title.trim()) await onCreate({ title: title.trim(), assignee, priority, dueDate, notes: notes.trim() });
+      }}
+    >
+      <Field label="Tarefa" htmlFor="titulo-tarefa">
+        <input id="titulo-tarefa" className={inputClass} placeholder="Ex.: Comprar o carrinho" value={title} onChange={e => setTitle(e.target.value)} />
+      </Field>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <span className="text-sm font-semibold text-ink-soft block">Quem cuida</span>
+          <Segmented label="Responsável" size="sm" value={assignee} onChange={setAssignee} options={[{ value: 'mae', label: 'Mãe' }, { value: 'pai', label: 'Pai' }, { value: 'casal', label: 'Casal' }]} />
+        </div>
+        <div className="space-y-1.5">
+          <span className="text-sm font-semibold text-ink-soft block">Prioridade</span>
+          <Segmented label="Prioridade" size="sm" value={priority} onChange={setPriority} options={[{ value: 'Baixa', label: 'Baixa' }, { value: 'Média', label: 'Média' }, { value: 'Alta', label: 'Alta' }]} />
+        </div>
+        <Field label="Prazo (opcional)" htmlFor="prazo">
+          <input id="prazo" type="date" className={inputClass} value={dueDate} onChange={e => setDueDate(e.target.value)} />
+        </Field>
+        <Field label="Observação (opcional)" htmlFor="obs-tarefa">
+          <input id="obs-tarefa" className={inputClass} value={notes} onChange={e => setNotes(e.target.value)} />
+        </Field>
+      </div>
+      <p className="text-xs text-ink-mute">A tarefa fica na semana {selectedWeek}. Para planejar outra semana, mude a semana no Início.</p>
+      <Button type="submit" disabled={busy || !title.trim()} className="w-full">Criar tarefa</Button>
+    </form>
   );
 }

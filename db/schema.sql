@@ -14,6 +14,8 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE IF NOT EXISTS families (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dum_date   DATE,
+  pre_pregnancy_weight_kg NUMERIC(5, 2),  -- migração 002
+  height_cm  NUMERIC(5, 1),               -- migração 002
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -26,6 +28,7 @@ CREATE TABLE IF NOT EXISTS symptoms_log (
   intensity    INTEGER CHECK (intensity BETWEEN 1 AND 5),
   created_by   VARCHAR(10),            -- mae, pai
   notes        TEXT,
+  time_of_day  VARCHAR(12),            -- manha, tarde, noite, madrugada (migração 002)
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -47,6 +50,7 @@ CREATE TABLE IF NOT EXISTS medical_appointments (
   doctor_answer    TEXT,
   answered_at      TIMESTAMPTZ,
   status           VARCHAR(20) DEFAULT 'pendente',  -- pendente, concluida
+  specialty        VARCHAR(30),        -- NULL = obstetra (migração 002)
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -72,4 +76,15 @@ CREATE TABLE IF NOT EXISTS partner_tasks (
   notes        TEXT,
   created_by   VARCHAR(10),
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS consultations (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  scheduled_at      TIMESTAMPTZ NOT NULL,
+  specialty         VARCHAR(30) NOT NULL,  -- obstetra, nutricionista, psicologia...
+  professional_name VARCHAR(120),
+  location          VARCHAR(200),
+  notes             TEXT,
+  created_by        VARCHAR(10),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

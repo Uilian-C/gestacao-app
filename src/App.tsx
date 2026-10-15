@@ -1,48 +1,58 @@
 import { useRef, useState } from 'react';
-import { Activity, CheckSquare, FileText, HelpCircle, Loader2, TrendingUp } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { sql } from './db';
 import Header from './components/Header';
+import Nav from './components/Nav';
 import Toast, { type ToastMessage } from './components/Toast';
-import WeekOverview, { DumForm } from './components/WeekOverview';
+import { DumForm } from './components/DumForm';
+import { Card } from './components/ui';
+import HomeTab from './components/tabs/HomeTab';
+import DiaryTab, { type NewSymptom } from './components/tabs/DiaryTab';
+import DashboardTab from './components/tabs/DashboardTab';
+import ConsultationsTab, { type NewConsultation, type ReportRequest } from './components/tabs/ConsultationsTab';
 import TasksTab, { type NewTask } from './components/tabs/TasksTab';
-import SymptomsTab, { type NewSymptom } from './components/tabs/SymptomsTab';
-import QuestionsTab from './components/tabs/QuestionsTab';
-import MetricsTab from './components/tabs/MetricsTab';
-import SummaryTab from './components/tabs/SummaryTab';
+import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
 import { useStoredAuthor } from './hooks/useStoredAuthor';
-import { FIRST_WEEK, clampWeek, gestationalAge, toISODate } from './lib/dates';
-import type { ParsedMetric } from './lib/health';
-import type { DeletableKind, PartnerTask } from './types';
-
-type Tab = 'tarefas' | 'sintomas' | 'consultas' | 'metricas' | 'resumo';
-
-const TABS: Array<{ id: Tab; label: string; icon: React.ReactNode; active: string }> = [
-  { id: 'tarefas', label: 'Tarefas do casal', icon: <CheckSquare className="w-4 h-4" />, active: 'text-indigo-600' },
-  { id: 'sintomas', label: 'Diário & sintomas', icon: <Activity className="w-4 h-4" />, active: 'text-rose-600' },
-  { id: 'consultas', label: 'Dúvidas p/ obstetra', icon: <HelpCircle className="w-4 h-4" />, active: 'text-rose-600' },
-  { id: 'metricas', label: 'Peso & pressão', icon: <TrendingUp className="w-4 h-4" />, active: 'text-emerald-600' },
-  { id: 'resumo', label: 'Resumo', icon: <FileText className="w-4 h-4" />, active: 'text-slate-800' },
-];
+import { FIRST_WEEK, clampWeek, daysBetween, gestationalAge, isOverdue, localDay, parseLocalDate, toISODate } from './lib/dates';
+import { pressureInsights, type ParsedMetric } from './lib/health';
+import { findPatterns, toEntries } from './lib/symptoms';
+import type { Consultation, DeletableKind, PartnerTask, Tab } from './types';
 
 const UNDO_WINDOW_MS = 5000;
+const MIGRATION_HINT = 'Rode a migração db/migrations/002_consultas_e_padroes.sql no Neon para liberar este recurso.';
+
+function greetingFor(hour: number): string {
+  if (hour < 5) return 'Boa madrugada';
+  if (hour < 12) return 'Bom dia';
+  if (hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
 
 export default function App() {
   const { data, loadState, refresh, retry } = useGestationData();
   const [author, setAuthor] = useStoredAuthor();
-  const [activeTab, setActiveTab] = useState<Tab>('tarefas');
+  const [activeTab, setActiveTab] = useState<Tab>('inicio');
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
+  const [report, setReport] = useState<ReportRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const deleteTimers = useRef(new Map<string, number>());
 
-  const age = data?.dumDate ? gestationalAge(data.dumDate) : null;
+  const now = new Date();
+  const today = toISODate(now);
+  const dumDate = data?.profile.dumDate ?? null;
+  const age = dumDate ? gestationalAge(dumDate) : null;
   const currentWeek = age ? clampWeek(age.weeks) : FIRST_WEEK;
   const selectedWeek = pickedWeek ?? currentWeek;
-  const today = toISODate(new Date());
 
   const showToast = (message: Omit<ToastMessage, 'id'>) => setToast({ ...message, id: Date.now() });
+  const navigate = (tab: Tab) => {
+    setActiveTab(tab);
+    if (tab !== 'consultas') setReport(null);
+    window.scrollTo({ top: 0 });
+  };
 
   /** Executa uma alteração no banco, recarrega e avisa se der errado. Retorna se deu certo. */
   const run = async (action: () => Promise<unknown>, errorText = 'Não foi possível salvar. Verifique a conexão e tente de novo.') => {
@@ -69,6 +79,7 @@ export default function App() {
     question: id => sql`DELETE FROM medical_appointments WHERE id = ${id}`,
     comment: id => sql`DELETE FROM partner_comments WHERE id = ${id}`,
     metric: id => sql`DELETE FROM health_metrics_log WHERE id = ${id}`,
+    consultation: id => sql`DELETE FROM consultations WHERE id = ${id}`,
   };
 
   /** Esconde o item na hora e só apaga no banco depois do prazo para desfazer. */
@@ -117,33 +128,52 @@ export default function App() {
       setPickedWeek(null);
     });
 
+  const saveProfile = (preWeightKg: number, heightCm: number) =>
+    run(
+      () => sql`
+        UPDATE families SET pre_pregnancy_weight_kg = ${preWeightKg}, height_cm = ${heightCm}
+        WHERE id = (SELECT id FROM families WHERE dum_date IS NOT NULL ORDER BY id LIMIT 1)
+      `,
+      `Não foi possível salvar. ${MIGRATION_HINT}`,
+    );
+
   const createTask = (t: NewTask) =>
     run(
       () => sql`
         INSERT INTO partner_tasks (week_number, task_title, assigned_to, priority, due_date, notes, created_by)
-        VALUES (${selectedWeek}, ${t.title}, ${t.assignee}, ${t.priority}, ${t.dueDate || null}, ${t.notes || null}, ${author})
+        VALUES (${t.week ?? selectedWeek}, ${t.title}, ${t.assignee}, ${t.priority}, ${t.dueDate || null}, ${t.notes || null}, ${author})
       `,
     );
 
   const toggleTask = (t: PartnerTask) => run(() => sql`UPDATE partner_tasks SET is_completed = ${!t.is_completed} WHERE id = ${t.id}`);
 
   const createSymptom = (s: NewSymptom) =>
-    run(
-      () => sql`
-        INSERT INTO symptoms_log (week_number, log_date, symptom_name, intensity, created_by, category, notes)
-        VALUES (${currentWeek}, ${today}, ${s.name}, ${s.intensity}, ${author}, ${s.category}, ${s.notes || null})
-      `,
+    run(() =>
+      data?.migrationPending
+        ? sql`
+            INSERT INTO symptoms_log (week_number, log_date, symptom_name, intensity, created_by, category, notes)
+            VALUES (${currentWeek}, ${today}, ${s.name}, ${s.intensity}, ${author}, ${s.category}, ${s.notes || null})
+          `
+        : sql`
+            INSERT INTO symptoms_log (week_number, log_date, symptom_name, intensity, created_by, category, notes, time_of_day)
+            VALUES (${currentWeek}, ${today}, ${s.name}, ${s.intensity}, ${author}, ${s.category}, ${s.notes || null}, ${s.timeOfDay})
+          `,
     );
 
   const createComment = (symptomId: string, text: string) =>
     run(() => sql`INSERT INTO partner_comments (symptom_id, author_role, comment_text) VALUES (${symptomId}, ${author}, ${text})`);
 
-  const createQuestion = (text: string, category: string) =>
-    run(
-      () => sql`
-        INSERT INTO medical_appointments (week_number, appointment_date, questions_to_ask, created_by, category, status)
-        VALUES (${currentWeek}, NOW(), ${text}, ${author}, ${category}, 'pendente')
-      `,
+  const createQuestion = (text: string, category: string, specialty: SpecialtyId) =>
+    run(() =>
+      data?.migrationPending
+        ? sql`
+            INSERT INTO medical_appointments (week_number, appointment_date, questions_to_ask, created_by, category, status)
+            VALUES (${currentWeek}, NOW(), ${text}, ${author}, ${category}, 'pendente')
+          `
+        : sql`
+            INSERT INTO medical_appointments (week_number, appointment_date, questions_to_ask, created_by, category, status, specialty)
+            VALUES (${currentWeek}, NOW(), ${text}, ${author}, ${category}, 'pendente', ${specialty})
+          `,
     );
 
   const answerQuestion = (id: string, answer: string) =>
@@ -158,104 +188,173 @@ export default function App() {
       'Não foi possível salvar a medição. Se for a primeira vez registrando só peso ou só pressão, rode a migração db/migrations/001_medicoes_opcionais.sql no Neon.',
     );
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-24">
-      <Header author={author} onAuthorChange={setAuthor} age={age} />
+  const createConsultation = (c: NewConsultation) =>
+    run(
+      () => sql`
+        INSERT INTO consultations (scheduled_at, specialty, professional_name, location, created_by)
+        VALUES (${c.scheduledAt}, ${c.specialty}, ${c.professional || null}, ${c.location || null}, ${author})
+      `,
+      `Não foi possível agendar. ${MIGRATION_HINT}`,
+    );
 
-      <main className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
-        {loadState === 'loading' && (
-          <div className="flex items-center justify-center gap-2 text-sm text-rose-600 font-bold py-16">
+  if (loadState !== 'ready' || !data) {
+    return (
+      <Shell>
+        {loadState === 'loading' ? (
+          <div className="flex items-center justify-center gap-2 text-brand font-bold py-24">
             <Loader2 className="w-5 h-5 animate-spin" /> Carregando os dados de vocês...
           </div>
+        ) : (
+          <Card className="text-center space-y-3 mt-8">
+            <p className="text-3xl">🌧️</p>
+            <p className="font-bold text-ink">Não foi possível carregar os dados.</p>
+            <p className="text-sm text-ink-soft">Confiram a conexão e tentem de novo. Nada é exibido até a conexão voltar, para não mostrar informação errada.</p>
+            <button onClick={retry} className="bg-brand text-on-accent font-bold px-5 py-2.5 rounded-2xl text-sm">Tentar de novo</button>
+          </Card>
+        )}
+      </Shell>
+    );
+  }
+
+  if (!dumDate || !age) {
+    return (
+      <Shell>
+        <Card tone="warm" className="mt-6 space-y-4">
+          <p className="text-4xl">🌱</p>
+          <h2 className="text-xl font-extrabold text-ink">{dumDate ? 'A DUM cadastrada está no futuro' : 'Vamos começar pela DUM'}</h2>
+          <p className="text-ink-soft">Com a data da última menstruação, o app calcula a semana, o trimestre e a data provável do parto.</p>
+          <DumForm initial={dumDate ?? undefined} onSave={saveDum} />
+        </Card>
+      </Shell>
+    );
+  }
+
+  const profile = { ...data.profile, dumDate };
+  const symptoms = visible('symptom', data.symptoms);
+  const metrics = visible('metric', data.metrics);
+  const end = parseLocalDate(today);
+  const recentInsights = [
+    ...pressureInsights(metrics, { from: new Date(end.getFullYear(), end.getMonth(), end.getDate() - 13), to: end }),
+    ...findPatterns(toEntries(symptoms), { from: new Date(end.getFullYear(), end.getMonth(), end.getDate() - 27), to: end }),
+  ];
+  const tasks = visible('task', data.tasks);
+  const questions = visible('question', data.questions);
+  const comments = visible('comment', data.comments);
+  const consultations = visible('consultation', data.consultations);
+  const nextConsultation = consultations.find(c => daysBetween(parseLocalDate(today), localDay(c.scheduled_at)) >= 0) ?? null;
+  const prepareReport = (c: Consultation) => {
+    setReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id });
+    setActiveTab('consultas');
+    window.scrollTo({ top: 0 });
+  };
+
+  return (
+    <div className="min-h-screen bg-canvas text-ink pb-28 md:pb-12">
+      <Header author={author} onAuthorChange={setAuthor} age={age} greeting={greetingFor(now.getHours())} />
+      <Nav
+        active={activeTab}
+        onChange={navigate}
+        badges={{
+          tarefas: tasks.filter(t => !t.is_completed && isOverdue(t.due_date)).length,
+          consultas: questions.filter(q => !q.doctor_answer).length,
+        }}
+      />
+
+      <main className="max-w-5xl mx-auto px-4 md:px-6 pt-4 md:pt-6">
+        {data.migrationPending && activeTab === 'inicio' && (
+          <p className="no-print mb-4 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">
+            Atualização do banco pendente: rodem <code>db/migrations/002_consultas_e_padroes.sql</code> no Neon para liberar a agenda de consultas, o período do dia dos sintomas e a faixa de peso.
+          </p>
         )}
 
-        {loadState === 'error' && (
-          <div className="bg-white border border-rose-200 rounded-2xl p-6 text-center space-y-3">
-            <p className="font-bold text-rose-700">Não foi possível carregar os dados.</p>
-            <p className="text-sm text-slate-600">Confira a conexão com a internet e tente de novo. Nenhum dado é exibido até a conexão voltar, para não mostrar informação errada.</p>
-            <button onClick={retry} className="bg-rose-500 text-white font-bold px-5 py-2 rounded-xl text-sm">Tentar de novo</button>
-          </div>
+        {activeTab === 'inicio' && (
+          <HomeTab
+            age={age}
+            dumDate={dumDate}
+            selectedWeek={selectedWeek}
+            currentWeek={currentWeek}
+            onSelectWeek={setPickedWeek}
+            onSaveDum={saveDum}
+            nextConsultation={nextConsultation}
+            questions={questions}
+            symptoms={symptoms}
+            metrics={metrics}
+            tasks={tasks}
+            insights={recentInsights}
+            onToggleTask={toggleTask}
+            onNavigate={navigate}
+            onPrepareReport={prepareReport}
+          />
         )}
-
-        {loadState === 'ready' && data && !data.dumDate && (
-          <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-4">
-            <h2 className="text-lg font-bold">Vamos começar pela DUM</h2>
-            <p className="text-sm text-slate-600">Com a data da última menstruação, o app calcula a semana atual, o trimestre e a data provável do parto.</p>
-            <DumForm onSave={saveDum} />
-          </div>
+        {activeTab === 'diario' && (
+          <DiaryTab
+            author={author}
+            age={age}
+            symptoms={symptoms}
+            comments={comments}
+            metrics={metrics}
+            selectedWeek={selectedWeek}
+            currentWeek={currentWeek}
+            busy={busy}
+            onCreateSymptom={createSymptom}
+            onCreateMetric={createMetric}
+            onComment={createComment}
+            onDeleteSymptom={s => scheduleDelete('symptom', s.id, s.symptom_name)}
+            onDeleteComment={c => scheduleDelete('comment', c.id, 'cuidado')}
+            onDeleteMetric={m => scheduleDelete('metric', m.id, `medição da semana ${m.week_number}`)}
+          />
         )}
-
-        {loadState === 'ready' && data?.dumDate && !age && (
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-amber-200 space-y-4">
-            <p className="text-sm font-semibold text-amber-800">A DUM cadastrada ({data.dumDate}) está no futuro. Corrija a data:</p>
-            <DumForm initial={data.dumDate} onSave={saveDum} />
-          </div>
+        {activeTab === 'painel' && (
+          <DashboardTab age={age} profile={profile} symptoms={symptoms} comments={comments} metrics={metrics} migrationPending={data.migrationPending} busy={busy} onSaveProfile={saveProfile} />
         )}
-
-        {loadState === 'ready' && data?.dumDate && age && (
-          <>
-            <WeekOverview dumDate={data.dumDate} age={age} selectedWeek={selectedWeek} currentWeek={currentWeek} onSelectWeek={setPickedWeek} onSaveDum={saveDum} />
-
-            <nav className="flex bg-slate-200/70 p-1.5 rounded-xl gap-1 overflow-x-auto" aria-label="Seções">
-              {TABS.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  aria-current={activeTab === tab.id ? 'page' : undefined}
-                  className={`flex-1 py-2.5 px-3 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${activeTab === tab.id ? `bg-white shadow-sm ${tab.active}` : 'text-slate-600 hover:text-slate-900'}`}
-                >
-                  {tab.icon} {tab.label}
-                </button>
-              ))}
-            </nav>
-
-            {activeTab === 'tarefas' && (
-              <TasksTab
-                tasks={visible('task', data.tasks)}
-                selectedWeek={selectedWeek}
-                busy={busy}
-                onCreate={createTask}
-                onToggle={toggleTask}
-                onDelete={t => scheduleDelete('task', t.id, `Tarefa "${t.task_title}"`)}
-              />
-            )}
-            {activeTab === 'sintomas' && (
-              <SymptomsTab
-                symptoms={visible('symptom', data.symptoms)}
-                comments={visible('comment', data.comments)}
-                selectedWeek={selectedWeek}
-                currentWeek={currentWeek}
-                busy={busy}
-                onCreate={createSymptom}
-                onDelete={s => scheduleDelete('symptom', s.id, `Registro "${s.symptom_name}"`)}
-                onComment={createComment}
-                onDeleteComment={c => scheduleDelete('comment', c.id, 'Comentário')}
-              />
-            )}
-            {activeTab === 'consultas' && (
-              <QuestionsTab
-                questions={visible('question', data.questions)}
-                busy={busy}
-                onCreate={createQuestion}
-                onAnswer={answerQuestion}
-                onDelete={q => scheduleDelete('question', q.id, 'Dúvida')}
-              />
-            )}
-            {activeTab === 'metricas' && (
-              <MetricsTab
-                metrics={visible('metric', data.metrics)}
-                currentWeek={currentWeek}
-                busy={busy}
-                onCreate={createMetric}
-                onDelete={m => scheduleDelete('metric', m.id, `Medição da semana ${m.week_number}`)}
-              />
-            )}
-            {activeTab === 'resumo' && <SummaryTab age={age} />}
-          </>
+        {activeTab === 'consultas' && (
+          <ConsultationsTab
+            profile={profile}
+            consultations={consultations}
+            questions={questions}
+            symptoms={symptoms}
+            comments={comments}
+            metrics={metrics}
+            busy={busy}
+            migrationPending={data.migrationPending}
+            report={report}
+            onOpenReport={r => {
+              setReport(r);
+              window.scrollTo({ top: 0 });
+            }}
+            onCreateConsultation={createConsultation}
+            onDeleteConsultation={c => scheduleDelete('consultation', c.id, 'consulta')}
+            onCreateQuestion={createQuestion}
+            onAnswer={answerQuestion}
+            onDeleteQuestion={q => scheduleDelete('question', q.id, 'dúvida')}
+            onNotify={text => showToast({ text, tone: 'info' })}
+          />
+        )}
+        {activeTab === 'tarefas' && (
+          <TasksTab
+            tasks={tasks}
+            selectedWeek={selectedWeek}
+            currentWeek={currentWeek}
+            busy={busy}
+            onCreate={createTask}
+            onToggle={toggleTask}
+            onDelete={t => scheduleDelete('task', t.id, `tarefa "${t.task_title}"`)}
+          />
         )}
       </main>
 
       <Toast toast={toast} onClose={() => setToast(null)} />
+    </div>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-canvas text-ink">
+      <main className="max-w-xl mx-auto px-4 py-10">
+        <h1 className="text-2xl font-extrabold text-ink text-center">Nossa Gestação</h1>
+        {children}
+      </main>
     </div>
   );
 }
