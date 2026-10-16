@@ -1,6 +1,6 @@
 import { Check } from 'lucide-react';
 import { KIND_ICON } from './kindIcon';
-import { PHASES, type PlanItem } from '../../data/prenatalPlan';
+import { PHASES, type PlanItem } from '../../content/prenatalPlan';
 import { phaseOf, windowText, type ItemStatus, type Step } from '../../lib/journey';
 
 export function StatusPill({ status }: { status: ItemStatus }) {

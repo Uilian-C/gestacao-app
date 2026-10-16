@@ -1,4 +1,4 @@
-import { PRENATAL_MILESTONES } from '../data/prenatalMilestones';
+import { PRENATAL_MILESTONES } from '../content/prenatalMilestones';
 import { specialtyOf } from '../data/specialties';
 import type { Author, Consultation, HealthMetric, PartnerTask, SymptomItem } from '../types';
 import { daysBetween, isOverdue, localDay, parseLocalDate, parseTimestamp, toISODate } from './dates';

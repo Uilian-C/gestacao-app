@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { AlertCircle, Check } from 'lucide-react';
-import { PHASES, type PlanItem } from '../../data/prenatalPlan';
+import { AlertCircle, CalendarHeart, Check } from 'lucide-react';
+import { PHASES, type PlanItem } from '../../content/prenatalPlan';
 import { useElementWidth } from '../../hooks/useElementWidth';
-import { itemStatus, windowText, type ItemStatus } from '../../lib/journey';
+import { itemStatus, windowText, type ItemStatus, type Visit } from '../../lib/journey';
 import { DoneToggle, StatusPill } from '../journey/Journey';
 import { KIND_ICON } from '../journey/kindIcon';
 
@@ -102,7 +102,7 @@ const BAR: Record<ItemStatus, React.CSSProperties> = {
 
 const LEGEND: Record<ItemStatus, string> = { agora: 'janela aberta', pendente: 'pendente', feito: 'feito', 'em-breve': 'próximas semanas', depois: 'mais adiante' };
 
-export function JourneyTimeline({ items, currentWeek, done, dumDate, busy, onToggle }: { items: PlanItem[]; currentWeek: number; done: Set<string>; dumDate: string; busy: boolean; onToggle: (item: PlanItem, done: boolean) => void }) {
+export function JourneyTimeline({ items, currentWeek, done, dumDate, busy, onToggle, visits, plannedVisits, autoDoneIds }: { items: PlanItem[]; currentWeek: number; done: Set<string>; dumDate: string; busy: boolean; onToggle: (item: PlanItem, done: boolean) => void; visits: Visit[]; plannedVisits: number[]; autoDoneIds: Set<string> }) {
   const [open, setOpen] = useState<string | null>(null);
   const timed = items.filter(i => !i.anytime).sort((a, b) => a.from - b.from || a.to - b.to);
   const now = pct(currentWeek + 0.5);
@@ -121,6 +121,7 @@ export function JourneyTimeline({ items, currentWeek, done, dumDate, busy, onTog
         </div>
       </div>
       <ul className="relative">
+        <VisitsRow visits={visits} planned={plannedVisits} currentWeek={currentWeek} now={now} open={open === 'consultas'} onToggle={() => setOpen(open === 'consultas' ? null : 'consultas')} />
         {timed.map(item => {
           const status = itemStatus(item, currentWeek, done.has(item.id));
           const Icon = KIND_ICON[item.kind];
@@ -154,6 +155,7 @@ export function JourneyTimeline({ items, currentWeek, done, dumDate, busy, onTog
                       <StatusPill status={status} /> {windowText(item, status, dumDate)}
                     </p>
                     <p className="text-sm text-ink-soft">{item.why}</p>
+                    {autoDoneIds.has(item.id) && <p className="text-xs text-ok">Marcado automaticamente pela consulta registrada no app.</p>}
                   </div>
                   <DoneToggle done={status === 'feito'} label={item.title} busy={busy} onToggle={() => onToggle(item, status !== 'feito')} />
                 </div>
@@ -171,5 +173,47 @@ export function JourneyTimeline({ items, currentWeek, done, dumDate, busy, onTog
         <span className="inline-flex items-center gap-1.5"><span className="w-px h-3 bg-ink-soft" /> hoje (sem. {currentWeek})</span>
       </div>
     </div>
+  );
+}
+
+/** Linha das consultas: o ritmo recomendado (traços) e as consultas do casal (pontos). */
+function VisitsRow({ visits, planned, currentWeek, now, open, onToggle }: { visits: Visit[]; planned: number[]; currentWeek: number; now: number; open: boolean; onToggle: () => void }) {
+  const done = visits.filter(v => !v.future);
+  const next = visits.find(v => v.future);
+  const expectedByNow = planned.filter(w => w <= currentWeek).length;
+  const cadence = currentWeek < 28 ? 'mensal' : currentWeek < 36 ? 'a cada 15 dias' : 'semanal';
+  return (
+    <li className="border-b border-line">
+      <button type="button" onClick={onToggle} aria-expanded={open} className="w-full grid grid-cols-[minmax(0,36%)_minmax(0,1fr)] gap-3 items-center py-2 text-left">
+        <span className="flex items-center gap-1.5 min-w-0">
+          <CalendarHeart className="w-3.5 h-3.5 text-brand shrink-0" />
+          <span className="text-xs font-semibold text-ink truncate">Consultas</span>
+        </span>
+        <span className="relative h-5 block" aria-label={`${done.length} consultas feitas, ${expectedByNow} previstas até agora`}>
+          <span className="absolute inset-x-0 top-1/2 h-px bg-line" aria-hidden />
+          {planned.map(w => (
+            <span key={`p${w}`} className="absolute top-1/2 -translate-y-1/2 w-px h-3 bg-ink-mute/60" style={{ left: `${pct(w + 0.5)}%` }} aria-hidden />
+          ))}
+          {visits.map(v => (
+            <span
+              key={v.id}
+              className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full ${v.future ? 'bg-surface ring-2 ring-brand' : 'bg-brand ring-2 ring-surface'}`}
+              style={{ left: `${pct(v.week + 0.5)}%` }}
+              aria-hidden
+            />
+          ))}
+          <span className="absolute inset-y-[-8px] w-px bg-ink-soft" style={{ left: `${now}%` }} aria-hidden />
+        </span>
+      </button>
+      {open && (
+        <div className="pb-3 space-y-1.5 text-sm text-ink-soft">
+          <p>
+            <strong className="text-ink">{done.length}</strong> realizada{done.length === 1 ? '' : 's'} · <strong className="text-ink">{expectedByNow}</strong> previstas até a semana {currentWeek} · ritmo agora: {cadence}.
+          </p>
+          {next && <p>Próxima: {next.date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}, semana {next.week}.</p>}
+          <p className="text-xs text-ink-mute">Traços: ritmo recomendado. Pontos cheios: consultas feitas; vazados: agendadas. Agende em Consultas.</p>
+        </div>
+      )}
+    </li>
   );
 }

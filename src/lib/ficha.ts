@@ -14,6 +14,40 @@ export function maternalAge(birthDate: string, today: Date = new Date()): number
   return age;
 }
 
+/** Idade exata: anos, meses e dias completos (nascidos no dia 31 fazem "mês" no último dia de meses curtos). */
+export function ageBreakdown(birthDate: string, today: Date = new Date()) {
+  const b = parseLocalDate(birthDate);
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const anniversary = (months: number) => {
+    const y = b.getFullYear() + Math.floor((b.getMonth() + months) / 12);
+    const m = (b.getMonth() + months) % 12;
+    return new Date(y, m, Math.min(b.getDate(), new Date(y, m + 1, 0).getDate()));
+  };
+  let total = (t.getFullYear() - b.getFullYear()) * 12 + (t.getMonth() - b.getMonth());
+  if (anniversary(total) > t) total--;
+  const days = Math.round((t.getTime() - anniversary(total).getTime()) / 86_400_000);
+  return { years: Math.floor(total / 12), months: total % 12, days };
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** "35 anos, 7 meses e 14 dias" (omite partes zeradas). */
+export function ageText(birthDate: string, today: Date = new Date()): string {
+  const { years, months, days } = ageBreakdown(birthDate, today);
+  const parts = [plural(years, 'ano', 'anos'), months ? plural(months, 'mês', 'meses') : null, days ? plural(days, 'dia', 'dias') : null].filter(Boolean) as string[];
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}` : parts[0];
+}
+
+/**
+ * Mês da gestação pela tabela usual no Brasil: 1º até 4 semanas, 2º 5–8, 3º 9–13,
+ * 4º 14–17, 5º 18–22, 6º 23–27, 7º 28–31, 8º 32–35, 9º a partir de 36.
+ */
+export function gestationMonth(weeks: number): number {
+  const limits = [4, 8, 13, 17, 22, 27, 31, 35];
+  const i = limits.findIndex(l => weeks <= l);
+  return i === -1 ? 9 : i + 1;
+}
+
 /** Notação obstétrica: G (gestações, incluindo a atual), P (partos), A (abortos/perdas). */
 export function gpaLabel(p: Pick<PregnancyProfile, 'gestations' | 'births' | 'abortions' | 'cesareans'>): string | null {
   if (p.gestations === null) return null;
@@ -41,7 +75,8 @@ export function buildFicha(profile: PregnancyProfile & { dumDate: string }, metr
 
   const items: FichaItem[] = [
     { key: 'gestante', label: 'Gestante', value: [profile.motherName, mAge !== null ? `${mAge} anos` : null].filter(Boolean).join(', ') || null, attention: mAge !== null && mAge >= 35 },
-    { key: 'ig', label: 'Idade gestacional', value: age ? `${age.weeks} semanas e ${age.days} ${age.days === 1 ? 'dia' : 'dias'}` : null },
+    { key: 'idade', label: 'Idade da gestante', value: profile.motherBirthDate ? ageText(profile.motherBirthDate, today) : null },
+    { key: 'ig', label: 'Idade gestacional', value: age ? `${age.weeks} semanas e ${age.days} ${age.days === 1 ? 'dia' : 'dias'} (${gestationMonth(age.weeks)}º mês)` : null },
     { key: 'trimestre', label: 'Trimestre', value: age ? `${age.trimester}º` : null },
     { key: 'dum', label: 'DUM', value: formatBR(profile.dumDate) },
     { key: 'dpp', label: 'DPP', value: age ? age.dpp.toLocaleDateString('pt-BR') : null },

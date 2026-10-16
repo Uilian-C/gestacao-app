@@ -1,4 +1,4 @@
-import { PHASES, PLAN_ITEMS, type Phase, type PlanItem } from '../data/prenatalPlan';
+import { PHASES, PLAN_ITEMS, type Phase, type PlanItem } from '../content/prenatalPlan';
 import { parseLocalDate } from './dates';
 
 export type ItemStatus = 'feito' | 'pendente' | 'agora' | 'em-breve' | 'depois';
@@ -71,4 +71,43 @@ export function windowText(item: PlanItem, status: ItemStatus, dumDate: string):
   end.setDate(end.getDate() - 1);
   if (status === 'em-breve' || status === 'depois') return `${weeks} · a partir de ${shortDate(dateOfWeek(dumDate, item.from))}`;
   return `${weeks} · até ${shortDate(end)}`;
+}
+
+/**
+ * Ritmo de consultas recomendado (Ministério da Saúde): mensal até 28 semanas,
+ * quinzenal até 36 e semanal até o parto. Começa na semana da 1ª consulta.
+ */
+export function plannedVisitWeeks(firstWeek = 8): number[] {
+  const weeks: number[] = [];
+  for (let w = Math.min(firstWeek, 12); w <= 28; w += 4) weeks.push(w);
+  for (let w = 30; w <= 36; w += 2) if (!weeks.includes(w)) weeks.push(w);
+  for (let w = 37; w <= 40; w++) weeks.push(w);
+  return weeks;
+}
+
+export interface Visit {
+  id: string;
+  week: number;
+  date: Date;
+  specialty: string;
+  future: boolean;
+}
+
+/** Consultas do casal posicionadas na semana da gestação. */
+export function visitsOf(consultations: Array<{ id: string; scheduled_at: string; specialty: string }>, dumDate: string, now: Date): Visit[] {
+  const dum = parseLocalDate(dumDate);
+  return consultations
+    .map(c => {
+      const date = new Date(c.scheduled_at);
+      const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      return { id: c.id, date, specialty: c.specialty, future: date > now, week: Math.floor((day.getTime() - dum.getTime()) / (7 * 86_400_000)) };
+    })
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+/** Itens que o próprio uso do app já comprova: uma consulta de obstetra realizada conta como 1ª consulta. */
+export function autoDone(visits: Visit[]): Set<string> {
+  const done = new Set<string>();
+  if (visits.some(v => !v.future && v.specialty === 'obstetra')) done.add('primeira-consulta');
+  return done;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, ChevronDown, ClipboardCopy, Footprints, Luggage, Printer, RefreshCw, RotateCcw, Timer, Trash2 } from 'lucide-react';
-import { BAG_ITEM_COUNT, HOSPITAL_BAG } from '../../data/hospitalBag';
+import { BAG_ITEM_COUNT, HOSPITAL_BAG } from '../../content/hospitalBag';
 import { BIRTH_TYPE, PLAN_SECTIONS, planProgress, planToText, toPlan, type BirthPlan } from '../../lib/birthPlan';
 import { formatBR, parseTimestamp, toISODate } from '../../lib/dates';
 import { formatDuration, laborStatus, summarizeKicks, timeContractions, type LaborStatus } from '../../lib/labor';

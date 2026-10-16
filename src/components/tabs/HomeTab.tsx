@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { CalendarHeart, CheckCircle2, ChevronLeft, ChevronRight, Lightbulb, NotebookPen, Pencil, Route, Siren } from 'lucide-react';
-import { weekInfo } from '../../data/weeks';
+import { weekInfo } from '../../content/weeks';
 import { specialtyOf, questionSpecialty } from '../../data/specialties';
-import { ALERT_SIGNS } from '../../data/symptomCatalog';
+import { ALERT_SIGNS } from '../../content/symptomCatalog';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, formatBR, isOverdue, localDay, parseTimestamp, type GestationalAge } from '../../lib/dates';
 import { isHighBloodPressure } from '../../lib/health';
 import { nextSteps, phaseOf, planFor } from '../../lib/journey';
+import { gestationMonth } from '../../lib/ficha';
+import Guide from '../Guide';
 import { PhaseStrip, StepList } from '../journey/Journey';
 import type { Insight } from '../../lib/symptoms';
 import type { Consultation, HealthMetric, PartnerTask, QuestionItem, SymptomItem, Tab } from '../../types';
@@ -40,6 +42,7 @@ interface Props {
   checksAvailable: boolean;
   busy: boolean;
   onToggleStep: (itemId: string, done: boolean) => void;
+  onOpenJourney: () => void;
 }
 
 /** Anel de progresso da gestação (40 semanas), com a semana no centro. */
@@ -95,7 +98,7 @@ export default function HomeTab(props: Props) {
           <WeekRing week={selectedWeek} />
           <div className="flex-1 min-w-0 space-y-1">
             <p className="text-sm text-warm font-medium">
-              {info.trimester}º trimestre{selectedWeek !== currentWeek && ' · outra semana'}
+              {info.trimester}º trimestre · {gestationMonth(selectedWeek)}º mês{selectedWeek !== currentWeek && ' · outra semana'}
             </p>
             <h2 className="text-[1.35rem] leading-snug text-ink text-balance">Do tamanho de {info.fruit}</h2>
             <p className="text-xs text-ink-mute tabular">
@@ -145,10 +148,10 @@ export default function HomeTab(props: Props) {
           icon={<Route className="w-5 h-5" />}
           title={`Fase: ${phase.title}`}
           subtitle={`${phase.label} · ${phase.visits.toLowerCase()}`}
-          action={<Button tone="soft" className="!px-3 !py-1.5" onClick={() => onNavigate('painel')}>Jornada</Button>}
+          action={<Button tone="soft" className="!px-3 !py-1.5" onClick={props.onOpenJourney}>Jornada</Button>}
         />
         <PhaseStrip week={currentWeek} />
-        <p className="text-sm text-ink-soft mt-4">{phase.focus}</p>
+        <Guide className="mt-4">{phase.focus}</Guide>
         <h3 className="text-sm font-semibold text-ink mt-5 mb-3">Próximos passos</h3>
         {steps.length ? (
           <StepList steps={steps} dumDate={props.dumDate} busy={props.busy || !props.checksAvailable} onToggle={(item, done) => props.onToggleStep(item.id, done)} />

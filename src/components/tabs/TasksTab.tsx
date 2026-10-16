@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CheckCircle2, Clock, ListChecks, Plus, Sparkles, Trash2 } from 'lucide-react';
-import { suggestionsFor, type TaskSuggestion } from '../../data/taskSuggestions';
+import { suggestionsFor, type TaskSuggestion } from '../../content/taskSuggestions';
 import { formatBR, isOverdue, trimesterOf } from '../../lib/dates';
 import type { Assignee, PartnerTask, Priority } from '../../types';
 import AuthorBadge from '../AuthorBadge';

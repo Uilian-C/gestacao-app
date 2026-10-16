@@ -24,7 +24,8 @@ import { useGestationData } from './hooks/useGestationData';
 import { FIRST_WEEK, clampWeek, daysBetween, gestationalAge, isOverdue, localDay, parseLocalDate, toISODate } from './lib/dates';
 import { pressureInsights, type ParsedMetric } from './lib/health';
 import { findPatterns, toEntries } from './lib/symptoms';
-import type { Consultation, DeletableKind, PartnerTask, Tab } from './types';
+import type { Consultation, DashboardView, DeletableKind, PartnerTask, Tab } from './types';
+import { autoDone, visitsOf } from './lib/journey';
 
 const UNDO_WINDOW_MS = 5000;
 
@@ -52,6 +53,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
   const [agendaView, setAgendaView] = useState<'calendario' | 'tarefas'>('calendario');
+  const [dashboardView, setDashboardView] = useState<DashboardView>('geral');
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
@@ -222,7 +224,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     ...findPatterns(toEntries(symptoms), { from: new Date(end.getFullYear(), end.getMonth(), end.getDate() - 27), to: end }),
   ];
   const tasks = visible('task', data.tasks);
-  const doneSteps = new Set(data.checks.filter(c => c.list === 'prenatal').map(c => c.item_id));
+  // Feito = marcado pelo casal ou comprovado pelo uso (ex.: consulta de obstetra realizada).
+  const doneSteps = new Set([...data.checks.filter(c => c.list === 'prenatal').map(c => c.item_id), ...autoDone(visitsOf(data.consultations, dumDate, now))]);
   const packed = new Set(data.checks.filter(c => c.list === 'mala').map(c => c.item_id));
   const overdueTasks = tasks.filter(t => !t.is_completed && isOverdue(t.due_date)).length;
   const questions = visible('question', data.questions);
@@ -288,6 +291,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             checksAvailable={data.checksAvailable}
             busy={busy}
             onToggleStep={(id, done) => setCheck('prenatal', id, done)}
+            onOpenJourney={() => {
+              setDashboardView('jornada');
+              navigate('painel');
+            }}
           />
         )}
         {activeTab === 'agenda' && (
@@ -352,6 +359,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             checks={data.checks}
             checksAvailable={data.checksAvailable}
             onToggleStep={(id, done) => setCheck('prenatal', id, done)}
+            view={dashboardView}
+            onViewChange={v => {
+              setDashboardView(v);
+              window.scrollTo({ top: 0 });
+            }}
+            consultations={consultations}
           />
         )}
         {activeTab === 'consultas' && (

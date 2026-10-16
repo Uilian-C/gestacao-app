@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { computeSymptomStats, findPatterns, normalizeSymptomName, timeOfDayFromHour, toEntries } from './symptoms';
 import { bmi, bmiClass, expectedGain, gainStatus } from './weightGain';
 import { buildReport, defaultReportPeriod, reportToText } from './report';
-import { isAlertSymptom } from '../data/symptomCatalog';
+import { isAlertSymptom } from '../content/symptomCatalog';
 import { parseLocalDate } from './dates';
 import type { Consultation, HealthMetric, QuestionItem, SymptomItem, TimeOfDay } from '../types';
 
