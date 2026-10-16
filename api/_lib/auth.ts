@@ -33,7 +33,7 @@ async function sendEmail(to: string, subject: string, html: string) {
 }
 
 export const auth = betterAuth({
-  appName: 'Nossa Gestação',
+  appName: 'Tumtum',
   baseURL: publicUrl(),
   secret: env.BETTER_AUTH_SECRET,
   database: pool,
@@ -47,7 +47,7 @@ export const auth = betterAuth({
       ? async ({ user, url }) => {
           await sendEmail(
             user.email,
-            'Redefinir sua senha · Nossa Gestação',
+            'Redefinir sua senha · Tumtum',
             `<p>Olá, ${user.name || ''}!</p><p>Para criar uma nova senha, abra este link (vale por 1 hora):</p><p><a href="${url}">Criar nova senha</a></p><p>Se não foi você, ignore este e-mail.</p>`,
           );
         }

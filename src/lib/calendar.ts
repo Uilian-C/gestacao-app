@@ -160,7 +160,7 @@ export function googleCalendarUrl(c: Consultation): string {
     action: 'TEMPLATE',
     text: `${spec.emoji} Consulta: ${spec.label}`,
     dates: `${utcStamp(start)}/${utcStamp(end)}`,
-    details: [c.professional_name && `Profissional: ${c.professional_name}`, 'Levar o resumo gerado no app Nossa Gestação.'].filter(Boolean).join('\n'),
+    details: [c.professional_name && `Profissional: ${c.professional_name}`, 'Levar o resumo gerado no app Tumtum.'].filter(Boolean).join('\n'),
   });
   if (c.location) params.set('location', c.location);
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
@@ -171,11 +171,12 @@ const escapeIcs = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').r
 /** Arquivo .ics com consultas, tarefas com prazo e marcos, para importar no Google Agenda ou no iPhone. */
 export function toIcs(events: CalendarEvent[], consultations: Consultation[], now = new Date()): string {
   const byId = new Map(consultations.map(c => [c.id, c]));
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Nossa Gestacao//PT-BR', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Nossa Gestação'];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Tumtum//PT-BR', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Tumtum'];
   for (const e of events) {
     if (e.kind === 'tarefa' && e.done) continue;
     // Momentos já vividos não vão para a agenda; só os lembretes.
     if (e.kind === 'momento' && !e.reminder) continue;
+    // UID com o nome antigo de propósito: quem já importou a agenda não ganha eventos duplicados.
     lines.push('BEGIN:VEVENT', `UID:${e.id}@nossa-gestacao`, `DTSTAMP:${utcStamp(now)}`);
     const c = e.sourceId ? byId.get(e.sourceId) : undefined;
     if (e.kind === 'consulta' && c) {

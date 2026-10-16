@@ -1,7 +1,7 @@
 {
-  "name": "Nossa Gestação",
-  "short_name": "Gestação",
-  "description": "O diário do casal para acompanhar a gestação, semana a semana.",
+  "name": "Tumtum",
+  "short_name": "Tumtum",
+  "description": "Desde o primeiro tumtum: o app do casal para a gestação e o que vem depois.",
   "lang": "pt-BR",
   "id": "/",
   "start_url": "/",

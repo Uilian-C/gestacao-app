@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Heart, Loader2, LockKeyhole, Mail } from 'lucide-react';
+import { Loader2, LockKeyhole, Mail } from 'lucide-react';
+import BrandMark from '../BrandMark';
 import { api } from '../../api';
 import { authClient } from '../../lib/authClient';
 import { pendingInvite } from '../../lib/invite';
@@ -98,11 +99,12 @@ export default function AuthScreen() {
     <div className="min-h-screen bg-canvas text-ink flex items-start sm:items-center justify-center px-4 py-10">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-3">
-          <div className="mx-auto w-14 h-14 rounded-full bg-brand-soft text-brand flex items-center justify-center">
-            <Heart className="w-6 h-6" />
+          <div className="mx-auto w-20 h-20 rounded-[26px] bg-surface shadow-soft flex items-center justify-center">
+            <BrandMark className="w-12 h-12" />
           </div>
-          <h1 className="text-[1.7rem] leading-tight">Nossa Gestação</h1>
-          <p className="text-ink-soft text-[15px] text-balance">O diário do casal para acompanhar a gestação e levar tudo organizado às consultas.</p>
+          <h1 className="text-[1.9rem] leading-tight">Tumtum</h1>
+          <p className="font-display italic text-ink-soft text-[17px]">Desde o primeiro tumtum.</p>
+          <p className="text-ink-soft text-[15px] text-balance">O app do casal para acompanhar a gestação, juntos, e levar tudo organizado às consultas.</p>
         </div>
 
         <section className="bg-surface shadow-soft rounded-[28px] p-6 space-y-5">

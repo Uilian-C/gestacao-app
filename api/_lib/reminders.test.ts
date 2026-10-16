@@ -34,7 +34,7 @@ describe('planReminders', () => {
   it('na virada da semana conta o que abre na jornada e ignora o que já foi feito', () => {
     // DUM 2026-05-01 + 24 semanas = 2026-10-16: abre a curva glicêmica.
     const [semana] = planReminders('2026-10-16', [family()], [], []);
-    expect(semana).toMatchObject({ kind: 'jornada', key: 'semana:f1:24', payload: { title: '24 semanas 💛', url: '/?aba=painel' } });
+    expect(semana).toMatchObject({ kind: 'jornada', key: 'semana:f1:24', payload: { title: '24 semanas', url: '/?aba=painel' } });
     expect(semana.payload.body).toContain('Curva glicêmica');
     expect(semana.payload.body).not.toContain('Coombs'); // só para Rh negativo
 

@@ -94,7 +94,7 @@ export function planReminders(today: string, families: FamilyRow[], consultation
       kind: 'jornada',
       key: `semana:${f.id}:${week}`,
       payload: {
-        title: `${week} semanas 💛`,
+        title: `${week} semanas`,
         body: opening.length
           ? clip(`Começa agora a janela de: ${opening.map(i => i.short).join(', ')}. Toque para ver a jornada.`, 160)
           : 'Uma nova semana começou. Veja o que muda para vocês e para o bebê.',
