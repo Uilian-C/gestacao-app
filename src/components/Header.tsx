@@ -1,52 +1,50 @@
-import { Heart } from 'lucide-react';
-import type { Author } from '../types';
+import { Heart, Plus } from 'lucide-react';
+import type { FamilyMember } from '../api';
 
 interface Props {
-  author: Author;
-  onAuthorChange: (author: Author) => void;
+  firstName: string;
+  members: FamilyMember[];
   greeting: string;
+  onOpenSpace: () => void;
 }
 
-const OPTIONS: Array<{ value: Author; label: string }> = [
-  { value: 'mae', label: 'Sou a mãe' },
-  { value: 'pai', label: 'Sou o pai' },
-];
-
-export default function Header({ author, onAuthorChange, greeting }: Props) {
+export default function Header({ firstName, members, greeting, onOpenSpace }: Props) {
   return (
     <header className="no-print bg-canvas transition-colors duration-300">
-      <div className="max-w-5xl mx-auto px-4 md:px-6 pt-5 pb-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="max-w-5xl mx-auto px-4 md:px-6 pt-5 pb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-11 h-11 rounded-full bg-brand-soft text-brand flex items-center justify-center shrink-0 transition-colors duration-300">
             <Heart className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm text-ink-mute">
-              {greeting}, {author === 'mae' ? 'mamãe' : 'papai'}
+            <p className="text-sm text-ink-mute truncate">
+              {greeting}, {firstName}
             </p>
-            <h1 className="text-[1.45rem] text-ink leading-tight">Nossa Gestação</h1>
+            <h1 className="text-[1.45rem] text-ink leading-tight whitespace-nowrap">Nossa Gestação</h1>
           </div>
         </div>
 
-        {/* A pessoa escolhida fica preenchida com a cor dela, a mesma que tinge o app. */}
-        <div className="inline-flex bg-surface-2 p-1 rounded-full gap-0.5" role="group" aria-label="Quem está usando este aparelho">
-          {OPTIONS.map(o => {
-            const active = author === o.value;
-            const dot = o.value === 'mae' ? 'bg-mae' : 'bg-pai';
-            return (
-              <button
-                key={o.value}
-                type="button"
-                onClick={() => onAuthorChange(o.value)}
-                aria-pressed={active}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition ${active ? 'bg-brand text-on-accent shadow-soft' : 'text-ink-mute hover:text-ink'}`}
-              >
-                <span className={`w-2 h-2 rounded-full ${active ? 'bg-current' : dot}`} />
-                {o.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* Quem participa do espaço; abre convites, papel e saída da conta. */}
+        <button
+          type="button"
+          onClick={onOpenSpace}
+          className="flex items-center gap-2 rounded-full bg-surface shadow-soft p-1.5 sm:pr-3.5 shrink-0 text-xs font-semibold text-ink-soft hover:text-ink transition"
+          aria-label="Abrir nosso espaço: participantes, convite e conta"
+        >
+          <span className="flex -space-x-2">
+            {members.slice(0, 3).map(m => (
+              <span key={m.userId} className={`w-7 h-7 rounded-full ring-2 ring-surface flex items-center justify-center text-[11px] text-on-accent ${m.role === 'mae' ? 'bg-mae' : 'bg-pai'}`}>
+                {m.name.trim().charAt(0).toUpperCase() || '?'}
+              </span>
+            ))}
+            {members.length < 2 && (
+              <span className="w-7 h-7 rounded-full ring-2 ring-surface bg-surface-2 text-ink-mute flex items-center justify-center">
+                <Plus className="w-3.5 h-3.5" />
+              </span>
+            )}
+          </span>
+          <span className="hidden sm:inline">{members.length < 2 ? 'Convidar' : 'Nosso espaço'}</span>
+        </button>
       </div>
     </header>
   );
