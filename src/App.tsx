@@ -1,5 +1,7 @@
 import { Suspense, lazy, useRef, useState } from 'react';
 import { CloudRain, Loader2, Sprout } from 'lucide-react';
+import PushPrompt from './components/PushPrompt';
+import { takeTabFromUrl } from './lib/pwa';
 import { api, ApiError, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
 import Header from './components/Header';
@@ -49,7 +51,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const { data, loadState, refresh, replace, patch, retry } = useGestationData(onAccessLost, me.data);
   const author = family.role;
   const [spaceOpen, setSpaceOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>('inicio');
+  const [activeTab, setActiveTab] = useState<Tab>(() => takeTabFromUrl() ?? 'inicio');
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
   const [agendaView, setAgendaView] = useState<'calendario' | 'tarefas'>('calendario');
@@ -284,6 +286,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             Atualização do banco pendente: rodem <code>db/migrations/002_consultas_e_padroes.sql</code> no Neon para liberar a agenda de consultas, o período do dia dos sintomas e a faixa de peso.
           </p>
         )}
+
+        {activeTab === 'inicio' && <PushPrompt />}
 
         {activeTab === 'inicio' && (
           <HomeTab

@@ -24,6 +24,14 @@ export const GET = endpoint(async request => {
   const member = await findMembership(user.id);
   const consents = await query('SELECT version, accepted_at FROM user_consents WHERE user_id = $1 ORDER BY accepted_at', [user.id]);
 
+  // Notificações: o que a pessoa escolheu receber e em quantos aparelhos está ativo.
+  const notifications = await Promise.all([
+    query('SELECT consultas, momentos, jornada, parceiro, updated_at FROM notification_prefs WHERE user_id = $1', [user.id]),
+    query('SELECT user_agent, created_at FROM push_subscriptions WHERE user_id = $1 ORDER BY created_at', [user.id]),
+  ])
+    .then(([prefs, devices]) => ({ prefs: prefs[0] ?? null, devices }))
+    .catch(() => null);
+
   let space: Record<string, unknown> | null = null;
   if (member) {
     const fid = member.familyId;
@@ -49,6 +57,7 @@ export const GET = endpoint(async request => {
       exportedAt: new Date().toISOString(),
       account: { name: user.name, email: user.email, createdAt: user.createdAt, role: member?.role ?? null },
       consents,
+      notifications,
       space,
     },
     null,

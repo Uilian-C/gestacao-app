@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { query, transaction } from './_lib/db.js';
 import { fetchAll } from './_lib/gestation.js';
 import { HttpError, endpoint, json, readJson, requireMember, type Member } from './_lib/http.js';
+import { notify, type PushPayload } from './_lib/push.js';
 
 // Toda consulta filtra por family_id = espaço de quem está logado. O autor dos
 // registros vem do login (papel no espaço), nunca do que o navegador envia.
@@ -210,6 +211,41 @@ async function apply(m: Member, o: Op) {
   }
 }
 
+// Aviso para a outra pessoa do espaço. Sem detalhes de saúde no texto: a
+// notificação aparece na tela bloqueada; o conteúdo fica dentro do app.
+function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } | null {
+  switch (o.op) {
+    case 'createSymptom':
+      return { action: 'registrou um sintoma no diário', body: 'Toque para ver e deixar um carinho.', url: '/?aba=diario', tag: 'parceiro-diario' };
+    case 'createMetric':
+      return { action: 'registrou uma medição', body: 'Peso ou pressão: veja no painel.', url: '/?aba=painel', tag: 'parceiro-medicao' };
+    case 'createConsultation':
+      return { action: 'agendou uma consulta', body: 'Toque para ver data, hora e endereço.', url: '/?aba=consultas', tag: 'parceiro-consulta' };
+    case 'createQuestion':
+      return { action: 'anotou uma dúvida para a consulta', body: 'Toque para ver a lista de perguntas.', url: '/?aba=consultas', tag: 'parceiro-duvida' };
+    case 'createTask':
+      return { action: 'criou uma tarefa', body: o.title.length > 80 ? `${o.title.slice(0, 79)}…` : o.title, url: '/?aba=agenda', tag: 'parceiro-tarefa' };
+    case 'createEntry':
+      return o.visibility === 'shared' ? { action: 'guardou um momento', body: 'Toque para ver no diário.', url: '/?aba=diario', tag: 'parceiro-momento' } : null;
+    default:
+      return null;
+  }
+}
+
+async function notifyPartners(m: Member, o: Op) {
+  const message = partnerMessage(o);
+  if (!message) return;
+  const rows = await query<{ user_id: string; name: string | null }>(
+    `SELECT m.user_id, (SELECT split_part(u.name, ' ', 1) FROM "user" u WHERE u.id = $2) AS name
+     FROM family_members m WHERE m.family_id = $1 AND m.user_id <> $2`,
+    [m.familyId, m.userId],
+  );
+  if (rows.length === 0) return;
+  const who = rows[0].name || (m.role === 'mae' ? 'A mãe' : 'O pai');
+  const { action, ...payload } = message;
+  await notify(rows.map(r => r.user_id), 'parceiro', { ...payload, title: `${who} ${action}` });
+}
+
 export const GET = endpoint(async request => {
   const member = await requireMember(request);
   return json(await fetchAll(member.familyId, member.userId));
@@ -221,5 +257,10 @@ export const POST = endpoint(async request => {
   if (!parsed.success) throw new HttpError(400, 'Dados inválidos.');
   await apply(member, parsed.data);
   // Já devolve os dados atualizados: o app não precisa de uma segunda chamada para recarregar.
-  return json({ ok: true, data: await fetchAll(member.familyId, member.userId) });
+  // O aviso para a outra pessoa sai ao mesmo tempo; se falhar, o registro continua salvo.
+  const [data] = await Promise.all([
+    fetchAll(member.familyId, member.userId),
+    notifyPartners(member, parsed.data).catch(err => console.error('Aviso ao parceiro não enviado', err)),
+  ]);
+  return json({ ok: true, data });
 });
