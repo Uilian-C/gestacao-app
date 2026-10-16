@@ -148,3 +148,11 @@ CREATE TABLE IF NOT EXISTS family_invites (
   used_by     TEXT REFERENCES "user"(id) ON DELETE SET NULL,
   used_at     TIMESTAMPTZ
 );
+
+-- Migração 006: consentimento (LGPD). Versão vigente em api/_lib/consent.ts.
+CREATE TABLE IF NOT EXISTS user_consents (
+  user_id      TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  version      TEXT NOT NULL,
+  accepted_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, version)
+);

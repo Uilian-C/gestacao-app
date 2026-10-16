@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
+import { CONSENT_VERSION, hasConsent } from './_lib/consent.js';
 import { query, transaction } from './_lib/db.js';
 import { HttpError, endpoint, findMembership, json, readJson, requireUser } from './_lib/http.js';
 
@@ -24,6 +25,7 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('invite') }),
   z.object({ op: z.literal('setRole'), role }),
   z.object({ op: z.literal('removeMember'), userId: z.string().min(1).max(64) }),
+  z.object({ op: z.literal('consent'), version: z.string().max(20) }),
 ]);
 
 async function familyState(userId: string) {
@@ -56,7 +58,15 @@ async function findInvite(code: string) {
 
 export const GET = endpoint(async request => {
   const user = await requireUser(request);
-  return json({ user: { id: user.id, name: user.name, email: user.email }, family: await familyState(user.id) });
+  return json({
+    user: { id: user.id, name: user.name, email: user.email },
+    consent: {
+      version: CONSENT_VERSION,
+      accepted: await hasConsent(user.id),
+      previous: (await query('SELECT 1 FROM user_consents WHERE user_id = $1 LIMIT 1', [user.id])).length > 0,
+    },
+    family: await familyState(user.id),
+  });
 });
 
 export const POST = endpoint(async request => {
@@ -64,6 +74,15 @@ export const POST = endpoint(async request => {
   const parsed = ops.safeParse(await readJson(request));
   if (!parsed.success) throw new HttpError(400, 'Dados inválidos.');
   const o = parsed.data;
+
+  if (o.op === 'consent') {
+    if (o.version !== CONSENT_VERSION) throw new HttpError(409, 'Os termos foram atualizados. Recarregue a página.');
+    await query('INSERT INTO user_consents (user_id, version) VALUES ($1, $2) ON CONFLICT DO NOTHING', [user.id, CONSENT_VERSION]);
+    return json({ ok: true });
+  }
+  // Nada de criar ou entrar em espaço sem o consentimento para dados de saúde.
+  if (o.op !== 'checkInvite' && !(await hasConsent(user.id))) throw new HttpError(403, 'Aceite os Termos e a Política de Privacidade para continuar.');
+
   const member = await findMembership(user.id);
 
   switch (o.op) {

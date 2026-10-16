@@ -3,12 +3,14 @@
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 import { auth } from '../api/_lib/auth.ts';
+import * as account from '../api/account.ts';
 import * as config from '../api/config.ts';
 import * as data from '../api/data.ts';
 import * as family from '../api/family.ts';
 
 type Handler = (request: Request) => Response | Promise<Response>;
 const routes: Record<string, Partial<Record<string, Handler>>> = {
+  '/api/account': account,
   '/api/config': config,
   '/api/data': data,
   '/api/family': family,

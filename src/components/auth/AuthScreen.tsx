@@ -197,8 +197,18 @@ export default function AuthScreen() {
         <p className="text-xs text-ink-mute text-center text-balance">
           Cada família tem um espaço só seu. Só as pessoas que vocês convidarem conseguem ver os registros.
         </p>
+        <LegalLinks />
       </div>
     </div>
+  );
+}
+
+export function LegalLinks() {
+  return (
+    <p className="text-xs text-ink-mute text-center space-x-3">
+      <a href="/termos.html" className="underline underline-offset-4 hover:text-ink">Termos de Uso</a>
+      <a href="/privacidade.html" className="underline underline-offset-4 hover:text-ink">Política de Privacidade</a>
+    </p>
   );
 }
 

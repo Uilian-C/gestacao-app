@@ -191,7 +191,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   }
 
   const header = <Header firstName={me.user.name.split(' ')[0]} members={family.members} greeting={greetingFor(now.getHours())} onOpenSpace={() => setSpaceOpen(true)} />;
-  const spaceSheet = spaceOpen && <SpaceSheet me={me} family={family} onClose={() => setSpaceOpen(false)} onFamilyChange={onFamilyChange} onSignOut={onSignOut} />;
+  const spaceSheet = spaceOpen && <SpaceSheet me={me} family={family} onClose={() => setSpaceOpen(false)} onFamilyChange={onFamilyChange} onSignOut={onSignOut} onAccountDeleted={onSignOut} />;
 
   if (!dumDate || !age) {
     return (
