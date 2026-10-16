@@ -9,7 +9,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:integracao": "node tests/integracao/run.mjs"
   },
   "dependencies": {
     "better-auth": "^1.7.7",
@@ -33,6 +34,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.6",
     "globals": "^17.12.0",
+    "playwright-core": "^1.56.1",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "~6.0.2",

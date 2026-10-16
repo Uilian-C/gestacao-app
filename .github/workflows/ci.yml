@@ -23,3 +23,43 @@ jobs:
           TZ: America/Sao_Paulo
       - name: Build (igual ao da Vercel)
         run: npm run build
+
+  # Testes de ponta a ponta: banco de verdade, API, app no navegador e um
+  # serviço de push falso. Pegam o que os testes rápidos não pegam: isolamento
+  # entre famílias, permissões, LGPD, notificações e os fluxos de tela.
+  integracao:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: teste
+          POSTGRES_DB: tumtum_teste
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Navegador para os testes
+        run: npx playwright-core install --with-deps chromium
+      - name: Testes de integração
+        run: npm run test:integracao
+        env:
+          DATABASE_URL: postgres://postgres:teste@127.0.0.1:5432/tumtum_teste
+          TZ: America/Sao_Paulo
+      - name: Prints das telas (se falhar)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prints-dos-testes
+          path: tests/integracao/.saida/prints
+          retention-days: 7

@@ -68,7 +68,8 @@ export const auth = betterAuth({
   },
   // Guardado no banco porque cada chamada pode cair numa instância diferente do servidor.
   rateLimit: {
-    enabled: true,
+    // Os testes automáticos criam muitas contas seguidas; só eles desligam o limite.
+    enabled: env.AUTH_RATE_LIMIT !== 'off',
     storage: 'database',
     window: 60,
     max: 60,
