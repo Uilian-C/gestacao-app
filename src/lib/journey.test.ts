@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { PLAN_ITEMS } from '../data/prenatalPlan';
-import { dateOfWeek, itemStatus, nextSteps, phaseOf, planFor, planProgress } from './journey';
+import { PLAN_ITEMS } from '../content/prenatalPlan';
+import { autoDone, dateOfWeek, itemStatus, nextSteps, phaseOf, planFor, planProgress, plannedVisitWeeks, visitsOf } from './journey';
 
 const item = (id: string) => PLAN_ITEMS.find(i => i.id === id)!;
 
@@ -37,5 +37,29 @@ describe('jornada do pré-natal', () => {
     expect(phaseOf(28).id).toBe('preparacao');
     expect(phaseOf(41).id).toBe('termo');
     expect(dateOfWeek('2026-05-15', 24).toDateString()).toBe(new Date(2026, 9, 30).toDateString());
+  });
+});
+
+describe('consultas na jornada', () => {
+  it('ritmo recomendado: mensal, quinzenal e semanal', () => {
+    expect(plannedVisitWeeks(8)).toEqual([8, 12, 16, 20, 24, 28, 30, 32, 34, 36, 37, 38, 39, 40]);
+  });
+
+  it('posiciona as consultas na semana e reconhece a 1ª consulta feita', () => {
+    const now = new Date(2026, 9, 16, 12);
+    const visits = visitsOf(
+      [
+        { id: 'b', scheduled_at: '2026-10-19T17:30:00.000Z', specialty: 'obstetra' },
+        { id: 'a', scheduled_at: '2026-07-10T13:00:00.000Z', specialty: 'obstetra' },
+      ],
+      '2026-05-15',
+      now,
+    );
+    expect(visits.map(v => [v.id, v.week, v.future])).toEqual([
+      ['a', 8, false],
+      ['b', 22, true],
+    ]);
+    expect(autoDone(visits).has('primeira-consulta')).toBe(true);
+    expect(autoDone(visits.filter(v => v.future)).size).toBe(0);
   });
 });

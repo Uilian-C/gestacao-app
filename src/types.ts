@@ -113,3 +113,6 @@ export interface BirthPlanRecord {
 export type DeletableKind = 'task' | 'symptom' | 'question' | 'comment' | 'metric' | 'consultation' | 'kick' | 'contraction';
 
 export type Tab = 'inicio' | 'agenda' | 'diario' | 'painel' | 'consultas' | 'parto';
+
+/** Seções do Painel. */
+export type DashboardView = 'geral' | 'jornada' | 'sintomas' | 'corpo';

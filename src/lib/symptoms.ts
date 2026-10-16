@@ -1,4 +1,4 @@
-import { isAlertSymptom } from '../data/symptomCatalog';
+import { isAlertSymptom } from '../content/symptomCatalog';
 import type { Author, PartnerComment, SymptomItem, TimeOfDay } from '../types';
 import { daysBetween, formatBR, parseLocalDate, toISODate } from './dates';
 

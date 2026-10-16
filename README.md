@@ -67,9 +67,9 @@ src/
   lib/ficha.ts            ficha da gestante (cabeçalho de prontuário)
   lib/labor.ts            contagem de movimentos e análise das contrações (regra 5-1-1)
   lib/birthPlan.ts        plano de parto (temas da Caderneta da Gestante)
-  lib/journey.ts          jornada do pré-natal: situação de cada item, próximos passos e progresso
-  data/prenatalPlan.ts    fases, consultas, exames e vacinas com a janela de semanas (Caderneta + FEBRASGO)
-  data/hospitalBag.ts     mala da maternidade
+  lib/journey.ts          jornada do pré-natal: situação de cada item, próximos passos, progresso e ritmo de consultas
+  content/                conteúdo informativo (guia): semanas, fases, exames e vacinas, sinais de alerta,
+                          sugestões, mala da maternidade. Cada bloco declara a fonte (content/sources.ts)
   lib/calendar.ts         eventos da agenda, grades de mês e semana, exportação .ics e Google Agenda
   data/                   semanas, especialidades, sintomas comuns, sugestões de tarefas
   hooks/                  carregamento dos dados e autor do aparelho
@@ -91,5 +91,6 @@ Toda alteração de banco entra como um arquivo novo em `db/migrations/` e deve 
 - **Dados clínicos**: nunca preencha valores padrão em campos de saúde. Campo não medido é gravado como `NULL`.
 - **Autoria**: o servidor grava `created_by` com o papel de quem está logado (`mae` ou `pai`), nunca com o que o navegador envia.
 - **LGPD**: dados de saúde exigem consentimento. Ao mudar `public/termos.html` ou `public/privacidade.html` de forma relevante, atualize a data no topo das páginas e `CONSENT_VERSION` em `api/_lib/consent.ts`: todos aceitam de novo ao entrar.
+- **Guia × registros**: conteúdo de referência fica em `src/content` e aparece com o componente `Guide` (ícone de livro e fonte). Registros do casal vêm da API. Não misture os dois no mesmo arquivo.
 - **Isolamento**: toda consulta em `api/` filtra por `family_id`. Nunca escreva SQL no navegador.
 - **Build**: a Vercel falha com import ou variável sem uso. Rode `npm run build` antes de subir.
