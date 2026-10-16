@@ -9,6 +9,17 @@ const vercelOrigins = [env.VERCEL_URL, env.VERCEL_BRANCH_URL, env.VERCEL_PROJECT
 /** Endereços de onde o app pode chamar a API. */
 export const trustedOrigins = [...vercelOrigins, ...(env.BETTER_AUTH_URL ? [new URL(env.BETTER_AUTH_URL).origin] : [])];
 
+/**
+ * Endereço público usado nos retornos do login (ex.: Google). Em produção é
+ * sempre o domínio oficial, nunca o endereço interno de cada publicação.
+ */
+function publicUrl() {
+  if (env.BETTER_AUTH_URL) return env.BETTER_AUTH_URL.replace(/\/+$/, '');
+  if (env.VERCEL_ENV === 'production' && env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (env.VERCEL_BRANCH_URL) return `https://${env.VERCEL_BRANCH_URL}`;
+  return env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined;
+}
+
 export const googleEnabled = !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
 export const emailEnabled = !!(env.RESEND_API_KEY && env.EMAIL_FROM);
 
@@ -23,7 +34,7 @@ async function sendEmail(to: string, subject: string, html: string) {
 
 export const auth = betterAuth({
   appName: 'Nossa Gestação',
-  baseURL: env.BETTER_AUTH_URL || (env.VERCEL_URL ? `https://${env.VERCEL_URL}` : undefined),
+  baseURL: publicUrl(),
   secret: env.BETTER_AUTH_SECRET,
   database: pool,
   trustedOrigins,
