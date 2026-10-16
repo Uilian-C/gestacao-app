@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, CalendarHeart, ClipboardCopy, ExternalLink, FileText, HelpCircle, MapPin, Plus, Printer, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, CalendarHeart, ClipboardCopy, ExternalLink, FileText, HelpCircle, Plus, Printer, ShieldCheck, Trash2 } from 'lucide-react';
 import { googleCalendarUrl } from '../../lib/calendar';
 import { SPECIALTIES, questionSpecialty, specialtyOf, type SpecialtyId } from '../../data/specialties';
 import { daysBetween, formatBR, localDay, parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
@@ -12,6 +12,7 @@ import { FichaGrid } from '../FichaBar';
 import { BMI_LABEL, GAIN_STATUS_LABEL } from '../../lib/weightGain';
 import type { BirthPlanRecord, Contraction, KickSession, Consultation, HealthMetric, PartnerComment, PregnancyProfile, QuestionItem, SymptomItem } from '../../types';
 import AuthorBadge from '../AuthorBadge';
+import LocationLinks from '../LocationLinks';
 import SpecialtyIcon from '../SpecialtyIcon';
 import { InsightList } from '../InsightList';
 import { inputClass } from '../styles';
@@ -115,7 +116,7 @@ function ConsultationRow({ consultation: c, today, questions, onPrepare, onDelet
           {when.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })} às {when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
           {c.professional_name && ` · ${c.professional_name}`}
         </p>
-        {c.location && <p className="text-xs text-ink-mute flex items-center gap-1"><MapPin className="w-3 h-3" /> {c.location}</p>}
+        {c.location && <div className="mt-2"><LocationLinks address={c.location} /></div>}
         {days >= 0 && (
           <p className="text-xs text-ink-mute mt-1 flex flex-wrap gap-x-3">
             <span>{pending} {pending === 1 ? 'dúvida anotada' : 'dúvidas anotadas'}</span>
@@ -190,8 +191,8 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
         <Field label="Profissional (opcional)" htmlFor="prof">
           <input id="prof" className={inputClass} placeholder="Ex.: Dra. Ana" value={professional} onChange={e => setProfessional(e.target.value)} />
         </Field>
-        <Field label="Local (opcional)" htmlFor="local">
-          <input id="local" className={inputClass} placeholder="Ex.: Clínica Bem Nascer" value={location} onChange={e => setLocation(e.target.value)} />
+        <Field label="Endereço (opcional)" htmlFor="local" hint="Com o endereço completo, a consulta ganha atalhos para o Maps, o Waze e o Uber.">
+          <input id="local" className={inputClass} placeholder="Ex.: Av. Paulista, 1000 - São Paulo" value={location} onChange={e => setLocation(e.target.value)} />
         </Field>
       </div>
       <div className="flex gap-2 justify-end">
