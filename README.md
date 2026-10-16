@@ -71,7 +71,7 @@ src/
   content/                conteúdo informativo (guia): semanas, fases, exames e vacinas, sinais de alerta,
                           sugestões, mala da maternidade. Cada bloco declara a fonte (content/sources.ts)
   lib/calendar.ts         eventos da agenda, grades de mês e semana, exportação .ics e Google Agenda
-  data/                   semanas, especialidades, sintomas comuns, sugestões de tarefas
+  data/                   especialidades (configuração usada pelos registros)
   hooks/                  carregamento dos dados e autor do aparelho
   components/             componentes visuais, gráficos e uma tela por aba
 db/
