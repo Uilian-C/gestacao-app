@@ -1,4 +1,4 @@
-// Service worker do Nossa Gestação.
+// Service worker do Tumtum.
 // - Guarda só a "casca" do app (HTML, JS, CSS, ícones) para abrir rápido.
 //   Dados de saúde (/api) nunca são guardados no aparelho.
 // - Recebe as notificações e abre o app na tela certa ao tocar nelas.
@@ -73,7 +73,7 @@ self.addEventListener('push', event => {
     data = { body: event.data ? event.data.text() : '' };
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Nossa Gestação', {
+    self.registration.showNotification(data.title || 'Tumtum', {
       body: data.body || '',
       icon: '/icons/icon-192.png',
       badge: '/icons/badge-96.png',

@@ -113,7 +113,7 @@ export default function NotificationSettings() {
 
       {state.phase === 'bloqueado' && (
         <p className="text-sm text-ink-soft bg-surface-2 rounded-2xl px-4 py-3">
-          As notificações deste site estão bloqueadas no aparelho. Para liberar: nas configurações do navegador (ou do app, se instalado), procure <strong>Notificações</strong> e permita o Nossa Gestação.
+          As notificações deste site estão bloqueadas no aparelho. Para liberar: nas configurações do navegador (ou do app, se instalado), procure <strong>Notificações</strong> e permita o Tumtum.
         </p>
       )}
 

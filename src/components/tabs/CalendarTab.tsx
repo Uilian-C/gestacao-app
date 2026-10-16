@@ -61,7 +61,7 @@ export default function CalendarTab(props: Props) {
     const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'nossa-gestacao.ics';
+    a.download = 'tumtum.ics';
     a.click();
     URL.revokeObjectURL(url);
     props.onNotify('Arquivo de agenda baixado. Abra no celular para importar no Google Agenda ou no calendário do iPhone.');

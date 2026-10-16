@@ -67,7 +67,7 @@ export const GET = endpoint(async request => {
   return new Response(body, {
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': `attachment; filename="nossa-gestacao-dados-${date}.json"`,
+      'Content-Disposition': `attachment; filename="tumtum-dados-${date}.json"`,
       'Cache-Control': 'no-store',
     },
   });

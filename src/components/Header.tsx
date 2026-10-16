@@ -1,4 +1,5 @@
-import { Heart, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import BrandMark from './BrandMark';
 import type { FamilyMember } from '../api';
 
 interface Props {
@@ -13,14 +14,14 @@ export default function Header({ firstName, members, greeting, onOpenSpace }: Pr
     <header className="no-print bg-canvas transition-colors duration-300">
       <div className="max-w-5xl mx-auto px-4 md:px-6 pt-5 pb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-11 h-11 rounded-full bg-brand-soft text-brand flex items-center justify-center shrink-0 transition-colors duration-300">
-            <Heart className="w-5 h-5" />
+          <div className="w-11 h-11 rounded-full bg-surface shadow-soft flex items-center justify-center shrink-0">
+            <BrandMark className="w-7 h-7" />
           </div>
           <div className="min-w-0">
             <p className="text-sm text-ink-mute truncate">
               {greeting}, {firstName}
             </p>
-            <h1 className="text-[1.45rem] text-ink leading-tight whitespace-nowrap">Nossa Gestação</h1>
+            <h1 className="text-[1.45rem] text-ink leading-tight whitespace-nowrap">Tumtum</h1>
           </div>
         </div>
 

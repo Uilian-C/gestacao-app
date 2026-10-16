@@ -482,7 +482,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-canvas text-ink">
       <main className="max-w-xl mx-auto px-4 py-10">
-        <h1 className="text-2xl font-semibold text-ink text-center">Nossa Gestação</h1>
+        <h1 className="text-2xl font-semibold text-ink text-center">Tumtum</h1>
         {children}
       </main>
     </div>

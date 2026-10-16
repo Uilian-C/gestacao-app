@@ -52,7 +52,7 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
 
   const createInvite = () => act(async () => setInvite(await api.family<{ code: string; expiresAt: string }>('invite')));
   const link = invite ? inviteLink(invite.code) : '';
-  const message = `Vem acompanhar a gestação comigo no Nossa Gestação: ${link}`;
+  const message = `Vem acompanhar a gestação comigo no Tumtum: ${link}`;
 
   const copy = async () => {
     try {

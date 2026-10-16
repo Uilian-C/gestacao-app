@@ -69,7 +69,14 @@ export const POST = endpoint(async request => {
       );
       break;
     case 'test': {
-      const sent = await notify([me], null, { title: 'Notificações ligadas 💛', body: 'É assim que os lembretes vão chegar neste aparelho.', url: '/', tag: 'teste' });
+      // Um teste por minuto: vários avisos iguais em sequência parecem spam para o navegador.
+      const fresh = await query(
+        `INSERT INTO notification_log (user_id, key) VALUES ($1, 'teste:' || floor(extract(epoch FROM NOW()) / 60)::text)
+         ON CONFLICT DO NOTHING RETURNING 1`,
+        [me],
+      );
+      if (fresh.length === 0) throw new HttpError(429, 'Aguarde um minuto para enviar outro teste.');
+      const sent = await notify([me], null, { title: 'Notificações do Tumtum ativas', body: 'Os lembretes de vocês vão chegar assim neste aparelho.', url: '/', tag: 'teste' });
       if (sent === 0) throw new HttpError(409, 'Nenhum aparelho recebeu. Ative as notificações neste aparelho e tente de novo.');
       return json({ ok: true, sent });
     }

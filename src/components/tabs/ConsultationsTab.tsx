@@ -401,7 +401,7 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
   return (
     <article className="print-area rounded-[28px] bg-surface shadow-soft p-6 md:p-8 space-y-7 print:border-0 print:p-0">
       <header className="space-y-3 border-b border-line pb-5">
-        <p className="text-sm font-semibold text-brand">Nossa Gestação · resumo para consulta</p>
+        <p className="text-sm font-semibold text-brand">Tumtum · resumo para consulta</p>
         <h2 className="text-2xl font-semibold text-ink">{r.specialty.label}</h2>
         {when && (
           <p className="text-ink-soft">
@@ -535,7 +535,7 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
       )}
 
       <footer className="text-xs text-ink-mute border-t border-line pt-4">
-        Registros feitos pelo casal no app Nossa Gestação. Não substituem a avaliação profissional.
+        Registros feitos pelo casal no app Tumtum. Não substituem a avaliação profissional.
       </footer>
     </article>
   );
