@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BookOpen, CalendarHeart, ChevronDown, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Route, Scale, Sparkles, TrendingUp, X } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BookOpen, CalendarHeart, ChevronDown, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Plus, Route, Scale, Sparkles, TrendingUp, X } from 'lucide-react';
 import { PHASES, PLAN_SOURCE } from '../../content/prenatalPlan';
 import type { CheckItem } from '../../hooks/useGestationData';
 import { autoDone, itemStatus, phaseOf, planFor, planProgress, plannedVisitWeeks, visitsOf, type Visit } from '../../lib/journey';
 import { gestationMonth } from '../../lib/ficha';
 import Guide from '../Guide';
+import QuickRecord, { type QuickMode, type QuickRecordProps } from '../QuickRecord';
 import { JourneyTimeline, PlanProgressChart } from '../charts/journeyCharts';
 import { PhaseStrip, StepList } from '../journey/Journey';
 import { SYMPTOM_CATEGORIES } from '../../content/symptomCatalog';
@@ -37,10 +38,19 @@ interface Props {
   view: DashboardView;
   onViewChange: (view: DashboardView) => void;
   consultations: Consultation[];
+  quick: QuickRecordProps;
 }
 
 const fmt = (n: number, d = 1) => n.toLocaleString('pt-BR', { maximumFractionDigits: d });
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+
+// Atalho de registro de cada seção: o que faz sentido anotar olhando para ela.
+const QUICK: Record<DashboardView, { label: string; modes: QuickMode[] }> = {
+  geral: { label: 'Registrar', modes: ['sintoma', 'medicao', 'momento'] },
+  jornada: { label: 'Agendar consulta', modes: ['consulta'] },
+  sintomas: { label: 'Registrar sintoma', modes: ['sintoma'] },
+  corpo: { label: 'Registrar peso ou pressão', modes: ['medicao'] },
+};
 
 const TREND: Record<Trend, { label: string; tone: 'alert' | 'ok' | 'neutral' | 'brand'; icon: React.ReactNode }> = {
   subindo: { label: 'piorando', tone: 'alert', icon: <ArrowUpRight className="w-3.5 h-3.5" /> },
@@ -53,6 +63,8 @@ export default function DashboardTab(props: Props) {
   const { age, profile, symptoms, comments, metrics, migrationPending, busy, onSaveProfile, currentWeek, checks, checksAvailable, onToggleStep, view, onViewChange, consultations } = props;
   const [periodId, setPeriodId] = useState<PeriodId>('4sem');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const quick = QUICK[view];
 
   const today = parseLocalDate(toISODate(new Date()));
   const dum = parseLocalDate(profile.dumDate);
@@ -115,9 +127,13 @@ export default function DashboardTab(props: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-center">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         <Segmented label="Seção do painel" value={view} onChange={onViewChange} options={views} />
+        <Button tone="soft" onClick={() => setQuickOpen(true)} className="!px-4 !py-2">
+          <Plus /> {quick.label}
+        </Button>
       </div>
+      {quickOpen && <QuickRecord {...props.quick} modes={quick.modes} initial={quick.modes[0]} onClose={() => setQuickOpen(false)} />}
 
       {view === 'geral' && (
         <Overview
@@ -366,7 +382,7 @@ function SymptomTable({ stats, selectedKey, onSelect }: { stats: SymptomStats[];
     <Card>
       <SectionTitle icon={<Activity className="w-5 h-5" />} title="Frequência e tendência" subtitle="Toque em um sintoma para ver a evolução." />
       {stats.length === 0 ? (
-        <EmptyState icon={<Activity />} title="Nenhum sintoma no período">Registros no Diário aparecem aqui com frequência, intensidade e tendência.</EmptyState>
+        <EmptyState icon={<Activity />} title="Nenhum sintoma no período">Use “Registrar sintoma”, logo acima, ou o Diário. Os registros aparecem aqui com frequência, intensidade e tendência.</EmptyState>
       ) : (
         <ul className="divide-y divide-line">
           {stats.map(s => (
@@ -512,7 +528,9 @@ function WeightSection({ profile, metrics, migrationPending, busy, onSaveProfile
         <ProfileForm initial={profile} busy={busy} onSave={async (w, h) => { if (await onSaveProfile(w, h)) setEditing(false); }} />
       )}
       {points.length < 2 ? (
-        <EmptyState icon={<Scale />} title="Poucas medições de peso">Registre o peso no Diário. Com duas medições o gráfico aparece.</EmptyState>
+        <EmptyState icon={<Scale />} title={last ? `Último peso: ${fmt(last.kg)} kg` : 'Poucas medições de peso'}>
+          {last ? `Semana ${last.week}. Com mais uma medição o gráfico aparece.` : 'Use “Registrar peso ou pressão”, logo acima. Com duas medições o gráfico aparece.'}
+        </EmptyState>
       ) : (
         <div className="space-y-3 mt-2">
           {status && last && (
@@ -574,7 +592,7 @@ function PressureSection({ metrics }: { metrics: HealthMetric[] }) {
         subtitle={readings.length ? `${readings.length} ${readings.length === 1 ? 'medição' : 'medições'}${high.length ? ` · ${high.length} acima de 140/90` : ' · nenhuma acima de 140/90'}` : undefined}
       />
       {readings.length === 0 ? (
-        <EmptyState icon={<HeartPulse />} title="Nenhuma pressão registrada">Medições em casa ou na consulta podem ser registradas no Diário.</EmptyState>
+        <EmptyState icon={<HeartPulse />} title="Nenhuma pressão registrada">Medições em casa ou na consulta: use “Registrar peso ou pressão”, logo acima.</EmptyState>
       ) : (
         <>
           <BloodPressureChart
