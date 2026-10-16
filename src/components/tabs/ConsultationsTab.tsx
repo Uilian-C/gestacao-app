@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, CalendarHeart, ClipboardCopy, FileText, HelpCircle, MapPin, Plus, Printer, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, CalendarHeart, ClipboardCopy, ExternalLink, FileText, HelpCircle, MapPin, Plus, Printer, ShieldCheck, Trash2 } from 'lucide-react';
+import { googleCalendarUrl } from '../../lib/calendar';
 import { SPECIALTIES, questionSpecialty, specialtyOf, type SpecialtyId } from '../../data/specialties';
 import { daysBetween, formatBR, localDay, parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
 import { TREND_LABEL, buildReport, defaultReportPeriod, reportToText, type ConsultationReport } from '../../lib/report';
@@ -107,7 +108,14 @@ function ConsultationRow({ consultation: c, today, questions, onPrepare, onDelet
           {c.professional_name && ` · ${c.professional_name}`}
         </p>
         {c.location && <p className="text-xs text-ink-mute flex items-center gap-1"><MapPin className="w-3 h-3" /> {c.location}</p>}
-        {days >= 0 && <p className="text-xs text-ink-mute mt-1">{pending} {pending === 1 ? 'dúvida anotada' : 'dúvidas anotadas'}</p>}
+        {days >= 0 && (
+          <p className="text-xs text-ink-mute mt-1 flex flex-wrap gap-x-3">
+            <span>{pending} {pending === 1 ? 'dúvida anotada' : 'dúvidas anotadas'}</span>
+            <a href={googleCalendarUrl(c)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand underline underline-offset-2">
+              <ExternalLink className="w-3 h-3" /> Google Agenda
+            </a>
+          </p>
+        )}
       </div>
       <div className="flex gap-2">
         <Button onClick={onPrepare} tone={days >= 0 ? 'primary' : 'ghost'}>
@@ -121,9 +129,13 @@ function ConsultationRow({ consultation: c, today, questions, onPrepare, onDelet
   );
 }
 
-function ScheduleForm({ busy, onCreate }: { busy: boolean; onCreate: (c: NewConsultation) => Promise<boolean> }) {
-  const [open, setOpen] = useState(false);
-  const [date, setDate] = useState('');
+export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, onClose }: { busy: boolean; onCreate: (c: NewConsultation) => Promise<boolean>; initialDate?: string; startOpen?: boolean; onClose?: () => void }) {
+  const [open, setOpenState] = useState(startOpen);
+  const setOpen = (value: boolean) => {
+    setOpenState(value);
+    if (!value) onClose?.();
+  };
+  const [date, setDate] = useState(initialDate ?? '');
   const [time, setTime] = useState('09:00');
   const [specialty, setSpecialty] = useState<SpecialtyId>('obstetra');
   const [professional, setProfessional] = useState('');

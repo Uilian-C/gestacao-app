@@ -78,4 +78,4 @@ export interface HealthMetric {
 
 export type DeletableKind = 'task' | 'symptom' | 'question' | 'comment' | 'metric' | 'consultation';
 
-export type Tab = 'inicio' | 'diario' | 'painel' | 'consultas' | 'tarefas';
+export type Tab = 'inicio' | 'agenda' | 'diario' | 'painel' | 'consultas' | 'tarefas';

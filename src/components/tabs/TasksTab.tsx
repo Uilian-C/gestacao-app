@@ -178,11 +178,11 @@ export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCre
   );
 }
 
-function TaskForm({ selectedWeek, busy, onCreate }: { selectedWeek: number; busy: boolean; onCreate: (t: NewTask) => Promise<boolean> }) {
+export function TaskForm({ selectedWeek, busy, onCreate, initialDueDate, onCancel }: { selectedWeek: number; busy: boolean; onCreate: (t: NewTask) => Promise<boolean>; initialDueDate?: string; onCancel?: () => void }) {
   const [title, setTitle] = useState('');
   const [assignee, setAssignee] = useState<Assignee>('casal');
   const [priority, setPriority] = useState<Priority>('Média');
-  const [dueDate, setDueDate] = useState('');
+  const [dueDate, setDueDate] = useState(initialDueDate ?? '');
   const [notes, setNotes] = useState('');
   return (
     <form
@@ -212,7 +212,10 @@ function TaskForm({ selectedWeek, busy, onCreate }: { selectedWeek: number; busy
         </Field>
       </div>
       <p className="text-xs text-ink-mute">A tarefa fica na semana {selectedWeek}. Para planejar outra semana, mude a semana no Início.</p>
-      <Button type="submit" disabled={busy || !title.trim()} className="w-full">Criar tarefa</Button>
+      <div className="flex gap-2">
+        {onCancel && <Button tone="ghost" onClick={onCancel}>Cancelar</Button>}
+        <Button type="submit" disabled={busy || !title.trim()} className="flex-1">Criar tarefa</Button>
+      </div>
     </form>
   );
 }

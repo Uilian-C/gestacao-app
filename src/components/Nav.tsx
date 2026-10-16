@@ -1,12 +1,13 @@
-import { CalendarHeart, CheckSquare, Home, LineChart, NotebookPen } from 'lucide-react';
+import { CalendarDays, CheckSquare, Home, LineChart, NotebookPen, Stethoscope } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Tab } from '../types';
 
 const TABS: Array<{ id: Tab; label: string; icon: ReactNode }> = [
   { id: 'inicio', label: 'Início', icon: <Home className="w-5 h-5" /> },
+  { id: 'agenda', label: 'Agenda', icon: <CalendarDays className="w-5 h-5" /> },
   { id: 'diario', label: 'Diário', icon: <NotebookPen className="w-5 h-5" /> },
   { id: 'painel', label: 'Painel', icon: <LineChart className="w-5 h-5" /> },
-  { id: 'consultas', label: 'Consultas', icon: <CalendarHeart className="w-5 h-5" /> },
+  { id: 'consultas', label: 'Consultas', icon: <Stethoscope className="w-5 h-5" /> },
   { id: 'tarefas', label: 'Tarefas', icon: <CheckSquare className="w-5 h-5" /> },
 ];
 
@@ -36,17 +37,17 @@ export default function Nav({ active, onChange, badges }: { active: Tab; onChang
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         aria-label="Seções"
       >
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => onChange(t.id)}
               aria-current={active === t.id ? 'page' : undefined}
-              className={`relative flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition ${active === t.id ? 'text-brand' : 'text-ink-mute'}`}
+              className={`relative flex flex-col items-center gap-0.5 py-2.5 text-[10.5px] font-bold transition ${active === t.id ? 'text-brand' : 'text-ink-mute'}`}
             >
-              <span className={`px-4 py-1 rounded-full transition ${active === t.id ? 'bg-brand-soft' : ''}`}>{t.icon}</span>
+              <span className={`px-3 py-1 rounded-full transition ${active === t.id ? 'bg-brand-soft' : ''}`}>{t.icon}</span>
               {t.label}
-              {!!badges[t.id] && <span className="absolute top-1.5 right-[calc(50%-22px)] min-w-4 h-4 px-1 rounded-full bg-warm text-on-accent text-[10px] flex items-center justify-center tabular">{badges[t.id]}</span>}
+              {!!badges[t.id] && <span className="absolute top-1.5 right-[calc(50%-20px)] min-w-4 h-4 px-1 rounded-full bg-warm text-on-accent text-[10px] flex items-center justify-center tabular">{badges[t.id]}</span>}
             </button>
           ))}
         </div>
