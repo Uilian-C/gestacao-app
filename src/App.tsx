@@ -6,7 +6,8 @@ import FichaBar, { type FichaInput } from './components/FichaBar';
 import Nav from './components/Nav';
 import Toast, { type ToastMessage } from './components/Toast';
 import { DumForm } from './components/DumForm';
-import { Card } from './components/ui';
+import { Card, Segmented } from './components/ui';
+import type { BirthPlan } from './lib/birthPlan';
 import HomeTab from './components/tabs/HomeTab';
 import DiaryTab, { type NewSymptom } from './components/tabs/DiaryTab';
 import type { NewConsultation, ReportRequest } from './components/tabs/ConsultationsTab';
@@ -16,6 +17,7 @@ import TasksTab, { type NewTask } from './components/tabs/TasksTab';
 const DashboardTab = lazy(() => import('./components/tabs/DashboardTab'));
 const ConsultationsTab = lazy(() => import('./components/tabs/ConsultationsTab'));
 const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
+const LaborTab = lazy(() => import('./components/tabs/LaborTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
 import { useStoredAuthor } from './hooks/useStoredAuthor';
@@ -40,6 +42,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('inicio');
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
+  const [agendaView, setAgendaView] = useState<'calendario' | 'tarefas'>('calendario');
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
@@ -85,6 +88,8 @@ export default function App() {
     comment: id => sql`DELETE FROM partner_comments WHERE id = ${id}`,
     metric: id => sql`DELETE FROM health_metrics_log WHERE id = ${id}`,
     consultation: id => sql`DELETE FROM consultations WHERE id = ${id}`,
+    kick: id => sql`DELETE FROM kick_sessions WHERE id = ${id}`,
+    contraction: id => sql`DELETE FROM contractions WHERE id = ${id}`,
   };
 
   /** Esconde o item na hora e só apaga no banco depois do prazo para desfazer. */
@@ -154,6 +159,31 @@ export default function App() {
       `,
       'Não foi possível salvar a ficha. Rode a migração db/migrations/003_ficha_gestante.sql no Neon.',
     );
+
+  const laborError = 'Não foi possível salvar. Rode a migração db/migrations/004_parto.sql no Neon.';
+
+  const saveKicks = (k: { startedAt: string; endedAt: string; kicks: number; target: number }) =>
+    run(
+      () => sql`
+        INSERT INTO kick_sessions (started_at, ended_at, kicks, target, created_by)
+        VALUES (${k.startedAt}, ${k.endedAt}, ${k.kicks}, ${k.target}, ${author})
+      `,
+      laborError,
+    );
+
+  const saveContraction = (c: { startedAt: string; endedAt: string }) =>
+    run(() => sql`INSERT INTO contractions (started_at, ended_at, created_by) VALUES (${c.startedAt}, ${c.endedAt}, ${author})`, laborError);
+
+  const saveBirthPlan = (plan: BirthPlan) =>
+    run(async () => {
+      const json = JSON.stringify(plan);
+      const updated = await sql`
+        UPDATE birth_plan SET data = ${json}::jsonb, updated_by = ${author}, updated_at = NOW()
+        WHERE id = (SELECT id FROM birth_plan ORDER BY updated_at DESC LIMIT 1)
+        RETURNING id
+      `;
+      if (updated.length === 0) await sql`INSERT INTO birth_plan (data, updated_by) VALUES (${json}::jsonb, ${author})`;
+    }, laborError);
 
   const createTask = (t: NewTask) =>
     run(
@@ -256,6 +286,7 @@ export default function App() {
     ...findPatterns(toEntries(symptoms), { from: new Date(end.getFullYear(), end.getMonth(), end.getDate() - 27), to: end }),
   ];
   const tasks = visible('task', data.tasks);
+  const overdueTasks = tasks.filter(t => !t.is_completed && isOverdue(t.due_date)).length;
   const questions = visible('question', data.questions);
   const comments = visible('comment', data.comments);
   const consultations = visible('consultation', data.consultations);
@@ -274,7 +305,7 @@ export default function App() {
         active={activeTab}
         onChange={navigate}
         badges={{
-          tarefas: tasks.filter(t => !t.is_completed && isOverdue(t.due_date)).length,
+          agenda: overdueTasks,
           consultas: questions.filter(q => !q.doctor_answer).length,
         }}
       />
@@ -310,9 +341,26 @@ export default function App() {
             onToggleTask={toggleTask}
             onNavigate={navigate}
             onPrepareReport={prepareReport}
+            onOpenTasks={() => {
+              setAgendaView('tarefas');
+              navigate('agenda');
+            }}
           />
         )}
         {activeTab === 'agenda' && (
+          <div className="no-print mb-4 flex justify-end">
+            <Segmented
+              label="Visão da agenda"
+              value={agendaView}
+              onChange={setAgendaView}
+              options={[
+                { value: 'calendario', label: 'Calendário' },
+                { value: 'tarefas', label: `Tarefas${overdueTasks ? ` (${overdueTasks} atrasada${overdueTasks > 1 ? 's' : ''})` : ''}` },
+              ]}
+            />
+          </div>
+        )}
+        {activeTab === 'agenda' && agendaView === 'calendario' && (
           <CalendarTab
             dumDate={dumDate}
             currentWeek={currentWeek}
@@ -371,9 +419,12 @@ export default function App() {
             onAnswer={answerQuestion}
             onDeleteQuestion={q => scheduleDelete('question', q.id, 'dúvida')}
             onNotify={text => showToast({ text, tone: 'info' })}
+            kickSessions={data.kickSessions}
+            contractions={data.contractions}
+            birthPlan={data.birthPlan}
           />
         )}
-        {activeTab === 'tarefas' && (
+        {activeTab === 'agenda' && agendaView === 'tarefas' && (
           <TasksTab
             tasks={tasks}
             selectedWeek={selectedWeek}
@@ -382,6 +433,25 @@ export default function App() {
             onCreate={createTask}
             onToggle={toggleTask}
             onDelete={t => scheduleDelete('task', t.id, `tarefa "${t.task_title}"`)}
+          />
+        )}
+        {activeTab === 'parto' && (
+          <LaborTab
+            author={author}
+            currentWeek={currentWeek}
+            motherName={data.profile.motherName}
+            kickSessions={visible('kick', data.kickSessions)}
+            contractions={visible('contraction', data.contractions)}
+            birthPlan={data.birthPlan}
+            available={data.laborAvailable}
+            busy={busy}
+            onSaveKicks={saveKicks}
+            onDeleteKicks={k => scheduleDelete('kick', k.id, 'contagem de movimentos')}
+            onSaveContraction={saveContraction}
+            onDeleteContraction={id => scheduleDelete('contraction', id, 'contração')}
+            onSavePlan={saveBirthPlan}
+            onRefresh={() => run(async () => undefined)}
+            onNotify={text => showToast({ text, tone: 'info' })}
           />
         )}
         </Suspense>

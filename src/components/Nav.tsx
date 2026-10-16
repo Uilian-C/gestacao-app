@@ -1,4 +1,4 @@
-import { CalendarDays, CheckSquare, Home, LineChart, NotebookPen, Stethoscope } from 'lucide-react';
+import { Baby, CalendarDays, Home, LineChart, NotebookPen, Stethoscope } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Tab } from '../types';
 
@@ -8,7 +8,7 @@ const TABS: Array<{ id: Tab; label: string; icon: ReactNode }> = [
   { id: 'diario', label: 'Diário', icon: <NotebookPen className="w-5 h-5" /> },
   { id: 'painel', label: 'Painel', icon: <LineChart className="w-5 h-5" /> },
   { id: 'consultas', label: 'Consultas', icon: <Stethoscope className="w-5 h-5" /> },
-  { id: 'tarefas', label: 'Tarefas', icon: <CheckSquare className="w-5 h-5" /> },
+  { id: 'parto', label: 'Parto', icon: <Baby className="w-5 h-5" /> },
 ];
 
 /** Abas no topo no computador e barra fixa embaixo no celular, ao alcance do polegar. */
