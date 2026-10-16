@@ -1,0 +1,50 @@
+/* Páginas públicas de Termos e Privacidade: mesmas cores e fontes do app, sem JavaScript. */
+:root {
+  --canvas: #faf7f3;
+  --surface: #ffffff;
+  --ink: #2b2622;
+  --ink-soft: #5e5650;
+  --ink-mute: #7a7169;
+  --brand: #5e7d6c;
+  --line: #ebe4dc;
+  --alert-bg: #f7e6e3;
+  --alert: #a8433c;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #1b1917;
+    --surface: #242120;
+    --ink: #f1ece6;
+    --ink-soft: #cfc6bd;
+    --ink-mute: #a49a90;
+    --brand: #9cbfac;
+    --line: #36312d;
+    --alert-bg: #3a2422;
+    --alert: #f0a49b;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink-soft);
+  font: 400 16px/1.65 'Nunito Sans', system-ui, sans-serif;
+}
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+h1, h2 { font-family: 'Fraunces', Georgia, serif; font-weight: 500; color: var(--ink); line-height: 1.25; }
+h1 { font-size: 2rem; margin: 20px 0 4px; }
+h2 { font-size: 1.25rem; margin: 32px 0 8px; }
+strong { color: var(--ink); font-weight: 600; }
+a { color: var(--brand); text-underline-offset: 3px; }
+ul { padding-left: 1.2rem; }
+li { margin: 6px 0; }
+.meta { color: var(--ink-mute); font-size: 0.9rem; margin-top: 0; }
+.back { display: inline-block; font-size: 0.95rem; text-decoration: none; }
+.alert { background: var(--alert-bg); border-radius: 16px; padding: 14px 16px; }
+.alert strong { color: var(--alert); }
+.foot { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.95rem; }

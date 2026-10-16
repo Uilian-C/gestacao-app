@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, Link2, Loader2, LogOut, MessageCircle, UserMinus, X } from 'lucide-react';
+import { Check, Copy, Download, Link2, Loader2, LogOut, MessageCircle, Trash2, UserMinus, X } from 'lucide-react';
 import { api, ApiError, type FamilyState, type Me } from '../../api';
 import { formatInviteCode, inviteLink } from '../../lib/invite';
 import { formatBR } from '../../lib/dates';
 import type { Author } from '../../types';
+import { inputClass } from '../styles';
 import { Button, Segmented } from '../ui';
+import { LegalLinks } from './AuthScreen';
 
 interface Props {
   me: Me;
@@ -12,17 +14,20 @@ interface Props {
   onClose: () => void;
   onFamilyChange: (family: FamilyState | null) => void;
   onSignOut: () => void;
+  onAccountDeleted: () => void;
 }
 
 const ROLE_LABEL: Record<Author, string> = { mae: 'Mãe', pai: 'Pai' };
 
 /** "Nosso espaço": quem participa, convite para o(a) parceiro(a) e conta. */
-export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSignOut }: Props) {
+export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSignOut, onAccountDeleted }: Props) {
   const [invite, setInvite] = useState<{ code: string; expiresAt: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [danger, setDanger] = useState<'account' | 'space' | null>(null);
+  const [confirmText, setConfirmText] = useState('');
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -73,6 +78,23 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
     });
 
   const others = family.members.filter(m => !m.me);
+
+  const openDanger = (kind: 'account' | 'space') => {
+    setDanger(kind);
+    setConfirmText('');
+  };
+
+  const destroy = () =>
+    act(async () => {
+      if (danger === 'account') {
+        await api.account('deleteAccount', 'EXCLUIR');
+        onAccountDeleted();
+      } else {
+        await api.account('deleteSpace', 'EXCLUIR');
+        onClose();
+        onFamilyChange(null);
+      }
+    });
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="space-title">
@@ -181,6 +203,54 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
               </div>
             </div>
           )}
+        </section>
+
+        <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-4">
+          <div>
+            <h3 className="text-base">Seus dados</h3>
+            <p className="text-sm text-ink-mute">Pela LGPD, você pode baixar ou apagar tudo a qualquer momento.</p>
+          </div>
+          <a
+            href="/api/account"
+            download
+            className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold bg-brand-soft text-brand-strong hover:brightness-[0.97] [&_svg]:w-4 [&_svg]:h-4"
+          >
+            <Download /> Baixar meus dados
+          </a>
+          <div className="flex flex-wrap gap-2">
+            <Button tone="ghost" onClick={() => openDanger('account')}>
+              <Trash2 /> Excluir minha conta
+            </Button>
+            <Button tone="ghost" onClick={() => openDanger('space')}>
+              <Trash2 /> Excluir o espaço
+            </Button>
+          </div>
+          {danger && (
+            <div className="rounded-2xl bg-alert-soft px-4 py-4 space-y-3">
+              <p className="text-sm text-ink">
+                {danger === 'space'
+                  ? `Todos os registros da gestação serão apagados para ${family.members.length > 1 ? `as ${family.members.length} pessoas do espaço` : 'você'}. As contas continuam, mas sem espaço. Não dá para desfazer.`
+                  : others.length
+                    ? `Sua conta e seu acesso serão apagados. Os registros do espaço continuam disponíveis para ${others.map(o => o.name.split(' ')[0]).join(' e ')}. Não dá para desfazer.`
+                    : 'Sua conta, o espaço e todos os registros da gestação serão apagados. Não dá para desfazer.'}
+              </p>
+              <input
+                value={confirmText}
+                onChange={e => setConfirmText(e.target.value)}
+                placeholder="Digite EXCLUIR para confirmar"
+                autoCapitalize="characters"
+                aria-label="Digite EXCLUIR para confirmar"
+                className={inputClass}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button tone="ghost" onClick={() => setDanger(null)}>Cancelar</Button>
+                <Button tone="warm" disabled={busy || confirmText.trim().toUpperCase() !== 'EXCLUIR'} onClick={destroy}>
+                  {busy ? <Loader2 className="animate-spin" /> : <Trash2 />} Excluir definitivamente
+                </Button>
+              </div>
+            </div>
+          )}
+          <LegalLinks />
         </section>
 
         {error && <p role="alert" className="text-sm text-alert bg-alert-soft rounded-2xl px-4 py-2.5">{error}</p>}

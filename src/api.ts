@@ -38,6 +38,8 @@ export interface FamilyState {
 
 export interface Me {
   user: { id: string; name: string; email: string };
+  /** Aceite dos Termos e da Política vigentes (LGPD). */
+  consent: { version: string; accepted: boolean; previous: boolean };
   family: FamilyState | null;
 }
 
@@ -47,5 +49,6 @@ export const api = {
   /** Gravações: { op: 'createTask', ... }. Ver api/data.ts para a lista. */
   mutate: (op: string, payload: Record<string, unknown> = {}) => request<{ ok: true }>('/api/data', { op, ...payload }),
   me: () => request<Me>('/api/family'),
+  account: (op: 'deleteAccount' | 'deleteSpace', confirm: string) => request<{ ok: true }>('/api/account', { op, confirm }),
   family: <T = { ok: true; family: FamilyState | null }>(op: string, payload: Record<string, unknown> = {}) => request<T>('/api/family', { op, ...payload }),
 };

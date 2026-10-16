@@ -1,4 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [{ "source": "/api/auth/:path*", "destination": "/api/auth?__path=:path*" }]
+  "rewrites": [
+    {
+      "source": "/api/auth/:path*",
+      "destination": "/api/auth?__path=:path*"
+    }
+  ],
+  "cleanUrls": true
 }

@@ -48,6 +48,7 @@ api/                      funções da Vercel (rodam no servidor)
   data.ts                 leitura e gravação dos registros, sempre filtradas pelo espaço
   family.ts               espaço da família: criar, convidar, entrar, papel, remover
   config.ts               o que a tela de login oferece (Google, recuperar senha)
+  account.ts              LGPD: baixar os dados (GET) e excluir conta ou espaço (POST)
   _lib/                   conexão com o banco, configuração do login e utilitários
 src/
   Root.tsx                porta de entrada: login, espaço da família e app
@@ -84,5 +85,6 @@ Toda alteração de banco entra como um arquivo novo em `db/migrations/` e deve 
 - **Datas**: sempre use `parseLocalDate` e `formatBR` de `lib/dates.ts`. `new Date('AAAA-MM-DD')` volta um dia no Brasil.
 - **Dados clínicos**: nunca preencha valores padrão em campos de saúde. Campo não medido é gravado como `NULL`.
 - **Autoria**: o servidor grava `created_by` com o papel de quem está logado (`mae` ou `pai`), nunca com o que o navegador envia.
+- **LGPD**: dados de saúde exigem consentimento. Ao mudar `public/termos.html` ou `public/privacidade.html` de forma relevante, atualize a data no topo das páginas e `CONSENT_VERSION` em `api/_lib/consent.ts`: todos aceitam de novo ao entrar.
 - **Isolamento**: toda consulta em `api/` filtra por `family_id`. Nunca escreva SQL no navegador.
 - **Build**: a Vercel falha com import ou variável sem uso. Rode `npm run build` antes de subir.

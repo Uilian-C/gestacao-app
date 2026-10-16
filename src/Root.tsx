@@ -3,6 +3,7 @@ import { CloudRain, Loader2 } from 'lucide-react';
 import App from './App';
 import { api, ApiError, type FamilyState, type Me } from './api';
 import AuthScreen from './components/auth/AuthScreen';
+import ConsentScreen from './components/auth/ConsentScreen';
 import Onboarding from './components/auth/Onboarding';
 import { authClient } from './lib/authClient';
 import { clearPendingInvite } from './lib/invite';
@@ -56,16 +57,18 @@ export default function Root() {
   const current = me && me.user.id === userId ? me : null;
   useEffect(() => applyAuthorColor(current?.family?.role), [current?.family?.role]);
 
-  const setFamily = useCallback((family: FamilyState | null) => setMe(prev => (prev ? { ...prev, family } : prev)), []);
   const { refetch } = session;
+  const setFamily = useCallback((family: FamilyState | null) => setMe(prev => (prev ? { ...prev, family } : prev)), []);
   const reload = useCallback(() => {
     refetch();
     setAttempt(a => a + 1);
   }, [refetch]);
   const signOut = useCallback(async () => {
-    await authClient.signOut();
+    // Depois de excluir a conta a sessão já não existe; sair mesmo assim limpa o navegador.
+    await authClient.signOut().catch(() => undefined);
     setMe(null);
-  }, []);
+    refetch();
+  }, [refetch]);
 
   if (session.isPending) return <Splash />;
   if (!userId) return <AuthScreen />;
@@ -78,6 +81,16 @@ export default function Root() {
       </Splash>
     ) : (
       <Splash />
+    );
+  }
+  if (!current.consent.accepted) {
+    return (
+      <ConsentScreen
+        version={current.consent.version}
+        updated={current.consent.previous}
+        onAccepted={() => setMe(prev => (prev ? { ...prev, consent: { ...prev.consent, accepted: true } } : prev))}
+        onSignOut={signOut}
+      />
     );
   }
   if (!current.family) return <Onboarding name={current.user.name} onReady={setFamily} onSignOut={signOut} />;

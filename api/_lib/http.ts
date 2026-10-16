@@ -1,4 +1,5 @@
 import { auth, trustedOrigins } from './auth.js';
+import { hasConsent } from './consent.js';
 import { query } from './db.js';
 
 export class HttpError extends Error {
@@ -54,9 +55,10 @@ export async function findMembership(userId: string): Promise<Member | null> {
   return rows[0] ? { userId, familyId: rows[0].family_id, role: rows[0].role } : null;
 }
 
-/** Usuário logado e o espaço dele. Toda leitura e gravação de dados passa por aqui. */
+/** Usuário logado, que aceitou os termos vigentes, e o espaço dele. Toda leitura e gravação de dados passa por aqui. */
 export async function requireMember(request: Request): Promise<Member> {
   const user = await requireUser(request);
+  if (!(await hasConsent(user.id))) throw new HttpError(403, 'Aceite os Termos e a Política de Privacidade para continuar.');
   const member = await findMembership(user.id);
   if (!member) throw new HttpError(403, 'Você ainda não faz parte de um espaço.');
   return member;
