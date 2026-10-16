@@ -7,7 +7,9 @@ import * as account from '../api/account.ts';
 import * as config from '../api/config.ts';
 import * as data from '../api/data.ts';
 import * as family from '../api/family.ts';
+import * as lembretes from '../api/lembretes.ts';
 import * as places from '../api/places.ts';
+import * as push from '../api/push.ts';
 
 type Handler = (request: Request) => Response | Promise<Response>;
 const routes: Record<string, Partial<Record<string, Handler>>> = {
@@ -15,7 +17,9 @@ const routes: Record<string, Partial<Record<string, Handler>>> = {
   '/api/config': config,
   '/api/data': data,
   '/api/family': family,
+  '/api/lembretes': lembretes,
   '/api/places': places,
+  '/api/push': push,
 };
 
 const port = Number(process.env.API_PORT ?? 3001);

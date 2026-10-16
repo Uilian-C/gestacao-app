@@ -7,6 +7,7 @@ import type { Author } from '../../types';
 import { inputClass } from '../styles';
 import { Button, Segmented } from '../ui';
 import { LegalLinks } from './AuthScreen';
+import NotificationSettings from '../NotificationSettings';
 
 interface Props {
   me: Me;
@@ -177,6 +178,8 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
             </Button>
           )}
         </section>
+
+        <NotificationSettings />
 
         <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-4">
           <h3 className="text-base">Você</h3>
