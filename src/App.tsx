@@ -2,6 +2,7 @@ import { Suspense, lazy, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { sql } from './db';
 import Header from './components/Header';
+import FichaBar, { type FichaInput } from './components/FichaBar';
 import Nav from './components/Nav';
 import Toast, { type ToastMessage } from './components/Toast';
 import { DumForm } from './components/DumForm';
@@ -141,6 +142,19 @@ export default function App() {
       `Não foi possível salvar. ${MIGRATION_HINT}`,
     );
 
+  const saveFicha = (f: FichaInput) =>
+    run(
+      () => sql`
+        UPDATE families SET
+          mother_name = ${f.motherName}, mother_birth_date = ${f.motherBirthDate}, blood_type = ${f.bloodType},
+          gestations = ${f.gestations}, births = ${f.births}, abortions = ${f.abortions}, cesareans = ${f.cesareans},
+          pre_pregnancy_weight_kg = ${f.preWeightKg}, height_cm = ${f.heightCm},
+          allergies = ${f.allergies}, medications = ${f.medications}, conditions = ${f.conditions}
+        WHERE id = (SELECT id FROM families WHERE dum_date IS NOT NULL ORDER BY id LIMIT 1)
+      `,
+      'Não foi possível salvar a ficha. Rode a migração db/migrations/003_ficha_gestante.sql no Neon.',
+    );
+
   const createTask = (t: NewTask) =>
     run(
       () => sql`
@@ -254,7 +268,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-canvas text-ink pb-28 md:pb-12">
-      <Header author={author} onAuthorChange={setAuthor} age={age} greeting={greetingFor(now.getHours())} />
+      <Header author={author} onAuthorChange={setAuthor} greeting={greetingFor(now.getHours())} />
+      <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />
       <Nav
         active={activeTab}
         onChange={navigate}

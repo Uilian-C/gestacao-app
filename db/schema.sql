@@ -16,6 +16,16 @@ CREATE TABLE IF NOT EXISTS families (
   dum_date   DATE,
   pre_pregnancy_weight_kg NUMERIC(5, 2),  -- migração 002
   height_cm  NUMERIC(5, 1),               -- migração 002
+  mother_name VARCHAR(120),               -- migração 003 (ficha da gestante)
+  mother_birth_date DATE,
+  blood_type VARCHAR(5),
+  gestations INTEGER,
+  births     INTEGER,
+  abortions  INTEGER,
+  cesareans  INTEGER,
+  allergies  TEXT,
+  medications TEXT,
+  conditions TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

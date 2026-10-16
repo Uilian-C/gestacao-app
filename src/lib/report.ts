@@ -143,14 +143,18 @@ const one = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 
 export const TREND_LABEL = { subindo: 'piorando', descendo: 'melhorando', estavel: 'estável', novo: 'novo no período' } as const;
 
 /** Versão em texto para mandar por WhatsApp ou e-mail ao profissional. */
-export function reportToText(r: ConsultationReport): string {
+export function reportToText(r: ConsultationReport, ficha: string[] = []): string {
   const lines: string[] = [];
   lines.push(`RESUMO PARA CONSULTA · ${r.specialty.label.toUpperCase()}`);
   if (r.consultation) {
     const when = parseTimestamp(r.consultation.scheduled_at);
     lines.push(`Consulta: ${when.toLocaleDateString('pt-BR')} às ${when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}${r.consultation.professional_name ? ` · ${r.consultation.professional_name}` : ''}`);
   }
-  if (r.age) lines.push(`Idade gestacional hoje: ${r.age.weeks} semanas e ${r.age.days} dias · DPP ${r.age.dpp.toLocaleDateString('pt-BR')}`);
+  if (ficha.length) {
+    lines.push('', 'FICHA DA GESTANTE', ...ficha.map(l => `- ${l}`), '');
+  } else if (r.age) {
+    lines.push(`Idade gestacional hoje: ${r.age.weeks} semanas e ${r.age.days} dias · DPP ${r.age.dpp.toLocaleDateString('pt-BR')}`);
+  }
   lines.push(`Período analisado: ${formatBR(toISODate(r.period.from))} a ${formatBR(toISODate(r.period.to))} (semanas ${r.weekFrom} a ${r.weekTo})`);
 
   if (r.insights.length) {

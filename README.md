@@ -35,6 +35,7 @@ src/
   lib/symptoms.ts         estatísticas e padrões dos sintomas
   lib/weightGain.ts       IMC e faixa de ganho de peso (IOM 2009)
   lib/report.ts           resumo da consulta por especialidade
+  lib/ficha.ts            ficha da gestante (cabeçalho de prontuário)
   lib/calendar.ts         eventos da agenda, grades de mês e semana, exportação .ics e Google Agenda
   data/                   semanas, especialidades, sintomas comuns, sugestões de tarefas
   hooks/                  carregamento dos dados e autor do aparelho
