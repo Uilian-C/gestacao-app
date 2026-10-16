@@ -10,6 +10,17 @@ import { clearPendingInvite } from './lib/invite';
 
 const AUTHOR_KEY = 'nossa-gestacao:autor';
 
+// Ao abrir, o espaço e os dados já começam a vir junto com a checagem do login,
+// em vez de esperar uma pela outra. Só serve se for da mesma pessoa que está logada.
+let boot: Promise<Me | null> | null = api.me().catch(() => null);
+
+async function loadMe(userId: string) {
+  const early = boot;
+  boot = null;
+  const result = early ? await early : null;
+  return result && result.user.id === userId ? result : api.me();
+}
+
 /** A cor do app segue o papel de quem está logado (mãe rosé, pai azul; sem login, neutro). */
 function applyAuthorColor(role: string | undefined) {
   const root = document.documentElement;
@@ -34,8 +45,7 @@ export default function Root() {
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-    api
-      .me()
+    loadMe(userId)
       .then(result => {
         if (cancelled) return;
         setMe(result);

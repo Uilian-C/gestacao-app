@@ -46,7 +46,7 @@ interface AppProps {
 }
 
 export default function App({ me, family, onFamilyChange, onAccessLost, onSignOut }: AppProps) {
-  const { data, loadState, refresh, retry } = useGestationData(onAccessLost);
+  const { data, loadState, refresh, replace, patch, retry } = useGestationData(onAccessLost, me.data);
   const author = family.role;
   const [spaceOpen, setSpaceOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('inicio');
@@ -74,15 +74,21 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     window.scrollTo({ top: 0 });
   };
 
-  /** Executa uma alteração no banco, recarrega e avisa se der errado. Retorna se deu certo. */
+  /**
+   * Executa uma alteração no banco e avisa se der errado. Retorna se deu certo.
+   * O servidor devolve os dados atualizados na mesma resposta; sem eles, recarrega.
+   */
   const run = async (action: () => Promise<unknown>, errorText = 'Não foi possível salvar. Verifique a conexão e tente de novo.') => {
     setBusy(true);
     try {
-      await action();
-      await refresh();
+      const result = (await action()) as { data?: unknown } | undefined;
+      if (result?.data) replace(result.data);
+      else await refresh();
       return true;
     } catch (err) {
       console.error(err);
+      // Desfaz o que foi mostrado antes da confirmação.
+      refresh().catch(() => undefined);
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         onAccessLost();
         return false;
@@ -133,8 +139,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   const saveDum = (iso: string) =>
     run(async () => {
-      await api.mutate('saveDum', { date: iso });
+      const result = await api.mutate('saveDum', { date: iso });
       setPickedWeek(null);
+      return result;
     });
 
   const saveProfile = (preWeightKg: number, heightCm: number) => run(() => api.mutate('saveProfile', { preWeightKg, heightCm }));
@@ -152,7 +159,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       api.mutate('createTask', { week: t.week ?? selectedWeek, title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null }),
     );
 
-  const toggleTask = (t: PartnerTask) => run(() => api.mutate('toggleTask', { id: t.id, done: !t.is_completed }));
+  // Marcar e desmarcar aparece na hora; o servidor confirma em seguida.
+  const toggleTask = (t: PartnerTask) => {
+    patch(d => ({ ...d, tasks: d.tasks.map(x => (x.id === t.id ? { ...x, is_completed: !t.is_completed } : x)) }));
+    return run(() => api.mutate('toggleTask', { id: t.id, done: !t.is_completed }));
+  };
 
   const createSymptom = (s: NewSymptom) =>
     run(() =>
@@ -168,8 +179,13 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   const createMetric = (m: ParsedMetric) => run(() => api.mutate('createMetric', { week: currentWeek, date: today, ...m }), 'Não foi possível salvar a medição.');
 
-  const setCheck = (list: 'prenatal' | 'mala', itemId: string, done: boolean) =>
-    run(() => api.mutate('setCheck', { list, itemId, done }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/007_checklists.sql no Neon.');
+  const setCheck = (list: 'prenatal' | 'mala', itemId: string, done: boolean) => {
+    patch(d => ({
+      ...d,
+      checks: done ? [...d.checks.filter(c => !(c.list === list && c.item_id === itemId)), { list, item_id: itemId, done_at: today }] : d.checks.filter(c => !(c.list === list && c.item_id === itemId)),
+    }));
+    return run(() => api.mutate('setCheck', { list, itemId, done }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/007_checklists.sql no Neon.');
+  };
 
   const createEntry = (e: NewEntry) =>
     run(() => api.mutate('createEntry', { ...e }), 'Não foi possível guardar. Se for a primeira vez, rode a migração db/migrations/008_momentos.sql no Neon.');

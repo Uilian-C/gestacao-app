@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { auth } from './_lib/auth.js';
 import { query, transaction } from './_lib/db.js';
 import { HttpError, endpoint, findMembership, json, readJson, requireUser } from './_lib/http.js';
 
@@ -93,5 +94,14 @@ export const POST = endpoint(async request => {
     }
   });
 
-  return json({ ok: true });
+  // Apaga os cookies do login neste aparelho: o login guardado em cookie
+  // (que evita ir ao banco a cada chamada) não pode sobreviver à conta.
+  const res = json({ ok: true });
+  if (parsed.data.op === 'deleteAccount') {
+    const { authCookies } = await auth.$context;
+    for (const c of [authCookies.sessionToken, authCookies.sessionData, authCookies.dontRememberToken]) {
+      res.headers.append('Set-Cookie', `${c.name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${c.attributes.secure ? '; Secure' : ''}`);
+    }
+  }
+  return res;
 });

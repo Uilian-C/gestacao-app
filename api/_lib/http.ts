@@ -1,5 +1,5 @@
 import { auth, trustedOrigins } from './auth.js';
-import { hasConsent } from './consent.js';
+import { CONSENT_VERSION } from './consent.js';
 import { query } from './db.js';
 
 export class HttpError extends Error {
@@ -55,11 +55,36 @@ export async function findMembership(userId: string): Promise<Member | null> {
   return rows[0] ? { userId, familyId: rows[0].family_id, role: rows[0].role } : null;
 }
 
+export interface Access {
+  member: Member | null;
+  /** Aceitou os termos vigentes. */
+  consented: boolean;
+  /** Já tinha aceitado alguma versão anterior. */
+  consentedBefore: boolean;
+}
+
+/** Espaço e aceite dos termos numa ida só ao banco (antes eram duas ou três). */
+export async function accessOf(userId: string): Promise<Access> {
+  const rows = await query<{ family_id: string | null; role: Role | null; consented: boolean; consented_before: boolean }>(
+    `SELECT m.family_id::text AS family_id, m.role,
+            EXISTS (SELECT 1 FROM user_consents c WHERE c.user_id = $1 AND c.version = $2) AS consented,
+            EXISTS (SELECT 1 FROM user_consents c WHERE c.user_id = $1) AS consented_before
+     FROM (SELECT 1) AS one LEFT JOIN family_members m ON m.user_id = $1`,
+    [userId, CONSENT_VERSION],
+  );
+  const r = rows[0];
+  return {
+    member: r?.family_id ? { userId, familyId: r.family_id, role: r.role! } : null,
+    consented: !!r?.consented,
+    consentedBefore: !!r?.consented_before,
+  };
+}
+
 /** Usuário logado, que aceitou os termos vigentes, e o espaço dele. Toda leitura e gravação de dados passa por aqui. */
 export async function requireMember(request: Request): Promise<Member> {
   const user = await requireUser(request);
-  if (!(await hasConsent(user.id))) throw new HttpError(403, 'Aceite os Termos e a Política de Privacidade para continuar.');
-  const member = await findMembership(user.id);
+  const { member, consented } = await accessOf(user.id);
+  if (!consented) throw new HttpError(403, 'Aceite os Termos e a Política de Privacidade para continuar.');
   if (!member) throw new HttpError(403, 'Você ainda não faz parte de um espaço.');
   return member;
 }
