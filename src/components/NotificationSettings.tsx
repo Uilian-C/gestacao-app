@@ -1,8 +1,8 @@
-import { useSyncExternalStore } from 'react';
-import { Bell, BellOff, Download, Loader2, Share, SquarePlus } from 'lucide-react';
+import { useState, useSyncExternalStore } from 'react';
+import { Bell, BellOff, Check, Copy, Download, ExternalLink, Loader2, Share, SquarePlus } from 'lucide-react';
 import { usePush } from '../hooks/usePush';
 import type { NotifyKind } from '../lib/notifications';
-import { canInstall, isStandalone, onInstallChange, promptInstall } from '../lib/pwa';
+import { canInstall, chromeIntentUrl, isAndroid, isStandalone, limitedBrowser, onInstallChange, promptInstall } from '../lib/pwa';
 import { Button } from './ui';
 
 const KINDS: Array<{ id: NotifyKind; label: string; hint: string }> = [
@@ -35,6 +35,38 @@ export function IosInstallSteps() {
         </span>
       </li>
     </ol>
+  );
+}
+
+/** Edge no Android e navegadores de redes sociais: abrir no Chrome para receber avisos e instalar. */
+export function OpenInChrome() {
+  const [copied, setCopied] = useState(false);
+  const browser = limitedBrowser() ?? 'este navegador';
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.origin);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Sem área de transferência: a pessoa digita o endereço.
+    }
+  };
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-ink">
+        Você está usando {browser}, que abre o app mas <strong>não entrega notificações</strong> nem permite instalar. Abra no <strong>{isAndroid() ? 'Chrome' : 'Safari'}</strong> e entre com a mesma conta.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {isAndroid() && (
+          <a href={chromeIntentUrl()} className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold bg-brand text-on-accent hover:bg-brand-strong shadow-soft [&_svg]:w-4 [&_svg]:h-4">
+            <ExternalLink /> Abrir no Chrome
+          </a>
+        )}
+        <Button tone="soft" onClick={copy}>
+          {copied ? <Check /> : <Copy />} {copied ? 'Link copiado' : 'Copiar link'}
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -72,6 +104,8 @@ export default function NotificationSettings() {
           <p className="text-xs text-ink-mute">Precisa do iOS 16.4 ou mais novo.</p>
         </div>
       )}
+
+      {state.phase === 'outro-navegador' && <OpenInChrome />}
 
       {state.phase === 'sem-suporte' && <p className="text-sm text-ink-soft">Este navegador não recebe notificações. No celular, use o Chrome (Android) ou o Safari (iPhone).</p>}
 
