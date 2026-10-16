@@ -77,3 +77,20 @@ describe('exportação', () => {
     expect(ics).toContain('DTSTART;VALUE=DATE:20270215');
   });
 });
+
+describe('momentos na agenda', () => {
+  const journal = [{ id: 'm1', entry_date: '2026-10-16', body: 'Contamos no trabalho', remind_on: '2026-10-31', visibility: 'private' as const, author_role: 'mae' as const }];
+  it('momento no dia e lembrete na data marcada', () => {
+    const cal = buildCalendar({ dumDate: '2026-05-15', consultations: [], tasks: [], symptoms: [], metrics: [], journal });
+    expect(cal.events.get('2026-10-16')?.some(e => e.kind === 'momento' && !e.reminder)).toBe(true);
+    const reminder = cal.events.get('2026-10-31')?.find(e => e.reminder);
+    expect(reminder?.title).toBe('Lembrete: Contamos no trabalho');
+    expect(reminder?.private).toBe(true);
+  });
+  it('a agenda exportada leva só o lembrete, não o momento vivido', () => {
+    const cal = buildCalendar({ dumDate: '2026-05-15', consultations: [], tasks: [], symptoms: [], metrics: [], journal });
+    const ics = toIcs([...cal.events.values()].flat(), []);
+    expect(ics).toContain('SUMMARY:Lembrete: Contamos no trabalho');
+    expect(ics.match(/Contamos no trabalho/g)?.length).toBe(1);
+  });
+});

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { AlertTriangle, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, ListPlus, NotebookPen, Stethoscope } from 'lucide-react';
-import { buildCalendar, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, monthGrid, toIcs, type CalendarEvent, type DayRecords } from '../../lib/calendar';
+import { AlertTriangle, Bell, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, Heart, ListPlus, NotebookPen, Stethoscope } from 'lucide-react';
+import { buildCalendar, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, monthGrid, toIcs, type CalendarEvent, type CalendarMoment, type DayRecords } from '../../lib/calendar';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, toISODate } from '../../lib/dates';
 import type { Consultation, HealthMetric, PartnerTask, SymptomItem, Tab } from '../../types';
 import AuthorBadge from '../AuthorBadge';
@@ -16,6 +16,7 @@ interface Props {
   tasks: PartnerTask[];
   symptoms: SymptomItem[];
   metrics: HealthMetric[];
+  journal: CalendarMoment[];
   busy: boolean;
   migrationPending: boolean;
   onCreateConsultation: (c: NewConsultation) => Promise<boolean>;
@@ -30,6 +31,7 @@ const KIND_STYLE: Record<CalendarEvent['kind'], string> = {
   consulta: 'bg-brand-soft text-brand-strong',
   tarefa: 'bg-surface-2 text-ink-soft',
   marco: 'bg-warm-soft text-warm',
+  momento: 'bg-casal-soft text-casal',
 };
 
 export default function CalendarTab(props: Props) {
@@ -46,7 +48,7 @@ export default function CalendarTab(props: Props) {
     requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
   };
 
-  const cal = buildCalendar({ dumDate: props.dumDate, consultations: props.consultations, tasks: props.tasks, symptoms: props.symptoms, metrics: props.metrics, today });
+  const cal = buildCalendar({ dumDate: props.dumDate, consultations: props.consultations, tasks: props.tasks, symptoms: props.symptoms, metrics: props.metrics, journal: props.journal, today });
 
   const goToday = () => {
     setCursor({ year: today.getFullYear(), month: today.getMonth() });
@@ -158,6 +160,7 @@ function Legend() {
       {item('bg-brand', 'Consulta')}
       {item('bg-ink-mute', 'Tarefa com prazo')}
       {item('bg-warm', 'Marco do pré-natal')}
+      {item('bg-casal', 'Momento ou lembrete')}
       {item('bg-alert', 'Atrasado ou alerta')}
       <span className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
         <span className="w-3 h-3 rounded-full border-2" style={{ borderColor: 'var(--c-int-3)' }} />
@@ -171,6 +174,7 @@ function dotClass(e: CalendarEvent) {
   if (e.overdue) return 'bg-alert';
   if (e.kind === 'consulta') return 'bg-brand';
   if (e.kind === 'marco') return 'bg-warm';
+  if (e.kind === 'momento') return 'bg-casal';
   return e.done ? 'bg-line' : 'bg-ink-mute';
 }
 
@@ -274,7 +278,7 @@ function WeekView({ days, todayIso, selected, onSelect, events, records, onToggl
 
 function EventLine({ event: e, onToggleTask }: { event: CalendarEvent; onToggleTask?: (id: string) => void }) {
   const icon =
-    e.kind === 'consulta' ? <Stethoscope className="w-4 h-4 text-brand" /> : e.kind === 'marco' ? <Flag className="w-4 h-4 text-warm" /> : e.overdue ? <AlertTriangle className="w-4 h-4 text-alert" /> : <CheckCircle2 className={`w-4 h-4 ${e.done ? 'text-ok' : 'text-ink-mute'}`} />;
+    e.kind === 'consulta' ? <Stethoscope className="w-4 h-4 text-brand" /> : e.kind === 'marco' ? <Flag className="w-4 h-4 text-warm" /> : e.kind === 'momento' ? (e.reminder ? <Bell className="w-4 h-4 text-casal" /> : <Heart className="w-4 h-4 text-casal" />) : e.overdue ? <AlertTriangle className="w-4 h-4 text-alert" /> : <CheckCircle2 className={`w-4 h-4 ${e.done ? 'text-ok' : 'text-ink-mute'}`} />;
   return (
     <div className="flex items-start gap-2 text-sm">
       {e.kind === 'tarefa' && onToggleTask && e.sourceId ? (
@@ -295,6 +299,7 @@ function EventLine({ event: e, onToggleTask }: { event: CalendarEvent; onToggleT
         {e.time && <strong className="tabular">{e.time} · </strong>}
         <span className={e.kind === 'marco' && e.major ? 'font-semibold' : 'font-semibold'}>{e.title}</span>
         {e.overdue && <span className="text-alert font-semibold"> · atrasada</span>}
+        {e.private && <span className="text-ink-mute font-normal"> · só você</span>}
         {e.detail && <span className="block text-xs text-ink-mute">{e.detail}</span>}
       </span>
     </div>

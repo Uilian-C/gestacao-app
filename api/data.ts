@@ -7,8 +7,8 @@ import { HttpError, endpoint, json, readJson, requireMember, type Member } from 
 
 const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
 
-async function fetchAll(fid: string) {
-  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks] = await Promise.all([
+async function fetchAll(fid: string, userId: string) {
+  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal] = await Promise.all([
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
@@ -72,6 +72,15 @@ async function fetchAll(fid: string) {
     ),
     query(`SELECT data, updated_by, updated_at::text AS updated_at FROM birth_plan WHERE family_id = $1 ORDER BY updated_at DESC LIMIT 1`, [fid]),
     query(`SELECT list, item_id, done_at::text AS done_at FROM checklist WHERE family_id = $1`, [fid]).catch(() => null),
+    // Momentos particulares só voltam para quem escreveu.
+    query(
+      `SELECT id, entry_date::text AS entry_date, body, visibility, remind_on::text AS remind_on, author_role,
+              (user_id = $2) AS mine, created_at::text AS created_at
+       FROM journal_entries
+       WHERE family_id = $1 AND (visibility = 'shared' OR user_id = $2)
+       ORDER BY entry_date DESC, created_at DESC`,
+      [fid, userId],
+    ).catch(() => null),
   ]);
 
   const f = family[0] ?? {};
@@ -110,6 +119,8 @@ async function fetchAll(fid: string) {
     laborAvailable: true,
     checks: checks ?? [],
     checksAvailable: checks !== null,
+    journal: journal ?? [],
+    journalAvailable: journal !== null,
   };
 }
 
@@ -178,6 +189,14 @@ const ops = z.discriminatedUnion('op', [
   }),
   z.object({ op: z.literal('createConsultation'), scheduledAt: timestamp, specialty: text(30), professional: optionalText(120), location: optionalText(200) }),
   z.object({ op: z.literal('setCheck'), list: z.enum(['prenatal', 'mala']), itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), done: z.boolean() }),
+  z.object({
+    op: z.literal('createEntry'),
+    date: isoDate,
+    body: text(2000),
+    visibility: z.enum(['private', 'shared']),
+    remindOn: isoDate.nullish().transform(v => v || null),
+  }),
+  z.object({ op: z.literal('deleteEntry'), id }),
   z.object({ op: z.literal('delete'), kind: z.enum(['task', 'symptom', 'question', 'comment', 'metric', 'consultation', 'kick', 'contraction']), id }),
 ]);
 
@@ -274,6 +293,18 @@ async function apply(m: Member, o: Op) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [fid, o.scheduledAt, o.specialty, o.professional, o.location, who],
       );
+    case 'createEntry':
+      return query(
+        `INSERT INTO journal_entries (family_id, user_id, author_role, entry_date, body, visibility, remind_on)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [fid, m.userId, who, o.date, o.body, o.visibility, o.remindOn],
+      );
+    case 'deleteEntry': {
+      // Cada um apaga só os próprios momentos.
+      const rows = await query('DELETE FROM journal_entries WHERE id::text = $1 AND family_id = $2 AND user_id = $3 RETURNING id', [o.id, fid, m.userId]);
+      if (rows.length === 0) throw new HttpError(404, 'Momento não encontrado.');
+      return;
+    }
     case 'setCheck':
       if (!o.done) return query('DELETE FROM checklist WHERE family_id = $1 AND list = $2 AND item_id = $3', [fid, o.list, o.itemId]);
       return query(
@@ -299,7 +330,7 @@ async function apply(m: Member, o: Op) {
 
 export const GET = endpoint(async request => {
   const member = await requireMember(request);
-  return json(await fetchAll(member.familyId));
+  return json(await fetchAll(member.familyId, member.userId));
 });
 
 export const POST = endpoint(async request => {

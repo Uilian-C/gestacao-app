@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { CalendarHeart, CheckCircle2, ChevronLeft, ChevronRight, Lightbulb, NotebookPen, Pencil, Route, Siren } from 'lucide-react';
+import { Bell, CalendarHeart, CheckCircle2, ChevronLeft, ChevronRight, Lightbulb, NotebookPen, Pencil, Route, Siren } from 'lucide-react';
 import { weekInfo } from '../../content/weeks';
 import { specialtyOf, questionSpecialty } from '../../data/specialties';
 import { ALERT_SIGNS } from '../../content/symptomCatalog';
-import { FIRST_WEEK, LAST_WEEK, daysBetween, formatBR, isOverdue, localDay, parseTimestamp, type GestationalAge } from '../../lib/dates';
+import { FIRST_WEEK, LAST_WEEK, daysBetween, formatBR, isOverdue, localDay, parseLocalDate, parseTimestamp, type GestationalAge } from '../../lib/dates';
+import type { JournalEntry } from '../../hooks/useGestationData';
 import { isHighBloodPressure } from '../../lib/health';
 import { nextSteps, phaseOf, planFor } from '../../lib/journey';
 import { gestationMonth } from '../../lib/ficha';
@@ -43,6 +44,8 @@ interface Props {
   busy: boolean;
   onToggleStep: (itemId: string, done: boolean) => void;
   onOpenJourney: () => void;
+  /** Lembretes de momentos nos próximos 30 dias. */
+  reminders: JournalEntry[];
 }
 
 /** Anel de progresso da gestação (40 semanas), com a semana no centro. */
@@ -91,6 +94,25 @@ export default function HomeTab(props: Props) {
           <SectionTitle icon={<Siren className="w-5 h-5 text-alert" />} title="Atenção" />
           <InsightList insights={alerts} />
         </Card>
+      )}
+
+      {props.reminders.length > 0 && (
+        <section className="rounded-[24px] bg-casal-soft px-5 py-4 space-y-2">
+          <p className="text-xs font-semibold text-casal flex items-center gap-1.5">
+            <Bell className="w-3.5 h-3.5" /> Lembretes
+          </p>
+          <ul className="space-y-1.5">
+            {props.reminders.map(r => {
+              const days = daysBetween(today, parseLocalDate(r.remind_on!));
+              return (
+                <li key={r.id} className="flex items-start justify-between gap-3 text-sm">
+                  <span className="text-ink min-w-0">{r.body}</span>
+                  <span className="shrink-0 text-xs font-semibold text-casal">{days === 0 ? 'hoje' : days === 1 ? 'amanhã' : `em ${days} dias`}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
 
       <Card tone="warm" className="overflow-hidden">

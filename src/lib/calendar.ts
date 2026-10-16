@@ -4,7 +4,7 @@ import type { Author, Consultation, HealthMetric, PartnerTask, SymptomItem } fro
 import { daysBetween, isOverdue, localDay, parseLocalDate, parseTimestamp, toISODate } from './dates';
 import { isHighBloodPressure } from './health';
 
-export type EventKind = 'consulta' | 'tarefa' | 'marco';
+export type EventKind = 'consulta' | 'tarefa' | 'marco' | 'momento';
 
 export interface CalendarEvent {
   id: string;
@@ -19,6 +19,18 @@ export interface CalendarEvent {
   major?: boolean;
   author?: Author;
   sourceId?: string;
+  /** Momento com data para lembrar (vai para a agenda exportada). */
+  reminder?: boolean;
+  private?: boolean;
+}
+
+export interface CalendarMoment {
+  id: string;
+  entry_date: string;
+  body: string;
+  remind_on: string | null;
+  visibility: 'private' | 'shared';
+  author_role: Author;
 }
 
 export interface DayRecords {
@@ -36,7 +48,7 @@ export interface CalendarData {
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
-export function buildCalendar(input: { dumDate: string; consultations: Consultation[]; tasks: PartnerTask[]; symptoms: SymptomItem[]; metrics: HealthMetric[]; today?: Date }): CalendarData {
+export function buildCalendar(input: { dumDate: string; consultations: Consultation[]; tasks: PartnerTask[]; symptoms: SymptomItem[]; metrics: HealthMetric[]; journal?: CalendarMoment[]; today?: Date }): CalendarData {
   const today = input.today ?? new Date();
   const events = new Map<string, CalendarEvent[]>();
   const push = (e: CalendarEvent) => events.set(e.date, [...(events.get(e.date) ?? []), e]);
@@ -84,7 +96,15 @@ export function buildCalendar(input: { dumDate: string; consultations: Consultat
     });
   }
 
-  const order: Record<EventKind, number> = { marco: 0, consulta: 1, tarefa: 2 };
+  for (const j of input.journal ?? []) {
+    const short = j.body.length > 60 ? `${j.body.slice(0, 57)}…` : j.body;
+    push({ id: `momento-${j.id}`, kind: 'momento', date: j.entry_date.slice(0, 10), title: short, author: j.author_role, private: j.visibility === 'private', sourceId: j.id });
+    if (j.remind_on) {
+      push({ id: `lembrete-${j.id}`, kind: 'momento', date: j.remind_on.slice(0, 10), title: `Lembrete: ${short}`, author: j.author_role, private: j.visibility === 'private', reminder: true, sourceId: j.id });
+    }
+  }
+
+  const order: Record<EventKind, number> = { marco: 0, consulta: 1, tarefa: 2, momento: 3 };
   for (const list of events.values()) list.sort((a, b) => order[a.kind] - order[b.kind] || (a.time ?? '').localeCompare(b.time ?? ''));
 
   const records = new Map<string, DayRecords>();
@@ -154,6 +174,8 @@ export function toIcs(events: CalendarEvent[], consultations: Consultation[], no
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Nossa Gestacao//PT-BR', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Nossa Gestação'];
   for (const e of events) {
     if (e.kind === 'tarefa' && e.done) continue;
+    // Momentos já vividos não vão para a agenda; só os lembretes.
+    if (e.kind === 'momento' && !e.reminder) continue;
     lines.push('BEGIN:VEVENT', `UID:${e.id}@nossa-gestacao`, `DTSTAMP:${utcStamp(now)}`);
     const c = e.sourceId ? byId.get(e.sourceId) : undefined;
     if (e.kind === 'consulta' && c) {

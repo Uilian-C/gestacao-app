@@ -21,6 +21,21 @@ export interface GestationData {
   checks: CheckItem[];
   /** A migração 007 já foi aplicada. */
   checksAvailable: boolean;
+  /** Momentos: os compartilhados e os particulares de quem está logado. */
+  journal: JournalEntry[];
+  journalAvailable: boolean;
+}
+
+export interface JournalEntry {
+  id: string;
+  entry_date: string;
+  body: string;
+  visibility: 'private' | 'shared';
+  remind_on: string | null;
+  author_role: 'mae' | 'pai';
+  /** Escrito por quem está logado (só esses podem ser apagados). */
+  mine: boolean;
+  created_at: string;
 }
 
 export interface CheckItem {

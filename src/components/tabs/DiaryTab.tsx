@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, ChevronDown, HeartHandshake, NotebookPen, Plus, Scale, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bell, ChevronDown, Heart, HeartHandshake, Lock, NotebookPen, Plus, Scale, Trash2, Users } from 'lucide-react';
 import { COMMON_SYMPTOMS, SYMPTOM_CATEGORIES, isAlertSymptom } from '../../content/symptomCatalog';
-import { formatBR, toISODate, type GestationalAge } from '../../lib/dates';
+import { formatBR, parseLocalDate, toISODate, type GestationalAge } from '../../lib/dates';
 import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure, parseMetricInput, type ParsedMetric } from '../../lib/health';
 import { TIME_OF_DAY, normalizeSymptomName, timeOfDayFromHour, timeOfDayLabel } from '../../lib/symptoms';
 import type { Author, HealthMetric, PartnerComment, SymptomItem, TimeOfDay } from '../../types';
+import type { JournalEntry } from '../../hooks/useGestationData';
+import { WORK_RIGHTS, WORK_RIGHTS_SOURCE, WORK_TERMS } from '../../content/workRights';
+import Guide from '../Guide';
 import AuthorBadge from '../AuthorBadge';
 import IntensityDots from '../IntensityDots';
 import { inputClass } from '../styles';
@@ -33,12 +36,24 @@ interface Props {
   onDeleteSymptom: (s: SymptomItem) => void;
   onDeleteComment: (c: PartnerComment) => void;
   onDeleteMetric: (m: HealthMetric) => void;
+  dumDate: string;
+  journal: JournalEntry[];
+  journalAvailable: boolean;
+  onCreateEntry: (e: NewEntry) => Promise<boolean>;
+  onDeleteEntry: (e: JournalEntry) => void;
+}
+
+export interface NewEntry {
+  date: string;
+  body: string;
+  visibility: 'private' | 'shared';
+  remindOn: string | null;
 }
 
 const INTENSITY = ['Muito leve', 'Leve', 'Moderado', 'Forte', 'Muito forte'];
 
 export default function DiaryTab(props: Props) {
-  const [mode, setMode] = useState<'sintoma' | 'medicao'>('sintoma');
+  const [mode, setMode] = useState<'sintoma' | 'medicao' | 'momento'>('sintoma');
   const [filter, setFilter] = useState<'recentes' | 'semana' | 'tudo'>('recentes');
 
   const now = new Date();
@@ -46,20 +61,27 @@ export default function DiaryTab(props: Props) {
   const keep = (week: number, day: string) => (filter === 'semana' ? week === props.selectedWeek : filter === 'recentes' ? day.slice(0, 10) >= cutoff : true);
   const visibleSymptoms = props.symptoms.filter(s => keep(s.week_number, s.log_date));
   const visibleMetrics = props.metrics.filter(m => keep(m.week_number, m.recorded_at));
+  const dumTime = parseLocalDate(props.dumDate).getTime();
+  const visibleMoments = props.journal.filter(e => keep(Math.floor((parseLocalDate(e.entry_date).getTime() - dumTime) / (7 * 86_400_000)), e.entry_date));
 
   // Linha do tempo: sintomas e medições juntos, agrupados por dia.
   const days = useMemo(() => {
-    const map = new Map<string, { symptoms: SymptomItem[]; metrics: HealthMetric[] }>();
+    const map = new Map<string, { symptoms: SymptomItem[]; metrics: HealthMetric[]; moments: JournalEntry[] }>();
+    const day = (key: string) => map.get(key) ?? { symptoms: [], metrics: [], moments: [] };
     for (const s of visibleSymptoms) {
       const key = s.log_date.slice(0, 10);
-      map.set(key, { symptoms: [...(map.get(key)?.symptoms ?? []), s], metrics: map.get(key)?.metrics ?? [] });
+      map.set(key, { ...day(key), symptoms: [...day(key).symptoms, s] });
     }
     for (const m of visibleMetrics) {
       const key = m.recorded_at.slice(0, 10);
-      map.set(key, { symptoms: map.get(key)?.symptoms ?? [], metrics: [...(map.get(key)?.metrics ?? []), m] });
+      map.set(key, { ...day(key), metrics: [...day(key).metrics, m] });
+    }
+    for (const e of visibleMoments) {
+      const key = e.entry_date.slice(0, 10);
+      map.set(key, { ...day(key), moments: [...day(key).moments, e] });
     }
     return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [visibleSymptoms, visibleMetrics]);
+  }, [visibleSymptoms, visibleMetrics, visibleMoments]);
 
   return (
     <div className="space-y-5">
@@ -73,13 +95,16 @@ export default function DiaryTab(props: Props) {
             options={[
               { value: 'sintoma', label: 'Sintoma' },
               { value: 'medicao', label: 'Peso e pressão' },
+              { value: 'momento', label: 'Momento' },
             ]}
           />
         </div>
         {mode === 'sintoma' ? (
           <SymptomForm trimester={props.age.trimester} history={props.symptoms} busy={props.busy} currentWeek={props.currentWeek} onCreate={props.onCreateSymptom} />
-        ) : (
+        ) : mode === 'medicao' ? (
           <MetricForm author={props.author} busy={props.busy} currentWeek={props.currentWeek} onCreate={props.onCreateMetric} />
+        ) : (
+          <MomentForm busy={props.busy} available={props.journalAvailable} onCreate={props.onCreateEntry} />
         )}
       </Card>
 
@@ -107,6 +132,7 @@ export default function DiaryTab(props: Props) {
             {days.map(([day, items]) => (
               <li key={day} className="space-y-2">
                 <h3 className="text-xs font-semibold text-ink-mute first-letter:uppercase">{formatDayHeading(day)}</h3>
+                {items.moments.map(e => <MomentRow key={e.id} entry={e} onDelete={props.onDeleteEntry} />)}
                 {items.metrics.map(m => <MetricRow key={m.id} metric={m} onDelete={props.onDeleteMetric} />)}
                 {items.symptoms.map(s => (
                   <SymptomRow key={s.id} symptom={s} comments={props.comments.filter(c => c.symptom_id === s.id)} busy={props.busy} onComment={props.onComment} onDelete={props.onDeleteSymptom} onDeleteComment={props.onDeleteComment} />
@@ -423,6 +449,135 @@ function MetricRow({ metric: m, onDelete }: { metric: HealthMetric; onDelete: (m
       <button onClick={() => onDelete(m)} aria-label={`Excluir medição da semana ${m.week_number}`} className="p-1.5 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft">
         <Trash2 className="w-4 h-4" />
       </button>
+    </div>
+  );
+}
+
+const MOMENT_IDEAS = ['Contamos no trabalho', 'Contamos para a família', 'Ouvimos o coração', 'Primeiro chute', 'Descobrimos o sexo', 'Escolhemos o nome', 'Chá de bebê', 'Ensaio de fotos'];
+
+const addDays = (iso: string, n: number) => {
+  const d = parseLocalDate(iso);
+  return toISODate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n));
+};
+
+/** Momentos: o diário afetivo, com lembrete opcional e privacidade por anotação. */
+function MomentForm({ busy, available, onCreate }: { busy: boolean; available: boolean; onCreate: (e: NewEntry) => Promise<boolean> }) {
+  const today = toISODate(new Date());
+  const [body, setBody] = useState('');
+  const [date, setDate] = useState(today);
+  const [visibility, setVisibility] = useState<'private' | 'shared'>('shared');
+  const [remindOn, setRemindOn] = useState<string | null>(null);
+  const [showDate, setShowDate] = useState(false);
+  const detail = 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition';
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!body.trim()) return;
+    if (await onCreate({ date, body: body.trim(), visibility, remindOn })) {
+      setBody('');
+      setDate(today);
+      setRemindOn(null);
+      setShowDate(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      {!available && <p className="text-xs text-warn bg-warn-soft rounded-2xl px-3 py-2">Para guardar momentos, rode a migração 008 no Neon.</p>}
+      <div className="space-y-2">
+        <textarea
+          aria-label="O que aconteceu?"
+          rows={3}
+          className={`${inputClass} resize-none`}
+          placeholder="O que aconteceu? Ex.: contamos hoje para a equipe do trabalho e vamos contar para a família em 15 dias."
+          value={body}
+          onChange={e => setBody(e.target.value)}
+        />
+        <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" aria-label="Ideias">
+          {MOMENT_IDEAS.map(idea => (
+            <button key={idea} type="button" onClick={() => setBody(b => (b.trim() ? b : idea))} className="shrink-0 rounded-full px-3 py-1 text-[13px] bg-surface-2 text-ink-soft hover:text-ink">
+              {idea}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Segmented
+          label="Quem vê"
+          size="sm"
+          value={visibility}
+          onChange={setVisibility}
+          options={[
+            { value: 'shared', label: <span className="flex items-center gap-1"><Users className="w-3 h-3" />Nós dois</span> },
+            { value: 'private', label: <span className="flex items-center gap-1"><Lock className="w-3 h-3" />Só eu</span> },
+          ]}
+        />
+        <button type="button" onClick={() => setShowDate(v => !v)} className={`${detail} ${date !== today ? 'bg-brand-soft text-brand-strong' : 'bg-surface-2 text-ink-soft'}`}>
+          {date === today ? 'Hoje' : formatBR(date)} <ChevronDown className="w-3 h-3" />
+        </button>
+        <button type="button" onClick={() => setRemindOn(r => (r ? null : addDays(today, 15)))} className={`${detail} ${remindOn ? 'bg-brand-soft text-brand-strong' : 'text-ink-mute hover:text-ink'}`}>
+          <Bell className="w-3 h-3" /> {remindOn ? `Lembrar em ${formatBR(remindOn)}` : 'Lembrar'}
+        </button>
+      </div>
+      {showDate && <input type="date" aria-label="Data do momento" max={today} className={inputClass} value={date} onChange={e => setDate(e.target.value || today)} />}
+      {remindOn && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[7, 15, 30].map(n => (
+            <button key={n} type="button" onClick={() => setRemindOn(addDays(today, n))} className={`${detail} ${remindOn === addDays(today, n) ? 'bg-brand text-on-accent' : 'bg-surface-2 text-ink-soft'}`}>
+              em {n} dias
+            </button>
+          ))}
+          <input type="date" aria-label="Data do lembrete" min={today} className={`${inputClass} !py-1.5 !w-auto text-sm`} value={remindOn} onChange={e => setRemindOn(e.target.value || null)} />
+        </div>
+      )}
+      <p className="text-xs text-ink-mute -mt-1">
+        {visibility === 'private' ? 'Só você vai ver este momento, nem a outra pessoa do espaço.' : 'Vocês dois vão ver este momento.'}
+        {remindOn && ' O lembrete aparece no Início e na Agenda.'}
+      </p>
+
+      {WORK_TERMS.test(body) && (
+        <Guide title="Seus direitos no trabalho" source={WORK_RIGHTS_SOURCE}>
+          <ul className="space-y-1">
+            {WORK_RIGHTS.map(r => (
+              <li key={r} className="flex gap-2">
+                <span className="text-brand">•</span>
+                {r}
+              </li>
+            ))}
+          </ul>
+        </Guide>
+      )}
+
+      <Button type="submit" disabled={busy || !available || !body.trim()} className="w-full">
+        <Heart className="w-4 h-4" /> Guardar momento
+      </Button>
+    </form>
+  );
+}
+
+function MomentRow({ entry: e, onDelete }: { entry: JournalEntry; onDelete: (e: JournalEntry) => void }) {
+  const upcoming = e.remind_on && e.remind_on >= toISODate(new Date());
+  return (
+    <div className="rounded-2xl px-4 py-3 bg-casal-soft flex items-start gap-3">
+      <Heart className="w-4 h-4 text-casal shrink-0 mt-1" />
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="text-ink whitespace-pre-line">{e.body}</p>
+        <p className="text-xs text-ink-mute flex flex-wrap items-center gap-x-2 gap-y-1">
+          {e.visibility === 'private' && <span className="inline-flex items-center gap-1"><Lock className="w-3 h-3" /> só você</span>}
+          {e.remind_on && (
+            <span className={`inline-flex items-center gap-1 ${upcoming ? 'text-brand font-semibold' : ''}`}>
+              <Bell className="w-3 h-3" /> lembrar em {formatBR(e.remind_on)}
+            </span>
+          )}
+          <AuthorBadge role={e.author_role} />
+        </p>
+      </div>
+      {e.mine && (
+        <button onClick={() => onDelete(e)} aria-label="Excluir momento" className="shrink-0 p-1 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft">
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }
