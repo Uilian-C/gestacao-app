@@ -376,6 +376,18 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
               window.scrollTo({ top: 0 });
             }}
             consultations={consultations}
+            quick={{
+              author,
+              trimester: age.trimester,
+              currentWeek,
+              symptoms,
+              busy,
+              journalAvailable: data.journalAvailable,
+              onCreateSymptom: createSymptom,
+              onCreateMetric: createMetric,
+              onCreateEntry: createEntry,
+              onCreateConsultation: createConsultation,
+            }}
           />
         )}
         {activeTab === 'consultas' && (
