@@ -59,7 +59,13 @@ export const auth = betterAuth({
   account: { accountLinking: { enabled: true, trustedProviders: ['google'] } },
   // Na Vercel, o IP real de quem acessa chega nestes cabeçalhos (usado no limite de tentativas).
   advanced: { ipAddress: { ipAddressHeaders: ['x-vercel-forwarded-for', 'x-forwarded-for'] } },
-  session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24 },
+  session: {
+    expiresIn: 60 * 60 * 24 * 30,
+    updateAge: 60 * 60 * 24,
+    // Confere o login por um cookie assinado, sem ir ao banco a cada chamada.
+    // A sessão continua no banco e é revalidada a cada 5 minutos.
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
+  },
   // Guardado no banco porque cada chamada pode cair numa instância diferente do servidor.
   rateLimit: {
     enabled: true,
@@ -67,6 +73,8 @@ export const auth = betterAuth({
     window: 60,
     max: 60,
     customRules: {
+      // Só lê a sessão: não precisa de limite (e evitaria uma gravação no banco a cada abertura).
+      '/get-session': false,
       '/sign-in/email': { window: 60, max: 5 },
       '/sign-up/email': { window: 60, max: 5 },
       '/request-password-reset': { window: 300, max: 3 },

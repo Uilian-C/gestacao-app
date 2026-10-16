@@ -2,7 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { CONSENT_VERSION, hasConsent } from './_lib/consent.js';
 import { query, transaction } from './_lib/db.js';
-import { HttpError, endpoint, findMembership, json, readJson, requireUser } from './_lib/http.js';
+import { fetchAll } from './_lib/gestation.js';
+import { HttpError, accessOf, endpoint, findMembership, json, readJson, requireUser, type Member } from './_lib/http.js';
 
 // Espaço da gestação: quem faz parte, convites e papel (mãe ou pai) de cada um.
 // Todos os membros têm os mesmos poderes.
@@ -28,8 +29,8 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('consent'), version: z.string().max(20) }),
 ]);
 
-async function familyState(userId: string) {
-  const member = await findMembership(userId);
+async function familyState(userId: string, known?: Member | null) {
+  const member = known === undefined ? await findMembership(userId) : known;
   if (!member) return null;
   const members = await query<{ user_id: string; name: string; email: string; role: string; joined_at: string }>(
     `SELECT m.user_id, u.name, u.email, m.role, m.joined_at::text AS joined_at
@@ -58,14 +59,17 @@ async function findInvite(code: string) {
 
 export const GET = endpoint(async request => {
   const user = await requireUser(request);
+  const { member, consented, consentedBefore } = await accessOf(user.id);
+  // Quem já pode ver os dados recebe tudo nesta mesma resposta: abrir o app é uma chamada só.
+  const [family, data] = await Promise.all([
+    familyState(user.id, member),
+    member && consented ? fetchAll(member.familyId, user.id) : null,
+  ]);
   return json({
     user: { id: user.id, name: user.name, email: user.email },
-    consent: {
-      version: CONSENT_VERSION,
-      accepted: await hasConsent(user.id),
-      previous: (await query('SELECT 1 FROM user_consents WHERE user_id = $1 LIMIT 1', [user.id])).length > 0,
-    },
-    family: await familyState(user.id),
+    consent: { version: CONSENT_VERSION, accepted: consented, previous: consentedBefore },
+    family,
+    ...(data ? { data } : {}),
   });
 });
 

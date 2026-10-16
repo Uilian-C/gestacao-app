@@ -48,12 +48,14 @@ const fetchAll = () => api.data<GestationData>();
 
 export type LoadState = 'loading' | 'ready' | 'error';
 
-export function useGestationData(onAccessLost: () => void) {
-  const [data, setData] = useState<GestationData | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>('loading');
-  const [attempt, setAttempt] = useState(0);
+export function useGestationData(onAccessLost: () => void, initial?: unknown) {
+  // Os dados que vieram junto com a abertura (/api/family) evitam uma segunda chamada.
+  const [data, setData] = useState<GestationData | null>((initial as GestationData | undefined) ?? null);
+  const [loadState, setLoadState] = useState<LoadState>(initial ? 'ready' : 'loading');
+  const [attempt, setAttempt] = useState(initial ? -1 : 0);
 
   useEffect(() => {
+    if (attempt < 0) return;
     let cancelled = false;
     fetchAll()
       .then(result => {
@@ -77,10 +79,16 @@ export function useGestationData(onAccessLost: () => void) {
     setData(await fetchAll());
   }, []);
 
+  /** Troca pelos dados que o servidor devolveu junto com a gravação. */
+  const replace = useCallback((next: unknown) => setData(next as GestationData), []);
+
+  /** Mostra a mudança na hora, antes de o servidor confirmar. */
+  const patch = useCallback((fn: (d: GestationData) => GestationData) => setData(d => (d ? fn(d) : d)), []);
+
   const retry = useCallback(() => {
     setLoadState('loading');
-    setAttempt(a => a + 1);
+    setAttempt(a => Math.max(0, a) + 1);
   }, []);
 
-  return { data, loadState, refresh, retry };
+  return { data, loadState, refresh, replace, patch, retry };
 }
