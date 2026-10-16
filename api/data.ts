@@ -8,7 +8,7 @@ import { HttpError, endpoint, json, readJson, requireMember, type Member } from 
 const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
 
 async function fetchAll(fid: string) {
-  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan] = await Promise.all([
+  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks] = await Promise.all([
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
@@ -71,6 +71,7 @@ async function fetchAll(fid: string) {
       [fid],
     ),
     query(`SELECT data, updated_by, updated_at::text AS updated_at FROM birth_plan WHERE family_id = $1 ORDER BY updated_at DESC LIMIT 1`, [fid]),
+    query(`SELECT list, item_id, done_at::text AS done_at FROM checklist WHERE family_id = $1`, [fid]).catch(() => null),
   ]);
 
   const f = family[0] ?? {};
@@ -107,6 +108,8 @@ async function fetchAll(fid: string) {
     contractions,
     birthPlan: plan[0] ?? null,
     laborAvailable: true,
+    checks: checks ?? [],
+    checksAvailable: checks !== null,
   };
 }
 
@@ -174,6 +177,7 @@ const ops = z.discriminatedUnion('op', [
     diastolic: nullableInt(30, 180),
   }),
   z.object({ op: z.literal('createConsultation'), scheduledAt: timestamp, specialty: text(30), professional: optionalText(120), location: optionalText(200) }),
+  z.object({ op: z.literal('setCheck'), list: z.enum(['prenatal', 'mala']), itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), done: z.boolean() }),
   z.object({ op: z.literal('delete'), kind: z.enum(['task', 'symptom', 'question', 'comment', 'metric', 'consultation', 'kick', 'contraction']), id }),
 ]);
 
@@ -269,6 +273,13 @@ async function apply(m: Member, o: Op) {
         `INSERT INTO consultations (family_id, scheduled_at, specialty, professional_name, location, created_by)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [fid, o.scheduledAt, o.specialty, o.professional, o.location, who],
+      );
+    case 'setCheck':
+      if (!o.done) return query('DELETE FROM checklist WHERE family_id = $1 AND list = $2 AND item_id = $3', [fid, o.list, o.itemId]);
+      return query(
+        `INSERT INTO checklist (family_id, list, item_id, updated_by) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (family_id, list, item_id) DO NOTHING`,
+        [fid, o.list, o.itemId, who],
       );
     case 'delete': {
       if (o.kind === 'symptom') {

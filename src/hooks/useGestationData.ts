@@ -17,6 +17,16 @@ export interface GestationData {
   birthPlan: BirthPlanRecord | null;
   /** A migração 004 (kit do parto) já foi aplicada. */
   laborAvailable: boolean;
+  /** Itens marcados como feitos: jornada do pré-natal e mala da maternidade. */
+  checks: CheckItem[];
+  /** A migração 007 já foi aplicada. */
+  checksAvailable: boolean;
+}
+
+export interface CheckItem {
+  list: 'prenatal' | 'mala';
+  item_id: string;
+  done_at: string;
 }
 
 const fetchAll = () => api.data<GestationData>();

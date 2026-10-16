@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { CalendarHeart, CheckCircle2, ChevronLeft, ChevronRight, Lightbulb, NotebookPen, Pencil, Siren } from 'lucide-react';
+import { CalendarHeart, CheckCircle2, ChevronLeft, ChevronRight, Lightbulb, NotebookPen, Pencil, Route, Siren } from 'lucide-react';
 import { weekInfo } from '../../data/weeks';
 import { specialtyOf, questionSpecialty } from '../../data/specialties';
 import { ALERT_SIGNS } from '../../data/symptomCatalog';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, formatBR, isOverdue, localDay, parseTimestamp, type GestationalAge } from '../../lib/dates';
 import { isHighBloodPressure } from '../../lib/health';
+import { nextSteps, phaseOf, planFor } from '../../lib/journey';
+import { PhaseStrip, StepList } from '../journey/Journey';
 import type { Insight } from '../../lib/symptoms';
 import type { Consultation, HealthMetric, PartnerTask, QuestionItem, SymptomItem, Tab } from '../../types';
 import AuthorBadge from '../AuthorBadge';
@@ -32,6 +34,12 @@ interface Props {
   onNavigate: (tab: Tab) => void;
   onPrepareReport: (consultation: Consultation) => void;
   onOpenTasks: () => void;
+  bloodType: string | null;
+  /** IDs da jornada do pré-natal já marcados como feitos. */
+  doneSteps: Set<string>;
+  checksAvailable: boolean;
+  busy: boolean;
+  onToggleStep: (itemId: string, done: boolean) => void;
 }
 
 /** Anel de progresso da gestação (40 semanas), com a semana no centro. */
@@ -40,13 +48,13 @@ function WeekRing({ week }: { week: number }) {
   const c = 2 * Math.PI * r;
   const frac = Math.min(1, week / 40);
   return (
-    <div className="relative w-28 h-28 shrink-0" role="img" aria-label={`Semana ${week} de 40`}>
+    <div className="relative w-24 h-24 shrink-0" role="img" aria-label={`Semana ${week} de 40`}>
       <svg viewBox="0 0 108 108" className="w-full h-full -rotate-90">
         <circle cx="54" cy="54" r={r} fill="none" strokeWidth="6" style={{ stroke: 'var(--c-surface)' }} />
         <circle cx="54" cy="54" r={r} fill="none" strokeWidth="6" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - frac)} style={{ stroke: 'var(--c-warm)', transition: 'stroke-dashoffset 600ms ease' }} />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-display text-4xl leading-none text-ink tabular">{week}</span>
+        <span className="font-display text-[2rem] leading-none text-ink tabular">{week}</span>
         <span className="text-[11px] text-ink-mute mt-1">semanas</span>
       </div>
     </div>
@@ -66,6 +74,9 @@ export default function HomeTab(props: Props) {
   const lastWeight = [...metrics].reverse().find(m => m.weight_kg !== null);
   const lastBp = [...metrics].reverse().find(m => m.systolic_bp !== null && m.diastolic_bp !== null);
 
+  const phase = phaseOf(currentWeek);
+  const steps = nextSteps(planFor(props.bloodType), currentWeek, props.doneSteps, 3);
+
   const weekTasks = tasks
     .filter(t => !t.is_completed && (t.week_number === currentWeek || isOverdue(t.due_date)))
     .slice(0, 4);
@@ -80,43 +91,43 @@ export default function HomeTab(props: Props) {
       )}
 
       <Card tone="warm" className="overflow-hidden">
-        <div className="flex flex-col sm:flex-row gap-6 sm:items-center">
+        <div className="flex gap-4 items-center">
           <WeekRing week={selectedWeek} />
-          <div className="flex-1 min-w-0 space-y-2">
+          <div className="flex-1 min-w-0 space-y-1">
             <p className="text-sm text-warm font-medium">
-              {info.trimester}º trimestre{selectedWeek !== currentWeek && ' · vendo outra semana'}
+              {info.trimester}º trimestre{selectedWeek !== currentWeek && ' · outra semana'}
             </p>
-            <h2 className="text-[1.65rem] leading-snug text-ink text-balance">O bebê está do tamanho de {info.fruit}</h2>
-            <p className="text-ink-soft">{info.milestone}</p>
-            <p className="text-sm text-ink-mute tabular">
-              Cerca de {info.size} e {info.weight}
+            <h2 className="text-[1.35rem] leading-snug text-ink text-balance">Do tamanho de {info.fruit}</h2>
+            <p className="text-xs text-ink-mute tabular">
+              {info.size} · {info.weight}
             </p>
           </div>
         </div>
+        <p className="text-ink-soft text-[15px] mt-4">{info.milestone}</p>
 
-        <div className="mt-6 space-y-2">
-          <div className="flex flex-wrap justify-between gap-2 text-sm text-ink-soft">
-            <span className="tabular">
-              {age.daysToDpp >= 0 ? <>Faltam <strong className="text-ink">{age.daysToDpp} dias</strong> para a DPP ({age.dpp.toLocaleDateString('pt-BR')})</> : <>DPP foi em {age.dpp.toLocaleDateString('pt-BR')}</>}
-            </span>
-            <div className="flex items-center gap-1">
-              <button onClick={() => onSelectWeek(Math.max(FIRST_WEEK, selectedWeek - 1))} disabled={selectedWeek <= FIRST_WEEK} aria-label="Semana anterior" className="p-1.5 rounded-full hover:bg-surface disabled:opacity-40">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              {selectedWeek !== currentWeek ? (
-                <button onClick={() => onSelectWeek(currentWeek)} className="text-sm font-semibold text-warm underline underline-offset-2 px-1">voltar para hoje</button>
-              ) : (
-                <span className="text-sm px-1">explorar semanas</span>
-              )}
-              <button onClick={() => onSelectWeek(Math.min(LAST_WEEK, selectedWeek + 1))} disabled={selectedWeek >= LAST_WEEK} aria-label="Próxima semana" className="p-1.5 rounded-full hover:bg-surface disabled:opacity-40">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm text-ink-soft">
+          <span className="tabular">
+            {age.daysToDpp >= 0 ? <>Faltam <strong className="text-ink">{age.daysToDpp} dias</strong> · DPP {age.dpp.toLocaleDateString('pt-BR')}</> : <>DPP foi em {age.dpp.toLocaleDateString('pt-BR')}</>}
+          </span>
+          <div className="flex items-center">
+            <button onClick={() => onSelectWeek(Math.max(FIRST_WEEK, selectedWeek - 1))} disabled={selectedWeek <= FIRST_WEEK} aria-label="Semana anterior" className="p-1.5 rounded-full hover:bg-surface disabled:opacity-40">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {selectedWeek !== currentWeek ? (
+              <button onClick={() => onSelectWeek(currentWeek)} className="text-xs font-semibold text-warm underline underline-offset-2 px-1">hoje</button>
+            ) : (
+              <span className="text-xs px-1 text-ink-mute">semanas</span>
+            )}
+            <button onClick={() => onSelectWeek(Math.min(LAST_WEEK, selectedWeek + 1))} disabled={selectedWeek >= LAST_WEEK} aria-label="Próxima semana" className="p-1.5 rounded-full hover:bg-surface disabled:opacity-40">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button onClick={() => setEditingDum(v => !v)} aria-label="Alterar a DUM" className="p-1.5 rounded-full hover:bg-surface text-ink-mute">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <button onClick={() => setEditingDum(v => !v)} className="text-xs text-ink-mute hover:text-ink inline-flex items-center gap-1 underline underline-offset-2">
-            <Pencil className="w-3 h-3" /> Alterar a DUM
-          </button>
-          {editingDum && (
+        </div>
+        {editingDum && (
+          <div className="mt-3">
             <DumForm
               initial={props.dumDate}
               onCancel={() => setEditingDum(false)}
@@ -124,9 +135,26 @@ export default function HomeTab(props: Props) {
                 if (await props.onSaveDum(iso)) setEditingDum(false);
               }}
             />
-          )}
-          {age.isPostTerm && <p className="text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
-        </div>
+          </div>
+        )}
+        {age.isPostTerm && <p className="mt-3 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
+      </Card>
+
+      <Card>
+        <SectionTitle
+          icon={<Route className="w-5 h-5" />}
+          title={`Fase: ${phase.title}`}
+          subtitle={`${phase.label} · ${phase.visits.toLowerCase()}`}
+          action={<Button tone="soft" className="!px-3 !py-1.5" onClick={() => onNavigate('painel')}>Jornada</Button>}
+        />
+        <PhaseStrip week={currentWeek} />
+        <p className="text-sm text-ink-soft mt-4">{phase.focus}</p>
+        <h3 className="text-sm font-semibold text-ink mt-5 mb-3">Próximos passos</h3>
+        {steps.length ? (
+          <StepList steps={steps} dumDate={props.dumDate} busy={props.busy || !props.checksAvailable} onToggle={(item, done) => props.onToggleStep(item.id, done)} />
+        ) : (
+          <p className="text-sm text-ink-soft">Tudo em dia por aqui. 🎉</p>
+        )}
       </Card>
 
       <div className="grid md:grid-cols-2 gap-5">
@@ -178,20 +206,23 @@ export default function HomeTab(props: Props) {
           )}
         </Card>
 
-        <Card>
-          <SectionTitle
-            icon={<Lightbulb className="w-5 h-5" />}
-            title="Padrões das últimas semanas"
-            action={<Button tone="soft" className="!px-3 !py-1.5" onClick={() => onNavigate('painel')}>Ver painel</Button>}
-          />
-          {otherInsights.length ? <InsightList insights={otherInsights} compact /> : <p className="text-ink-soft">Ainda não há padrões. Eles aparecem conforme vocês registram os sintomas.</p>}
-        </Card>
+        {otherInsights.length > 0 && (
+          <Card>
+            <SectionTitle
+              icon={<Lightbulb className="w-5 h-5" />}
+              title="Padrões recentes"
+              action={<Button tone="soft" className="!px-3 !py-1.5" onClick={() => onNavigate('painel')}>Painel</Button>}
+            />
+            <InsightList insights={otherInsights} compact />
+          </Card>
+        )}
 
+        {weekTasks.length > 0 && (
         <Card>
           <SectionTitle
             icon={<CheckCircle2 className="w-5 h-5" />}
-            title="Para esta semana"
-            action={<Button tone="soft" className="!px-3 !py-1.5" onClick={onOpenTasks}>Ver tarefas</Button>}
+            title="Tarefas da semana"
+            action={<Button tone="soft" className="!px-3 !py-1.5" onClick={onOpenTasks}>Todas</Button>}
           />
           {weekTasks.length ? (
             <ul className="space-y-2">
@@ -203,10 +234,9 @@ export default function HomeTab(props: Props) {
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="text-ink-soft">Nada pendente nesta semana.</p>
-          )}
+          ) : null}
         </Card>
+        )}
       </div>
 
       <details className="rounded-[28px] bg-surface shadow-soft p-5 md:p-6 group">

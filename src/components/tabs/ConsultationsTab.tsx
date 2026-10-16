@@ -12,6 +12,7 @@ import { FichaGrid } from '../FichaBar';
 import { BMI_LABEL, GAIN_STATUS_LABEL } from '../../lib/weightGain';
 import type { BirthPlanRecord, Contraction, KickSession, Consultation, HealthMetric, PartnerComment, PregnancyProfile, QuestionItem, SymptomItem } from '../../types';
 import AuthorBadge from '../AuthorBadge';
+import AddressInput from '../AddressInput';
 import LocationLinks from '../LocationLinks';
 import SpecialtyIcon from '../SpecialtyIcon';
 import { InsightList } from '../InsightList';
@@ -191,8 +192,8 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
         <Field label="Profissional (opcional)" htmlFor="prof">
           <input id="prof" className={inputClass} placeholder="Ex.: Dra. Ana" value={professional} onChange={e => setProfessional(e.target.value)} />
         </Field>
-        <Field label="Endereço (opcional)" htmlFor="local" hint="Com o endereço completo, a consulta ganha atalhos para o Maps, o Waze e o Uber.">
-          <input id="local" className={inputClass} placeholder="Ex.: Av. Paulista, 1000 - São Paulo" value={location} onChange={e => setLocation(e.target.value)} />
+        <Field label="Endereço (opcional)" htmlFor="local" hint="Escolha uma sugestão para ter atalhos de Maps, Waze e Uber.">
+          <AddressInput id="local" placeholder="Digite o nome da clínica ou o endereço" value={location} onChange={setLocation} />
         </Field>
       </div>
       <div className="flex gap-2 justify-end">
@@ -206,16 +207,17 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
 function QuickReport({ onOpen }: { onOpen: (id: SpecialtyId) => void }) {
   const [specialty, setSpecialty] = useState<SpecialtyId>('obstetra');
   return (
-    <Card tone="brand">
-      <SectionTitle icon={<FileText className="w-5 h-5" />} title="Resumo avulso" subtitle="Para uma consulta não agendada ou um pronto-atendimento." />
-      <div className="flex flex-col sm:flex-row gap-3">
-        <select aria-label="Especialidade do resumo" className={inputClass} value={specialty} onChange={e => setSpecialty(e.target.value as SpecialtyId)}>
+    <section className="rounded-[24px] bg-surface shadow-soft px-5 py-4">
+      <p className="text-sm font-semibold text-ink mb-2 flex items-center gap-2">
+        <FileText className="w-4 h-4 text-brand" /> Resumo para pronto-atendimento
+      </p>
+      <div className="flex gap-2">
+        <select aria-label="Especialidade do resumo" className={`${inputClass} !py-2 text-sm`} value={specialty} onChange={e => setSpecialty(e.target.value as SpecialtyId)}>
           {SPECIALTIES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
-        <Button onClick={() => onOpen(specialty)} className="shrink-0">Gerar resumo</Button>
+        <Button tone="soft" onClick={() => onOpen(specialty)} className="shrink-0 !py-2">Gerar</Button>
       </div>
-      <p className="text-sm text-ink-soft mt-3">{specialtyOf(specialty).focus}</p>
-    </Card>
+    </section>
   );
 }
 
@@ -224,6 +226,7 @@ function QuestionsSection({ questions, busy, migrationPending, onCreateQuestion,
   const [category, setCategory] = useState('Geral');
   const [specialty, setSpecialty] = useState<SpecialtyId>('obstetra');
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answering, setAnswering] = useState<string | null>(null);
 
   const pending = questions.filter(q => !q.doctor_answer);
   const answered = questions.filter(q => q.doctor_answer);
@@ -231,7 +234,7 @@ function QuestionsSection({ questions, busy, migrationPending, onCreateQuestion,
 
   return (
     <Card>
-      <SectionTitle icon={<HelpCircle className="w-5 h-5" />} title="Dúvidas para as consultas" subtitle="Anotem quando surgir. Elas entram no resumo da especialidade certa." />
+      <SectionTitle icon={<HelpCircle className="w-5 h-5" />} title="Dúvidas" subtitle="Anotem quando surgir; entram no resumo da consulta." />
       <form
         className="space-y-3"
         onSubmit={async e => {
@@ -239,51 +242,58 @@ function QuestionsSection({ questions, busy, migrationPending, onCreateQuestion,
           if (text.trim() && (await onCreateQuestion(text.trim(), category, specialty))) setText('');
         }}
       >
-        <input aria-label="Dúvida" className={inputClass} placeholder="Ex.: Posso continuar o pilates?" value={text} onChange={e => setText(e.target.value)} />
-        <div className="grid sm:grid-cols-3 gap-3">
+        <div className="flex gap-2">
+          <input aria-label="Dúvida" className={inputClass} placeholder="Ex.: Posso continuar o pilates?" value={text} onChange={e => setText(e.target.value)} />
+          <Button type="submit" disabled={busy || !text.trim()} className="shrink-0">Anotar</Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
           {!migrationPending && (
-            <select aria-label="Para quem" className={inputClass} value={specialty} onChange={e => setSpecialty(e.target.value as SpecialtyId)}>
+            <select aria-label="Para quem" className={`${inputClass} !py-2 text-sm`} value={specialty} onChange={e => setSpecialty(e.target.value as SpecialtyId)}>
               {SPECIALTIES.map(s => <option key={s.id} value={s.id}>Para: {s.label}</option>)}
             </select>
           )}
-          <select aria-label="Assunto" className={inputClass} value={category} onChange={e => setCategory(e.target.value)}>
-            {QUESTION_CATEGORIES.map(c => <option key={c} value={c}>Assunto: {c}</option>)}
+          <select aria-label="Assunto" className={`${inputClass} !py-2 text-sm`} value={category} onChange={e => setCategory(e.target.value)}>
+            {QUESTION_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <Button type="submit" disabled={busy || !text.trim()}>Anotar dúvida</Button>
         </div>
       </form>
 
-      <div className="mt-6 space-y-5">
+      <div className="mt-5 space-y-4">
         {groups.length === 0 && <EmptyState icon={<HelpCircle />} title="Nenhuma dúvida pendente">Quando surgir uma pergunta no dia a dia, anotem aqui para não esquecer na consulta.</EmptyState>}
         {groups.map(g => (
           <div key={g.spec.id} className="space-y-2">
             <h3 className="text-sm font-semibold text-ink-soft">{g.spec.label} ({g.items.length})</h3>
             {g.items.map(q => (
-              <div key={q.id} className="rounded-2xl border border-transparent bg-surface-2/60 p-4 space-y-3">
-                <div className="flex justify-between gap-3">
-                  <div className="min-w-0 space-y-1">
-                    <p className="font-semibold text-ink">{q.questions_to_ask}</p>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-ink-mute">
-                      <Pill>{q.category}</Pill>
+              <div key={q.id} className="rounded-2xl bg-surface-2/60 px-4 py-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-ink leading-snug">{q.questions_to_ask}</p>
+                    <p className="text-xs text-ink-mute mt-0.5 flex flex-wrap items-center gap-x-1.5">
+                      <span>{q.category}</span>·<span>{formatBR(q.created_at)}</span>
                       <AuthorBadge role={q.created_by} />
-                      <span>{formatBR(q.created_at)}</span>
-                    </div>
+                    </p>
                   </div>
-                  <button onClick={() => onDeleteQuestion(q)} aria-label="Excluir dúvida" className="p-1.5 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft self-start">
+                  <button type="button" onClick={() => setAnswering(answering === q.id ? null : q.id)} aria-expanded={answering === q.id} className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium text-brand hover:bg-brand-soft">
+                    Responder
+                  </button>
+                  <button onClick={() => onDeleteQuestion(q)} aria-label="Excluir dúvida" className="shrink-0 p-1 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-                <form
+                {answering === q.id && <form
                   className="flex gap-2"
                   onSubmit={async e => {
                     e.preventDefault();
                     const a = answers[q.id]?.trim();
-                    if (a && (await onAnswer(q.id, a))) setAnswers(s => ({ ...s, [q.id]: '' }));
+                    if (a && (await onAnswer(q.id, a))) {
+                      setAnswers(s => ({ ...s, [q.id]: '' }));
+                      setAnswering(null);
+                    }
                   }}
                 >
-                  <input aria-label={`Resposta para "${q.questions_to_ask}"`} className={`${inputClass} !py-2 text-sm`} placeholder="O que o profissional respondeu..." value={answers[q.id] ?? ''} onChange={e => setAnswers(s => ({ ...s, [q.id]: e.target.value }))} />
+                  <input autoFocus aria-label={`Resposta para "${q.questions_to_ask}"`} className={`${inputClass} !py-2 text-sm`} placeholder="O que o profissional respondeu..." value={answers[q.id] ?? ''} onChange={e => setAnswers(s => ({ ...s, [q.id]: e.target.value }))} />
                   <Button type="submit" tone="soft" disabled={busy || !answers[q.id]?.trim()} className="!px-4 !py-2 shrink-0">Salvar</Button>
-                </form>
+                </form>}
               </div>
             ))}
           </div>

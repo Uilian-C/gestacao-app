@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Baby, ClipboardCopy, Footprints, Printer, RefreshCw, RotateCcw, Timer, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ClipboardCopy, Footprints, Luggage, Printer, RefreshCw, RotateCcw, Timer, Trash2 } from 'lucide-react';
+import { BAG_ITEM_COUNT, HOSPITAL_BAG } from '../../data/hospitalBag';
 import { BIRTH_TYPE, PLAN_SECTIONS, planProgress, planToText, toPlan, type BirthPlan } from '../../lib/birthPlan';
 import { formatBR, parseTimestamp, toISODate } from '../../lib/dates';
 import { formatDuration, laborStatus, summarizeKicks, timeContractions, type LaborStatus } from '../../lib/labor';
 import type { Author, BirthPlanRecord, Contraction, KickSession } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import { inputClass } from '../styles';
-import { Button, Card, Chip, EmptyState, Field, Pill, Segmented, SectionTitle } from '../ui';
+import { Button, Card, Chip, EmptyState, Field, Segmented, SectionTitle } from '../ui';
 
-type View = 'movimentos' | 'contracoes' | 'plano';
+type View = 'movimentos' | 'contracoes' | 'plano' | 'mala';
 
 interface Props {
   author: Author;
@@ -26,6 +27,10 @@ interface Props {
   onSavePlan: (plan: BirthPlan) => Promise<boolean>;
   onRefresh: () => void;
   onNotify: (text: string) => void;
+  /** Itens da mala já separados. */
+  packed: Set<string>;
+  checksAvailable: boolean;
+  onTogglePacked: (itemId: string, done: boolean) => void;
 }
 
 // O que está em andamento fica guardado no aparelho: fechar o app no meio não perde a contagem.
@@ -65,24 +70,25 @@ export default function LaborTab(props: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-ink">Reta final</h2>
-          <p className="text-sm text-ink-mute">Ferramentas para o 3º trimestre e o plano de parto do casal.</p>
+      <div className="space-y-3">
+        <h2 className="text-[1.2rem] text-ink">Reta final</h2>
+        <div className="-mx-1 px-1 overflow-x-auto no-scrollbar [&>div]:flex-nowrap">
+          <Segmented
+            label="Ferramenta"
+            size="sm"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: 'movimentos', label: 'Movimentos' },
+              { value: 'contracoes', label: 'Contrações' },
+              { value: 'plano', label: 'Plano' },
+              { value: 'mala', label: 'Mala' },
+            ]}
+          />
         </div>
-        <Segmented
-          label="Ferramenta"
-          value={view}
-          onChange={setView}
-          options={[
-            { value: 'movimentos', label: <span className="flex items-center gap-1.5"><Footprints className="w-4 h-4" />Movimentos</span> },
-            { value: 'contracoes', label: <span className="flex items-center gap-1.5"><Timer className="w-4 h-4" />Contrações</span> },
-            { value: 'plano', label: <span className="flex items-center gap-1.5"><Baby className="w-4 h-4" />Plano de parto</span> },
-          ]}
-        />
       </div>
 
-      {!props.available && (
+      {!props.available && view !== 'mala' && (
         <p className="text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">
           Para salvar contagens, contrações e o plano, rodem a migração <code>db/migrations/004_parto.sql</code> no Neon.
         </p>
@@ -91,6 +97,7 @@ export default function LaborTab(props: Props) {
       {view === 'movimentos' && <KickCounter {...props} />}
       {view === 'contracoes' && <ContractionTimer {...props} />}
       {view === 'plano' && <BirthPlanEditor key={props.birthPlan?.updated_at ?? 'novo'} {...props} />}
+      {view === 'mala' && <HospitalBag {...props} />}
     </div>
   );
 }
@@ -321,6 +328,7 @@ function BirthPlanEditor({ birthPlan, motherName, available, busy, onSavePlan, o
   const [plan, setPlan] = useState<BirthPlan>(() => toPlan(birthPlan?.data));
   const [dirty, setDirty] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [openSection, setOpenSection] = useState<string | null>(null);
   const update = (patch: Partial<BirthPlan>) => {
     setPlan(p => ({ ...p, ...patch }));
     setDirty(true);
@@ -385,64 +393,123 @@ function BirthPlanEditor({ birthPlan, motherName, available, busy, onSavePlan, o
     );
   }
 
+  const summary = (id: string) => {
+    const n = (plan.choices[id] ?? []).length + (plan.notes[id]?.trim() ? 1 : 0);
+    return n ? `${(plan.choices[id] ?? []).length} escolha${(plan.choices[id] ?? []).length === 1 ? '' : 's'}` : 'em aberto';
+  };
+  const basics = [plan.birthType && BIRTH_TYPE[plan.birthType], plan.maternity, plan.companion].filter(Boolean).join(' · ') || 'em aberto';
+
   return (
-    <div className="space-y-5">
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1 min-w-0">
-            <p className="font-semibold text-ink">Construam juntos e levem para conversar com o obstetra</p>
-            <p className="text-sm text-ink-mute">
-              Mesmos temas da Caderneta da Gestante.
-              {birthPlan?.updated_at && <> Atualizado em {formatBR(birthPlan.updated_at)}{birthPlan.updated_by && <> por {birthPlan.updated_by === 'pai' ? 'pai' : 'mãe'}</>}.</>}
+    <div className="space-y-4">
+      <Card className="!py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-semibold text-ink">Plano de parto</p>
+            <p className="text-xs text-ink-mute">
+              {Math.round(progress * 100)}% preenchido
+              {birthPlan?.updated_at && <> · salvo em {formatBR(birthPlan.updated_at)}</>}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button tone="ghost" onClick={() => setPreview(true)}>Ver para imprimir</Button>
-            <Button onClick={save} disabled={busy || !available || !dirty}>{dirty ? 'Salvar plano' : 'Salvo'}</Button>
+          <div className="flex gap-2 shrink-0">
+            <Button tone="ghost" onClick={() => setPreview(true)} className="!px-3"><Printer className="w-4 h-4" /> Ver</Button>
+            <Button onClick={save} disabled={busy || !available || !dirty} className="!px-4">{dirty ? 'Salvar' : 'Salvo'}</Button>
           </div>
         </div>
-        <div className="mt-4 h-2 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Plano preenchido">
+        <div className="mt-3 h-1.5 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Plano preenchido">
           <div className="h-full bg-brand rounded-full transition-all" style={{ width: `${progress * 100}%` }} />
         </div>
       </Card>
 
-      <Card className="space-y-4">
-        <SectionTitle title="O básico" />
-        <div className="space-y-1.5">
-          <span className="text-sm font-semibold text-ink-soft block">Tipo de parto desejado</span>
-          <Segmented label="Tipo de parto" size="sm" value={plan.birthType || 'decidir'} onChange={v => update({ birthType: v })} options={[{ value: 'normal', label: 'Normal' }, { value: 'cesarea', label: 'Cesárea' }, { value: 'decidir', label: 'Decidir com a equipe' }]} />
-        </div>
-        <div className="grid sm:grid-cols-3 gap-4">
-          <Field label="Maternidade" htmlFor="p-mat"><input id="p-mat" className={inputClass} value={plan.maternity} onChange={e => update({ maternity: e.target.value })} /></Field>
-          <Field label="Acompanhante" htmlFor="p-acomp" hint="Direito garantido por lei."><input id="p-acomp" className={inputClass} value={plan.companion} onChange={e => update({ companion: e.target.value })} /></Field>
-          <Field label="Doula (opcional)" htmlFor="p-doula"><input id="p-doula" className={inputClass} value={plan.doula} onChange={e => update({ doula: e.target.value })} /></Field>
-        </div>
+      <Card className="!py-2">
+        <ul className="divide-y divide-line">
+          <PlanRow title="O básico" summary={basics} open={openSection === 'basico'} onToggle={() => setOpenSection(openSection === 'basico' ? null : 'basico')}>
+            <div className="space-y-4">
+              <Segmented label="Tipo de parto" size="sm" value={plan.birthType || 'decidir'} onChange={v => update({ birthType: v })} options={[{ value: 'normal', label: 'Normal' }, { value: 'cesarea', label: 'Cesárea' }, { value: 'decidir', label: 'Decidir com a equipe' }]} />
+              <div className="grid sm:grid-cols-3 gap-3">
+                <Field label="Maternidade" htmlFor="p-mat"><input id="p-mat" className={inputClass} value={plan.maternity} onChange={e => update({ maternity: e.target.value })} /></Field>
+                <Field label="Acompanhante" htmlFor="p-acomp" hint="Direito garantido por lei."><input id="p-acomp" className={inputClass} value={plan.companion} onChange={e => update({ companion: e.target.value })} /></Field>
+                <Field label="Doula (opcional)" htmlFor="p-doula"><input id="p-doula" className={inputClass} value={plan.doula} onChange={e => update({ doula: e.target.value })} /></Field>
+              </div>
+            </div>
+          </PlanRow>
+          {PLAN_SECTIONS.map(s => (
+            <PlanRow key={s.id} title={s.title} summary={summary(s.id)} open={openSection === s.id} onToggle={() => setOpenSection(openSection === s.id ? null : s.id)}>
+              <div className="space-y-3">
+                {s.hint && <p className="text-xs text-ink-mute">{s.hint}</p>}
+                <div className="flex flex-wrap gap-1.5">
+                  {s.options.map(o => (
+                    <Chip key={o} active={(plan.choices[s.id] ?? []).includes(o)} onClick={() => toggle(s.id, o)}>{o}</Chip>
+                  ))}
+                </div>
+                <input aria-label={`Observações sobre ${s.title}`} className={`${inputClass} !py-2 text-sm`} placeholder="Observação (opcional)" value={plan.notes[s.id] ?? ''} onChange={e => update({ notes: { ...plan.notes, [s.id]: e.target.value } })} />
+              </div>
+            </PlanRow>
+          ))}
+        </ul>
       </Card>
 
-      {PLAN_SECTIONS.map(s => (
-        <Card key={s.id} className="space-y-3">
-          <SectionTitle title={s.title} subtitle={s.hint} />
-          <div className="flex flex-wrap gap-2">
-            {s.options.map(o => (
-              <Chip key={o} active={(plan.choices[s.id] ?? []).includes(o)} onClick={() => toggle(s.id, o)}>{o}</Chip>
-            ))}
-          </div>
-          <input aria-label={`Observações sobre ${s.title}`} className={inputClass} placeholder="Observação (opcional)" value={plan.notes[s.id] ?? ''} onChange={e => update({ notes: { ...plan.notes, [s.id]: e.target.value } })} />
-        </Card>
-      ))}
-
-      <Card>
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input type="checkbox" className="w-5 h-5 accent-[var(--c-brand)]" checked={plan.discussedWithDoctor} onChange={e => update({ discussedWithDoctor: e.target.checked })} />
-          <span className="font-semibold text-ink">Já conversamos este plano com o obstetra</span>
-        </label>
-        {dirty && (
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <Pill tone="warn">Alterações não salvas</Pill>
-            <Button onClick={save} disabled={busy || !available}>Salvar plano</Button>
-          </div>
-        )}
-      </Card>
+      <label className="flex items-center gap-3 cursor-pointer px-2">
+        <input type="checkbox" className="w-5 h-5 accent-[var(--c-brand)]" checked={plan.discussedWithDoctor} onChange={e => update({ discussedWithDoctor: e.target.checked })} />
+        <span className="text-sm text-ink">Já conversamos este plano com o obstetra</span>
+      </label>
+      {dirty && (
+        <div className="sticky bottom-28 md:bottom-4 z-10 flex justify-center">
+          <Button onClick={save} disabled={busy || !available} className="shadow-lift">Salvar alterações</Button>
+        </div>
+      )}
     </div>
+  );
+}
+
+function PlanRow({ title, summary, open, onToggle, children }: { title: string; summary: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <li>
+      <button type="button" onClick={onToggle} aria-expanded={open} className="w-full flex items-center gap-3 py-3 text-left">
+        <span className="flex-1 min-w-0">
+          <span className="block font-semibold text-ink text-[15px]">{title}</span>
+          <span className="block text-xs text-ink-mute truncate">{summary}</span>
+        </span>
+        <ChevronDown className={`w-4 h-4 text-ink-mute transition ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="pb-4">{children}</div>}
+    </li>
+  );
+}
+
+/* ---------------- Mala da maternidade ---------------- */
+
+function HospitalBag({ packed, checksAvailable, busy, onTogglePacked }: Props) {
+  const done = HOSPITAL_BAG.reduce((n, g) => n + g.items.filter(i => packed.has(i.id)).length, 0);
+  return (
+    <Card>
+      <SectionTitle icon={<Luggage className="w-5 h-5" />} title="Mala da maternidade" subtitle="Deixem pronta até 36 semanas. Confiram também a lista da maternidade de vocês." />
+      {!checksAvailable && <p className="text-xs text-warn bg-warn-soft rounded-2xl px-3 py-2 mb-3">Para marcar itens, rode a migração 007 no Neon.</p>}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={done} aria-valuemin={0} aria-valuemax={BAG_ITEM_COUNT} aria-label="Itens separados">
+          <div className="h-full bg-ok rounded-full transition-all" style={{ width: `${(done / BAG_ITEM_COUNT) * 100}%` }} />
+        </div>
+        <span className="text-xs text-ink-mute tabular">{done} de {BAG_ITEM_COUNT}</span>
+      </div>
+      <div className="space-y-5">
+        {HOSPITAL_BAG.map(g => (
+          <div key={g.id}>
+            <h3 className="text-sm font-semibold text-ink mb-1">{g.title}</h3>
+            <ul>
+              {g.items.map(i => {
+                const isDone = packed.has(i.id);
+                return (
+                  <li key={i.id}>
+                    <label className="flex items-center gap-3 py-2 cursor-pointer">
+                      <input type="checkbox" className="w-5 h-5 accent-[var(--c-ok)] shrink-0" checked={isDone} disabled={busy || !checksAvailable} onChange={e => onTogglePacked(i.id, e.target.checked)} />
+                      <span className={`text-sm ${isDone ? 'text-ink-mute line-through' : 'text-ink'}`}>{i.label}</span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }

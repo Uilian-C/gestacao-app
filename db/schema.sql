@@ -156,3 +156,14 @@ CREATE TABLE IF NOT EXISTS user_consents (
   accepted_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (user_id, version)
 );
+
+-- Migração 007: listas de feito (jornada do pré-natal e mala da maternidade).
+CREATE TABLE IF NOT EXISTS checklist (
+  family_id   UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  list        VARCHAR(20) NOT NULL,              -- 'prenatal' | 'mala'
+  item_id     VARCHAR(40) NOT NULL,
+  done_at     DATE NOT NULL DEFAULT CURRENT_DATE,
+  updated_by  VARCHAR(10),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (family_id, list, item_id)
+);
