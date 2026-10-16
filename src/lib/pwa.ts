@@ -77,3 +77,24 @@ export function isStandalone() {
 export function isIOS() {
   return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
+
+/**
+ * Navegadores que abrem o app mas não entregam notificações nem oferecem a
+ * instalação: o Edge no Android e os navegadores internos de redes sociais.
+ * Devolve o nome para a mensagem, ou null se o navegador serve.
+ */
+export function limitedBrowser(ua = navigator.userAgent): string | null {
+  if (/Instagram/.test(ua)) return 'o navegador do Instagram';
+  if (/FBAN|FBAV|FB_IAB/.test(ua)) return 'o navegador do Facebook';
+  if (/Android/.test(ua) && /EdgA\//.test(ua)) return 'o Edge';
+  if (/Android/.test(ua) && /; wv\)/.test(ua)) return 'o navegador interno deste app';
+  return null;
+}
+
+export const isAndroid = () => /Android/.test(navigator.userAgent);
+
+/** Link que abre esta página direto no Chrome do Android. */
+export function chromeIntentUrl(href = window.location.href) {
+  const url = new URL(href);
+  return `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=${url.protocol.replace(':', '')};package=com.android.chrome;end`;
+}

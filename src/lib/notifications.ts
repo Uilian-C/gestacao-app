@@ -1,5 +1,5 @@
 import { ApiError } from '../api';
-import { isIOS, isStandalone } from './pwa';
+import { isIOS, isStandalone, limitedBrowser } from './pwa';
 
 // Notificações neste aparelho: pedir permissão, inscrever no serviço de push
 // do navegador e avisar o servidor.
@@ -15,9 +15,11 @@ export interface PushStatus {
 
 /**
  * ok: dá para ativar. ios-instalar: iPhone fora do app instalado (o Safari só
- * entrega notificações para apps na Tela de Início). sem-suporte: navegador antigo.
+ * entrega notificações para apps na Tela de Início). outro-navegador: Edge no
+ * Android ou navegador de rede social (abre, mas não entrega). sem-suporte: navegador antigo.
  */
-export function pushSupport(): 'ok' | 'ios-instalar' | 'sem-suporte' {
+export function pushSupport(): 'ok' | 'ios-instalar' | 'outro-navegador' | 'sem-suporte' {
+  if (limitedBrowser()) return 'outro-navegador';
   const ok = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   if (ok) return 'ok';
   if (isIOS() && !isStandalone()) return 'ios-instalar';

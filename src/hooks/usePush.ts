@@ -4,7 +4,7 @@ import { currentEndpoint, disablePush, enablePush, permission, pushStatus, pushS
 
 export type PushState =
   | { phase: 'carregando' }
-  | { phase: 'ios-instalar' | 'sem-suporte' }
+  | { phase: 'ios-instalar' | 'outro-navegador' | 'sem-suporte' }
   | { phase: 'servidor-pendente'; message: string }
   | { phase: 'bloqueado' | 'desligado' | 'ligado'; prefs: NotifyPrefs; publicKey: string };
 

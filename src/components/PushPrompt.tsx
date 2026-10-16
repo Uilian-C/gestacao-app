@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BellRing, Loader2, X } from 'lucide-react';
 import { usePush } from '../hooks/usePush';
-import { IosInstallSteps } from './NotificationSettings';
+import { IosInstallSteps, OpenInChrome } from './NotificationSettings';
 import { Button } from './ui';
 
 const KEY = 'nossa-gestacao:convite-notificacoes';
@@ -18,7 +18,7 @@ function dismissed() {
 export default function PushPrompt() {
   const [hidden, setHidden] = useState(dismissed);
   const { state, busy, error, enable } = usePush();
-  if (hidden || (state.phase !== 'desligado' && state.phase !== 'ios-instalar')) return null;
+  if (hidden || (state.phase !== 'desligado' && state.phase !== 'ios-instalar' && state.phase !== 'outro-navegador')) return null;
 
   const close = () => {
     try {
@@ -45,6 +45,8 @@ export default function PushPrompt() {
       </div>
       {state.phase === 'ios-instalar' ? (
         <IosInstallSteps />
+      ) : state.phase === 'outro-navegador' ? (
+        <OpenInChrome />
       ) : (
         <Button onClick={enable} disabled={busy}>
           {busy ? <Loader2 className="animate-spin" /> : <BellRing />} Ativar lembretes
