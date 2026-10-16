@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Saída dos testes de integração (prints, certificados temporários)
+tests/integracao/.saida
