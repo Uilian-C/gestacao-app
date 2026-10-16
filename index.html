@@ -13,7 +13,7 @@
     <script>
       // Aplica a cor de quem usa este aparelho antes do app carregar.
       try {
-        document.documentElement.dataset.author = localStorage.getItem('nossa-gestacao:autor') === 'pai' ? 'pai' : 'mae';
+        var a = localStorage.getItem('nossa-gestacao:autor'); if (a === 'mae' || a === 'pai') document.documentElement.dataset.author = a;
       } catch {
         document.documentElement.dataset.author = 'mae';
       }

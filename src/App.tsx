@@ -1,6 +1,7 @@
 import { Suspense, lazy, useRef, useState } from 'react';
 import { CloudRain, Loader2, Sprout } from 'lucide-react';
-import { sql } from './db';
+import { api, ApiError, type FamilyState, type Me } from './api';
+import SpaceSheet from './components/auth/SpaceSheet';
 import Header from './components/Header';
 import FichaBar, { type FichaInput } from './components/FichaBar';
 import Nav from './components/Nav';
@@ -20,14 +21,12 @@ const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
 const LaborTab = lazy(() => import('./components/tabs/LaborTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
-import { useStoredAuthor } from './hooks/useStoredAuthor';
 import { FIRST_WEEK, clampWeek, daysBetween, gestationalAge, isOverdue, localDay, parseLocalDate, toISODate } from './lib/dates';
 import { pressureInsights, type ParsedMetric } from './lib/health';
 import { findPatterns, toEntries } from './lib/symptoms';
 import type { Consultation, DeletableKind, PartnerTask, Tab } from './types';
 
 const UNDO_WINDOW_MS = 5000;
-const MIGRATION_HINT = 'Rode a migração db/migrations/002_consultas_e_padroes.sql no Neon para liberar este recurso.';
 
 function greetingFor(hour: number): string {
   if (hour < 5) return 'Boa madrugada';
@@ -36,9 +35,19 @@ function greetingFor(hour: number): string {
   return 'Boa noite';
 }
 
-export default function App() {
-  const { data, loadState, refresh, retry } = useGestationData();
-  const [author, setAuthor] = useStoredAuthor();
+interface AppProps {
+  me: Me;
+  family: FamilyState;
+  onFamilyChange: (family: FamilyState | null) => void;
+  /** Sessão vencida ou pessoa removida do espaço: volta para a porta de entrada. */
+  onAccessLost: () => void;
+  onSignOut: () => void;
+}
+
+export default function App({ me, family, onFamilyChange, onAccessLost, onSignOut }: AppProps) {
+  const { data, loadState, refresh, retry } = useGestationData(onAccessLost);
+  const author = family.role;
+  const [spaceOpen, setSpaceOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('inicio');
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
@@ -47,6 +56,7 @@ export default function App() {
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const deleteTimers = useRef(new Map<string, number>());
+  const toastSeq = useRef(0);
 
   const now = new Date();
   const today = toISODate(now);
@@ -55,7 +65,7 @@ export default function App() {
   const currentWeek = age ? clampWeek(age.weeks) : FIRST_WEEK;
   const selectedWeek = pickedWeek ?? currentWeek;
 
-  const showToast = (message: Omit<ToastMessage, 'id'>) => setToast({ ...message, id: Date.now() });
+  const showToast = (message: Omit<ToastMessage, 'id'>) => setToast({ ...message, id: ++toastSeq.current });
   const navigate = (tab: Tab) => {
     setActiveTab(tab);
     if (tab !== 'consultas') setReport(null);
@@ -71,6 +81,10 @@ export default function App() {
       return true;
     } catch (err) {
       console.error(err);
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        onAccessLost();
+        return false;
+      }
       showToast({ text: errorText, tone: 'error' });
       return false;
     } finally {
@@ -78,19 +92,7 @@ export default function App() {
     }
   };
 
-  const deleteQueries: Record<DeletableKind, (id: string) => Promise<unknown>> = {
-    task: id => sql`DELETE FROM partner_tasks WHERE id = ${id}`,
-    symptom: async id => {
-      await sql`DELETE FROM partner_comments WHERE symptom_id = ${id}`;
-      await sql`DELETE FROM symptoms_log WHERE id = ${id}`;
-    },
-    question: id => sql`DELETE FROM medical_appointments WHERE id = ${id}`,
-    comment: id => sql`DELETE FROM partner_comments WHERE id = ${id}`,
-    metric: id => sql`DELETE FROM health_metrics_log WHERE id = ${id}`,
-    consultation: id => sql`DELETE FROM consultations WHERE id = ${id}`,
-    kick: id => sql`DELETE FROM kick_sessions WHERE id = ${id}`,
-    contraction: id => sql`DELETE FROM contractions WHERE id = ${id}`,
-  };
+  const deleteItem = (kind: DeletableKind, id: string) => api.mutate('delete', { kind, id });
 
   /** Esconde o item na hora e só apaga no banco depois do prazo para desfazer. */
   const scheduleDelete = (kind: DeletableKind, id: string, label: string) => {
@@ -106,7 +108,7 @@ export default function App() {
     setPendingDeletes(prev => new Set(prev).add(key));
     const timer = window.setTimeout(async () => {
       deleteTimers.current.delete(key);
-      const ok = await run(() => deleteQueries[kind](id), 'Não foi possível excluir. O item voltou para a lista.');
+      const ok = await run(() => deleteItem(kind, id), 'Não foi possível excluir. O item voltou para a lista.');
       unhide();
       if (ok) setToast(t => (t?.text === text ? null : t));
     }, UNDO_WINDOW_MS);
@@ -129,120 +131,44 @@ export default function App() {
 
   const saveDum = (iso: string) =>
     run(async () => {
-      const updated = await sql`
-        UPDATE families SET dum_date = ${iso}
-        WHERE id = (SELECT id FROM families ORDER BY id LIMIT 1)
-        RETURNING id
-      `;
-      if (updated.length === 0) await sql`INSERT INTO families (dum_date) VALUES (${iso})`;
+      await api.mutate('saveDum', { date: iso });
       setPickedWeek(null);
     });
 
-  const saveProfile = (preWeightKg: number, heightCm: number) =>
-    run(
-      () => sql`
-        UPDATE families SET pre_pregnancy_weight_kg = ${preWeightKg}, height_cm = ${heightCm}
-        WHERE id = (SELECT id FROM families WHERE dum_date IS NOT NULL ORDER BY id LIMIT 1)
-      `,
-      `Não foi possível salvar. ${MIGRATION_HINT}`,
-    );
+  const saveProfile = (preWeightKg: number, heightCm: number) => run(() => api.mutate('saveProfile', { preWeightKg, heightCm }));
 
-  const saveFicha = (f: FichaInput) =>
-    run(
-      () => sql`
-        UPDATE families SET
-          mother_name = ${f.motherName}, mother_birth_date = ${f.motherBirthDate}, blood_type = ${f.bloodType},
-          gestations = ${f.gestations}, births = ${f.births}, abortions = ${f.abortions}, cesareans = ${f.cesareans},
-          pre_pregnancy_weight_kg = ${f.preWeightKg}, height_cm = ${f.heightCm},
-          allergies = ${f.allergies}, medications = ${f.medications}, conditions = ${f.conditions}
-        WHERE id = (SELECT id FROM families WHERE dum_date IS NOT NULL ORDER BY id LIMIT 1)
-      `,
-      'Não foi possível salvar a ficha. Rode a migração db/migrations/003_ficha_gestante.sql no Neon.',
-    );
+  const saveFicha = (f: FichaInput) => run(() => api.mutate('saveFicha', { ...f }), 'Não foi possível salvar a ficha. Confira os campos e tente de novo.');
 
-  const laborError = 'Não foi possível salvar. Rode a migração db/migrations/004_parto.sql no Neon.';
+  const saveKicks = (k: { startedAt: string; endedAt: string; kicks: number; target: number }) => run(() => api.mutate('saveKicks', k));
 
-  const saveKicks = (k: { startedAt: string; endedAt: string; kicks: number; target: number }) =>
-    run(
-      () => sql`
-        INSERT INTO kick_sessions (started_at, ended_at, kicks, target, created_by)
-        VALUES (${k.startedAt}, ${k.endedAt}, ${k.kicks}, ${k.target}, ${author})
-      `,
-      laborError,
-    );
+  const saveContraction = (c: { startedAt: string; endedAt: string }) => run(() => api.mutate('saveContraction', c));
 
-  const saveContraction = (c: { startedAt: string; endedAt: string }) =>
-    run(() => sql`INSERT INTO contractions (started_at, ended_at, created_by) VALUES (${c.startedAt}, ${c.endedAt}, ${author})`, laborError);
-
-  const saveBirthPlan = (plan: BirthPlan) =>
-    run(async () => {
-      const json = JSON.stringify(plan);
-      const updated = await sql`
-        UPDATE birth_plan SET data = ${json}::jsonb, updated_by = ${author}, updated_at = NOW()
-        WHERE id = (SELECT id FROM birth_plan ORDER BY updated_at DESC LIMIT 1)
-        RETURNING id
-      `;
-      if (updated.length === 0) await sql`INSERT INTO birth_plan (data, updated_by) VALUES (${json}::jsonb, ${author})`;
-    }, laborError);
+  const saveBirthPlan = (plan: BirthPlan) => run(() => api.mutate('saveBirthPlan', { plan }));
 
   const createTask = (t: NewTask) =>
-    run(
-      () => sql`
-        INSERT INTO partner_tasks (week_number, task_title, assigned_to, priority, due_date, notes, created_by)
-        VALUES (${t.week ?? selectedWeek}, ${t.title}, ${t.assignee}, ${t.priority}, ${t.dueDate || null}, ${t.notes || null}, ${author})
-      `,
+    run(() =>
+      api.mutate('createTask', { week: t.week ?? selectedWeek, title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null }),
     );
 
-  const toggleTask = (t: PartnerTask) => run(() => sql`UPDATE partner_tasks SET is_completed = ${!t.is_completed} WHERE id = ${t.id}`);
+  const toggleTask = (t: PartnerTask) => run(() => api.mutate('toggleTask', { id: t.id, done: !t.is_completed }));
 
   const createSymptom = (s: NewSymptom) =>
     run(() =>
-      data?.migrationPending
-        ? sql`
-            INSERT INTO symptoms_log (week_number, log_date, symptom_name, intensity, created_by, category, notes)
-            VALUES (${currentWeek}, ${today}, ${s.name}, ${s.intensity}, ${author}, ${s.category}, ${s.notes || null})
-          `
-        : sql`
-            INSERT INTO symptoms_log (week_number, log_date, symptom_name, intensity, created_by, category, notes, time_of_day)
-            VALUES (${currentWeek}, ${today}, ${s.name}, ${s.intensity}, ${author}, ${s.category}, ${s.notes || null}, ${s.timeOfDay})
-          `,
+      api.mutate('createSymptom', { week: currentWeek, date: today, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }),
     );
 
-  const createComment = (symptomId: string, text: string) =>
-    run(() => sql`INSERT INTO partner_comments (symptom_id, author_role, comment_text) VALUES (${symptomId}, ${author}, ${text})`);
+  const createComment = (symptomId: string, text: string) => run(() => api.mutate('createComment', { symptomId, text }));
 
   const createQuestion = (text: string, category: string, specialty: SpecialtyId) =>
-    run(() =>
-      data?.migrationPending
-        ? sql`
-            INSERT INTO medical_appointments (week_number, appointment_date, questions_to_ask, created_by, category, status)
-            VALUES (${currentWeek}, NOW(), ${text}, ${author}, ${category}, 'pendente')
-          `
-        : sql`
-            INSERT INTO medical_appointments (week_number, appointment_date, questions_to_ask, created_by, category, status, specialty)
-            VALUES (${currentWeek}, NOW(), ${text}, ${author}, ${category}, 'pendente', ${specialty})
-          `,
-    );
+    run(() => api.mutate('createQuestion', { week: currentWeek, text, category, specialty }));
 
-  const answerQuestion = (id: string, answer: string) =>
-    run(() => sql`UPDATE medical_appointments SET doctor_answer = ${answer}, answered_at = NOW(), status = 'concluida' WHERE id = ${id}`);
+  const answerQuestion = (id: string, answer: string) => run(() => api.mutate('answerQuestion', { id, answer }));
 
-  const createMetric = (m: ParsedMetric) =>
-    run(
-      () => sql`
-        INSERT INTO health_metrics_log (week_number, recorded_at, weight_kg, systolic_bp, diastolic_bp, created_by)
-        VALUES (${currentWeek}, ${today}, ${m.weight}, ${m.systolic}, ${m.diastolic}, ${author})
-      `,
-      'Não foi possível salvar a medição. Se for a primeira vez registrando só peso ou só pressão, rode a migração db/migrations/001_medicoes_opcionais.sql no Neon.',
-    );
+  const createMetric = (m: ParsedMetric) => run(() => api.mutate('createMetric', { week: currentWeek, date: today, ...m }), 'Não foi possível salvar a medição.');
 
   const createConsultation = (c: NewConsultation) =>
-    run(
-      () => sql`
-        INSERT INTO consultations (scheduled_at, specialty, professional_name, location, created_by)
-        VALUES (${c.scheduledAt}, ${c.specialty}, ${c.professional || null}, ${c.location || null}, ${author})
-      `,
-      `Não foi possível agendar. ${MIGRATION_HINT}`,
+    run(() =>
+      api.mutate('createConsultation', { scheduledAt: c.scheduledAt, specialty: c.specialty, professional: c.professional || null, location: c.location || null }),
     );
 
   if (loadState !== 'ready' || !data) {
@@ -264,16 +190,23 @@ export default function App() {
     );
   }
 
+  const header = <Header firstName={me.user.name.split(' ')[0]} members={family.members} greeting={greetingFor(now.getHours())} onOpenSpace={() => setSpaceOpen(true)} />;
+  const spaceSheet = spaceOpen && <SpaceSheet me={me} family={family} onClose={() => setSpaceOpen(false)} onFamilyChange={onFamilyChange} onSignOut={onSignOut} />;
+
   if (!dumDate || !age) {
     return (
-      <Shell>
-        <Card tone="warm" className="mt-6 space-y-4">
-          <Sprout className="w-8 h-8 text-warm" />
-          <h2 className="text-xl font-semibold text-ink">{dumDate ? 'A DUM cadastrada está no futuro' : 'Vamos começar pela DUM'}</h2>
-          <p className="text-ink-soft">Com a data da última menstruação, o app calcula a semana, o trimestre e a data provável do parto.</p>
-          <DumForm initial={dumDate ?? undefined} onSave={saveDum} />
-        </Card>
-      </Shell>
+      <div className="min-h-screen bg-canvas text-ink">
+        {header}
+        <main className="max-w-xl mx-auto px-4 py-6">
+          <Card tone="warm" className="space-y-4">
+            <Sprout className="w-8 h-8 text-warm" />
+            <h2 className="text-xl font-semibold text-ink">{dumDate ? 'A DUM cadastrada está no futuro' : 'Vamos começar pela DUM'}</h2>
+            <p className="text-ink-soft">Com a data da última menstruação, o app calcula a semana, o trimestre e a data provável do parto.</p>
+            <DumForm initial={dumDate ?? undefined} onSave={saveDum} />
+          </Card>
+        </main>
+        {spaceSheet}
+      </div>
     );
   }
 
@@ -299,7 +232,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-canvas text-ink pb-28 md:pb-12">
-      <Header author={author} onAuthorChange={setAuthor} greeting={greetingFor(now.getHours())} />
+      {header}
       <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />
       <Nav
         active={activeTab}
@@ -458,6 +391,7 @@ export default function App() {
       </main>
 
       <Toast toast={toast} onClose={() => setToast(null)} />
+      {spaceSheet}
     </div>
   );
 }

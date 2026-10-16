@@ -124,3 +124,27 @@ CREATE TABLE IF NOT EXISTS birth_plan (
   updated_by  VARCHAR(10),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ---------------------------------------------------------------------------
+-- Migração 005: login (tabelas do Better Auth) e espaços por família.
+-- As tabelas "user", "session", "account", "verification" e "rateLimit" estão
+-- em db/migrations/005_login_e_espacos.sql. Todas as tabelas de dados acima
+-- ganham family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE.
+
+CREATE TABLE IF NOT EXISTS family_members (
+  family_id  UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  user_id    TEXT NOT NULL UNIQUE REFERENCES "user"(id) ON DELETE CASCADE,  -- uma pessoa, um espaço
+  role       VARCHAR(10) NOT NULL CHECK (role IN ('mae', 'pai')),
+  joined_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (family_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS family_invites (
+  code        TEXT PRIMARY KEY,           -- 10 caracteres, uso único
+  family_id   UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  created_by  TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at  TIMESTAMPTZ NOT NULL,
+  used_by     TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+  used_at     TIMESTAMPTZ
+);
