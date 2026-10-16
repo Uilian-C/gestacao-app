@@ -98,3 +98,29 @@ CREATE TABLE IF NOT EXISTS consultations (
   created_by        VARCHAR(10),
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migração 004: kit do parto
+CREATE TABLE IF NOT EXISTS kick_sessions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  started_at  TIMESTAMPTZ NOT NULL,
+  ended_at    TIMESTAMPTZ NOT NULL,
+  kicks       INTEGER NOT NULL,
+  target      INTEGER NOT NULL DEFAULT 10,
+  created_by  VARCHAR(10),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS contractions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  started_at  TIMESTAMPTZ NOT NULL,
+  ended_at    TIMESTAMPTZ NOT NULL,
+  created_by  VARCHAR(10),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS birth_plan (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  data        JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_by  VARCHAR(10),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

@@ -88,6 +88,28 @@ export interface HealthMetric {
   created_by: Author;
 }
 
-export type DeletableKind = 'task' | 'symptom' | 'question' | 'comment' | 'metric' | 'consultation';
+export interface KickSession {
+  id: string;
+  started_at: string;
+  ended_at: string;
+  kicks: number;
+  target: number;
+  created_by: Author;
+}
 
-export type Tab = 'inicio' | 'agenda' | 'diario' | 'painel' | 'consultas' | 'tarefas';
+export interface Contraction {
+  id: string;
+  started_at: string;
+  ended_at: string;
+  created_by: Author;
+}
+
+export interface BirthPlanRecord {
+  data: Record<string, unknown>;
+  updated_by: Author | null;
+  updated_at: string | null;
+}
+
+export type DeletableKind = 'task' | 'symptom' | 'question' | 'comment' | 'metric' | 'consultation' | 'kick' | 'contraction';
+
+export type Tab = 'inicio' | 'agenda' | 'diario' | 'painel' | 'consultas' | 'parto';

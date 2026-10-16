@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { sql } from '../db';
-import type { Consultation, HealthMetric, PartnerComment, PartnerTask, PregnancyProfile, QuestionItem, SymptomItem } from '../types';
+import type { BirthPlanRecord, Consultation, Contraction, HealthMetric, KickSession, PartnerComment, PartnerTask, PregnancyProfile, QuestionItem, SymptomItem } from '../types';
 
 export interface GestationData {
   profile: PregnancyProfile;
@@ -12,6 +12,11 @@ export interface GestationData {
   consultations: Consultation[];
   /** A migração 002 ainda não foi aplicada: consultas e campos novos ficam desligados. */
   migrationPending: boolean;
+  kickSessions: KickSession[];
+  contractions: Contraction[];
+  birthPlan: BirthPlanRecord | null;
+  /** A migração 004 (kit do parto) já foi aplicada. */
+  laborAvailable: boolean;
 }
 
 const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
@@ -19,7 +24,7 @@ const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? nu
 // Campos novos são lidos com to_jsonb(...)->>'campo': devolvem NULL quando a
 // coluna ainda não existe, em vez de quebrar a consulta inteira.
 async function fetchAll(): Promise<GestationData> {
-  const [family, symptoms, questions, tasks, comments, metrics, consultations] = await Promise.all([
+  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan] = await Promise.all([
     sql`
       SELECT f.dum_date::text AS dum_date,
              to_jsonb(f)->>'pre_pregnancy_weight_kg' AS pre_weight,
@@ -76,6 +81,17 @@ async function fetchAll(): Promise<GestationData> {
       FROM consultations
       ORDER BY scheduled_at ASC
     `.catch(() => null),
+    sql`
+      SELECT id, started_at::text AS started_at, ended_at::text AS ended_at, kicks, target, COALESCE(created_by, 'mae') AS created_by
+      FROM kick_sessions
+      ORDER BY started_at DESC
+    `.catch(() => null),
+    sql`
+      SELECT id, started_at::text AS started_at, ended_at::text AS ended_at, COALESCE(created_by, 'mae') AS created_by
+      FROM contractions
+      ORDER BY started_at ASC
+    `.catch(() => null),
+    sql`SELECT data, updated_by, updated_at::text AS updated_at FROM birth_plan ORDER BY updated_at DESC LIMIT 1`.catch(() => null),
   ]);
 
   const f = family[0] as Record<string, string | boolean | null> | undefined;
@@ -108,6 +124,10 @@ async function fetchAll(): Promise<GestationData> {
     metrics: metrics as HealthMetric[],
     consultations: (consultations ?? []) as Consultation[],
     migrationPending: consultations === null,
+    kickSessions: (kicks ?? []) as KickSession[],
+    contractions: (contractions ?? []) as Contraction[],
+    birthPlan: plan?.[0] ? (plan[0] as BirthPlanRecord) : null,
+    laborAvailable: kicks !== null && contractions !== null && plan !== null,
   };
 }
 

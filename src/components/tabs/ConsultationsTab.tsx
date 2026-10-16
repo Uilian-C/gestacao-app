@@ -6,9 +6,11 @@ import { daysBetween, formatBR, localDay, parseLocalDate, parseTimestamp, toISOD
 import { TREND_LABEL, buildReport, defaultReportPeriod, reportToText, type ConsultationReport } from '../../lib/report';
 import { timeOfDayLabel } from '../../lib/symptoms';
 import { buildFicha, fichaToText, type FichaItem } from '../../lib/ficha';
+import { laborReportLines } from '../../lib/labor';
+import { planProgress, toPlan } from '../../lib/birthPlan';
 import { FichaGrid } from '../FichaBar';
 import { BMI_LABEL, GAIN_STATUS_LABEL } from '../../lib/weightGain';
-import type { Consultation, HealthMetric, PartnerComment, PregnancyProfile, QuestionItem, SymptomItem } from '../../types';
+import type { BirthPlanRecord, Contraction, KickSession, Consultation, HealthMetric, PartnerComment, PregnancyProfile, QuestionItem, SymptomItem } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import { InsightList } from '../InsightList';
 import { inputClass } from '../styles';
@@ -43,6 +45,9 @@ interface Props {
   onAnswer: (id: string, answer: string) => Promise<boolean>;
   onDeleteQuestion: (q: QuestionItem) => void;
   onNotify: (text: string) => void;
+  kickSessions: KickSession[];
+  contractions: Contraction[];
+  birthPlan: BirthPlanRecord | null;
 }
 
 const QUESTION_CATEGORIES = ['Alimentação', 'Medicação', 'Exames', 'Parto', 'Geral'];
@@ -331,9 +336,18 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
   );
 
   const ficha = buildFicha(props.profile, props.metrics, today);
+  // A reta final (movimentos, contrações e plano de parto) interessa ao obstetra.
+  const showLabor = request.specialtyId === 'obstetra' || request.specialtyId === 'outra';
+  const plan = props.birthPlan ? toPlan(props.birthPlan.data) : null;
+  const labor = showLabor
+    ? laborReportLines(
+        { kicks: props.kickSessions, contractions: props.contractions, plan: plan ? { progress: planProgress(plan), discussed: plan.discussedWithDoctor } : null },
+        report.period,
+      )
+    : [];
 
   const copy = async () => {
-    const text = reportToText(report, fichaToText(ficha));
+    const text = reportToText(report, fichaToText(ficha)) + (labor.length ? `\n\nRETA FINAL\n${labor.map(l => `- ${l}`).join('\n')}` : '');
     try {
       await navigator.clipboard.writeText(text);
       props.onNotify('Resumo copiado. Cole no WhatsApp ou no e-mail do profissional.');
@@ -362,12 +376,12 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
         <input id="inicio-periodo" type="date" max={toISODate(today)} className={`${inputClass} !w-auto !py-1.5`} value={from} onChange={e => e.target.value && setFrom(e.target.value)} />
         <span className="text-ink-mute">(padrão: desde a última consulta desta especialidade, ou 30 dias)</span>
       </div>
-      <ReportDocument report={report} ficha={ficha} />
+      <ReportDocument report={report} ficha={ficha} labor={labor} />
     </div>
   );
 }
 
-function ReportDocument({ report: r, ficha }: { report: ConsultationReport; ficha: FichaItem[] }) {
+function ReportDocument({ report: r, ficha, labor }: { report: ConsultationReport; ficha: FichaItem[]; labor: string[] }) {
   const kg = (n: number) => `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg`;
   const signed = (n: number) => `${n >= 0 ? '+' : ''}${kg(n)}`;
   const when = r.consultation ? parseTimestamp(r.consultation.scheduled_at) : null;
@@ -467,6 +481,12 @@ function ReportDocument({ report: r, ficha }: { report: ConsultationReport; fich
               </Pill>
             ))}
           </div>
+        </ReportSection>
+      )}
+
+      {labor.length > 0 && (
+        <ReportSection title="Reta final">
+          <ul className="space-y-1.5 text-ink">{labor.map(l => <li key={l}>{l}</li>)}</ul>
         </ReportSection>
       )}
 

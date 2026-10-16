@@ -29,10 +29,11 @@ interface Props {
   onToggleTask: (task: PartnerTask) => void;
   onNavigate: (tab: Tab) => void;
   onPrepareReport: (consultation: Consultation) => void;
+  onOpenTasks: () => void;
 }
 
 export default function HomeTab(props: Props) {
-  const { age, selectedWeek, currentWeek, onSelectWeek, nextConsultation, questions, symptoms, metrics, tasks, insights, onToggleTask, onNavigate, onPrepareReport } = props;
+  const { age, selectedWeek, currentWeek, onSelectWeek, nextConsultation, questions, symptoms, metrics, tasks, insights, onToggleTask, onNavigate, onPrepareReport, onOpenTasks } = props;
   const [editingDum, setEditingDum] = useState(false);
   const info = weekInfo(selectedWeek);
   const progress = Math.min(100, (selectedWeek / 40) * 100);
@@ -178,7 +179,7 @@ export default function HomeTab(props: Props) {
           <SectionTitle
             icon={<CheckCircle2 className="w-5 h-5" />}
             title="Para esta semana"
-            action={<Button tone="soft" className="!px-3 !py-1.5" onClick={() => onNavigate('tarefas')}>Ver tarefas</Button>}
+            action={<Button tone="soft" className="!px-3 !py-1.5" onClick={onOpenTasks}>Ver tarefas</Button>}
           />
           {weekTasks.length ? (
             <ul className="space-y-2">
