@@ -67,7 +67,7 @@ export default function LaborTab(props: Props) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-extrabold text-ink">Reta final</h2>
+          <h2 className="text-xl font-semibold text-ink">Reta final</h2>
           <p className="text-sm text-ink-mute">Ferramentas para o 3º trimestre e o plano de parto do casal.</p>
         </div>
         <Segmented
@@ -135,23 +135,23 @@ function KickCounter({ currentWeek, kickSessions, available, busy, onSaveKicks, 
           <div className="space-y-5 py-2">
             <div className="flex justify-center gap-8 tabular">
               <div>
-                <p className="text-xs text-ink-mute uppercase tracking-wide">Movimentos</p>
-                <p className="text-4xl font-extrabold text-ink">{run.kicks}<span className="text-xl text-ink-mute">/{run.target}</span></p>
+                <p className="text-xs text-ink-mute">Movimentos</p>
+                <p className="text-4xl font-semibold text-ink">{run.kicks}<span className="text-xl text-ink-mute">/{run.target}</span></p>
               </div>
               <div>
-                <p className="text-xs text-ink-mute uppercase tracking-wide">Tempo</p>
-                <p className="text-4xl font-extrabold text-ink">{formatDuration(elapsed)}</p>
+                <p className="text-xs text-ink-mute">Tempo</p>
+                <p className="text-4xl font-semibold text-ink">{formatDuration(elapsed)}</p>
               </div>
             </div>
             <button
               onClick={() => setRun({ ...run, kicks: run.kicks + 1 })}
-              className="mx-auto w-44 h-44 rounded-full bg-brand text-on-accent text-2xl font-extrabold shadow-lg active:scale-95 transition flex flex-col items-center justify-center gap-1"
+              className="mx-auto w-44 h-44 rounded-full bg-brand text-on-accent text-2xl font-semibold shadow-lg active:scale-95 transition flex flex-col items-center justify-center gap-1"
               aria-label="Registrar um movimento"
             >
               <Footprints className="w-8 h-8" />
               Mexeu!
             </button>
-            {reached && <p className="text-ok font-bold">Meta alcançada em {formatDuration(elapsed)}. Podem salvar.</p>}
+            {reached && <p className="text-ok font-semibold">Meta alcançada em {formatDuration(elapsed)}. Podem salvar.</p>}
             <div className="flex flex-wrap justify-center gap-2">
               <Button tone="ghost" onClick={() => setRun({ ...run, kicks: Math.max(0, run.kicks - 1) })} disabled={run.kicks === 0}>
                 <RotateCcw className="w-4 h-4" /> Desfazer
@@ -170,13 +170,13 @@ function KickCounter({ currentWeek, kickSessions, available, busy, onSaveKicks, 
       <Card>
         <SectionTitle title="Contagens anteriores" subtitle="Comparar o tempo até a meta ajuda a notar mudanças." />
         {history.length === 0 ? (
-          <EmptyState emoji="👣" title="Nenhuma contagem ainda" />
+          <EmptyState icon={<Footprints />} title="Nenhuma contagem ainda" />
         ) : (
           <ul className="space-y-2">
             {history.map(({ session, minutes, reachedTarget }) => (
-              <li key={session.id} className={`flex items-center justify-between gap-2 rounded-2xl border p-3 ${reachedTarget ? 'border-line bg-canvas' : 'border-alert/40 bg-alert-soft/40'}`}>
+              <li key={session.id} className={`flex items-center justify-between gap-2 rounded-2xl border p-3 ${reachedTarget ? 'border-transparent bg-surface-2/60' : 'border-alert/40 bg-alert-soft/40'}`}>
                 <div className="min-w-0">
-                  <p className="font-bold text-ink tabular">
+                  <p className="font-semibold text-ink tabular">
                     {session.kicks}/{session.target} em {Math.round(minutes)} min
                   </p>
                   <p className="text-xs text-ink-mute flex flex-wrap items-center gap-1.5">
@@ -236,9 +236,9 @@ function ContractionTimer({ currentWeek, contractions, available, busy, onSaveCo
         <div className="py-2 space-y-4">
           {startedAt ? (
             <>
-              <p className="text-xs text-ink-mute uppercase tracking-wide">Contração em andamento</p>
-              <p className="text-5xl font-extrabold text-ink tabular">{formatDuration(now - new Date(startedAt).getTime())}</p>
-              <button onClick={finish} disabled={busy || !available} className="mx-auto w-44 h-44 rounded-full bg-alert text-white text-2xl font-extrabold shadow-lg active:scale-95 transition disabled:opacity-50">
+              <p className="text-xs text-ink-mute">Contração em andamento</p>
+              <p className="text-5xl font-semibold text-ink tabular">{formatDuration(now - new Date(startedAt).getTime())}</p>
+              <button onClick={finish} disabled={busy || !available} className="mx-auto w-44 h-44 rounded-full bg-alert text-white text-2xl font-semibold shadow-lg active:scale-95 transition disabled:opacity-50">
                 Terminou
               </button>
               <Button tone="ghost" onClick={() => setStarted(null)}>Cancelar esta</Button>
@@ -246,7 +246,7 @@ function ContractionTimer({ currentWeek, contractions, available, busy, onSaveCo
           ) : (
             <>
               <p className="text-ink-soft max-w-sm mx-auto">Um sente, o outro marca: toque quando a contração começar e de novo quando terminar.</p>
-              <button onClick={() => setStarted(new Date().toISOString())} disabled={!available} className="mx-auto w-44 h-44 rounded-full bg-brand text-on-accent text-2xl font-extrabold shadow-lg active:scale-95 transition disabled:opacity-50">
+              <button onClick={() => setStarted(new Date().toISOString())} disabled={!available} className="mx-auto w-44 h-44 rounded-full bg-brand text-on-accent text-2xl font-semibold shadow-lg active:scale-95 transition disabled:opacity-50">
                 Começou
               </button>
             </>
@@ -254,7 +254,7 @@ function ContractionTimer({ currentWeek, contractions, available, busy, onSaveCo
         </div>
 
         <div className={`rounded-2xl p-4 text-left space-y-1 ${toneClass}`} role={signal.tone === 'alert' ? 'alert' : undefined}>
-          <p className="font-bold flex items-center gap-2">{signal.tone === 'alert' && <AlertTriangle className="w-4 h-4" />}{signal.title}</p>
+          <p className="font-semibold flex items-center gap-2">{signal.tone === 'alert' && <AlertTriangle className="w-4 h-4" />}{signal.title}</p>
           <p className="text-sm">{signal.text}</p>
         </div>
 
@@ -280,13 +280,13 @@ function ContractionTimer({ currentWeek, contractions, available, busy, onSaveCo
           }
         />
         {todays.length === 0 ? (
-          <EmptyState emoji="⏱️" title="Nenhuma contração hoje" />
+          <EmptyState icon={<Timer />} title="Nenhuma contração hoje" />
         ) : (
           <ul className="space-y-2">
             {todays.map(c => (
-              <li key={c.id} className="flex items-center justify-between gap-2 rounded-2xl border border-line bg-canvas p-3">
+              <li key={c.id} className="flex items-center justify-between gap-2 rounded-2xl border border-transparent bg-surface-2/60 p-3">
                 <div className="min-w-0 tabular">
-                  <p className="font-bold text-ink">
+                  <p className="font-semibold text-ink">
                     {c.start.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · {formatDuration(c.durationSec * 1000)}
                   </p>
                   <p className="text-xs text-ink-mute flex items-center gap-1.5">
@@ -310,7 +310,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-surface-2 p-3">
       <p className="text-xs text-ink-mute">{label}</p>
-      <p className="text-xl font-extrabold text-ink tabular">{value}</p>
+      <p className="text-xl font-semibold text-ink tabular">{value}</p>
     </div>
   );
 }
@@ -353,10 +353,10 @@ function BirthPlanEditor({ birthPlan, motherName, available, busy, onSavePlan, o
             <Button onClick={() => window.print()}><Printer className="w-4 h-4" /> Imprimir / PDF</Button>
           </div>
         </div>
-        <article className="print-area rounded-3xl border border-line bg-surface p-6 md:p-8 space-y-5 print:border-0 print:p-0">
+        <article className="print-area rounded-[28px] bg-surface shadow-soft p-6 md:p-8 space-y-5 print:border-0 print:p-0">
           <header className="border-b border-line pb-4 space-y-1">
-            <p className="text-sm font-bold text-brand uppercase tracking-wide">Plano de parto</p>
-            <h2 className="text-2xl font-extrabold text-ink">{motherName ?? 'Gestante'}</h2>
+            <p className="text-sm font-semibold text-brand">Plano de parto</p>
+            <h2 className="text-2xl font-semibold text-ink">{motherName ?? 'Gestante'}</h2>
             <dl className="grid sm:grid-cols-2 gap-2 pt-2 text-sm">
               {plan.birthType && <div><dt className="text-ink-mute text-xs">Parto desejado</dt><dd className="font-semibold">{BIRTH_TYPE[plan.birthType]}</dd></div>}
               {plan.maternity && <div><dt className="text-ink-mute text-xs">Maternidade</dt><dd className="font-semibold">{plan.maternity}</dd></div>}
@@ -370,7 +370,7 @@ function BirthPlanEditor({ birthPlan, motherName, available, busy, onSavePlan, o
             if (!chosen.length && !note) return null;
             return (
               <section key={s.id} className="space-y-1.5 break-inside-avoid">
-                <h3 className="font-bold text-ink">{s.title}</h3>
+                <h3 className="font-semibold text-ink">{s.title}</h3>
                 <ul className="list-disc pl-5 text-sm text-ink space-y-0.5">{chosen.map(c => <li key={c}>{c}</li>)}</ul>
                 {note && <p className="text-sm text-ink-soft">{note}</p>}
               </section>
@@ -390,7 +390,7 @@ function BirthPlanEditor({ birthPlan, motherName, available, busy, onSavePlan, o
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1 min-w-0">
-            <p className="font-bold text-ink">Construam juntos e levem para conversar com o obstetra</p>
+            <p className="font-semibold text-ink">Construam juntos e levem para conversar com o obstetra</p>
             <p className="text-sm text-ink-mute">
               Mesmos temas da Caderneta da Gestante.
               {birthPlan?.updated_at && <> Atualizado em {formatBR(birthPlan.updated_at)}{birthPlan.updated_by && <> por {birthPlan.updated_by === 'pai' ? 'pai' : 'mãe'}</>}.</>}

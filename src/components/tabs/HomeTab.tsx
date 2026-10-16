@@ -12,6 +12,7 @@ import { DumForm } from '../DumForm';
 import { Button, Card, Pill, SectionTitle } from '../ui';
 import { InsightList } from '../InsightList';
 import IntensityDots from '../IntensityDots';
+import SpecialtyIcon from '../SpecialtyIcon';
 
 interface Props {
   age: GestationalAge;
@@ -32,11 +33,29 @@ interface Props {
   onOpenTasks: () => void;
 }
 
+/** Anel de progresso da gestação (40 semanas), com a semana no centro. */
+function WeekRing({ week }: { week: number }) {
+  const r = 46;
+  const c = 2 * Math.PI * r;
+  const frac = Math.min(1, week / 40);
+  return (
+    <div className="relative w-28 h-28 shrink-0" role="img" aria-label={`Semana ${week} de 40`}>
+      <svg viewBox="0 0 108 108" className="w-full h-full -rotate-90">
+        <circle cx="54" cy="54" r={r} fill="none" strokeWidth="6" style={{ stroke: 'var(--c-surface)' }} />
+        <circle cx="54" cy="54" r={r} fill="none" strokeWidth="6" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - frac)} style={{ stroke: 'var(--c-warm)', transition: 'stroke-dashoffset 600ms ease' }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-display text-4xl leading-none text-ink tabular">{week}</span>
+        <span className="text-[11px] text-ink-mute mt-1">semanas</span>
+      </div>
+    </div>
+  );
+}
+
 export default function HomeTab(props: Props) {
   const { age, selectedWeek, currentWeek, onSelectWeek, nextConsultation, questions, symptoms, metrics, tasks, insights, onToggleTask, onNavigate, onPrepareReport, onOpenTasks } = props;
   const [editingDum, setEditingDum] = useState(false);
   const info = weekInfo(selectedWeek);
-  const progress = Math.min(100, (selectedWeek / 40) * 100);
   const today = new Date();
 
   const alerts = insights.filter(i => i.tone === 'alerta');
@@ -60,18 +79,13 @@ export default function HomeTab(props: Props) {
       )}
 
       <Card tone="warm" className="overflow-hidden">
-        <div className="flex flex-col sm:flex-row gap-5 sm:items-center">
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-surface flex items-center justify-center text-5xl sm:text-6xl shrink-0 shadow-sm" aria-hidden>
-            {info.emoji}
-          </div>
+        <div className="flex flex-col sm:flex-row gap-6 sm:items-center">
+          <WeekRing week={selectedWeek} />
           <div className="flex-1 min-w-0 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Pill tone="warm">{info.trimester}º trimestre</Pill>
-              {selectedWeek !== currentWeek && <Pill>vendo outra semana</Pill>}
-            </div>
-            <h2 className="text-2xl font-extrabold text-ink text-balance">
-              Semana {selectedWeek}: o bebê está do tamanho de {info.fruit}
-            </h2>
+            <p className="text-sm text-warm font-medium">
+              {info.trimester}º trimestre{selectedWeek !== currentWeek && ' · vendo outra semana'}
+            </p>
+            <h2 className="text-[1.65rem] leading-snug text-ink text-balance">O bebê está do tamanho de {info.fruit}</h2>
             <p className="text-ink-soft">{info.milestone}</p>
             <p className="text-sm text-ink-mute tabular">
               Cerca de {info.size} e {info.weight}
@@ -79,10 +93,7 @@ export default function HomeTab(props: Props) {
           </div>
         </div>
 
-        <div className="mt-5 space-y-2">
-          <div className="h-2.5 rounded-full bg-surface overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={40} aria-valuenow={selectedWeek} aria-label="Progresso da gestação">
-            <div className="h-full rounded-full bg-warm transition-all" style={{ width: `${progress}%` }} />
-          </div>
+        <div className="mt-6 space-y-2">
           <div className="flex flex-wrap justify-between gap-2 text-sm text-ink-soft">
             <span className="tabular">
               {age.daysToDpp >= 0 ? <>Faltam <strong className="text-ink">{age.daysToDpp} dias</strong> para a DPP ({age.dpp.toLocaleDateString('pt-BR')})</> : <>DPP foi em {age.dpp.toLocaleDateString('pt-BR')}</>}
@@ -92,7 +103,7 @@ export default function HomeTab(props: Props) {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               {selectedWeek !== currentWeek ? (
-                <button onClick={() => onSelectWeek(currentWeek)} className="text-sm font-bold text-warm underline underline-offset-2 px-1">voltar para hoje</button>
+                <button onClick={() => onSelectWeek(currentWeek)} className="text-sm font-semibold text-warm underline underline-offset-2 px-1">voltar para hoje</button>
               ) : (
                 <span className="text-sm px-1">explorar semanas</span>
               )}
@@ -192,13 +203,13 @@ export default function HomeTab(props: Props) {
               ))}
             </ul>
           ) : (
-            <p className="text-ink-soft">Nada pendente nesta semana. 🌿</p>
+            <p className="text-ink-soft">Nada pendente nesta semana.</p>
           )}
         </Card>
       </div>
 
-      <details className="rounded-3xl border border-line bg-surface p-5 group">
-        <summary className="cursor-pointer font-bold text-ink flex items-center gap-2 list-none">
+      <details className="rounded-[28px] bg-surface shadow-soft p-5 md:p-6 group">
+        <summary className="cursor-pointer font-semibold text-ink flex items-center gap-2 list-none">
           <Siren className="w-5 h-5 text-alert" /> Quando procurar a maternidade
           <span className="ml-auto text-sm font-semibold text-ink-mute group-open:hidden">ver</span>
         </summary>
@@ -219,9 +230,9 @@ function NextConsultation({ consultation, questions, today, onPrepare }: { consu
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-3">
-        <span className="text-3xl" aria-hidden>{spec.emoji}</span>
+        <SpecialtyIcon id={spec.id} />
         <div>
-          <p className="font-bold text-ink">{spec.label}</p>
+          <p className="font-semibold text-ink">{spec.label}</p>
           <p className="text-ink-soft text-sm">
             {when.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })} às {when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
           </p>

@@ -82,7 +82,7 @@ export default function CalendarTab(props: Props) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-extrabold text-ink first-letter:uppercase">{view === 'mes' ? monthLabel : `Semana ${week} da gestação`}</h2>
+          <h2 className="text-xl font-semibold text-ink first-letter:uppercase">{view === 'mes' ? monthLabel : `Semana ${week} da gestação`}</h2>
           <p className="text-sm text-ink-mute">{view === 'mes' ? 'Consultas, prazos, marcos do pré-natal e registros do diário.' : weekLabel}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -133,7 +133,7 @@ export default function CalendarTab(props: Props) {
       <Card tone="brand">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
           <div>
-            <p className="font-bold text-ink flex items-center gap-2"><CalendarPlus className="w-5 h-5 text-brand" /> Levar para a agenda do celular</p>
+            <p className="font-semibold text-ink flex items-center gap-2"><CalendarPlus className="w-5 h-5 text-brand" /> Levar para a agenda do celular</p>
             <p className="text-sm text-ink-soft">Baixe um arquivo com as consultas, os prazos e os marcos e abra no celular. Ele é importado no Google Agenda ou no calendário do iPhone.</p>
           </div>
           <Button onClick={exportIcs} className="shrink-0">
@@ -178,14 +178,14 @@ function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events,
   return (
     <div role="grid" aria-label="Calendário do mês">
       <div className="grid grid-cols-[28px_repeat(7,minmax(0,1fr))] md:grid-cols-[36px_repeat(7,minmax(0,1fr))] gap-1 mb-1" role="row">
-        <span className="text-[10px] font-bold text-ink-mute self-end text-center" aria-hidden>sem</span>
-        {WEEKDAYS.map(d => <span key={d} className="text-xs font-bold text-ink-mute text-center uppercase" role="columnheader">{d}</span>)}
+        <span className="text-[10px] font-semibold text-ink-mute self-end text-center" aria-hidden>sem</span>
+        {WEEKDAYS.map(d => <span key={d} className="text-xs font-semibold text-ink-mute text-center " role="columnheader">{d}</span>)}
       </div>
       {weeks.map(days => {
         const gw = gestationalWeekOf(dumDate, days[3]);
         return (
           <div key={toISODate(days[0])} className="grid grid-cols-[28px_repeat(7,minmax(0,1fr))] md:grid-cols-[36px_repeat(7,minmax(0,1fr))] gap-1 mb-1" role="row">
-            <span className="text-[11px] font-bold text-ink-mute flex items-center justify-center tabular" title={`Semana ${gw} da gestação`}>{gw >= 0 && gw <= 42 ? gw : ''}</span>
+            <span className="text-[11px] font-semibold text-ink-mute flex items-center justify-center tabular" title={`Semana ${gw} da gestação`}>{gw >= 0 && gw <= 42 ? gw : ''}</span>
             {days.map(d => {
               const iso = toISODate(d);
               const list = events.get(iso) ?? [];
@@ -204,7 +204,7 @@ function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events,
                   className={`relative min-w-0 min-h-14 md:min-h-24 rounded-xl p-0.5 md:p-1.5 text-left flex flex-col gap-1 transition border ${isSelected ? 'border-brand bg-brand-soft/60' : 'border-transparent hover:bg-surface-2'} ${inMonth ? '' : 'opacity-45'}`}
                 >
                   <span className="flex items-center justify-between gap-0.5">
-                    <span className={`text-xs md:text-sm font-bold tabular w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${isToday ? 'bg-brand text-on-accent' : 'text-ink'}`}>{d.getDate()}</span>
+                    <span className={`text-xs md:text-sm font-semibold tabular w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${isToday ? 'bg-brand text-on-accent' : 'text-ink'}`}>{d.getDate()}</span>
                     {rec && (
                       <span
                         className={`w-2.5 h-2.5 rounded-full border-2 ${rec.bpHigh ? 'bg-alert border-alert' : ''}`}
@@ -213,7 +213,7 @@ function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events,
                       />
                     )}
                   </span>
-                  {major && <span className="hidden md:block text-[10px] font-bold text-warm leading-tight truncate">{major.title}</span>}
+                  {major && <span className="hidden md:block text-[10px] font-semibold text-warm leading-tight truncate">{major.title}</span>}
                   {/* Celular: pontos. Computador: os primeiros títulos. */}
                   <span className="flex flex-wrap gap-0.5 md:hidden">
                     {list.slice(0, 4).map(e => <span key={e.id} className={`w-1.5 h-1.5 rounded-full ${dotClass(e)}`} />)}
@@ -221,7 +221,7 @@ function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events,
                   <span className="hidden md:flex flex-col gap-0.5 min-w-0">
                     {list.filter(e => e !== major).slice(0, 2).map(e => (
                       <span key={e.id} className={`text-[11px] leading-tight px-1.5 py-0.5 rounded-md truncate ${e.overdue ? 'bg-alert-soft text-alert' : KIND_STYLE[e.kind]} ${e.done ? 'line-through opacity-60' : ''}`}>
-                        {e.time && <span className="font-bold">{e.time} </span>}
+                        {e.time && <span className="font-semibold">{e.time} </span>}
                         {e.title}
                       </span>
                     ))}
@@ -255,8 +255,8 @@ function WeekView({ days, todayIso, selected, onSelect, events, records, onToggl
               className={`w-full flex gap-3 p-3 rounded-2xl text-left transition cursor-pointer ${iso === selected ? 'bg-brand-soft/60' : 'hover:bg-surface-2'}`}
             >
               <div className="w-12 shrink-0 text-center">
-                <p className="text-xs font-bold text-ink-mute uppercase">{WEEKDAYS[d.getDay()]}</p>
-                <p className={`mx-auto mt-0.5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-extrabold tabular ${isToday ? 'bg-brand text-on-accent' : 'text-ink'}`}>{d.getDate()}</p>
+                <p className="text-xs font-semibold text-ink-mute ">{WEEKDAYS[d.getDay()]}</p>
+                <p className={`mx-auto mt-0.5 w-9 h-9 rounded-full flex items-center justify-center text-lg font-semibold tabular ${isToday ? 'bg-brand text-on-accent' : 'text-ink'}`}>{d.getDate()}</p>
               </div>
               <div className="flex-1 min-w-0 space-y-1.5 py-1">
                 {list.length === 0 && !rec && <p className="text-sm text-ink-mute">Nada marcado</p>}
@@ -292,7 +292,7 @@ function EventLine({ event: e, onToggleTask }: { event: CalendarEvent; onToggleT
       )}
       <span className={`min-w-0 ${e.done ? 'line-through text-ink-mute' : 'text-ink'}`}>
         {e.time && <strong className="tabular">{e.time} · </strong>}
-        <span className={e.kind === 'marco' && e.major ? 'font-bold' : 'font-semibold'}>{e.title}</span>
+        <span className={e.kind === 'marco' && e.major ? 'font-semibold' : 'font-semibold'}>{e.title}</span>
         {e.overdue && <span className="text-alert font-semibold"> · atrasada</span>}
         {e.detail && <span className="block text-xs text-ink-mute">{e.detail}</span>}
       </span>
@@ -344,7 +344,7 @@ function DayPanel(props: {
     <Card className="space-y-4">
       <div>
         <p className="text-sm text-ink-mute first-letter:uppercase">{date.toLocaleDateString('pt-BR', { weekday: 'long' })}{isToday ? ' · hoje' : ''}</p>
-        <h3 className="text-xl font-extrabold text-ink">{date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</h3>
+        <h3 className="text-xl font-semibold text-ink">{date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</h3>
         {gw >= 0 && gw <= 42 && <Pill tone="warm">semana {gw} da gestação</Pill>}
       </div>
 
@@ -371,7 +371,7 @@ function DayPanel(props: {
 
       {props.records && (
         <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
-          <p className="text-xs font-bold text-ink-mute uppercase tracking-wide">Diário</p>
+          <p className="text-xs font-semibold text-ink-mute">Diário</p>
           {props.records.symptoms.map(s => (
             <div key={s.id} className="flex items-center justify-between gap-2 text-sm">
               <span className="text-ink">{s.symptom_name}</span>

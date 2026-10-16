@@ -12,6 +12,7 @@ import { FichaGrid } from '../FichaBar';
 import { BMI_LABEL, GAIN_STATUS_LABEL } from '../../lib/weightGain';
 import type { BirthPlanRecord, Contraction, KickSession, Consultation, HealthMetric, PartnerComment, PregnancyProfile, QuestionItem, SymptomItem } from '../../types';
 import AuthorBadge from '../AuthorBadge';
+import SpecialtyIcon from '../SpecialtyIcon';
 import { InsightList } from '../InsightList';
 import { inputClass } from '../styles';
 import { Button, Card, EmptyState, Field, Pill, SectionTitle } from '../ui';
@@ -103,11 +104,11 @@ function ConsultationRow({ consultation: c, today, questions, onPrepare, onDelet
   const days = daysBetween(today, localDay(c.scheduled_at));
   const pending = questions.filter(q => !q.doctor_answer && questionSpecialty(q.specialty) === spec.id).length;
   return (
-    <div className="rounded-2xl border border-line bg-canvas p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-      <span className="text-3xl" aria-hidden>{spec.emoji}</span>
+    <div className="rounded-2xl border border-transparent bg-surface-2/60 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+      <SpecialtyIcon id={spec.id} />
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="font-bold text-ink">{spec.label}</p>
+          <p className="font-semibold text-ink">{spec.label}</p>
           {days >= 0 && <Pill tone={days <= 2 ? 'warm' : 'brand'}>{days === 0 ? 'hoje' : days === 1 ? 'amanhã' : `em ${days} dias`}</Pill>}
         </div>
         <p className="text-sm text-ink-soft">
@@ -175,7 +176,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
       <div className="grid sm:grid-cols-2 gap-4">
         <Field label="Especialidade" htmlFor="esp">
           <select id="esp" className={inputClass} value={specialty} onChange={e => setSpecialty(e.target.value as SpecialtyId)}>
-            {SPECIALTIES.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+            {SPECIALTIES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
         </Field>
         <div className="grid grid-cols-2 gap-3">
@@ -208,7 +209,7 @@ function QuickReport({ onOpen }: { onOpen: (id: SpecialtyId) => void }) {
       <SectionTitle icon={<FileText className="w-5 h-5" />} title="Resumo avulso" subtitle="Para uma consulta não agendada ou um pronto-atendimento." />
       <div className="flex flex-col sm:flex-row gap-3">
         <select aria-label="Especialidade do resumo" className={inputClass} value={specialty} onChange={e => setSpecialty(e.target.value as SpecialtyId)}>
-          {SPECIALTIES.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+          {SPECIALTIES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
         <Button onClick={() => onOpen(specialty)} className="shrink-0">Gerar resumo</Button>
       </div>
@@ -252,12 +253,12 @@ function QuestionsSection({ questions, busy, migrationPending, onCreateQuestion,
       </form>
 
       <div className="mt-6 space-y-5">
-        {groups.length === 0 && <EmptyState emoji="💭" title="Nenhuma dúvida pendente">Quando surgir uma pergunta no dia a dia, anotem aqui para não esquecer na consulta.</EmptyState>}
+        {groups.length === 0 && <EmptyState icon={<HelpCircle />} title="Nenhuma dúvida pendente">Quando surgir uma pergunta no dia a dia, anotem aqui para não esquecer na consulta.</EmptyState>}
         {groups.map(g => (
           <div key={g.spec.id} className="space-y-2">
-            <h3 className="text-sm font-bold text-ink-soft">{g.spec.emoji} {g.spec.label} ({g.items.length})</h3>
+            <h3 className="text-sm font-semibold text-ink-soft">{g.spec.label} ({g.items.length})</h3>
             {g.items.map(q => (
-              <div key={q.id} className="rounded-2xl border border-line bg-canvas p-4 space-y-3">
+              <div key={q.id} className="rounded-2xl border border-transparent bg-surface-2/60 p-4 space-y-3">
                 <div className="flex justify-between gap-3">
                   <div className="min-w-0 space-y-1">
                     <p className="font-semibold text-ink">{q.questions_to_ask}</p>
@@ -291,7 +292,7 @@ function QuestionsSection({ questions, busy, migrationPending, onCreateQuestion,
             <summary className="cursor-pointer text-sm font-semibold text-ink-mute">Respondidas ({answered.length})</summary>
             <div className="space-y-3 mt-3">
               {answered.map(q => (
-                <div key={q.id} className="rounded-2xl border border-line bg-canvas p-4 space-y-2">
+                <div key={q.id} className="rounded-2xl border border-transparent bg-surface-2/60 p-4 space-y-2">
                   <div className="flex justify-between gap-3">
                     <p className="font-semibold text-ink">{q.questions_to_ask}</p>
                     <button onClick={() => onDeleteQuestion(q)} aria-label="Excluir dúvida" className="p-1.5 rounded-full text-ink-mute hover:text-alert self-start">
@@ -299,7 +300,7 @@ function QuestionsSection({ questions, busy, migrationPending, onCreateQuestion,
                     </button>
                   </div>
                   <div className="rounded-xl bg-ok-soft p-3 text-sm">
-                    <span className="font-bold text-ok flex items-center gap-1 text-xs uppercase tracking-wide"><ShieldCheck className="w-3.5 h-3.5" /> {specialtyOf(questionSpecialty(q.specialty)).label}</span>
+                    <span className="font-semibold text-ok flex items-center gap-1 text-xs"><ShieldCheck className="w-3.5 h-3.5" /> {specialtyOf(questionSpecialty(q.specialty)).label}</span>
                     <p className="text-ink mt-1">{q.doctor_answer}</p>
                   </div>
                 </div>
@@ -387,10 +388,10 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
   const when = r.consultation ? parseTimestamp(r.consultation.scheduled_at) : null;
 
   return (
-    <article className="print-area rounded-3xl border border-line bg-surface p-6 md:p-8 space-y-7 print:border-0 print:p-0">
+    <article className="print-area rounded-[28px] bg-surface shadow-soft p-6 md:p-8 space-y-7 print:border-0 print:p-0">
       <header className="space-y-3 border-b border-line pb-5">
-        <p className="text-sm font-bold text-brand uppercase tracking-wide">Nossa Gestação · resumo para consulta</p>
-        <h2 className="text-2xl font-extrabold text-ink">{r.specialty.emoji} {r.specialty.label}</h2>
+        <p className="text-sm font-semibold text-brand">Nossa Gestação · resumo para consulta</p>
+        <h2 className="text-2xl font-semibold text-ink">{r.specialty.label}</h2>
         {when && (
           <p className="text-ink-soft">
             {when.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })} às {when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -401,7 +402,7 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
 
       {/* Ficha da gestante: o mesmo cabeçalho de prontuário em todo resumo. */}
       <section className="space-y-3 rounded-2xl bg-surface-2 p-4 break-inside-avoid print:bg-transparent print:border print:border-line">
-        <h3 className="text-sm font-bold text-ink-soft uppercase tracking-wide">Ficha da gestante</h3>
+        <h3 className="text-sm font-semibold text-ink-soft">Ficha da gestante</h3>
         <FichaGrid items={ficha} compact />
         <p className="text-xs text-ink-mute border-t border-line pt-2">
           Período analisado neste resumo: semanas {r.weekFrom} a {r.weekTo} ({formatBR(toISODate(r.period.from))} a {formatBR(toISODate(r.period.to))})
@@ -435,7 +436,7 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
                   {r.symptoms.map(s => (
                     <tr key={s.key} className="border-b border-line align-top">
                       <td className="py-2.5 pr-2">
-                        <span className="font-bold text-ink">{s.name}</span>
+                        <span className="font-semibold text-ink">{s.name}</span>
                         <span className="block text-xs text-ink-mute">{s.category}</span>
                         {s.care.length > 0 && <span className="block text-xs text-ink-soft mt-1">Cuidados: {s.care.slice(-2).map(c => c.comment_text).join('; ')}</span>}
                       </td>
@@ -532,7 +533,7 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
 function ReportSection({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3 break-inside-avoid">
-      <h3 className="text-lg font-bold text-ink">{title}</h3>
+      <h3 className="text-lg font-semibold text-ink">{title}</h3>
       {children}
       {note && <p className="text-xs text-ink-mute">{note}</p>}
     </section>

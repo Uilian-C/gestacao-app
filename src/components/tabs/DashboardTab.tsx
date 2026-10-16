@@ -78,7 +78,7 @@ export default function DashboardTab({ age, profile, symptoms, comments, metrics
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-extrabold text-ink">Painel da gestação</h2>
+          <h2 className="text-xl font-semibold text-ink">Painel da gestação</h2>
           <p className="text-sm text-ink-mute">
             Semanas {weekFrom} a {weekTo} · {formatBR(toISODate(period.from))} a {formatBR(toISODate(period.to))}
           </p>
@@ -117,7 +117,7 @@ export default function DashboardTab({ age, profile, symptoms, comments, metrics
       <Card>
         <SectionTitle icon={<Activity className="w-5 h-5" />} title="Sintomas" subtitle="Ordenados pela frequência. Toque para ver a evolução." />
         {stats.length === 0 ? (
-          <EmptyState emoji="🌿" title="Nenhum sintoma no período">Registros no Diário aparecem aqui com frequência, intensidade e tendência.</EmptyState>
+          <EmptyState icon={<Activity />} title="Nenhum sintoma no período">Registros no Diário aparecem aqui com frequência, intensidade e tendência.</EmptyState>
         ) : (
           <div className="overflow-x-auto -mx-2">
             <table className="w-full text-sm min-w-[520px]">
@@ -139,7 +139,7 @@ export default function DashboardTab({ age, profile, symptoms, comments, metrics
                   >
                     <td className="px-2 py-2.5">
                       <button className="text-left" aria-expanded={s.key === selectedKey}>
-                        <span className="font-bold text-ink block">{s.name}</span>
+                        <span className="font-semibold text-ink block">{s.name}</span>
                         <span className="text-xs text-ink-mute">{s.category}{s.isAlert ? ' · sinal de alerta' : ''}</span>
                       </button>
                     </td>
@@ -173,12 +173,12 @@ export default function DashboardTab({ age, profile, symptoms, comments, metrics
 function Stat({ label, value, hint, delta }: { label: string; value: string; hint?: string; delta?: { value: number; label: string; goodWhenDown: boolean } }) {
   const good = delta ? (delta.goodWhenDown ? delta.value < 0 : delta.value > 0) : false;
   return (
-    <div className="rounded-3xl bg-surface border border-line p-4">
+    <div className="rounded-[24px] bg-surface shadow-soft p-4">
       <p className="text-xs font-semibold text-ink-mute">{label}</p>
-      <p className="text-2xl font-extrabold text-ink tabular mt-1">{value}</p>
+      <p className="text-2xl font-semibold text-ink tabular mt-1">{value}</p>
       {hint && <p className="text-xs text-ink-mute">{hint}</p>}
       {delta && Math.abs(delta.value) >= 0.05 && (
-        <p className={`text-xs font-bold mt-1 ${good ? 'text-ok' : 'text-alert'}`}>
+        <p className={`text-xs font-semibold mt-1 ${good ? 'text-ok' : 'text-alert'}`}>
           {delta.value > 0 ? '▲' : '▼'} {fmt(Math.abs(delta.value))} {delta.label}
         </p>
       )}
@@ -203,12 +203,12 @@ function SymptomDetail({ stats: s, comments, weekFrom, weekTo, onClose }: { stat
       />
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 min-w-0">
-          <h3 className="text-sm font-bold text-ink-soft mb-2">Intensidade ao longo das semanas</h3>
+          <h3 className="text-sm font-semibold text-ink-soft mb-2">Intensidade ao longo das semanas</h3>
           <SymptomTrendChart byWeek={s.byWeek} entries={s.entries.map(e => ({ week: e.week, intensity: e.intensity }))} weekFrom={weekFrom} weekTo={weekTo} />
         </div>
         <div className="space-y-5">
           <div>
-            <h3 className="text-sm font-bold text-ink-soft mb-2">Período do dia</h3>
+            <h3 className="text-sm font-semibold text-ink-soft mb-2">Período do dia</h3>
             {s.timeOfDay.known > 0 ? (
               <>
                 <TimeOfDayBars counts={s.timeOfDay.counts} />
@@ -221,7 +221,7 @@ function SymptomDetail({ stats: s, comments, weekFrom, weekTo, onClose }: { stat
             )}
           </div>
           <div>
-            <h3 className="text-sm font-bold text-ink-soft mb-2">Quem registrou</h3>
+            <h3 className="text-sm font-semibold text-ink-soft mb-2">Quem registrou</h3>
             <div className="flex gap-2">
               {byAuthor.mae > 0 && <span className="flex items-center gap-1.5 text-sm text-ink"><AuthorBadge role="mae" /> {byAuthor.mae}</span>}
               {byAuthor.pai > 0 && <span className="flex items-center gap-1.5 text-sm text-ink"><AuthorBadge role="pai" /> {byAuthor.pai}</span>}
@@ -233,7 +233,7 @@ function SymptomDetail({ stats: s, comments, weekFrom, weekTo, onClose }: { stat
         <div className="grid md:grid-cols-2 gap-6 mt-6 pt-5 border-t border-line">
           {care.length > 0 && (
             <div>
-              <h3 className="text-sm font-bold text-ink-soft mb-2 flex items-center gap-1.5"><HeartHandshake className="w-4 h-4 text-brand" /> O que tem ajudado</h3>
+              <h3 className="text-sm font-semibold text-ink-soft mb-2 flex items-center gap-1.5"><HeartHandshake className="w-4 h-4 text-brand" /> O que tem ajudado</h3>
               <ul className="space-y-1.5 text-sm">
                 {care.slice(-5).reverse().map(c => <li key={c.id} className="text-ink">{c.comment_text} <AuthorBadge role={c.author_role} /></li>)}
               </ul>
@@ -241,7 +241,7 @@ function SymptomDetail({ stats: s, comments, weekFrom, weekTo, onClose }: { stat
           )}
           {notes.length > 0 && (
             <div>
-              <h3 className="text-sm font-bold text-ink-soft mb-2">Observações</h3>
+              <h3 className="text-sm font-semibold text-ink-soft mb-2">Observações</h3>
               <ul className="space-y-1.5 text-sm">
                 {notes.map(e => <li key={e.id} className="text-ink"><span className="text-ink-mute">{formatBR(toISODate(e.date))}:</span> {e.notes}</li>)}
               </ul>
@@ -287,7 +287,7 @@ function WeightSection({ profile, metrics, migrationPending, busy, onSaveProfile
         <ProfileForm initial={profile} busy={busy} onSave={async (w, h) => { if (await onSaveProfile(w, h)) setEditing(false); }} />
       )}
       {points.length < 2 ? (
-        <EmptyState emoji="⚖️" title="Poucas medições de peso">Registre o peso no Diário. Com duas medições o gráfico aparece.</EmptyState>
+        <EmptyState icon={<Scale />} title="Poucas medições de peso">Registre o peso no Diário. Com duas medições o gráfico aparece.</EmptyState>
       ) : (
         <div className="space-y-3 mt-2">
           {status && last && (
@@ -349,7 +349,7 @@ function PressureSection({ metrics }: { metrics: HealthMetric[] }) {
         subtitle={readings.length ? `${readings.length} ${readings.length === 1 ? 'medição' : 'medições'}${high.length ? ` · ${high.length} acima de 140/90` : ' · nenhuma acima de 140/90'}` : undefined}
       />
       {readings.length === 0 ? (
-        <EmptyState emoji="🩺" title="Nenhuma pressão registrada">Medições em casa ou na consulta podem ser registradas no Diário.</EmptyState>
+        <EmptyState icon={<HeartPulse />} title="Nenhuma pressão registrada">Medições em casa ou na consulta podem ser registradas no Diário.</EmptyState>
       ) : (
         <>
           <BloodPressureChart
@@ -371,7 +371,7 @@ function PressureSection({ metrics }: { metrics: HealthMetric[] }) {
                   <tr key={m.id} className="border-t border-line">
                     <td className="py-1.5">{formatBR(m.recorded_at)}</td>
                     <td>{m.week_number}</td>
-                    <td className={isHighBloodPressure(m.systolic_bp, m.diastolic_bp) ? 'text-alert font-bold' : ''}>{m.systolic_bp}/{m.diastolic_bp} mmHg</td>
+                    <td className={isHighBloodPressure(m.systolic_bp, m.diastolic_bp) ? 'text-alert font-semibold' : ''}>{m.systolic_bp}/{m.diastolic_bp} mmHg</td>
                   </tr>
                 ))}
               </tbody>

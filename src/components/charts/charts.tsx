@@ -105,7 +105,7 @@ export function SymptomTrendChart({ byWeek, entries, weekFrom, weekTo }: { byWee
         </svg>
         {active && (
           <Tooltip x={x(active.week)} y={y(active.avg)} width={width}>
-            <p className="font-bold">Semana {active.week}</p>
+            <p className="font-semibold">Semana {active.week}</p>
             <p className="text-ink-soft tabular">{active.count} {active.count === 1 ? 'registro' : 'registros'} · média {fmt(active.avg)} · máx. {active.max}</p>
           </Tooltip>
         )}
@@ -176,7 +176,7 @@ export function CategoryHeatmap({ cells, categories, weekFrom, weekTo }: { cells
         </svg>
         {hover && (
           <Tooltip x={labelW + weeks.indexOf(hover.week) * (cellW + gap) + cellW / 2} y={top + categories.indexOf(hover.cat) * (rowH + gap)} width={width}>
-            <p className="font-bold">{hover.cat} · semana {hover.week}</p>
+            <p className="font-semibold">{hover.cat} · semana {hover.week}</p>
             <p className="text-ink-soft tabular">{active ? `${active.count} ${active.count === 1 ? 'registro' : 'registros'} · média ${fmt(active.avg)}` : 'Sem registros'}</p>
           </Tooltip>
         )}
@@ -258,7 +258,7 @@ export function WeightChart({ points, band, mode }: { points: WeightPoint[]; ban
         </svg>
         {active && (
           <Tooltip x={x(active.week)} y={y(active.value)} width={width}>
-            <p className="font-bold">Semana {active.week}</p>
+            <p className="font-semibold">Semana {active.week}</p>
             <p className="text-ink-soft tabular">
               {fmt(active.kg)} kg{mode === 'ganho' ? ` · ${active.value >= 0 ? '+' : ''}${fmt(active.value)} ${unit}` : ''}
             </p>
@@ -338,7 +338,7 @@ export function BloodPressureChart({ points }: { points: PressurePoint[] }) {
         </svg>
         {active && (
           <Tooltip x={x(hover!)} y={y(active.systolic)} width={width}>
-            <p className="font-bold">{active.date}</p>
+            <p className="font-semibold">{active.date}</p>
             <p className="text-ink-soft tabular">{active.systolic}/{active.diastolic} mmHg{active.systolic >= 140 || active.diastolic >= 90 ? ' · acima de 140/90' : ''}</p>
           </Tooltip>
         )}
