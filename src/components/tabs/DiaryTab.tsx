@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, HeartHandshake, Plus, Scale, Trash2 } from 'lucide-react';
+import { AlertTriangle, HeartHandshake, NotebookPen, Plus, Scale, Trash2 } from 'lucide-react';
 import { COMMON_SYMPTOMS, SYMPTOM_CATEGORIES, isAlertSymptom } from '../../data/symptomCatalog';
 import { formatBR, toISODate, type GestationalAge } from '../../lib/dates';
 import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure, parseMetricInput, type ParsedMetric } from '../../lib/health';
@@ -65,7 +65,7 @@ export default function DiaryTab(props: Props) {
     <div className="space-y-5">
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-          <h2 className="text-lg font-bold text-ink flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
             <Plus className="w-5 h-5 text-brand" /> Novo registro de hoje
           </h2>
           <Segmented
@@ -104,14 +104,14 @@ export default function DiaryTab(props: Props) {
           }
         />
         {days.length === 0 ? (
-          <EmptyState emoji="📝" title={filter === 'semana' ? `Nada registrado na semana ${props.selectedWeek}` : filter === 'recentes' ? 'Nada nos últimos 14 dias' : 'Nenhum registro ainda'}>
+          <EmptyState icon={<NotebookPen />} title={filter === 'semana' ? `Nada registrado na semana ${props.selectedWeek}` : filter === 'recentes' ? 'Nada nos últimos 14 dias' : 'Nenhum registro ainda'}>
             Comece pelo que ela sentiu hoje. Em poucas semanas o painel mostra os padrões.
           </EmptyState>
         ) : (
           <ol className="space-y-6">
             {days.map(([day, items]) => (
               <li key={day} className="space-y-3">
-                <h3 className="text-sm font-bold text-ink-mute uppercase tracking-wide">{formatDayHeading(day)}</h3>
+                <h3 className="text-sm font-semibold text-ink-mute">{formatDayHeading(day)}</h3>
                 {items.metrics.map(m => <MetricRow key={m.id} metric={m} onDelete={props.onDeleteMetric} />)}
                 {items.symptoms.map(s => (
                   <SymptomRow key={s.id} symptom={s} comments={props.comments.filter(c => c.symptom_id === s.id)} busy={props.busy} onComment={props.onComment} onDelete={props.onDeleteSymptom} onDeleteComment={props.onDeleteComment} />
@@ -214,7 +214,7 @@ function SymptomForm({ author, trimester, history, busy, currentWeek, onCreate }
                 className={`rounded-2xl border py-2.5 px-1 text-center transition ${selected ? 'border-transparent shadow-sm' : 'border-line bg-surface hover:border-ink-mute'}`}
                 style={selected ? { background: `var(--c-int-${level})`, color: level >= 4 ? 'white' : 'var(--c-ink)' } : undefined}
               >
-                <span className="block text-lg font-extrabold tabular">{level}</span>
+                <span className="block text-lg font-semibold tabular">{level}</span>
                 <span className="block text-[11px] font-semibold leading-tight">{label}</span>
               </button>
             );
@@ -289,11 +289,11 @@ function SymptomRow({ symptom: s, comments, busy, onComment, onDelete, onDeleteC
   const [draft, setDraft] = useState('');
   const alert = isAlertSymptom(normalizeSymptomName(s.symptom_name), s.intensity);
   return (
-    <div className={`rounded-2xl border p-4 space-y-3 ${alert ? 'border-alert/40 bg-alert-soft/40' : 'border-line bg-canvas'}`}>
+    <div className={`rounded-2xl border p-4 space-y-3 ${alert ? 'border-alert/40 bg-alert-soft/40' : 'border-transparent bg-surface-2/60'}`}>
       <div className="flex justify-between items-start gap-3">
         <div className="min-w-0 space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-ink text-base">{s.symptom_name}</span>
+            <span className="font-semibold text-ink text-base">{s.symptom_name}</span>
             {alert && <Pill tone="alert"><AlertTriangle className="w-3 h-3" /> sinal de alerta</Pill>}
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm text-ink-mute">
@@ -317,7 +317,7 @@ function SymptomRow({ symptom: s, comments, busy, onComment, onDelete, onDeleteC
       </div>
 
       {comments.map(c => (
-        <div key={c.id} className="flex items-start gap-2 rounded-xl bg-surface border border-line p-3 text-sm">
+        <div key={c.id} className="flex items-start gap-2 rounded-xl bg-surface p-3 text-sm">
           <HeartHandshake className="w-4 h-4 text-brand shrink-0 mt-0.5" />
           <span className="flex-1 text-ink">
             {c.comment_text} <AuthorBadge role={c.author_role} />
@@ -345,13 +345,13 @@ function SymptomRow({ symptom: s, comments, busy, onComment, onDelete, onDeleteC
 function MetricRow({ metric: m, onDelete }: { metric: HealthMetric; onDelete: (m: HealthMetric) => void }) {
   const high = isHighBloodPressure(m.systolic_bp, m.diastolic_bp);
   return (
-    <div className={`rounded-2xl border p-4 flex items-center justify-between gap-3 ${high ? 'border-alert/40 bg-alert-soft/40' : 'border-line bg-canvas'}`}>
+    <div className={`rounded-2xl border p-4 flex items-center justify-between gap-3 ${high ? 'border-alert/40 bg-alert-soft/40' : 'border-transparent bg-surface-2/60'}`}>
       <div className="flex items-center gap-3 min-w-0">
         <span className="w-10 h-10 rounded-full bg-brand-soft text-brand flex items-center justify-center shrink-0">
           <Scale className="w-5 h-5" />
         </span>
         <div className="min-w-0">
-          <p className="font-bold text-ink tabular">
+          <p className="font-semibold text-ink tabular">
             {m.weight_kg !== null && `${m.weight_kg.toLocaleString('pt-BR')} kg`}
             {m.weight_kg !== null && m.systolic_bp !== null && ' · '}
             {m.systolic_bp !== null && `${m.systolic_bp}/${m.diastolic_bp} mmHg`}

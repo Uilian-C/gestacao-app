@@ -27,7 +27,7 @@ export function InsightList({ insights, compact = false, onSelect }: { insights:
               {tone.icon}
             </span>
             <span className="min-w-0">
-              <span className="block font-bold text-ink">{i.title}</span>
+              <span className="block font-semibold text-ink">{i.title}</span>
               {!compact && <span className="block text-sm text-ink-soft">{i.detail}</span>}
             </span>
           </>

@@ -37,7 +37,7 @@ export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
 
   return (
     <div className="no-print max-w-5xl mx-auto px-4 md:px-6">
-      <div className="rounded-2xl border border-line bg-surface">
+      <div className="rounded-[24px] bg-surface shadow-soft">
         <button
           onClick={() => setOpen(v => !v)}
           aria-expanded={open}
@@ -46,7 +46,7 @@ export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
           <ClipboardList className="w-4 h-4 text-brand shrink-0" />
           <span className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 text-sm">
             {summary.map((s, i) => (
-              <span key={i} className={`tabular whitespace-nowrap rounded-full px-2 py-0.5 ${i === 0 ? 'font-bold text-ink bg-brand-soft' : 'text-ink-soft bg-surface-2'}`}>
+              <span key={i} className={`tabular whitespace-nowrap rounded-full px-2 py-0.5 ${i === 0 ? 'font-semibold text-ink bg-brand-soft' : 'text-ink-soft bg-surface-2'}`}>
                 {s}
               </span>
             ))}
@@ -98,7 +98,7 @@ export function FichaGrid({ items, compact = false }: { items: FichaItem[]; comp
       {items.map(i => (
         <div key={i.key} className="min-w-0">
           <dt className="text-xs text-ink-mute">{i.label}</dt>
-          <dd className={`text-sm ${i.value ? (i.attention ? 'font-bold text-alert' : 'font-semibold text-ink') : 'text-ink-mute italic'}`}>
+          <dd className={`text-sm ${i.value ? (i.attention ? 'font-semibold text-alert' : 'font-semibold text-ink') : 'text-ink-mute italic'}`}>
             {i.value ?? 'não informado'}
           </dd>
         </div>

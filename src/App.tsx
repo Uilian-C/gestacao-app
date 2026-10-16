@@ -1,5 +1,5 @@
 import { Suspense, lazy, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { CloudRain, Loader2, Sprout } from 'lucide-react';
 import { sql } from './db';
 import Header from './components/Header';
 import FichaBar, { type FichaInput } from './components/FichaBar';
@@ -249,15 +249,15 @@ export default function App() {
     return (
       <Shell>
         {loadState === 'loading' ? (
-          <div className="flex items-center justify-center gap-2 text-brand font-bold py-24">
+          <div className="flex items-center justify-center gap-2 text-brand font-semibold py-24">
             <Loader2 className="w-5 h-5 animate-spin" /> Carregando os dados de vocês...
           </div>
         ) : (
           <Card className="text-center space-y-3 mt-8">
-            <p className="text-3xl">🌧️</p>
-            <p className="font-bold text-ink">Não foi possível carregar os dados.</p>
+            <CloudRain className="w-8 h-8 mx-auto text-ink-mute" />
+            <p className="font-semibold text-ink">Não foi possível carregar os dados.</p>
             <p className="text-sm text-ink-soft">Confiram a conexão e tentem de novo. Nada é exibido até a conexão voltar, para não mostrar informação errada.</p>
-            <button onClick={retry} className="bg-brand text-on-accent font-bold px-5 py-2.5 rounded-2xl text-sm">Tentar de novo</button>
+            <button onClick={retry} className="bg-brand text-on-accent font-semibold px-5 py-2.5 rounded-2xl text-sm">Tentar de novo</button>
           </Card>
         )}
       </Shell>
@@ -268,8 +268,8 @@ export default function App() {
     return (
       <Shell>
         <Card tone="warm" className="mt-6 space-y-4">
-          <p className="text-4xl">🌱</p>
-          <h2 className="text-xl font-extrabold text-ink">{dumDate ? 'A DUM cadastrada está no futuro' : 'Vamos começar pela DUM'}</h2>
+          <Sprout className="w-8 h-8 text-warm" />
+          <h2 className="text-xl font-semibold text-ink">{dumDate ? 'A DUM cadastrada está no futuro' : 'Vamos começar pela DUM'}</h2>
           <p className="text-ink-soft">Com a data da última menstruação, o app calcula a semana, o trimestre e a data provável do parto.</p>
           <DumForm initial={dumDate ?? undefined} onSave={saveDum} />
         </Card>
@@ -313,7 +313,7 @@ export default function App() {
       <main className="max-w-5xl mx-auto px-4 md:px-6 pt-4 md:pt-6">
         <Suspense
           fallback={
-            <div className="flex items-center justify-center gap-2 text-brand font-bold py-16">
+            <div className="flex items-center justify-center gap-2 text-brand font-semibold py-16">
               <Loader2 className="w-5 h-5 animate-spin" /> Abrindo...
             </div>
           }
@@ -466,7 +466,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-canvas text-ink">
       <main className="max-w-xl mx-auto px-4 py-10">
-        <h1 className="text-2xl font-extrabold text-ink text-center">Nossa Gestação</h1>
+        <h1 className="text-2xl font-semibold text-ink text-center">Nossa Gestação</h1>
         {children}
       </main>
     </div>

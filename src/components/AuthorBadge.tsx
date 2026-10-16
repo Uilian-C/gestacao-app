@@ -1,18 +1,19 @@
 import type { Assignee } from '../types';
 
-const STYLES: Record<Assignee, { label: string; className: string }> = {
-  mae: { label: 'Mãe', className: 'bg-mae-soft text-mae' },
-  pai: { label: 'Pai', className: 'bg-pai-soft text-pai' },
-  casal: { label: 'Casal', className: 'bg-casal-soft text-casal' },
+const STYLES: Record<Assignee, { label: string; dot: string }> = {
+  mae: { label: 'Mãe', dot: 'bg-mae' },
+  pai: { label: 'Pai', dot: 'bg-pai' },
+  casal: { label: 'Casal', dot: 'bg-casal' },
 };
 
+/** Autoria discreta: um ponto na cor da pessoa e o nome em texto. */
 export default function AuthorBadge({ role, prefix }: { role: Assignee; prefix?: string }) {
   const style = STYLES[role] ?? STYLES.casal;
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${style.className}`}>
-      <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden />
-      {prefix && <span className="font-semibold opacity-80">{prefix}</span>}
-      {style.label}
+    <span className="inline-flex items-center gap-1.5 text-xs text-ink-mute whitespace-nowrap">
+      <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} aria-hidden />
+      {prefix && <span>{prefix}</span>}
+      <span className="text-ink-soft font-medium">{style.label}</span>
     </span>
   );
 }

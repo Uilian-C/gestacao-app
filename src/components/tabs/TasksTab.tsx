@@ -86,7 +86,7 @@ export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCre
               <strong className="text-ink tabular">{done}</strong> de <span className="tabular">{total}</span> concluídas
               {overdue > 0 && <span className="text-alert font-semibold"> · {overdue} {overdue === 1 ? 'atrasada' : 'atrasadas'}</span>}
             </span>
-            <span className="font-bold text-brand tabular">{rate}%</span>
+            <span className="font-semibold text-brand tabular">{rate}%</span>
           </div>
           <div className="h-2.5 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={rate} aria-valuemin={0} aria-valuemax={100} aria-label="Tarefas concluídas">
             <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${rate}%` }} />
@@ -140,13 +140,13 @@ export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCre
         </div>
 
         {filtered.length === 0 ? (
-          <EmptyState emoji="🧺" title="Nada por aqui">Nenhuma tarefa com esses filtros.</EmptyState>
+          <EmptyState icon={<ListChecks />} title="Nada por aqui">Nenhuma tarefa com esses filtros.</EmptyState>
         ) : (
           <ul className="space-y-2.5">
             {filtered.map(t => {
               const late = !t.is_completed && isOverdue(t.due_date);
               return (
-                <li key={t.id} className={`rounded-2xl border p-4 flex items-start gap-3 transition ${t.is_completed ? 'border-line bg-surface-2/60' : late ? 'border-alert/40 bg-canvas' : 'border-line bg-canvas'}`}>
+                <li key={t.id} className={`rounded-2xl border p-4 flex items-start gap-3 transition ${t.is_completed ? 'border-line bg-surface-2/60' : late ? 'border-alert/40 bg-canvas' : 'border-transparent bg-surface-2/60'}`}>
                   <button onClick={() => onToggle(t)} aria-label={t.is_completed ? `Reabrir "${t.task_title}"` : `Concluir "${t.task_title}"`} className="mt-0.5 shrink-0">
                     {t.is_completed ? <CheckCircle2 className="w-6 h-6 text-ok" /> : <span className="block w-6 h-6 rounded-full border-2 border-ink-mute hover:border-brand" />}
                   </button>
