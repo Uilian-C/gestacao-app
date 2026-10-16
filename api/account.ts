@@ -34,7 +34,13 @@ export const GET = endpoint(async request => {
       ),
       ...DATA_TABLES.map(t => query(`SELECT * FROM ${t} WHERE family_id = $1 ORDER BY ${t === 'birth_plan' ? 'updated_at' : 'created_at'}`, [fid]).catch(() => [])),
     ]);
-    space = { profile: profile[0] ?? null, members, ...Object.fromEntries(DATA_TABLES.map((t, i) => [t, tables[i]])) };
+    // Momentos: os do próprio titular e os compartilhados; nunca os particulares de outra pessoa.
+    const journal = await query(
+      `SELECT entry_date, body, visibility, remind_on, author_role, created_at FROM journal_entries
+       WHERE family_id = $1 AND (visibility = 'shared' OR user_id = $2) ORDER BY entry_date`,
+      [fid, user.id],
+    ).catch(() => []);
+    space = { profile: profile[0] ?? null, members, ...Object.fromEntries(DATA_TABLES.map((t, i) => [t, tables[i]])), journal_entries: journal };
   }
 
   const body = JSON.stringify(
@@ -79,6 +85,9 @@ export const POST = endpoint(async request => {
       }
     }
     if (parsed.data.op === 'deleteAccount') {
+      // Anotações particulares saem com a conta; as compartilhadas ficam no espaço.
+      const { rows: table } = await client.query("SELECT to_regclass('public.journal_entries') AS t");
+      if (table[0].t) await client.query("DELETE FROM journal_entries WHERE user_id = $1 AND visibility = 'private'", [user.id]);
       // Sessões, contas de login, consentimentos e vínculo com o espaço vão junto.
       await client.query('DELETE FROM "user" WHERE id = $1', [user.id]);
     }

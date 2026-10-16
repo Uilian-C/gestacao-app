@@ -10,7 +10,7 @@ import { DumForm } from './components/DumForm';
 import { Card, Segmented } from './components/ui';
 import type { BirthPlan } from './lib/birthPlan';
 import HomeTab from './components/tabs/HomeTab';
-import DiaryTab, { type NewSymptom } from './components/tabs/DiaryTab';
+import DiaryTab, { type NewEntry, type NewSymptom } from './components/tabs/DiaryTab';
 import type { NewConsultation, ReportRequest } from './components/tabs/ConsultationsTab';
 import TasksTab, { type NewTask } from './components/tabs/TasksTab';
 
@@ -94,7 +94,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     }
   };
 
-  const deleteItem = (kind: DeletableKind, id: string) => api.mutate('delete', { kind, id });
+  const deleteItem = (kind: DeletableKind, id: string) => (kind === 'entry' ? api.mutate('deleteEntry', { id }) : api.mutate('delete', { kind, id }));
 
   /** Esconde o item na hora e só apaga no banco depois do prazo para desfazer. */
   const scheduleDelete = (kind: DeletableKind, id: string, label: string) => {
@@ -171,6 +171,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const setCheck = (list: 'prenatal' | 'mala', itemId: string, done: boolean) =>
     run(() => api.mutate('setCheck', { list, itemId, done }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/007_checklists.sql no Neon.');
 
+  const createEntry = (e: NewEntry) =>
+    run(() => api.mutate('createEntry', { ...e }), 'Não foi possível guardar. Se for a primeira vez, rode a migração db/migrations/008_momentos.sql no Neon.');
+
   const createConsultation = (c: NewConsultation) =>
     run(() =>
       api.mutate('createConsultation', { scheduledAt: c.scheduledAt, specialty: c.specialty, professional: c.professional || null, location: c.location || null }),
@@ -224,6 +227,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     ...findPatterns(toEntries(symptoms), { from: new Date(end.getFullYear(), end.getMonth(), end.getDate() - 27), to: end }),
   ];
   const tasks = visible('task', data.tasks);
+  const journal = visible('entry', data.journal);
   // Feito = marcado pelo casal ou comprovado pelo uso (ex.: consulta de obstetra realizada).
   const doneSteps = new Set([...data.checks.filter(c => c.list === 'prenatal').map(c => c.item_id), ...autoDone(visitsOf(data.consultations, dumDate, now))]);
   const packed = new Set(data.checks.filter(c => c.list === 'mala').map(c => c.item_id));
@@ -291,6 +295,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             checksAvailable={data.checksAvailable}
             busy={busy}
             onToggleStep={(id, done) => setCheck('prenatal', id, done)}
+            reminders={journal.filter(e => e.remind_on && e.remind_on >= today && daysBetween(parseLocalDate(today), parseLocalDate(e.remind_on)) <= 30)}
             onOpenJourney={() => {
               setDashboardView('jornada');
               navigate('painel');
@@ -318,6 +323,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             tasks={tasks}
             symptoms={symptoms}
             metrics={metrics}
+            journal={journal}
             busy={busy}
             migrationPending={data.migrationPending}
             onCreateConsultation={createConsultation}
@@ -343,6 +349,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onDeleteSymptom={s => scheduleDelete('symptom', s.id, s.symptom_name)}
             onDeleteComment={c => scheduleDelete('comment', c.id, 'cuidado')}
             onDeleteMetric={m => scheduleDelete('metric', m.id, `medição da semana ${m.week_number}`)}
+            dumDate={dumDate}
+            journal={journal}
+            journalAvailable={data.journalAvailable}
+            onCreateEntry={createEntry}
+            onDeleteEntry={e => scheduleDelete('entry', e.id, 'momento')}
           />
         )}
         {activeTab === 'painel' && (

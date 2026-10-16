@@ -167,3 +167,16 @@ CREATE TABLE IF NOT EXISTS checklist (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (family_id, list, item_id)
 );
+
+-- Migração 008: momentos. Particulares só aparecem para quem escreveu (regra na API).
+CREATE TABLE IF NOT EXISTS journal_entries (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_id    UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  user_id      TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+  author_role  VARCHAR(10),
+  entry_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  body         TEXT NOT NULL,
+  visibility   VARCHAR(10) NOT NULL DEFAULT 'shared' CHECK (visibility IN ('private', 'shared')),
+  remind_on    DATE,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
