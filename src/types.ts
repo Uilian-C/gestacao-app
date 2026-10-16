@@ -64,6 +64,18 @@ export interface PregnancyProfile {
   dumDate: string | null;
   preWeightKg: number | null;
   heightCm: number | null;
+  motherName: string | null;
+  motherBirthDate: string | null;
+  bloodType: string | null;
+  gestations: number | null;
+  births: number | null;
+  abortions: number | null;
+  cesareans: number | null;
+  allergies: string | null;
+  medications: string | null;
+  conditions: string | null;
+  /** A migração 003 (ficha da gestante) já foi aplicada. */
+  fichaAvailable: boolean;
 }
 
 export interface HealthMetric {
@@ -78,4 +90,4 @@ export interface HealthMetric {
 
 export type DeletableKind = 'task' | 'symptom' | 'question' | 'comment' | 'metric' | 'consultation';
 
-export type Tab = 'inicio' | 'diario' | 'painel' | 'consultas' | 'tarefas';
+export type Tab = 'inicio' | 'agenda' | 'diario' | 'painel' | 'consultas' | 'tarefas';

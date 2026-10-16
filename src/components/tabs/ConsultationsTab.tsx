@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, CalendarHeart, ClipboardCopy, FileText, HelpCircle, MapPin, Plus, Printer, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, CalendarHeart, ClipboardCopy, ExternalLink, FileText, HelpCircle, MapPin, Plus, Printer, ShieldCheck, Trash2 } from 'lucide-react';
+import { googleCalendarUrl } from '../../lib/calendar';
 import { SPECIALTIES, questionSpecialty, specialtyOf, type SpecialtyId } from '../../data/specialties';
 import { daysBetween, formatBR, localDay, parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
 import { TREND_LABEL, buildReport, defaultReportPeriod, reportToText, type ConsultationReport } from '../../lib/report';
 import { timeOfDayLabel } from '../../lib/symptoms';
+import { buildFicha, fichaToText, type FichaItem } from '../../lib/ficha';
+import { FichaGrid } from '../FichaBar';
 import { BMI_LABEL, GAIN_STATUS_LABEL } from '../../lib/weightGain';
 import type { Consultation, HealthMetric, PartnerComment, PregnancyProfile, QuestionItem, SymptomItem } from '../../types';
 import AuthorBadge from '../AuthorBadge';
@@ -107,7 +110,14 @@ function ConsultationRow({ consultation: c, today, questions, onPrepare, onDelet
           {c.professional_name && ` · ${c.professional_name}`}
         </p>
         {c.location && <p className="text-xs text-ink-mute flex items-center gap-1"><MapPin className="w-3 h-3" /> {c.location}</p>}
-        {days >= 0 && <p className="text-xs text-ink-mute mt-1">{pending} {pending === 1 ? 'dúvida anotada' : 'dúvidas anotadas'}</p>}
+        {days >= 0 && (
+          <p className="text-xs text-ink-mute mt-1 flex flex-wrap gap-x-3">
+            <span>{pending} {pending === 1 ? 'dúvida anotada' : 'dúvidas anotadas'}</span>
+            <a href={googleCalendarUrl(c)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand underline underline-offset-2">
+              <ExternalLink className="w-3 h-3" /> Google Agenda
+            </a>
+          </p>
+        )}
       </div>
       <div className="flex gap-2">
         <Button onClick={onPrepare} tone={days >= 0 ? 'primary' : 'ghost'}>
@@ -121,9 +131,13 @@ function ConsultationRow({ consultation: c, today, questions, onPrepare, onDelet
   );
 }
 
-function ScheduleForm({ busy, onCreate }: { busy: boolean; onCreate: (c: NewConsultation) => Promise<boolean> }) {
-  const [open, setOpen] = useState(false);
-  const [date, setDate] = useState('');
+export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, onClose }: { busy: boolean; onCreate: (c: NewConsultation) => Promise<boolean>; initialDate?: string; startOpen?: boolean; onClose?: () => void }) {
+  const [open, setOpenState] = useState(startOpen);
+  const setOpen = (value: boolean) => {
+    setOpenState(value);
+    if (!value) onClose?.();
+  };
+  const [date, setDate] = useState(initialDate ?? '');
   const [time, setTime] = useState('09:00');
   const [specialty, setSpecialty] = useState<SpecialtyId>('obstetra');
   const [professional, setProfessional] = useState('');
@@ -316,8 +330,10 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
     [request.specialtyId, from, today, props.profile, props.symptoms, props.comments, props.metrics, props.questions, consultation],
   );
 
+  const ficha = buildFicha(props.profile, props.metrics, today);
+
   const copy = async () => {
-    const text = reportToText(report);
+    const text = reportToText(report, fichaToText(ficha));
     try {
       await navigator.clipboard.writeText(text);
       props.onNotify('Resumo copiado. Cole no WhatsApp ou no e-mail do profissional.');
@@ -346,12 +362,12 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
         <input id="inicio-periodo" type="date" max={toISODate(today)} className={`${inputClass} !w-auto !py-1.5`} value={from} onChange={e => e.target.value && setFrom(e.target.value)} />
         <span className="text-ink-mute">(padrão: desde a última consulta desta especialidade, ou 30 dias)</span>
       </div>
-      <ReportDocument report={report} />
+      <ReportDocument report={report} ficha={ficha} />
     </div>
   );
 }
 
-function ReportDocument({ report: r }: { report: ConsultationReport }) {
+function ReportDocument({ report: r, ficha }: { report: ConsultationReport; ficha: FichaItem[] }) {
   const kg = (n: number) => `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg`;
   const signed = (n: number) => `${n >= 0 ? '+' : ''}${kg(n)}`;
   const when = r.consultation ? parseTimestamp(r.consultation.scheduled_at) : null;
@@ -367,13 +383,16 @@ function ReportDocument({ report: r }: { report: ConsultationReport }) {
             {r.consultation?.professional_name && ` · ${r.consultation.professional_name}`}
           </p>
         )}
-        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
-          <Fact label="Idade gestacional" value={r.age ? `${r.age.weeks} sem e ${r.age.days} d` : '—'} />
-          <Fact label="Trimestre" value={r.age ? `${r.age.trimester}º` : '—'} />
-          <Fact label="DPP" value={r.dpp ? r.dpp.toLocaleDateString('pt-BR') : '—'} />
-          <Fact label="Período analisado" value={`sem ${r.weekFrom} a ${r.weekTo}`} hint={`${formatBR(toISODate(r.period.from))} a ${formatBR(toISODate(r.period.to))}`} />
-        </dl>
       </header>
+
+      {/* Ficha da gestante: o mesmo cabeçalho de prontuário em todo resumo. */}
+      <section className="space-y-3 rounded-2xl bg-surface-2 p-4 break-inside-avoid print:bg-transparent print:border print:border-line">
+        <h3 className="text-sm font-bold text-ink-soft uppercase tracking-wide">Ficha da gestante</h3>
+        <FichaGrid items={ficha} compact />
+        <p className="text-xs text-ink-mute border-t border-line pt-2">
+          Período analisado neste resumo: semanas {r.weekFrom} a {r.weekTo} ({formatBR(toISODate(r.period.from))} a {formatBR(toISODate(r.period.to))})
+        </p>
+      </section>
 
       {r.insights.length > 0 && (
         <ReportSection title="Pontos de atenção">
@@ -497,15 +516,5 @@ function ReportSection({ title, note, children }: { title: string; note?: string
       {children}
       {note && <p className="text-xs text-ink-mute">{note}</p>}
     </section>
-  );
-}
-
-function Fact({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div>
-      <dt className="text-xs text-ink-mute">{label}</dt>
-      <dd className="font-bold text-ink tabular">{value}</dd>
-      {hint && <dd className="text-xs text-ink-mute">{hint}</dd>}
-    </div>
   );
 }

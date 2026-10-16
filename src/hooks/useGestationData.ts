@@ -23,7 +23,18 @@ async function fetchAll(): Promise<GestationData> {
     sql`
       SELECT f.dum_date::text AS dum_date,
              to_jsonb(f)->>'pre_pregnancy_weight_kg' AS pre_weight,
-             to_jsonb(f)->>'height_cm' AS height
+             to_jsonb(f)->>'height_cm' AS height,
+             to_jsonb(f)->>'mother_name' AS mother_name,
+             to_jsonb(f)->>'mother_birth_date' AS mother_birth_date,
+             to_jsonb(f)->>'blood_type' AS blood_type,
+             to_jsonb(f)->>'gestations' AS gestations,
+             to_jsonb(f)->>'births' AS births,
+             to_jsonb(f)->>'abortions' AS abortions,
+             to_jsonb(f)->>'cesareans' AS cesareans,
+             to_jsonb(f)->>'allergies' AS allergies,
+             to_jsonb(f)->>'medications' AS medications,
+             to_jsonb(f)->>'conditions' AS conditions,
+             to_jsonb(f) ? 'mother_birth_date' AS ficha_available
       FROM families f
       WHERE f.dum_date IS NOT NULL
       LIMIT 1
@@ -67,13 +78,28 @@ async function fetchAll(): Promise<GestationData> {
     `.catch(() => null),
   ]);
 
-  const f = family[0] as { dum_date: string; pre_weight: string | null; height: string | null } | undefined;
+  const f = family[0] as Record<string, string | boolean | null> | undefined;
+  const text = (key: string) => {
+    const v = f?.[key];
+    return typeof v === 'string' && v.trim() !== '' ? v : null;
+  };
 
   return {
     profile: {
-      dumDate: f?.dum_date ?? null,
+      dumDate: text('dum_date'),
       preWeightKg: toNumber(f?.pre_weight),
       heightCm: toNumber(f?.height),
+      motherName: text('mother_name'),
+      motherBirthDate: text('mother_birth_date'),
+      bloodType: text('blood_type'),
+      gestations: toNumber(f?.gestations),
+      births: toNumber(f?.births),
+      abortions: toNumber(f?.abortions),
+      cesareans: toNumber(f?.cesareans),
+      allergies: text('allergies'),
+      medications: text('medications'),
+      conditions: text('conditions'),
+      fichaAvailable: f?.ficha_available === true,
     },
     symptoms: symptoms as SymptomItem[],
     questions: questions as QuestionItem[],

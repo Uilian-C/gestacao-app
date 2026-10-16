@@ -1,16 +1,21 @@
-import { useRef, useState } from 'react';
+import { Suspense, lazy, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { sql } from './db';
 import Header from './components/Header';
+import FichaBar, { type FichaInput } from './components/FichaBar';
 import Nav from './components/Nav';
 import Toast, { type ToastMessage } from './components/Toast';
 import { DumForm } from './components/DumForm';
 import { Card } from './components/ui';
 import HomeTab from './components/tabs/HomeTab';
 import DiaryTab, { type NewSymptom } from './components/tabs/DiaryTab';
-import DashboardTab from './components/tabs/DashboardTab';
-import ConsultationsTab, { type NewConsultation, type ReportRequest } from './components/tabs/ConsultationsTab';
+import type { NewConsultation, ReportRequest } from './components/tabs/ConsultationsTab';
 import TasksTab, { type NewTask } from './components/tabs/TasksTab';
+
+// Abas com gráficos, relatório e calendário carregam só quando abertas: o app abre mais rápido no celular.
+const DashboardTab = lazy(() => import('./components/tabs/DashboardTab'));
+const ConsultationsTab = lazy(() => import('./components/tabs/ConsultationsTab'));
+const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
 import { useStoredAuthor } from './hooks/useStoredAuthor';
@@ -137,6 +142,19 @@ export default function App() {
       `Não foi possível salvar. ${MIGRATION_HINT}`,
     );
 
+  const saveFicha = (f: FichaInput) =>
+    run(
+      () => sql`
+        UPDATE families SET
+          mother_name = ${f.motherName}, mother_birth_date = ${f.motherBirthDate}, blood_type = ${f.bloodType},
+          gestations = ${f.gestations}, births = ${f.births}, abortions = ${f.abortions}, cesareans = ${f.cesareans},
+          pre_pregnancy_weight_kg = ${f.preWeightKg}, height_cm = ${f.heightCm},
+          allergies = ${f.allergies}, medications = ${f.medications}, conditions = ${f.conditions}
+        WHERE id = (SELECT id FROM families WHERE dum_date IS NOT NULL ORDER BY id LIMIT 1)
+      `,
+      'Não foi possível salvar a ficha. Rode a migração db/migrations/003_ficha_gestante.sql no Neon.',
+    );
+
   const createTask = (t: NewTask) =>
     run(
       () => sql`
@@ -250,7 +268,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-canvas text-ink pb-28 md:pb-12">
-      <Header author={author} onAuthorChange={setAuthor} age={age} greeting={greetingFor(now.getHours())} />
+      <Header author={author} onAuthorChange={setAuthor} greeting={greetingFor(now.getHours())} />
+      <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />
       <Nav
         active={activeTab}
         onChange={navigate}
@@ -261,6 +280,13 @@ export default function App() {
       />
 
       <main className="max-w-5xl mx-auto px-4 md:px-6 pt-4 md:pt-6">
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center gap-2 text-brand font-bold py-16">
+              <Loader2 className="w-5 h-5 animate-spin" /> Abrindo...
+            </div>
+          }
+        >
         {data.migrationPending && activeTab === 'inicio' && (
           <p className="no-print mb-4 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">
             Atualização do banco pendente: rodem <code>db/migrations/002_consultas_e_padroes.sql</code> no Neon para liberar a agenda de consultas, o período do dia dos sintomas e a faixa de peso.
@@ -284,6 +310,23 @@ export default function App() {
             onToggleTask={toggleTask}
             onNavigate={navigate}
             onPrepareReport={prepareReport}
+          />
+        )}
+        {activeTab === 'agenda' && (
+          <CalendarTab
+            dumDate={dumDate}
+            currentWeek={currentWeek}
+            consultations={consultations}
+            tasks={tasks}
+            symptoms={symptoms}
+            metrics={metrics}
+            busy={busy}
+            migrationPending={data.migrationPending}
+            onCreateConsultation={createConsultation}
+            onCreateTask={createTask}
+            onToggleTask={toggleTask}
+            onNavigate={navigate}
+            onNotify={text => showToast({ text, tone: 'info' })}
           />
         )}
         {activeTab === 'diario' && (
@@ -341,6 +384,7 @@ export default function App() {
             onDelete={t => scheduleDelete('task', t.id, `tarefa "${t.task_title}"`)}
           />
         )}
+        </Suspense>
       </main>
 
       <Toast toast={toast} onClose={() => setToast(null)} />

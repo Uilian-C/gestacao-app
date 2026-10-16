@@ -1,11 +1,9 @@
 import { Heart } from 'lucide-react';
 import type { Author } from '../types';
-import type { GestationalAge } from '../lib/dates';
 
 interface Props {
   author: Author;
   onAuthorChange: (author: Author) => void;
-  age: GestationalAge | null;
   greeting: string;
 }
 
@@ -14,7 +12,7 @@ const OPTIONS: Array<{ value: Author; label: string }> = [
   { value: 'pai', label: 'Sou o pai' },
 ];
 
-export default function Header({ author, onAuthorChange, age, greeting }: Props) {
+export default function Header({ author, onAuthorChange, greeting }: Props) {
   return (
     <header className="no-print bg-canvas transition-colors duration-300">
       <div className="max-w-5xl mx-auto px-4 md:px-6 pt-5 pb-3 flex flex-wrap items-center justify-between gap-3">
@@ -26,10 +24,7 @@ export default function Header({ author, onAuthorChange, age, greeting }: Props)
             <p className="text-sm text-ink-mute">
               {greeting}, {author === 'mae' ? 'mamãe' : 'papai'}
             </p>
-            <h1 className="text-xl font-extrabold text-ink leading-tight">
-              Nossa Gestação
-              {age && <span className="ml-2 text-base font-bold text-brand whitespace-nowrap">· {age.weeks} sem {age.days}d</span>}
-            </h1>
+            <h1 className="text-xl font-extrabold text-ink leading-tight">Nossa Gestação</h1>
           </div>
         </div>
 
