@@ -79,7 +79,7 @@ const BUTTON_TONES = {
 
 export function Button({ children, tone = 'primary', type = 'button', onClick, disabled, className = '' }: { children: ReactNode; tone?: keyof typeof BUTTON_TONES; type?: 'button' | 'submit'; onClick?: () => void; disabled?: boolean; className?: string }) {
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition disabled:opacity-45 disabled:cursor-not-allowed [&_svg]:w-4 [&_svg]:h-4 ${BUTTON_TONES[tone]} ${className}`}>
+    <button type={type} onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-ink-mute disabled:shadow-none [&_svg]:w-4 [&_svg]:h-4 ${BUTTON_TONES[tone]} ${className}`}>
       {children}
     </button>
   );

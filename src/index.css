@@ -53,38 +53,43 @@
 }
 
 @media (prefers-color-scheme: dark) {
+  /*
+    Escuro "grafite quente": superfícies neutras (sem puxar para o marrom), cores
+    dessaturadas para não ofuscar à noite, e tons suaves derivados da cor
+    principal por mistura, para combinarem com a mãe, o pai e o casal.
+  */
   :root {
-    --c-canvas: #1a1715;
-    --c-surface: #231f1c;
-    --c-surface-2: #2c2723;
-    --c-line: #38322d;
-    --c-ink: #f2ede7;
-    --c-ink-soft: #cfc6bd;
-    --c-ink-mute: #a49a90;
+    --c-canvas: #131211;
+    --c-surface: #1c1b19;
+    --c-surface-2: #262422;
+    --c-line: #34312e;
+    --c-ink: #f2eee9;
+    --c-ink-soft: #c9c2ba;
+    --c-ink-mute: #9b938b;
 
-    --c-brand: #9cbfac;
-    --c-brand-strong: #b5d1c2;
-    --c-on-accent: #1b1917;
-    --c-brand-soft: #26322b;
-    --c-warm: #e6a983;
-    --c-warm-soft: #38291f;
+    --c-brand: #8fb5a0;
+    --c-brand-strong: #a9c8b6;
+    --c-on-accent: #131211;
+    --c-brand-soft: color-mix(in oklab, var(--c-brand) 16%, var(--c-surface));
+    --c-warm: #d9a07c;
+    --c-warm-soft: color-mix(in oklab, var(--c-warm) 11%, var(--c-surface));
 
-    --c-mae: #e7a3b2;
-    --c-mae-soft: #3a262b;
-    --c-pai: #9ab7d6;
-    --c-pai-soft: #212c37;
-    --c-casal: #bfaedb;
-    --c-casal-soft: #2c2737;
+    --c-mae: #d39aa7;
+    --c-mae-soft: color-mix(in oklab, var(--c-mae) 16%, var(--c-surface));
+    --c-pai: #91afcd;
+    --c-pai-soft: color-mix(in oklab, var(--c-pai) 16%, var(--c-surface));
+    --c-casal: #b4a5d1;
+    --c-casal-soft: color-mix(in oklab, var(--c-casal) 16%, var(--c-surface));
 
-    --c-alert: #ee978f;
-    --c-alert-soft: #3a211e;
-    --c-warn: #e5bb72;
-    --c-warn-soft: #362a16;
-    --c-ok: #93c9a4;
-    --c-ok-soft: #1f3125;
+    --c-alert: #e8958c;
+    --c-alert-soft: color-mix(in oklab, var(--c-alert) 13%, var(--c-surface));
+    --c-warn: #ddb46c;
+    --c-warn-soft: color-mix(in oklab, var(--c-warn) 12%, var(--c-surface));
+    --c-ok: #8fc29f;
+    --c-ok-soft: color-mix(in oklab, var(--c-ok) 13%, var(--c-surface));
 
-    --c-shadow: 0 0 0 1px rgb(255 255 255 / 0.04), 0 10px 30px -16px rgb(0 0 0 / 0.6);
-    --c-shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.06), 0 18px 40px -16px rgb(0 0 0 / 0.7);
+    --c-shadow: 0 0 0 1px rgb(255 255 255 / 0.045), 0 10px 30px -16px rgb(0 0 0 / 0.7);
+    --c-shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.07), 0 18px 40px -16px rgb(0 0 0 / 0.8);
 
     --c-int-1: #4a3226;
     --c-int-2: #7a4a2e;
@@ -93,7 +98,7 @@
     --c-int-5: #f6b88d;
     --c-series-1: #3987e5;
     --c-series-2: #d95926;
-    --c-grid: #36312c;
+    --c-grid: #2f2c29;
 
     color-scheme: dark;
   }
@@ -118,16 +123,16 @@
 }
 @media (prefers-color-scheme: dark) {
   :root[data-author='mae'] {
-    --c-brand: #e7a3b2;
-    --c-brand-strong: #f1bfca;
-    --c-brand-soft: #3a262b;
-    --c-canvas: #1c1718;
+    --c-brand: #d39aa7;
+    --c-brand-strong: #e3b5bf;
+    --c-brand-soft: color-mix(in oklab, var(--c-brand) 16%, var(--c-surface));
+    --c-canvas: #141212;
   }
   :root[data-author='pai'] {
-    --c-brand: #9ab7d6;
-    --c-brand-strong: #b8cde3;
-    --c-brand-soft: #212c37;
-    --c-canvas: #171a1d;
+    --c-brand: #91afcd;
+    --c-brand-strong: #b1c7de;
+    --c-brand-soft: color-mix(in oklab, var(--c-brand) 16%, var(--c-surface));
+    --c-canvas: #121314;
   }
 }
 

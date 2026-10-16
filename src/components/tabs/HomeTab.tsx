@@ -12,6 +12,7 @@ import { DumForm } from '../DumForm';
 import { Button, Card, Pill, SectionTitle } from '../ui';
 import { InsightList } from '../InsightList';
 import IntensityDots from '../IntensityDots';
+import LocationLinks from '../LocationLinks';
 import SpecialtyIcon from '../SpecialtyIcon';
 
 interface Props {
@@ -240,6 +241,7 @@ function NextConsultation({ consultation, questions, today, onPrepare }: { consu
         </div>
         <Pill tone={days <= 2 ? 'warm' : 'brand'}>{days === 0 ? 'hoje' : days === 1 ? 'amanhã' : `em ${days} dias`}</Pill>
       </div>
+      {consultation.location && <LocationLinks address={consultation.location} />}
       <p className="text-sm text-ink-soft">{pending > 0 ? `${pending} ${pending === 1 ? 'dúvida anotada' : 'dúvidas anotadas'} para levar.` : 'Nenhuma dúvida anotada para esta consulta ainda.'}</p>
       <Button onClick={onPrepare}>Preparar resumo da consulta</Button>
     </div>

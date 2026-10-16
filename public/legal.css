@@ -13,14 +13,14 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #1b1917;
-    --surface: #242120;
+    --canvas: #131211;
+    --surface: #1c1b19;
     --ink: #f1ece6;
     --ink-soft: #cfc6bd;
     --ink-mute: #a49a90;
-    --brand: #9cbfac;
-    --line: #36312d;
-    --alert-bg: #3a2422;
+    --brand: #8fb5a0;
+    --line: #34312e;
+    --alert-bg: #2e2120;
     --alert: #f0a49b;
   }
 }
