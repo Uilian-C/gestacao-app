@@ -7,6 +7,7 @@ import * as account from '../api/account.ts';
 import * as config from '../api/config.ts';
 import * as data from '../api/data.ts';
 import * as family from '../api/family.ts';
+import * as places from '../api/places.ts';
 
 type Handler = (request: Request) => Response | Promise<Response>;
 const routes: Record<string, Partial<Record<string, Handler>>> = {
@@ -14,6 +15,7 @@ const routes: Record<string, Partial<Record<string, Handler>>> = {
   '/api/config': config,
   '/api/data': data,
   '/api/family': family,
+  '/api/places': places,
 };
 
 const port = Number(process.env.API_PORT ?? 3001);

@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Scale, Sparkles, X } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BookHeart, ChevronDown, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Route, Scale, Sparkles, TrendingUp, X } from 'lucide-react';
+import { PHASES, PLAN_SOURCE, type PlanItem } from '../../data/prenatalPlan';
+import type { CheckItem } from '../../hooks/useGestationData';
+import { itemStatus, phaseOf, planFor, planProgress } from '../../lib/journey';
+import { JourneyTimeline, PlanProgressChart } from '../charts/journeyCharts';
+import { PhaseStrip, StepList } from '../journey/Journey';
 import { SYMPTOM_CATEGORIES } from '../../data/symptomCatalog';
 import { daysBetween, formatBR, parseLocalDate, toISODate, type GestationalAge } from '../../lib/dates';
 import { isHighBloodPressure } from '../../lib/health';
@@ -23,6 +28,10 @@ interface Props {
   migrationPending: boolean;
   busy: boolean;
   onSaveProfile: (preWeightKg: number, heightCm: number) => Promise<boolean>;
+  currentWeek: number;
+  checks: CheckItem[];
+  checksAvailable: boolean;
+  onToggleStep: (itemId: string, done: boolean) => void;
 }
 
 const fmt = (n: number, d = 1) => n.toLocaleString('pt-BR', { maximumFractionDigits: d });
@@ -35,7 +44,7 @@ const TREND: Record<Trend, { label: string; tone: 'alert' | 'ok' | 'neutral' | '
   novo: { label: 'novo', tone: 'brand', icon: <Sparkles className="w-3.5 h-3.5" /> },
 };
 
-export default function DashboardTab({ age, profile, symptoms, comments, metrics, migrationPending, busy, onSaveProfile }: Props) {
+export default function DashboardTab({ age, profile, symptoms, comments, metrics, migrationPending, busy, onSaveProfile, currentWeek, checks, checksAvailable, onToggleStep }: Props) {
   const [periodId, setPeriodId] = useState<PeriodId>('4sem');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
@@ -76,15 +85,25 @@ export default function DashboardTab({ age, profile, symptoms, comments, metrics
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <JourneySection
+        profile={profile}
+        currentWeek={currentWeek}
+        checks={checks}
+        checksAvailable={checksAvailable}
+        busy={busy}
+        onToggleStep={onToggleStep}
+      />
+
+      <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
         <div>
-          <h2 className="text-xl font-semibold text-ink">Painel da gestação</h2>
-          <p className="text-sm text-ink-mute">
+          <h2 className="text-[1.2rem] text-ink">Sintomas</h2>
+          <p className="text-xs text-ink-mute">
             Semanas {weekFrom} a {weekTo} · {formatBR(toISODate(period.from))} a {formatBR(toISODate(period.to))}
           </p>
         </div>
         <Segmented
           label="Período do painel"
+          size="sm"
           value={periodId}
           onChange={p => {
             setPeriodId(p);
@@ -93,7 +112,7 @@ export default function DashboardTab({ age, profile, symptoms, comments, metrics
           options={[
             { value: '4sem', label: '4 semanas' },
             { value: 'trimestre', label: 'Trimestre' },
-            { value: 'tudo', label: 'Gestação toda' },
+            { value: 'tudo', label: 'Tudo' },
           ]}
         />
       </div>
@@ -110,12 +129,12 @@ export default function DashboardTab({ age, profile, symptoms, comments, metrics
       </div>
 
       <Card>
-        <SectionTitle icon={<Lightbulb className="w-5 h-5" />} title="O que os registros mostram" subtitle={`Padrões encontrados nas ${periodLabel}. Toque em um para ver o sintoma.`} />
+        <SectionTitle icon={<Lightbulb className="w-5 h-5" />} title="O que os registros mostram" subtitle={`Padrões nas ${periodLabel}.`} />
         <InsightList insights={insights} onSelect={i => setSelectedKey(i.symptomKey ?? null)} />
       </Card>
 
       <Card>
-        <SectionTitle icon={<Activity className="w-5 h-5" />} title="Sintomas" subtitle="Ordenados pela frequência. Toque para ver a evolução." />
+        <SectionTitle icon={<Activity className="w-5 h-5" />} title="Frequência e tendência" subtitle="Toque em um sintoma para ver a evolução." />
         {stats.length === 0 ? (
           <EmptyState icon={<Activity />} title="Nenhum sintoma no período">Registros no Diário aparecem aqui com frequência, intensidade e tendência.</EmptyState>
         ) : (
@@ -167,6 +186,93 @@ export default function DashboardTab({ age, profile, symptoms, comments, metrics
       <WeightSection profile={profile} metrics={metrics} migrationPending={migrationPending} busy={busy} onSaveProfile={onSaveProfile} />
       <PressureSection metrics={metrics} />
     </div>
+  );
+}
+
+/** Progresso, jornada planejada do pré-natal e o que importa em cada fase. */
+function JourneySection({ profile, currentWeek, checks, checksAvailable, busy, onToggleStep }: { profile: PregnancyProfile & { dumDate: string }; currentWeek: number; checks: CheckItem[]; checksAvailable: boolean; busy: boolean; onToggleStep: (itemId: string, done: boolean) => void }) {
+  const items = planFor(profile.bloodType);
+  const prenatal = checks.filter(c => c.list === 'prenatal');
+  const done = new Set(prenatal.map(c => c.item_id));
+  const dum = parseLocalDate(profile.dumDate);
+  const doneWeeks = new Map(prenatal.map(c => [c.item_id, Math.floor(daysBetween(dum, parseLocalDate(c.done_at)) / 7)]));
+  const progress = planProgress(items, currentWeek, done);
+  const phase = phaseOf(currentWeek);
+  const [openPhase, setOpenPhase] = useState<string | null>(phase.id);
+  const anytime = items.filter(i => i.anytime);
+  const pctWeeks = Math.min(100, Math.round((currentWeek / 40) * 100));
+  const toggle = (item: PlanItem, value: boolean) => onToggleStep(item.id, value);
+
+  return (
+    <>
+      <Card>
+        <SectionTitle icon={<TrendingUp className="w-5 h-5" />} title="Progresso" subtitle={`${phase.label} · ${phase.title}`} />
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className="rounded-2xl bg-surface-2/60 px-4 py-3">
+            <p className="text-xs text-ink-mute">Gestação</p>
+            <p className="font-display text-2xl text-ink tabular">{pctWeeks}%</p>
+            <p className="text-xs text-ink-mute">semana {currentWeek} de 40</p>
+          </div>
+          <div className="rounded-2xl bg-surface-2/60 px-4 py-3">
+            <p className="text-xs text-ink-mute">Plano em dia</p>
+            <p className="font-display text-2xl text-ink tabular">
+              {progress.doneByNow}/{progress.dueByNow}
+            </p>
+            <p className="text-xs text-ink-mute">{progress.dueByNow === progress.doneByNow ? 'tudo o que já era previsto' : `${progress.dueByNow - progress.doneByNow} pendente${progress.dueByNow - progress.doneByNow > 1 ? 's' : ''}`}</p>
+          </div>
+        </div>
+        <PhaseStrip week={currentWeek} />
+        <div className="mt-5">
+          <PlanProgressChart items={items} doneWeeks={doneWeeks} currentWeek={currentWeek} />
+        </div>
+      </Card>
+
+      <Card>
+        <SectionTitle icon={<Route className="w-5 h-5" />} title="Jornada do pré-natal" subtitle="Exames, vacinas e preparos na janela de semanas recomendada. Toque para ver e marcar como feito." />
+        {!checksAvailable && <p className="text-xs text-warn bg-warn-soft rounded-2xl px-3 py-2 mb-3">Para marcar itens como feitos, rode a migração 007 no Neon.</p>}
+        <JourneyTimeline items={items} currentWeek={currentWeek} done={done} dumDate={profile.dumDate} busy={busy || !checksAvailable} onToggle={toggle} />
+        <h3 className="text-sm font-semibold text-ink mt-6 mb-2">Vacinas a qualquer momento</h3>
+        <StepList steps={anytime.map(item => ({ item, status: itemStatus(item, currentWeek, done.has(item.id)) }))} dumDate={profile.dumDate} busy={busy || !checksAvailable} onToggle={toggle} />
+        <p className="text-[11px] text-ink-mute mt-4">{PLAN_SOURCE}</p>
+      </Card>
+
+      <Card>
+        <SectionTitle icon={<BookHeart className="w-5 h-5" />} title="O que importa em cada fase" />
+        <ul className="divide-y divide-line">
+          {PHASES.map(p => {
+            const isOpen = openPhase === p.id;
+            const isNow = p.id === phase.id;
+            return (
+              <li key={p.id}>
+                <button type="button" onClick={() => setOpenPhase(isOpen ? null : p.id)} aria-expanded={isOpen} className="w-full flex items-center gap-3 py-3 text-left">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${isNow ? 'bg-brand' : currentWeek > p.to ? 'bg-ok' : 'bg-line'}`} />
+                  <span className="flex-1 min-w-0">
+                    <span className="font-semibold text-ink">{p.title}</span>
+                    <span className="text-xs text-ink-mute"> · {p.label}, sem. {p.from}–{p.to}</span>
+                  </span>
+                  {isNow && <Pill tone="brand">agora</Pill>}
+                  <ChevronDown className={`w-4 h-4 text-ink-mute transition ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isOpen && (
+                  <div className="pb-4 pl-5 space-y-2">
+                    <p className="text-sm text-ink-soft">{p.focus}</p>
+                    <p className="text-xs font-semibold text-ink">{p.visits}</p>
+                    <ul className="space-y-1.5">
+                      {p.care.map(c => (
+                        <li key={c} className="text-sm text-ink flex gap-2">
+                          <span className="text-brand">•</span>
+                          {c}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+    </>
   );
 }
 

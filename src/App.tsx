@@ -166,6 +166,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   const createMetric = (m: ParsedMetric) => run(() => api.mutate('createMetric', { week: currentWeek, date: today, ...m }), 'Não foi possível salvar a medição.');
 
+  const setCheck = (list: 'prenatal' | 'mala', itemId: string, done: boolean) =>
+    run(() => api.mutate('setCheck', { list, itemId, done }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/007_checklists.sql no Neon.');
+
   const createConsultation = (c: NewConsultation) =>
     run(() =>
       api.mutate('createConsultation', { scheduledAt: c.scheduledAt, specialty: c.specialty, professional: c.professional || null, location: c.location || null }),
@@ -219,6 +222,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     ...findPatterns(toEntries(symptoms), { from: new Date(end.getFullYear(), end.getMonth(), end.getDate() - 27), to: end }),
   ];
   const tasks = visible('task', data.tasks);
+  const doneSteps = new Set(data.checks.filter(c => c.list === 'prenatal').map(c => c.item_id));
+  const packed = new Set(data.checks.filter(c => c.list === 'mala').map(c => c.item_id));
   const overdueTasks = tasks.filter(t => !t.is_completed && isOverdue(t.due_date)).length;
   const questions = visible('question', data.questions);
   const comments = visible('comment', data.comments);
@@ -278,6 +283,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
               setAgendaView('tarefas');
               navigate('agenda');
             }}
+            bloodType={data.profile.bloodType}
+            doneSteps={doneSteps}
+            checksAvailable={data.checksAvailable}
+            busy={busy}
+            onToggleStep={(id, done) => setCheck('prenatal', id, done)}
           />
         )}
         {activeTab === 'agenda' && (
@@ -329,7 +339,20 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           />
         )}
         {activeTab === 'painel' && (
-          <DashboardTab age={age} profile={profile} symptoms={symptoms} comments={comments} metrics={metrics} migrationPending={data.migrationPending} busy={busy} onSaveProfile={saveProfile} />
+          <DashboardTab
+            age={age}
+            profile={profile}
+            symptoms={symptoms}
+            comments={comments}
+            metrics={metrics}
+            migrationPending={data.migrationPending}
+            busy={busy}
+            onSaveProfile={saveProfile}
+            currentWeek={currentWeek}
+            checks={data.checks}
+            checksAvailable={data.checksAvailable}
+            onToggleStep={(id, done) => setCheck('prenatal', id, done)}
+          />
         )}
         {activeTab === 'consultas' && (
           <ConsultationsTab
@@ -385,6 +408,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onSavePlan={saveBirthPlan}
             onRefresh={() => run(async () => undefined)}
             onNotify={text => showToast({ text, tone: 'info' })}
+            packed={packed}
+            checksAvailable={data.checksAvailable}
+            onTogglePacked={(id, done) => setCheck('mala', id, done)}
           />
         )}
         </Suspense>

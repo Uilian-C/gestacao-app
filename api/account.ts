@@ -14,6 +14,7 @@ const DATA_TABLES = [
   'kick_sessions',
   'contractions',
   'birth_plan',
+  'checklist',
 ] as const;
 
 /** Tudo o que a pessoa e o espaço dela têm guardado, em JSON. */
@@ -31,7 +32,7 @@ export const GET = endpoint(async request => {
         `SELECT u.name, u.email, m.role, m.joined_at FROM family_members m JOIN "user" u ON u.id = m.user_id WHERE m.family_id = $1 ORDER BY m.joined_at`,
         [fid],
       ),
-      ...DATA_TABLES.map(t => query(`SELECT * FROM ${t} WHERE family_id = $1 ORDER BY ${t === 'birth_plan' ? 'updated_at' : 'created_at'}`, [fid])),
+      ...DATA_TABLES.map(t => query(`SELECT * FROM ${t} WHERE family_id = $1 ORDER BY ${t === 'birth_plan' ? 'updated_at' : 'created_at'}`, [fid]).catch(() => [])),
     ]);
     space = { profile: profile[0] ?? null, members, ...Object.fromEntries(DATA_TABLES.map((t, i) => [t, tables[i]])) };
   }

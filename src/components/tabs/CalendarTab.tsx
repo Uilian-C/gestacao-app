@@ -82,8 +82,8 @@ export default function CalendarTab(props: Props) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-ink first-letter:uppercase">{view === 'mes' ? monthLabel : `Semana ${week} da gestação`}</h2>
-          <p className="text-sm text-ink-mute">{view === 'mes' ? 'Consultas, prazos, marcos do pré-natal e registros do diário.' : weekLabel}</p>
+          <h2 className="text-[1.2rem] text-ink first-letter:uppercase">{view === 'mes' ? monthLabel : `Semana ${week} da gestação`}</h2>
+          {view === 'semana' && <p className="text-sm text-ink-mute">{weekLabel}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Segmented label="Visualização" size="sm" value={view} onChange={setView} options={[{ value: 'mes', label: 'Mês' }, { value: 'semana', label: 'Semana' }]} />
@@ -130,17 +130,18 @@ export default function CalendarTab(props: Props) {
         </div>
       </div>
 
-      <Card tone="brand">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-          <div>
-            <p className="font-semibold text-ink flex items-center gap-2"><CalendarPlus className="w-5 h-5 text-brand" /> Levar para a agenda do celular</p>
-            <p className="text-sm text-ink-soft">Baixe um arquivo com as consultas, os prazos e os marcos e abra no celular. Ele é importado no Google Agenda ou no calendário do iPhone.</p>
-          </div>
-          <Button onClick={exportIcs} className="shrink-0">
-            <Download className="w-4 h-4" /> Baixar agenda (.ics)
-          </Button>
-        </div>
-      </Card>
+      <button
+        type="button"
+        onClick={exportIcs}
+        className="w-full flex items-center gap-3 rounded-[24px] bg-surface shadow-soft px-5 py-4 text-left hover:bg-surface-2 transition"
+      >
+        <CalendarPlus className="w-5 h-5 text-brand shrink-0" />
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-semibold text-ink">Levar para a agenda do celular</span>
+          <span className="block text-xs text-ink-mute">Consultas, prazos e marcos no Google Agenda ou no iPhone</span>
+        </span>
+        <Download className="w-4 h-4 text-ink-mute shrink-0" />
+      </button>
     </div>
   );
 }

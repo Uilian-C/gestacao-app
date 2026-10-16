@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, HeartHandshake, NotebookPen, Plus, Scale, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, HeartHandshake, NotebookPen, Plus, Scale, Trash2 } from 'lucide-react';
 import { COMMON_SYMPTOMS, SYMPTOM_CATEGORIES, isAlertSymptom } from '../../data/symptomCatalog';
 import { formatBR, toISODate, type GestationalAge } from '../../lib/dates';
 import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure, parseMetricInput, type ParsedMetric } from '../../lib/health';
@@ -8,7 +8,7 @@ import type { Author, HealthMetric, PartnerComment, SymptomItem, TimeOfDay } fro
 import AuthorBadge from '../AuthorBadge';
 import IntensityDots from '../IntensityDots';
 import { inputClass } from '../styles';
-import { Button, Card, Chip, EmptyState, Field, Pill, Segmented, SectionTitle } from '../ui';
+import { Button, Card, EmptyState, Field, Pill, Segmented } from '../ui';
 
 export interface NewSymptom {
   name: string;
@@ -64,10 +64,8 @@ export default function DiaryTab(props: Props) {
   return (
     <div className="space-y-5">
       <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-          <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
-            <Plus className="w-5 h-5 text-brand" /> Novo registro de hoje
-          </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-[1.2rem] text-ink">Registrar hoje</h2>
           <Segmented
             label="Tipo de registro"
             value={mode}
@@ -79,39 +77,36 @@ export default function DiaryTab(props: Props) {
           />
         </div>
         {mode === 'sintoma' ? (
-          <SymptomForm author={props.author} trimester={props.age.trimester} history={props.symptoms} busy={props.busy} currentWeek={props.currentWeek} onCreate={props.onCreateSymptom} />
+          <SymptomForm trimester={props.age.trimester} history={props.symptoms} busy={props.busy} currentWeek={props.currentWeek} onCreate={props.onCreateSymptom} />
         ) : (
           <MetricForm author={props.author} busy={props.busy} currentWeek={props.currentWeek} onCreate={props.onCreateMetric} />
         )}
       </Card>
 
       <Card>
-        <SectionTitle
-          title="Linha do tempo"
-          subtitle="Tudo o que vocês registraram, do mais recente ao mais antigo."
-          action={
-            <Segmented
-              label="Período"
-              size="sm"
-              value={filter}
-              onChange={setFilter}
-              options={[
-                { value: 'recentes', label: '14 dias' },
-                { value: 'semana', label: `Semana ${props.selectedWeek}` },
-                { value: 'tudo', label: 'Tudo' },
-              ]}
-            />
-          }
-        />
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-[1.2rem] text-ink">Linha do tempo</h2>
+          <Segmented
+            label="Período"
+            size="sm"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'recentes', label: '14 dias' },
+              { value: 'semana', label: `Sem. ${props.selectedWeek}` },
+              { value: 'tudo', label: 'Tudo' },
+            ]}
+          />
+        </div>
         {days.length === 0 ? (
           <EmptyState icon={<NotebookPen />} title={filter === 'semana' ? `Nada registrado na semana ${props.selectedWeek}` : filter === 'recentes' ? 'Nada nos últimos 14 dias' : 'Nenhum registro ainda'}>
             Comece pelo que ela sentiu hoje. Em poucas semanas o painel mostra os padrões.
           </EmptyState>
         ) : (
-          <ol className="space-y-6">
+          <ol className="space-y-5">
             {days.map(([day, items]) => (
-              <li key={day} className="space-y-3">
-                <h3 className="text-sm font-semibold text-ink-mute">{formatDayHeading(day)}</h3>
+              <li key={day} className="space-y-2">
+                <h3 className="text-xs font-semibold text-ink-mute first-letter:uppercase">{formatDayHeading(day)}</h3>
                 {items.metrics.map(m => <MetricRow key={m.id} metric={m} onDelete={props.onDeleteMetric} />)}
                 {items.symptoms.map(s => (
                   <SymptomRow key={s.id} symptom={s} comments={props.comments.filter(c => c.symptom_id === s.id)} busy={props.busy} onComment={props.onComment} onDelete={props.onDeleteSymptom} onDeleteComment={props.onDeleteComment} />
@@ -131,96 +126,156 @@ function formatDayHeading(iso: string): string {
   return date.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
 }
 
-function SymptomForm({ author, trimester, history, busy, currentWeek, onCreate }: { author: Author; trimester: 1 | 2 | 3; history: SymptomItem[]; busy: boolean; currentWeek: number; onCreate: (s: NewSymptom) => Promise<boolean> }) {
+/** Categoria conhecida de um sintoma: histórico do casal primeiro, depois o catálogo. */
+function knownCategories(history: SymptomItem[]) {
+  const map = new Map<string, string>();
+  for (const list of Object.values(COMMON_SYMPTOMS)) for (const c of list) map.set(normalizeSymptomName(c.name), c.category);
+  for (const s of history) map.set(normalizeSymptomName(s.symptom_name), s.category);
+  return map;
+}
+
+function SymptomForm({ trimester, history, busy, currentWeek, onCreate }: { trimester: 1 | 2 | 3; history: SymptomItem[]; busy: boolean; currentWeek: number; onCreate: (s: NewSymptom) => Promise<boolean> }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<string>('Físico');
-  const [intensity, setIntensity] = useState(2);
+  const [categoryTouched, setCategoryTouched] = useState(false);
+  const [intensity, setIntensity] = useState(0);
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(() => timeOfDayFromHour(new Date().getHours()));
   const [notes, setNotes] = useState('');
+  const [editing, setEditing] = useState<'tipo' | 'quando' | 'obs' | null>(null);
 
   // Atalhos: os mais registrados pelo casal primeiro, depois os comuns do trimestre.
   const shortcuts = useMemo(() => {
-    const counts = new Map<string, { name: string; category: string; count: number }>();
+    const counts = new Map<string, { name: string; count: number }>();
     for (const s of history) {
       const key = normalizeSymptomName(s.symptom_name);
-      const prev = counts.get(key);
-      counts.set(key, { name: prev?.name ?? s.symptom_name.trim(), category: s.category, count: (prev?.count ?? 0) + 1 });
+      counts.set(key, { name: counts.get(key)?.name ?? s.symptom_name.trim(), count: (counts.get(key)?.count ?? 0) + 1 });
     }
-    const mine = [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 6);
-    const seen = new Set(mine.map(m => normalizeSymptomName(m.name)));
-    const common = COMMON_SYMPTOMS[trimester].filter(c => !seen.has(normalizeSymptomName(c.name)));
-    return [...mine, ...common].slice(0, 12);
+    const mine = [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 5).map(m => m.name);
+    const seen = new Set(mine.map(normalizeSymptomName));
+    const common = COMMON_SYMPTOMS[trimester].map(c => c.name).filter(n => !seen.has(normalizeSymptomName(n)));
+    return [...mine, ...common].slice(0, 10);
   }, [history, trimester]);
+  const categories = useMemo(() => knownCategories(history), [history]);
 
-  const alert = name.trim() !== '' && isAlertSymptom(normalizeSymptomName(name), intensity);
+  const pick = (value: string) => {
+    setName(value);
+    // O tipo se ajusta sozinho ao sintoma, a menos que a pessoa já tenha escolhido.
+    const known = categories.get(normalizeSymptomName(value));
+    if (known && !categoryTouched) setCategory(known);
+  };
+
+  const alert = name.trim() !== '' && intensity > 0 && isAlertSymptom(normalizeSymptomName(name), intensity);
+  const ready = name.trim() !== '' && intensity > 0;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!ready) return;
     if (await onCreate({ name: name.trim(), category, intensity, timeOfDay, notes: notes.trim() })) {
       setName('');
       setNotes('');
-      setIntensity(2);
+      setIntensity(0);
+      setCategoryTouched(false);
+      setEditing(null);
     }
   };
 
+  const detail = 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition';
+
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} className="space-y-4">
       <div className="space-y-2">
-        <Field label="O que ela está sentindo?" htmlFor="sintoma">
-          <input id="sintoma" className={inputClass} placeholder="Ex.: azia, dor lombar, enjoo" value={name} onChange={e => setName(e.target.value)} autoComplete="off" />
-        </Field>
-        <div className="flex flex-wrap gap-2">
-          {shortcuts.map(s => (
-            <Chip
-              key={s.name}
-              active={normalizeSymptomName(name) === normalizeSymptomName(s.name)}
-              onClick={() => {
-                setName(s.name);
-                setCategory(s.category);
-              }}
-            >
-              {s.name}
-            </Chip>
-          ))}
+        <input
+          id="sintoma"
+          aria-label="O que ela está sentindo?"
+          className={inputClass}
+          placeholder="O que ela está sentindo?"
+          value={name}
+          onChange={e => pick(e.target.value)}
+          autoComplete="off"
+        />
+        <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" aria-label="Sugestões">
+          {shortcuts.map(s => {
+            const active = normalizeSymptomName(name) === normalizeSymptomName(s);
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => pick(s)}
+                aria-pressed={active}
+                className={`shrink-0 rounded-full px-3 py-1 text-[13px] transition ${active ? 'bg-brand text-on-accent' : 'bg-surface-2 text-ink-soft hover:text-ink'}`}
+              >
+                {s}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-5">
-        <div className="space-y-2">
-          <span className="text-sm font-semibold text-ink-soft block">Tipo</span>
-          <Segmented label="Tipo de sintoma" size="sm" value={category} onChange={setCategory} options={SYMPTOM_CATEGORIES.map(c => ({ value: c, label: c }))} />
-        </div>
-        <div className="space-y-2">
-          <span className="text-sm font-semibold text-ink-soft block">Quando</span>
-          <Segmented label="Período do dia" size="sm" value={timeOfDay} onChange={setTimeOfDay} options={TIME_OF_DAY.map(t => ({ value: t.id, label: t.label }))} />
-        </div>
-      </div>
-
-      <fieldset className="space-y-2">
-        <legend className="text-sm font-semibold text-ink-soft">
-          Intensidade: <span className="text-ink">{INTENSITY[intensity - 1].toLowerCase()}</span>
-        </legend>
-        <div className="grid grid-cols-5 gap-2">
+      <fieldset className="flex items-center justify-between gap-3">
+        <legend className="sr-only">Intensidade</legend>
+        <span className="text-sm text-ink-soft">Intensidade</span>
+        <div className="flex items-center gap-1.5">
           {INTENSITY.map((label, i) => {
             const level = i + 1;
-            const selected = intensity === level;
+            const on = intensity >= level;
             return (
               <button
                 key={level}
                 type="button"
                 onClick={() => setIntensity(level)}
-                aria-pressed={selected}
-                className={`rounded-2xl border py-2.5 px-1 text-center transition ${selected ? 'border-transparent shadow-sm' : 'border-line bg-surface hover:border-ink-mute'}`}
-                style={selected ? { background: `var(--c-int-${level})`, color: level >= 4 ? 'white' : 'var(--c-ink)' } : undefined}
+                aria-label={`${level}: ${label}`}
+                aria-pressed={intensity === level}
+                className={`w-8 h-8 rounded-full text-xs font-semibold tabular transition ${on ? 'shadow-soft' : 'bg-surface-2 text-ink-mute hover:text-ink'}`}
+                style={on ? { background: `var(--c-int-${level})`, color: level >= 4 ? '#fff' : 'var(--c-ink)' } : undefined}
               >
-                <span className="block text-lg font-semibold tabular">{level}</span>
-                <span className="block text-[11px] font-semibold leading-tight">{label}</span>
+                {level}
               </button>
             );
           })}
         </div>
       </fieldset>
+      <p className="text-xs text-ink-mute -mt-2 text-right h-4" aria-live="polite">{intensity ? INTENSITY[intensity - 1] : '1 = muito leve · 5 = muito forte'}</p>
+
+      {/* Tipo e período já vêm preenchidos; um toque troca. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button type="button" onClick={() => setEditing(editing === 'tipo' ? null : 'tipo')} aria-expanded={editing === 'tipo'} className={`${detail} ${editing === 'tipo' ? 'bg-brand-soft text-brand-strong' : 'bg-surface-2 text-ink-soft'}`}>
+          {category} <ChevronDown className="w-3 h-3" />
+        </button>
+        <button type="button" onClick={() => setEditing(editing === 'quando' ? null : 'quando')} aria-expanded={editing === 'quando'} className={`${detail} ${editing === 'quando' ? 'bg-brand-soft text-brand-strong' : 'bg-surface-2 text-ink-soft'}`}>
+          {timeOfDayLabel(timeOfDay)} <ChevronDown className="w-3 h-3" />
+        </button>
+        <button type="button" onClick={() => setEditing(editing === 'obs' ? null : 'obs')} aria-expanded={editing === 'obs'} className={`${detail} ${notes || editing === 'obs' ? 'bg-brand-soft text-brand-strong' : 'text-ink-mute hover:text-ink'}`}>
+          <Plus className="w-3 h-3" /> Observação
+        </button>
+      </div>
+      {editing === 'tipo' && (
+        <Segmented
+          label="Tipo de sintoma"
+          size="sm"
+          value={category}
+          onChange={v => {
+            setCategory(v);
+            setCategoryTouched(true);
+            setEditing(null);
+          }}
+          options={SYMPTOM_CATEGORIES.map(c => ({ value: c, label: c }))}
+        />
+      )}
+      {editing === 'quando' && (
+        <Segmented
+          label="Período do dia"
+          size="sm"
+          value={timeOfDay}
+          onChange={v => {
+            setTimeOfDay(v);
+            setEditing(null);
+          }}
+          options={TIME_OF_DAY.map(t => ({ value: t.id, label: t.label }))}
+        />
+      )}
+      {editing === 'obs' && (
+        <input autoFocus aria-label="Observação" className={inputClass} placeholder="O que piorou, o que ajudou..." value={notes} onChange={e => setNotes(e.target.value)} />
+      )}
 
       {alert && (
         <div className="flex gap-3 rounded-2xl bg-alert-soft text-alert p-4" role="alert">
@@ -231,12 +286,8 @@ function SymptomForm({ author, trimester, history, busy, currentWeek, onCreate }
         </div>
       )}
 
-      <Field label="Observação (opcional)" htmlFor="obs-sintoma">
-        <input id="obs-sintoma" className={inputClass} placeholder="O que piorou, o que ajudou, depois de qual refeição..." value={notes} onChange={e => setNotes(e.target.value)} />
-      </Field>
-
-      <Button type="submit" disabled={busy || !name.trim()} className="w-full">
-        Salvar como {author === 'pai' ? 'pai' : 'mãe'} · semana {currentWeek}
+      <Button type="submit" disabled={busy || !ready} className="w-full">
+        {name.trim() && !intensity ? 'Escolha a intensidade' : `Salvar · semana ${currentWeek}`}
       </Button>
     </form>
   );
@@ -287,37 +338,34 @@ function MetricForm({ author, busy, currentWeek, onCreate }: { author: Author; b
 
 function SymptomRow({ symptom: s, comments, busy, onComment, onDelete, onDeleteComment }: { symptom: SymptomItem; comments: PartnerComment[]; busy: boolean; onComment: (id: string, text: string) => Promise<boolean>; onDelete: (s: SymptomItem) => void; onDeleteComment: (c: PartnerComment) => void }) {
   const [draft, setDraft] = useState('');
+  const [open, setOpen] = useState(false);
   const alert = isAlertSymptom(normalizeSymptomName(s.symptom_name), s.intensity);
   return (
-    <div className={`rounded-2xl border p-4 space-y-3 ${alert ? 'border-alert/40 bg-alert-soft/40' : 'border-transparent bg-surface-2/60'}`}>
-      <div className="flex justify-between items-start gap-3">
-        <div className="min-w-0 space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-ink text-base">{s.symptom_name}</span>
-            {alert && <Pill tone="alert"><AlertTriangle className="w-3 h-3" /> sinal de alerta</Pill>}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm text-ink-mute">
+    <div className={`rounded-2xl px-4 py-3 space-y-2 ${alert ? 'bg-alert-soft' : 'bg-surface-2/60'}`}>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="font-semibold text-ink">{s.symptom_name}</span>
             <IntensityDots value={s.intensity} />
-            <span>{INTENSITY[s.intensity - 1]}</span>
-            <span>·</span>
-            <span>{s.category}</span>
-            {s.time_of_day && (
-              <>
-                <span>·</span>
-                <span>{timeOfDayLabel(s.time_of_day)}</span>
-              </>
-            )}
-            <AuthorBadge role={s.created_by} />
+            {alert && <Pill tone="alert"><AlertTriangle className="w-3 h-3" /> alerta</Pill>}
           </div>
-          {s.notes && <p className="text-sm text-ink-soft">{s.notes}</p>}
+          <p className="text-xs text-ink-mute mt-0.5 flex flex-wrap items-center gap-x-1.5">
+            <span>{INTENSITY[s.intensity - 1]}</span>·<span>{s.category}</span>
+            {s.time_of_day && <>·<span>{timeOfDayLabel(s.time_of_day)}</span></>}
+            <AuthorBadge role={s.created_by} />
+          </p>
+          {s.notes && <p className="text-sm text-ink-soft mt-1">{s.notes}</p>}
         </div>
-        <button onClick={() => onDelete(s)} aria-label={`Excluir registro "${s.symptom_name}"`} className="p-1.5 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft">
+        <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} className="shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-brand hover:bg-brand-soft">
+          <HeartHandshake className="w-3.5 h-3.5" /> Cuidar
+        </button>
+        <button onClick={() => onDelete(s)} aria-label={`Excluir registro "${s.symptom_name}"`} className="shrink-0 p-1 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft">
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
 
       {comments.map(c => (
-        <div key={c.id} className="flex items-start gap-2 rounded-xl bg-surface p-3 text-sm">
+        <div key={c.id} className="flex items-start gap-2 rounded-xl bg-surface px-3 py-2 text-sm">
           <HeartHandshake className="w-4 h-4 text-brand shrink-0 mt-0.5" />
           <span className="flex-1 text-ink">
             {c.comment_text} <AuthorBadge role={c.author_role} />
@@ -328,16 +376,21 @@ function SymptomRow({ symptom: s, comments, busy, onComment, onDelete, onDeleteC
         </div>
       ))}
 
-      <form
-        onSubmit={async e => {
-          e.preventDefault();
-          if (draft.trim() && (await onComment(s.id, draft.trim()))) setDraft('');
-        }}
-        className="flex gap-2"
-      >
-        <input aria-label={`Cuidado ou apoio em "${s.symptom_name}"`} className={`${inputClass} !py-2 text-sm`} placeholder="Anotar um cuidado (ex.: fiz um chá às 22h)" value={draft} onChange={e => setDraft(e.target.value)} />
-        <Button type="submit" tone="soft" disabled={busy || !draft.trim()} className="!px-4 !py-2">Salvar</Button>
-      </form>
+      {open && (
+        <form
+          onSubmit={async e => {
+            e.preventDefault();
+            if (draft.trim() && (await onComment(s.id, draft.trim()))) {
+              setDraft('');
+              setOpen(false);
+            }
+          }}
+          className="flex gap-2"
+        >
+          <input autoFocus aria-label={`Cuidado ou apoio em "${s.symptom_name}"`} className={`${inputClass} !py-2 text-sm`} placeholder="O que ajudou? (ex.: chá às 22h)" value={draft} onChange={e => setDraft(e.target.value)} />
+          <Button type="submit" tone="soft" disabled={busy || !draft.trim()} className="!px-4 !py-2">Salvar</Button>
+        </form>
+      )}
     </div>
   );
 }
@@ -345,10 +398,10 @@ function SymptomRow({ symptom: s, comments, busy, onComment, onDelete, onDeleteC
 function MetricRow({ metric: m, onDelete }: { metric: HealthMetric; onDelete: (m: HealthMetric) => void }) {
   const high = isHighBloodPressure(m.systolic_bp, m.diastolic_bp);
   return (
-    <div className={`rounded-2xl border p-4 flex items-center justify-between gap-3 ${high ? 'border-alert/40 bg-alert-soft/40' : 'border-transparent bg-surface-2/60'}`}>
+    <div className={`rounded-2xl px-4 py-3 flex items-center justify-between gap-3 ${high ? 'bg-alert-soft' : 'bg-surface-2/60'}`}>
       <div className="flex items-center gap-3 min-w-0">
-        <span className="w-10 h-10 rounded-full bg-brand-soft text-brand flex items-center justify-center shrink-0">
-          <Scale className="w-5 h-5" />
+        <span className="w-8 h-8 rounded-full bg-brand-soft text-brand flex items-center justify-center shrink-0">
+          <Scale className="w-4 h-4" />
         </span>
         <div className="min-w-0">
           <p className="font-semibold text-ink tabular">
