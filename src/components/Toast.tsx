@@ -6,7 +6,19 @@ export interface ToastMessage {
   onAction?: () => void;
 }
 
+import { useEffect } from 'react';
+
+// Quanto tempo o aviso fica na tela. Com "Desfazer", quem fecha é o prazo da exclusão.
+const STAY_MS = { info: 4500, error: 7000 };
+
 export default function Toast({ toast, onClose }: { toast: ToastMessage | null; onClose: () => void }) {
+  useEffect(() => {
+    if (!toast || toast.actionLabel) return;
+    const timer = window.setTimeout(onClose, STAY_MS[toast.tone]);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- um prazo por aviso (id), não a cada renderização
+  }, [toast?.id]);
+
   if (!toast) return null;
   const tone = toast.tone === 'error' ? 'bg-alert text-white' : 'bg-ink text-canvas';
   return (

@@ -28,6 +28,45 @@ export interface GestationData {
   exams: ExamItem[];
   /** A migração 010 já foi aplicada. */
   examsAvailable: boolean;
+  /** Itens que o casal pôs na mala ou na jornada. */
+  listItems: ListItem[];
+  /** Itens da lista padrão que não se aplicam a este casal. */
+  hiddenItems: Array<{ list: 'prenatal' | 'mala'; item_id: string }>;
+  /** Reações e conversas (só as de registros que esta pessoa vê). */
+  reactions: Reaction[];
+  threads: ThreadComment[];
+  /** A migração 011 já foi aplicada. */
+  socialAvailable: boolean;
+}
+
+export interface ListItem {
+  id: string;
+  list: 'prenatal' | 'mala';
+  title: string;
+  bag_group: 'mae' | 'bebe' | 'acompanhante' | null;
+  week: number | null;
+  created_by: 'mae' | 'pai';
+}
+
+export type ReactionKind = 'abraco' | 'forca' | 'aqui' | 'festa';
+export type SocialTarget = 'entry' | 'exam' | 'symptom' | 'task';
+
+export interface Reaction {
+  target_type: SocialTarget;
+  target_id: string;
+  kind: ReactionKind;
+  author_role: 'mae' | 'pai';
+  mine: boolean;
+}
+
+export interface ThreadComment {
+  id: string;
+  target_type: 'entry' | 'exam';
+  target_id: string;
+  body: string;
+  author_role: 'mae' | 'pai';
+  mine: boolean;
+  created_at: string;
 }
 
 export interface ExamFile {

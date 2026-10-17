@@ -3,6 +3,7 @@ import { query, transaction } from './_lib/db.js';
 import { fetchAll } from './_lib/gestation.js';
 import { HttpError, endpoint, json, readJson, requireMember, type Member } from './_lib/http.js';
 import { notify, type PushPayload } from './_lib/push.js';
+import { VISIBLE_TARGET } from './_lib/social.js';
 
 // Toda consulta filtra por family_id = espaço de quem está logado. O autor dos
 // registros vem do login (papel no espaço), nunca do que o navegador envia.
@@ -35,6 +36,15 @@ const symptomFields = {
 const metricFields = { weight: nullableNum(20, 400), systolic: nullableInt(50, 260), diastolic: nullableInt(30, 180) };
 const consultationFields = { scheduledAt: timestamp, specialty: text(30), professional: optionalText(120), location: optionalText(200) };
 const entryFields = { body: text(2000), visibility: z.enum(['private', 'shared']), remindOn: isoDate.nullish().transform(v => v || null) };
+
+const listName = z.enum(['prenatal', 'mala']);
+const itemFields = {
+  title: text(200),
+  bagGroup: z.enum(['mae', 'bebe', 'acompanhante']).nullish().transform(v => v ?? null),
+  week: z.number().int().min(1).max(42).nullish().transform(v => v ?? null),
+};
+const targetType = z.enum(['entry', 'exam', 'symptom', 'task']);
+const uuid = z.string().uuid();
 
 const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('saveDum'), date: isoDate }),
@@ -73,6 +83,15 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('createEntry'), date: isoDate, ...entryFields }),
   z.object({ op: z.literal('updateEntry'), id, ...entryFields }),
   z.object({ op: z.literal('deleteEntry'), id }),
+  // Listas: itens do casal e itens da lista padrão que não se aplicam.
+  z.object({ op: z.literal('addItem'), list: listName, ...itemFields }),
+  z.object({ op: z.literal('updateItem'), id: uuid, ...itemFields }),
+  z.object({ op: z.literal('deleteItem'), id: uuid }),
+  z.object({ op: z.literal('hideItem'), list: listName, itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), hidden: z.boolean() }),
+  // Reações e conversa.
+  z.object({ op: z.literal('react'), targetType, targetId: uuid, kind: z.enum(['abraco', 'forca', 'aqui', 'festa']), on: z.boolean() }),
+  z.object({ op: z.literal('comment'), targetType: z.enum(['entry', 'exam']), targetId: uuid, body: text(1000) }),
+  z.object({ op: z.literal('deleteComment'), id: uuid }),
   z.object({ op: z.literal('delete'), kind: z.enum(['task', 'symptom', 'question', 'comment', 'metric', 'consultation', 'kick', 'contraction']), id }),
 ]);
 
@@ -87,6 +106,18 @@ const DELETE_TABLE = {
   kick: 'kick_sessions',
   contraction: 'contractions',
 } as const;
+
+async function requireVisible(m: Member, type: keyof typeof VISIBLE_TARGET, targetId: string) {
+  const rows = await query(VISIBLE_TARGET[type], [m.familyId, m.userId, targetId]);
+  if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
+}
+
+/** Reações e conversa de um registro que foi apagado saem junto. */
+async function dropSocial(fid: string, type: 'entry' | 'exam' | 'symptom' | 'task', targetIds: string[]) {
+  if (targetIds.length === 0) return;
+  await query('DELETE FROM reactions WHERE family_id = $1 AND target_type = $2 AND target_id::text = ANY($3)', [fid, type, targetIds]).catch(() => undefined);
+  if (type === 'entry' || type === 'exam') await query('DELETE FROM comments WHERE family_id = $1 AND target_type = $2 AND target_id::text = ANY($3)', [fid, type, targetIds]).catch(() => undefined);
+}
 
 /** Edição: 404 quando o registro não é do espaço (ou, no caso dos momentos, de quem edita). */
 async function updated(sql: string, values: unknown[]) {
@@ -209,6 +240,35 @@ async function apply(m: Member, o: Op) {
       // Cada um apaga só os próprios momentos.
       const rows = await query('DELETE FROM journal_entries WHERE id::text = $1 AND family_id = $2 AND user_id = $3 RETURNING id', [o.id, fid, m.userId]);
       if (rows.length === 0) throw new HttpError(404, 'Momento não encontrado.');
+      return dropSocial(fid, 'entry', [o.id]);
+    }
+    case 'addItem':
+      return query(`INSERT INTO checklist_items (family_id, list, title, bag_group, week, created_by) VALUES ($1, $2, $3, $4, $5, $6)`, [fid, o.list, o.title, o.bagGroup, o.week, who]);
+    case 'updateItem':
+      return updated(`UPDATE checklist_items SET title = $1, bag_group = COALESCE($2, bag_group), week = $3 WHERE id = $4 AND family_id = $5`, [o.title, o.bagGroup, o.week, o.id, fid]);
+    case 'deleteItem': {
+      const rows = await query('DELETE FROM checklist_items WHERE id = $1 AND family_id = $2 RETURNING list', [o.id, fid]);
+      if (rows.length === 0) throw new HttpError(404, 'Item não encontrado.');
+      return query('DELETE FROM checklist WHERE family_id = $1 AND item_id = $2', [fid, o.id]);
+    }
+    case 'hideItem':
+      if (!o.hidden) return query('DELETE FROM checklist_hidden WHERE family_id = $1 AND list = $2 AND item_id = $3', [fid, o.list, o.itemId]);
+      return query('INSERT INTO checklist_hidden (family_id, list, item_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [fid, o.list, o.itemId]);
+    case 'react': {
+      await requireVisible(m, o.targetType, o.targetId);
+      if (!o.on) return query('DELETE FROM reactions WHERE target_type = $1 AND target_id = $2 AND user_id = $3 AND kind = $4', [o.targetType, o.targetId, m.userId, o.kind]);
+      return query(
+        `INSERT INTO reactions (family_id, target_type, target_id, user_id, author_role, kind) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING kind`,
+        [fid, o.targetType, o.targetId, m.userId, who, o.kind],
+      );
+    }
+    case 'comment':
+      await requireVisible(m, o.targetType, o.targetId);
+      return query(`INSERT INTO comments (family_id, target_type, target_id, user_id, author_role, body) VALUES ($1, $2, $3, $4, $5, $6)`, [fid, o.targetType, o.targetId, m.userId, who, o.body]);
+    case 'deleteComment': {
+      // Cada um apaga só o que escreveu.
+      const rows = await query('DELETE FROM comments WHERE id = $1 AND family_id = $2 AND user_id = $3 RETURNING id', [o.id, fid, m.userId]);
+      if (rows.length === 0) throw new HttpError(404, 'Comentário não encontrado.');
       return;
     }
     case 'setCheck':
@@ -227,7 +287,11 @@ async function apply(m: Member, o: Op) {
           );
           await client.query('DELETE FROM symptoms_log WHERE id::text = $1 AND family_id = $2', [o.id, fid]);
         });
-        return;
+        return dropSocial(fid, 'symptom', [o.id]);
+      }
+      if (o.kind === 'task') {
+        await query('DELETE FROM partner_tasks WHERE id::text = $1 AND family_id = $2', [o.id, fid]);
+        return dropSocial(fid, 'task', [o.id]);
       }
       return query(`DELETE FROM ${DELETE_TABLE[o.kind]} WHERE id::text = $1 AND family_id = $2`, [o.id, fid]);
     }
@@ -250,10 +314,16 @@ function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } 
       return { action: 'criou uma tarefa', body: o.title.length > 80 ? `${o.title.slice(0, 79)}…` : o.title, url: '/?aba=agenda', tag: 'parceiro-tarefa' };
     case 'createEntry':
       return o.visibility === 'shared' ? { action: 'guardou um momento', body: 'Toque para ver no diário.', url: '/?aba=diario', tag: 'parceiro-momento' } : null;
+    case 'react':
+      return o.on ? { action: REACTION_TEXT[o.kind], body: 'Toque para ver.', url: o.targetType === 'exam' ? '/?aba=exames' : o.targetType === 'task' ? '/?aba=agenda' : '/?aba=diario', tag: `reacao-${o.targetId}` } : null;
+    case 'comment':
+      return { action: o.targetType === 'exam' ? 'comentou num exame' : 'comentou num momento', body: 'Toque para ver a conversa.', url: o.targetType === 'exam' ? '/?aba=exames' : '/?aba=diario', tag: `conversa-${o.targetId}` };
     default:
       return null;
   }
 }
+
+const REACTION_TEXT = { abraco: 'mandou um abraço', forca: 'mandou força', aqui: 'disse: estou aqui', festa: 'comemorou com você' } as const;
 
 async function notifyPartners(m: Member, o: Op) {
   const message = partnerMessage(o);
@@ -278,12 +348,13 @@ export const POST = endpoint(async request => {
   const member = await requireMember(request);
   const parsed = ops.safeParse(await readJson(request));
   if (!parsed.success) throw new HttpError(400, 'Dados inválidos.');
-  await apply(member, parsed.data);
+  const result = await apply(member, parsed.data);
+  const repeated = parsed.data.op === 'react' && parsed.data.on && Array.isArray(result) && result.length === 0;
   // Já devolve os dados atualizados: o app não precisa de uma segunda chamada para recarregar.
   // O aviso para a outra pessoa sai ao mesmo tempo; se falhar, o registro continua salvo.
   const [data] = await Promise.all([
     fetchAll(member.familyId, member.userId),
-    notifyPartners(member, parsed.data).catch(err => console.error('Aviso ao parceiro não enviado', err)),
+    repeated ? undefined : notifyPartners(member, parsed.data).catch(err => console.error('Aviso ao parceiro não enviado', err)),
   ]);
   return json({ ok: true, data });
 });

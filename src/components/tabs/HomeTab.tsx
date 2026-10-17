@@ -43,6 +43,8 @@ interface Props {
   bloodType: string | null;
   /** IDs da jornada do pré-natal já marcados como feitos. */
   doneSteps: Set<string>;
+  /** Itens da jornada que o casal ocultou. */
+  hiddenSteps: Set<string>;
   checksAvailable: boolean;
   onToggleStep: (itemId: string, done: boolean) => void;
   /** Lembretes de momentos nos próximos 30 dias. */
@@ -146,7 +148,7 @@ export default function HomeTab(props: Props) {
     dumDate: props.dumDate,
     reminders: props.reminders,
     nextConsultation: props.nextConsultation,
-    steps: nextSteps(planFor(props.bloodType), currentWeek, props.doneSteps, 3),
+    steps: nextSteps(planFor(props.bloodType, props.hiddenSteps), currentWeek, props.doneSteps, 3),
     tasks: props.tasks,
     currentWeek,
     moments: props.journal,

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { auth } from './_lib/auth.js';
 import { query, transaction } from './_lib/db.js';
 import { HttpError, endpoint, findMembership, json, readJson, requireUser } from './_lib/http.js';
+import { visibleTargetSql } from './_lib/social.js';
 import { deleteFamilyFiles, deleteFiles } from './_lib/storage.js';
 
 // Direitos do titular (LGPD, art. 18): baixar os dados e excluir a conta ou o espaço.
@@ -57,7 +58,24 @@ export const GET = endpoint(async request => {
        FROM exams e WHERE e.family_id = $1 AND (e.visibility = 'shared' OR e.user_id = $2) ORDER BY e.exam_date`,
       [fid, user.id],
     ).catch(() => []);
-    space = { profile: profile[0] ?? null, members, ...Object.fromEntries(DATA_TABLES.map((t, i) => [t, tables[i]])), journal_entries: journal, exams };
+    // Listas do casal, reações e conversas (só as de registros que o titular vê).
+    const [listItems, hidden, reactions, threads] = await Promise.all([
+      query('SELECT list, title, bag_group, week, created_by, created_at FROM checklist_items WHERE family_id = $1 ORDER BY created_at', [fid]).catch(() => []),
+      query('SELECT list, item_id FROM checklist_hidden WHERE family_id = $1', [fid]).catch(() => []),
+      query(`SELECT r.target_type, r.kind, r.author_role, r.created_at FROM reactions r WHERE r.family_id = $1 AND ${visibleTargetSql('r')} ORDER BY r.created_at`, [fid, user.id]).catch(() => []),
+      query(`SELECT c.target_type, c.body, c.author_role, c.created_at FROM comments c WHERE c.family_id = $1 AND ${visibleTargetSql('c')} ORDER BY c.created_at`, [fid, user.id]).catch(() => []),
+    ]);
+    space = {
+      profile: profile[0] ?? null,
+      members,
+      ...Object.fromEntries(DATA_TABLES.map((t, i) => [t, tables[i]])),
+      journal_entries: journal,
+      exams,
+      checklist_items: listItems,
+      checklist_hidden: hidden,
+      reactions,
+      comments: threads,
+    };
   }
 
   const body = JSON.stringify(
@@ -109,7 +127,20 @@ export const POST = endpoint(async request => {
     if (parsed.data.op === 'deleteAccount') {
       // Anotações particulares saem com a conta; as compartilhadas ficam no espaço.
       const { rows: table } = await client.query("SELECT to_regclass('public.journal_entries') AS t");
-      if (table[0].t) await client.query("DELETE FROM journal_entries WHERE user_id = $1 AND visibility = 'private'", [user.id]);
+      if (table[0].t) {
+        // Conversa e reações dos momentos particulares saem com eles.
+        const { rows: social } = await client.query("SELECT to_regclass('public.comments') AS t");
+        if (social[0].t) {
+          for (const [type, tbl] of [['entry', 'journal_entries'], ['exam', 'exams']]) {
+            const { rows: has } = await client.query('SELECT to_regclass($1) AS t', [`public.${tbl}`]);
+            if (!has[0].t) continue;
+            const ids = `SELECT id FROM ${tbl} WHERE user_id = $1 AND visibility = 'private'`;
+            await client.query(`DELETE FROM comments WHERE target_type = $2 AND target_id IN (${ids})`, [user.id, type]);
+            await client.query(`DELETE FROM reactions WHERE target_type = $2 AND target_id IN (${ids})`, [user.id, type]);
+          }
+        }
+        await client.query("DELETE FROM journal_entries WHERE user_id = $1 AND visibility = 'private'", [user.id]);
+      }
       // Exames particulares também; os compartilhados ficam com o espaço.
       const { rows: exams } = await client.query("SELECT to_regclass('public.exam_files') AS t");
       if (exams[0].t) {

@@ -3,10 +3,13 @@ import { parseLocalDate } from './dates';
 
 export type ItemStatus = 'feito' | 'pendente' | 'agora' | 'em-breve' | 'depois';
 
-/** Itens da jornada que valem para esta gestação (alguns só para Rh negativo). */
-export function planFor(bloodType: string | null): PlanItem[] {
+/**
+ * Itens da jornada que valem para esta gestação: alguns só para Rh negativo, e
+ * sem os que o casal ocultou ("não se aplica a nós").
+ */
+export function planFor(bloodType: string | null, hidden: Set<string> = new Set()): PlanItem[] {
   const rhNegative = !!bloodType && bloodType.trim().endsWith('-');
-  return PLAN_ITEMS.filter(i => !i.rhNegativeOnly || rhNegative);
+  return PLAN_ITEMS.filter(i => (!i.rhNegativeOnly || rhNegative) && !hidden.has(i.id));
 }
 
 /**
