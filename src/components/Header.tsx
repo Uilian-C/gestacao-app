@@ -15,7 +15,7 @@ export default function Header({ firstName, members, greeting, onOpenSpace }: Pr
       <div className="max-w-5xl mx-auto px-4 md:px-6 pt-5 pb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-11 h-11 rounded-full bg-surface shadow-soft flex items-center justify-center shrink-0">
-            <BrandMark className="w-7 h-7" />
+            <BrandMark className="w-8 h-8" />
           </div>
           <div className="min-w-0">
             <p className="text-sm text-ink-mute truncate">

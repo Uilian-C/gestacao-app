@@ -25,3 +25,6 @@ dist-ssr
 
 # Saída dos testes de integração (prints, certificados temporários)
 tests/integracao/.saida
+
+# Cache do Python (scripts da marca)
+__pycache__

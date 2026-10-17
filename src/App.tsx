@@ -1,5 +1,6 @@
 import { Suspense, lazy, useRef, useState } from 'react';
-import { CloudRain, Loader2, Sprout } from 'lucide-react';
+import { CloudRain, Sprout } from 'lucide-react';
+import BrandMark from './components/BrandMark';
 import PushPrompt from './components/PushPrompt';
 import { takeTabFromUrl } from './lib/pwa';
 import { api, ApiError, type FamilyState, type Me } from './api';
@@ -201,8 +202,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     return (
       <Shell>
         {loadState === 'loading' ? (
-          <div className="flex items-center justify-center gap-2 text-brand font-semibold py-24">
-            <Loader2 className="w-5 h-5 animate-spin" /> Carregando os dados de vocês...
+          <div className="py-24 text-center space-y-3" role="status">
+            <BrandMark animated className="w-16 h-16 mx-auto" />
+            <p className="text-ink-soft font-semibold">Carregando os dados de vocês...</p>
           </div>
         ) : (
           <Card className="text-center space-y-3 mt-8">
@@ -276,8 +278,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       <main className="max-w-5xl mx-auto px-4 md:px-6 pt-4 md:pt-6">
         <Suspense
           fallback={
-            <div className="flex items-center justify-center gap-2 text-brand font-semibold py-16">
-              <Loader2 className="w-5 h-5 animate-spin" /> Abrindo...
+            <div className="flex items-center justify-center py-16" role="status" aria-label="Abrindo">
+              <BrandMark animated className="w-12 h-12" />
             </div>
           }
         >
