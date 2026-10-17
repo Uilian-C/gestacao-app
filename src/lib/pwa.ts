@@ -114,6 +114,22 @@ export function limitedBrowser(ua = navigator.userAgent): string | null {
   return null;
 }
 
+/**
+ * Versão do iOS pelo navegador ([16, 4] para 16.4), ou null fora do iPhone/iPad.
+ * O Safari mais novo congela o número (mostra 18.x mesmo no iOS 26), o que basta
+ * para saber se passa de 16.4, a primeira versão com notificações para sites.
+ */
+export function iosVersion(ua = navigator.userAgent): [number, number] | null {
+  const m = /(?:iPhone|iPad|iPod).*? OS (\d+)_(\d+)/.exec(ua);
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+
+/** iOS antigo demais para notificações de sites (antes do 16.4). */
+export function iosTooOld(ua = navigator.userAgent) {
+  const v = iosVersion(ua);
+  return !!v && (v[0] < 16 || (v[0] === 16 && v[1] < 4));
+}
+
 export const isAndroid = () => /Android/.test(navigator.userAgent);
 
 /** Link que abre esta página direto no Chrome do Android. */

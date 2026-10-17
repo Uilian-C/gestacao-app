@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chromeIntentUrl, limitedBrowser } from './pwa';
+import { chromeIntentUrl, iosTooOld, iosVersion, limitedBrowser } from './pwa';
 
 const UA = {
   chromeAndroid: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
@@ -22,6 +22,18 @@ describe('limitedBrowser', () => {
     expect(limitedBrowser(UA.instagramIphone)).toBe('o navegador do Instagram');
     expect(limitedBrowser(UA.facebookAndroid)).toBe('o navegador do Facebook');
     expect(limitedBrowser(UA.webviewAndroid)).toBe('o navegador interno deste app');
+  });
+});
+
+describe('iosVersion', () => {
+  it('lê a versão do iPhone e só acusa iOS antigo antes do 16.4', () => {
+    expect(iosVersion(UA.safariIphone)).toEqual([18, 0]);
+    expect(iosVersion(UA.chromeAndroid)).toBeNull();
+    expect(iosTooOld(UA.safariIphone)).toBe(false);
+    expect(iosTooOld(UA.safariIphone.replace('18_0', '16_4'))).toBe(false);
+    expect(iosTooOld(UA.safariIphone.replace('18_0', '16_3'))).toBe(true);
+    expect(iosTooOld(UA.safariIphone.replace('18_0', '15_7'))).toBe(true);
+    expect(iosTooOld(UA.chromeAndroid)).toBe(false);
   });
 });
 

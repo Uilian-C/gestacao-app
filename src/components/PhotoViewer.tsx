@@ -21,16 +21,18 @@ export default function PhotoViewer({ title, subtitle, photos, index, onIndex, o
   const go = (step: number) => onIndex((index + step + photos.length) % photos.length);
 
   useEffect(() => {
+    // Na fase de captura e sem propagar: o Esc fecha só a foto, não a janela que está por baixo.
     const onKey = (ev: KeyboardEvent) => {
+      if (['Escape', 'ArrowRight', 'ArrowLeft'].includes(ev.key)) ev.stopPropagation();
       if (ev.key === 'Escape') onClose();
       if (ev.key === 'ArrowRight' && photos.length > 1) onIndex((index + 1) % photos.length);
       if (ev.key === 'ArrowLeft' && photos.length > 1) onIndex((index - 1 + photos.length) % photos.length);
     };
-    window.addEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
       document.body.style.overflow = overflow;
     };
   }, [index, photos.length, onClose, onIndex]);

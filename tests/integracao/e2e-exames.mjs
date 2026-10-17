@@ -44,14 +44,20 @@ check(await p.getByAltText('ultrassom.png').isVisible(), 'prévia da foto antes 
 await p.getByLabel('Observações').fill('Bebê bem, tudo normal.');
 await p.screenshot({ path: `${OUT}exames-form.png`, fullPage: true });
 await p.getByRole('button', { name: 'Guardar com 2 arquivos' }).click();
-await p.getByText('Jornada: Morfológico 2º tri').waitFor({ timeout: 15000 });
-check(true, 'exame guardado aparece na lista, ligado à jornada');
+const examRow = p.getByRole('button', { name: /^Ultrassom morfológico do 2º trimestre: abrir resultado/ });
+await examRow.waitFor({ timeout: 15000 });
+check((await examRow.textContent()).includes('2 fotos') === false && (await examRow.textContent()).includes('1 foto') && (await examRow.textContent()).includes('jornada'), 'resultado aparece no arquivo, numa linha enxuta (1 foto, 1 PDF, jornada)');
+check(await p.getByText('2º trimestre', { exact: true }).isVisible(), 'arquivo organizado por trimestre');
+await examRow.click();
+const sheet = p.getByRole('dialog', { name: 'Ultrassom morfológico do 2º trimestre' });
+await sheet.getByText('Jornada: Morfológico 2º tri').waitFor();
+check(true, 'tocar na linha abre o resultado completo, ligado à jornada');
 
 const thumb = p.getByRole('button', { name: /Abrir foto de Ultrassom morfológico/ });
 await thumb.locator('img').evaluate(img => img.complete || new Promise(r => (img.onload = r)));
 check(await thumb.locator('img').evaluate(img => img.naturalWidth > 0), 'miniatura carrega a foto pelo servidor');
 check(await p.getByRole('link', { name: /Abrir PDF/ }).isVisible(), 'PDF aparece como arquivo');
-check(await p.locator('article').getByText('22 semanas').isVisible(), 'mostra a semana da gestação na data do exame');
+check(await sheet.getByText('22 semanas').isVisible(), 'mostra a semana da gestação na data do exame');
 await p.screenshot({ path: `${OUT}exames-lista.png`, fullPage: true });
 
 const data = await api('/api/data');
@@ -61,21 +67,21 @@ check(jpg && jpg.size < 1.5 * 1024 * 1024 && jpg.size < photo.length, `foto foi 
 check(data.checks.some(c => c.list === 'prenatal' && c.item_id === 'morfo-2'), 'item da jornada marcado como feito');
 
 await thumb.click();
-const viewer = p.getByRole('dialog');
+const viewer = p.getByRole('dialog', { name: /^Foto de/ });
 await viewer.waitFor();
 await viewer.locator('img').evaluate(img => img.complete || new Promise(r => (img.onload = r)));
 const size = await viewer.locator('img').evaluate(img => [img.naturalWidth, img.naturalHeight]);
 check(size[0] === 1500 && size[1] === 2000, `foto em tela cheia, reduzida para ${size.join(' x ')} (legível)`);
 await p.screenshot({ path: `${OUT}exames-foto.png` });
 await p.keyboard.press('Escape');
-check(!(await viewer.isVisible()), 'Esc fecha a foto');
+check(!(await viewer.isVisible()) && (await sheet.isVisible()), 'Esc fecha a foto e volta para o resultado');
 
 // Juntar mais um arquivo a um exame que já existe.
 await p.getByLabel('Escolher fotos ou PDF').last().setInputFiles({ name: 'pagina2.png', mimeType: 'image/png', buffer: photo });
 await p.waitForFunction(() => document.querySelectorAll('[aria-label^="Abrir foto de"]').length === 2, null, { timeout: 15000 });
 check(true, 'arquivo novo entra no mesmo exame');
 
-await p.getByRole('button', { name: /Excluir exame/ }).click();
+await sheet.getByRole('button', { name: /Excluir exame/ }).click();
 check(await p.getByText(/Excluído: exame/).isVisible(), 'excluir mostra "desfazer"');
 await p.waitForTimeout(6500);
 check((await api('/api/data')).exams.length === 0, 'exame excluído depois do prazo de desfazer');

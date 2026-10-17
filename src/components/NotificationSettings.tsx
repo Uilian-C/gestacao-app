@@ -2,7 +2,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { Bell, BellOff, Check, Copy, Download, ExternalLink, Loader2, Share, SquarePlus } from 'lucide-react';
 import { usePush } from '../hooks/usePush';
 import type { NotifyKind } from '../lib/notifications';
-import { canInstall, chromeIntentUrl, isAndroid, isStandalone, limitedBrowser, onInstallChange, promptInstall } from '../lib/pwa';
+import { canInstall, chromeIntentUrl, iosTooOld, isAndroid, isIOS, isStandalone, limitedBrowser, onInstallChange, promptInstall } from '../lib/pwa';
 import { Button } from './ui';
 
 const KINDS: Array<{ id: NotifyKind; label: string; hint: string }> = [
@@ -12,20 +12,26 @@ const KINDS: Array<{ id: NotifyKind; label: string; hint: string }> = [
   { id: 'parceiro', label: 'Registros da outra pessoa', hint: 'Sintoma, consulta, dúvida, tarefa ou momento novo.' },
 ];
 
-/** Passo a passo do iPhone: o Safari só entrega notificações para apps na Tela de Início. */
+/**
+ * Passo a passo do iPhone: o Tumtum não vem da App Store; ele é instalado pelo
+ * Safari, e o Safari só entrega notificações para apps na Tela de Início.
+ */
 export function IosInstallSteps() {
+  const old = iosTooOld();
   return (
-    <ol className="space-y-2 text-sm text-ink-soft">
+    <div className="space-y-2">
+      <p className="text-xs text-ink-mute">No iPhone, o Tumtum não se baixa pela App Store: ele é instalado pelo próprio Safari, em poucos segundos.</p>
+      <ol className="space-y-2 text-sm text-ink-soft">
       <li className="flex gap-2">
         <span className="font-semibold text-ink">1.</span>
         <span>
-          Abra este site no <strong>Safari</strong> e toque em <Share className="inline w-4 h-4 -mt-0.5" aria-label="Compartilhar" /> <strong>Compartilhar</strong>.
+          Abra <strong>meutumtum.com.br</strong> no <strong>Safari</strong> e toque em <Share className="inline w-4 h-4 -mt-0.5" aria-label="Compartilhar" /> <strong>Compartilhar</strong> (o quadrado com a seta; nas versões mais novas do iOS, ele fica no menu <strong>•••</strong>).
         </span>
       </li>
       <li className="flex gap-2">
         <span className="font-semibold text-ink">2.</span>
         <span>
-          Escolha <SquarePlus className="inline w-4 h-4 -mt-0.5" aria-hidden /> <strong>Adicionar à Tela de Início</strong> e depois <strong>Adicionar</strong>.
+          Role a lista, toque em <SquarePlus className="inline w-4 h-4 -mt-0.5" aria-hidden /> <strong>Adicionar à Tela de Início</strong>, deixe <strong>Abrir como App Web</strong> ligado (se aparecer) e toque em <strong>Adicionar</strong>.
         </span>
       </li>
       <li className="flex gap-2">
@@ -34,7 +40,9 @@ export function IosInstallSteps() {
           Abra o app pelo ícone novo e volte aqui em <strong>Nosso espaço</strong> para ativar.
         </span>
       </li>
-    </ol>
+      </ol>
+      {old && <p className="text-xs text-warn bg-warn-soft rounded-xl px-3 py-2">Este iPhone está numa versão do iOS anterior à 16.4, que não recebe notificações de sites. Atualize em Ajustes → Geral → Atualização de Software.</p>}
+    </div>
   );
 }
 
@@ -72,7 +80,19 @@ export function OpenInChrome() {
 
 export function InstallButton({ className = '' }: { className?: string }) {
   const available = useSyncExternalStore(onInstallChange, canInstall, () => false);
-  if (!available || isStandalone()) return null;
+  const [steps, setSteps] = useState(false);
+  if (isStandalone()) return null;
+  // iPhone: não existe botão de instalar; mostra o passo a passo do Safari.
+  if (isIOS()) {
+    return steps ? (
+      <IosInstallSteps />
+    ) : (
+      <Button tone="soft" onClick={() => setSteps(true)} className={className}>
+        <Download /> Instalar no iPhone
+      </Button>
+    );
+  }
+  if (!available) return null;
   return (
     <Button tone="soft" onClick={() => promptInstall()} className={className}>
       <Download /> Instalar o app
@@ -101,7 +121,6 @@ export default function NotificationSettings() {
         <div className="space-y-3">
           <p className="text-sm text-ink">No iPhone, as notificações funcionam com o app na Tela de Início:</p>
           <IosInstallSteps />
-          <p className="text-xs text-ink-mute">Precisa do iOS 16.4 ou mais novo.</p>
         </div>
       )}
 

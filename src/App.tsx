@@ -700,7 +700,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         )}
         {activeTab === 'cuidados' && careView === 'exames' && !report && (
           <ExamsTab
-            key={resultFrom?.id ?? examPreset ?? 'exames'}
+            key={resultFrom?.id ?? examPreset ?? focusExam ?? 'exames'}
             exams={exams}
             available={data.examsAvailable ?? false}
             dumDate={dumDate}
