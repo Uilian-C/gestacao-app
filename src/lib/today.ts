@@ -3,6 +3,7 @@ import { specialtyOf } from '../data/specialties';
 import type { Consultation, PartnerTask } from '../types';
 import { daysBetween, isOverdue, localDay, parseLocalDate, parseTimestamp } from './dates';
 import { FOLDER } from './folders';
+import { appointmentTitle, hasResult, kindInfo, kindOf } from './appointments';
 import { windowText, type Step } from './journey';
 
 // Faixa "Hoje" do Início: o que pede atenção agora, em cartões pequenos que
@@ -15,6 +16,7 @@ export type TodayAction =
   | { kind: 'exame'; planItem: string }
   | { kind: 'feito'; planItem: string }
   | { kind: 'concluir'; task: PartnerTask }
+  | { kind: 'resultado'; appointment: Consultation }
   | { kind: 'diario' };
 
 export interface TodayCard {
@@ -42,6 +44,10 @@ export function todayCards(input: {
   moments: JournalEntry[];
   /** Itens da jornada que já têm exame guardado. */
   savedExams: Set<string>;
+  /** Exames, ultrassons e vacinas agendados (as consultas vêm em nextConsultation). */
+  appointments?: Consultation[];
+  /** Agendamentos que já têm resultado guardado. */
+  withResult?: Set<string>;
 }): TodayCard[] {
   const { today } = input;
   const cards: TodayCard[] = [];
@@ -70,8 +76,38 @@ export function todayCards(input: {
     }
   }
 
+  // Exames, ultrassons e vacinas: os próximos 7 dias e, depois da data, o pedido de guardar o resultado.
+  const scheduled = new Set<string>();
+  for (const a of input.appointments ?? []) {
+    const days = daysBetween(today, localDay(a.scheduled_at));
+    const kind = kindInfo(kindOf(a));
+    if (a.plan_item && days >= 0) scheduled.add(a.plan_item);
+    if (days >= 0 && days <= 7) {
+      const at = parseTimestamp(a.scheduled_at);
+      cards.push({
+        id: `agendado-${a.id}`,
+        tone: 'verde',
+        label: `${kind.label} ${when(days)}`,
+        title: appointmentTitle(a),
+        detail: [`${at.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })} às ${at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`, a.professional_name].filter(Boolean).join(' · '),
+      });
+    } else if (days < 0 && days >= -14 && hasResult(a) && !input.withResult?.has(a.id)) {
+      if (a.plan_item) scheduled.add(a.plan_item);
+      cards.push({
+        id: `resultado-${a.id}`,
+        tone: 'verde',
+        label: kindOf(a) === 'ultrassom' ? 'Como foi o ultrassom?' : 'Como foi o exame?',
+        title: appointmentTitle(a),
+        detail: 'Guarde o laudo e as fotos para a próxima consulta.',
+        action: { label: 'Guardar resultado', do: { kind: 'resultado', appointment: a } },
+      });
+    }
+  }
+
   for (const s of input.steps) {
     if (s.status !== 'pendente' && s.status !== 'agora') continue;
+    // Já agendado: o cartão do agendamento fala por ele.
+    if (scheduled.has(s.item.id)) continue;
     const late = s.status === 'pendente';
     const exam = s.item.kind === 'exame';
     if (exam && input.savedExams.has(s.item.id)) continue;

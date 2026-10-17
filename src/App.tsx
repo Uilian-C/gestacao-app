@@ -36,6 +36,7 @@ import { FIRST_WEEK, clampWeek, daysBetween, gestationalAge, isOverdue, localDay
 import { pressureInsights, type ParsedMetric } from './lib/health';
 import { findPatterns, toEntries } from './lib/symptoms';
 import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, DiaryView, HealthView, PartnerTask, Tab } from './types';
+import { isConsultation, resultOf } from './lib/appointments';
 import { autoDone, visitsOf } from './lib/journey';
 
 const UNDO_WINDOW_MS = 5000;
@@ -56,6 +57,18 @@ const HEALTH_MODES: QuickMode[] = ['sintoma', 'medicao'];
 
 /** Gráficos de Cuidados → Saúde (o antigo Painel). */
 const HEALTH_CHART: Record<Exclude<HealthView, 'registros'>, DashboardView> = { sintomas: 'sintomas', corpo: 'corpo', resumo: 'geral' };
+
+const appointmentFields = (c: NewConsultation) => ({
+  scheduledAt: c.scheduledAt,
+  specialty: c.specialty,
+  professional: c.professional || null,
+  location: c.location || null,
+  kind: c.kind,
+  title: c.title,
+  planItem: c.planItem,
+});
+const appointmentError = (c: NewConsultation) =>
+  c.kind === 'consulta' ? undefined : 'Não foi possível agendar. Se for o primeiro exame agendado, rode a migração db/migrations/013_agendamentos.sql no Neon.';
 
 function greetingFor(hour: number): string {
   if (hour < 5) return 'Boa madrugada';
@@ -88,6 +101,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     return v === 'exames' || v === 'jornada' || v === 'saude' ? v : 'consultas';
   });
   const [examPreset, setExamPreset] = useState<string | null>(null);
+  /** Resultados: abrir o formulário a partir de um agendamento, ou levar até um resultado. */
+  const [resultFrom, setResultFrom] = useState<Consultation | null>(null);
+  const [focusExam, setFocusExam] = useState<string | null>(null);
   const [recording, setRecording] = useState<QuickMode[] | null>(null);
   /** Pasta (e ideia) com que o diário abre no registro. */
   const [entryStart, setEntryStart] = useState<{ folder: Folder; idea?: string }>({ folder: 'momento' });
@@ -115,6 +131,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     setActiveTab(tab);
     if (tab !== 'cuidados') setReport(null);
     setExamPreset(null);
+    setResultFrom(null);
+    setFocusExam(null);
     window.scrollTo({ top: 0 });
   };
 
@@ -343,7 +361,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const updateTask = (id: string, t: NewTask) =>
     run(() => api.mutate('updateTask', { id, title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null }));
   const updateConsultation = (id: string, c: NewConsultation) =>
-    run(() => api.mutate('updateConsultation', { id, scheduledAt: c.scheduledAt, specialty: c.specialty, professional: c.professional || null, location: c.location || null }));
+    run(() => api.mutate('updateConsultation', { id, ...appointmentFields(c) }), appointmentError(c));
   const deleteDetail = (d: Detail) => {
     if (d.kind === 'symptom') scheduleDelete('symptom', d.item.id, d.item.symptom_name);
     else if (d.kind === 'metric') scheduleDelete('metric', d.item.id, `medição da semana ${d.item.week_number}`);
@@ -353,9 +371,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   };
 
   const createConsultation = (c: NewConsultation) =>
-    run(() =>
-      api.mutate('createConsultation', { scheduledAt: c.scheduledAt, specialty: c.specialty, professional: c.professional || null, location: c.location || null }),
-    );
+    run(() => api.mutate('createConsultation', appointmentFields(c)), appointmentError(c));
 
   if (loadState !== 'ready' || !data) {
     return (
@@ -417,7 +433,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const tasks = visible('task', data.tasks);
   const journal = visible('entry', data.journal);
   // Feito = marcado pelo casal ou comprovado pelo uso (ex.: consulta de obstetra realizada).
-  const doneSteps = new Set([...data.checks.filter(c => c.list === 'prenatal').map(c => c.item_id), ...autoDone(visitsOf(data.consultations, dumDate, now))]);
+  const doneSteps = new Set([...data.checks.filter(c => c.list === 'prenatal').map(c => c.item_id), ...autoDone(visitsOf(data.consultations.filter(isConsultation), dumDate, now))]);
   const packed = new Set(data.checks.filter(c => c.list === 'mala').map(c => c.item_id));
   const listItems = visible('item', data.listItems ?? []);
   const reactions = data.reactions ?? [];
@@ -430,7 +446,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const questions = visible('question', data.questions);
   const comments = visible('comment', data.comments);
   const consultations = visible('consultation', data.consultations);
-  const nextConsultation = consultations.find(c => daysBetween(parseLocalDate(today), localDay(c.scheduled_at)) >= 0) ?? null;
+  // Só as consultas têm resumo e contam como consulta do pré-natal; exames, ultrassons e vacinas são agendamentos à parte.
+  const consultsOnly = consultations.filter(isConsultation);
+  const appointments = consultations.filter(c => !isConsultation(c));
+  const nextConsultation = consultsOnly.find(c => daysBetween(parseLocalDate(today), localDay(c.scheduled_at)) >= 0) ?? null;
   const prepareReport = (c: Consultation) => {
     setReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id });
     setActiveTab('cuidados');
@@ -451,6 +470,17 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const writeEntry = (folder: Folder, idea?: string) => {
     setEntryStart({ folder, idea });
     setRecording(RECORD_MODES.diario);
+  };
+  /** Exame ou ultrassom agendado: abre o resultado guardado, ou o formulário já preenchido. */
+  const openResult = (c: Consultation) => {
+    const done = resultOf(c, data.exams ?? []);
+    openCare('exames');
+    if (done) setFocusExam(done.id);
+    else setResultFrom(c);
+  };
+  const openExam = (id: string) => {
+    openCare('exames');
+    setFocusExam(id);
   };
   const openFromHome = (target: HomeTarget, planItem?: string) => {
     if (target === 'diario') return navigate('diario');
@@ -493,7 +523,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       onToggleStep={(id, done) => setCheck('prenatal', id, done)}
       view={view}
       onViewChange={openDashboardView}
-      consultations={consultations}
+      consultations={consultsOnly}
       ownSteps={listItems.filter(i => i.list === 'prenatal')}
       hiddenSteps={hiddenSteps}
       listsAvailable={data.socialAvailable ?? false}
@@ -548,6 +578,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             exams={exams}
             onToggleTask={toggleTask}
             onPrepareReport={prepareReport}
+            appointments={appointments}
+            onResult={openResult}
             onOpen={openFromHome}
             bloodType={data.profile.bloodType}
             doneSteps={doneSteps}
@@ -597,6 +629,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 symptoms={symptoms}
                 metrics={metrics}
                 journal={journal}
+                results={exams}
                 busy={busy}
                 migrationPending={data.migrationPending}
                 onCreateConsultation={createConsultation}
@@ -604,7 +637,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 onToggleTask={toggleTask}
                 onNavigate={navigate}
                 onNotify={text => showToast({ text, tone: 'info' })}
-                onOpen={setDetail}
+                onOpen={t => (t.kind === 'exam' ? openExam(t.id) : setDetail(t))}
               />
             ) : (
               <TasksTab
@@ -630,8 +663,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
               window.scrollTo({ top: 0 });
             }}
             options={[
-              { value: 'consultas', label: 'Consultas', badge: questions.filter(q => !q.doctor_answer).length },
-              { value: 'exames', label: 'Exames' },
+              { value: 'consultas', label: 'Agendados', badge: questions.filter(q => !q.doctor_answer).length },
+              { value: 'exames', label: 'Resultados' },
               { value: 'saude', label: 'Saúde' },
               { value: 'jornada', label: 'Jornada' },
             ]}
@@ -654,6 +687,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             }}
             onCreateConsultation={createConsultation}
             onOpenConsultation={c => setDetail({ kind: 'consultation', id: c.id })}
+            exams={exams}
+            onResult={openResult}
             onCreateQuestion={createQuestion}
             onAnswer={answerQuestion}
             onDeleteQuestion={q => scheduleDelete('question', q.id, 'dúvida')}
@@ -665,7 +700,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         )}
         {activeTab === 'cuidados' && careView === 'exames' && !report && (
           <ExamsTab
-            key={examPreset ?? 'exames'}
+            key={resultFrom?.id ?? examPreset ?? 'exames'}
             exams={exams}
             available={data.examsAvailable ?? false}
             dumDate={dumDate}
@@ -676,6 +711,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onDelete={e => scheduleDelete('exam', e.id, `exame "${e.title}"`)}
             onDeleteFile={(_, f) => scheduleDelete('examFile', f.id, f.content_type === 'application/pdf' ? 'PDF' : 'foto')}
             initialPlanItem={examPreset}
+            fromAppointment={resultFrom}
+            focusExam={focusExam}
             social={{ available: socialAvailable, reactions, threads, onReact: react, onThread: sendThread, onDeleteThread: deleteThread }}
           />
         )}
@@ -805,6 +842,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onDeleteComment={c => scheduleDelete('comment', c.id, 'cuidado')}
           onToggleTask={toggleTask}
           onPrepare={prepareReport}
+          onResult={openResult}
+          exams={exams}
           socialAvailable={socialAvailable}
           reactions={reactions}
           threads={threads}

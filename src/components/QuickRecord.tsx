@@ -13,14 +13,14 @@ import { Segmented } from './ui';
 
 export type QuickMode = 'sintoma' | 'medicao' | 'momento' | 'consulta' | 'tarefa' | 'exame';
 
-const LABEL: Record<QuickMode, string> = { sintoma: 'Sintoma', medicao: 'Peso e pressão', momento: 'Diário', consulta: 'Consulta', tarefa: 'Tarefa', exame: 'Exame' };
+const LABEL: Record<QuickMode, string> = { sintoma: 'Sintoma', medicao: 'Peso e pressão', momento: 'Diário', consulta: 'Agendar', tarefa: 'Tarefa', exame: 'Resultado' };
 const TITLE: Record<QuickMode, string> = {
   sintoma: 'Registrar sintoma',
   medicao: 'Registrar peso ou pressão',
   momento: 'Guardar no diário',
-  consulta: 'Agendar consulta',
+  consulta: 'Agendar',
   tarefa: 'Nova tarefa',
-  exame: 'Guardar exame',
+  exame: 'Guardar resultado',
 };
 
 export interface QuickRecordProps {

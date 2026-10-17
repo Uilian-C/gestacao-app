@@ -94,3 +94,30 @@ describe('momentos na agenda', () => {
     expect(ics.match(/Contamos no trabalho/g)?.length).toBe(1);
   });
 });
+
+describe('agendamentos e resultados no calendário', () => {
+  const base = { dumDate: '2026-05-15', tasks: [], symptoms: [], metrics: [] };
+  const ultrassom = { id: 'u1', scheduled_at: '2026-10-13T17:00:00.000Z', specialty: 'ultrassom', created_by: 'mae' as const, kind: 'ultrassom' as const, title: 'Ultrassom morfológico do 2º trimestre', plan_item: 'morfo-2' };
+
+  it('exame agendado aparece com o nome e o emoji do tipo', () => {
+    const cal = buildCalendar({ ...base, consultations: [ultrassom] });
+    const e = cal.events.get('2026-10-13')!.find(x => x.kind === 'consulta')!;
+    expect(e.title).toBe('Ultrassom morfológico do 2º trimestre');
+    expect(e.emoji).toBe('🖥️');
+    expect(e.appointment).toBe('ultrassom');
+  });
+
+  it('resultado guardado sem agendamento entra no dia do exame', () => {
+    const cal = buildCalendar({ ...base, consultations: [], results: [{ id: 'r1', title: 'Hemograma', exam_date: '2026-10-13', kind: 'exame' }] });
+    const e = cal.events.get('2026-10-13')!.find(x => x.kind === 'exame')!;
+    expect(e.title).toBe('Hemograma');
+    expect(e.sourceId).toBe('r1');
+  });
+
+  it('resultado de um agendamento do mesmo dia não aparece duas vezes', () => {
+    const cal = buildCalendar({ ...base, consultations: [ultrassom], results: [{ id: 'r1', title: 'Morfológico', exam_date: '2026-10-13', kind: 'ultrassom', appointment_id: 'u1' }] });
+    const day = cal.events.get('2026-10-13')!;
+    expect(day.filter(x => x.kind === 'exame')).toHaveLength(0);
+    expect(day.find(x => x.kind === 'consulta')!.detail).toContain('resultado guardado');
+  });
+});

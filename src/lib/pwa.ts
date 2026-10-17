@@ -6,6 +6,8 @@ const TABS: Tab[] = ['inicio', 'diario', 'agenda', 'cuidados', 'parto'];
 // consultas) continuam valendo: notificações já entregues ainda apontam para eles.
 const SUBTABS: Record<string, { tab: Tab; view: string }> = {
   consultas: { tab: 'cuidados', view: 'consultas' },
+  agendados: { tab: 'cuidados', view: 'consultas' },
+  resultados: { tab: 'cuidados', view: 'exames' },
   exames: { tab: 'cuidados', view: 'exames' },
   saude: { tab: 'cuidados', view: 'saude' },
   jornada: { tab: 'cuidados', view: 'jornada' },

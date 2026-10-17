@@ -58,7 +58,15 @@ export interface Consultation {
   location?: string | null;
   notes?: string | null;
   created_by: Author;
+  /** Tipo do agendamento (migração 013); sem ele, é consulta. */
+  kind?: AppointmentKind;
+  /** Nome do exame, ultrassom ou vacina. */
+  title?: string | null;
+  /** Item da jornada do pré-natal ligado ao agendamento. */
+  plan_item?: string | null;
 }
+
+export type AppointmentKind = 'consulta' | 'exame' | 'ultrassom' | 'vacina';
 
 export interface PregnancyProfile {
   dumDate: string | null;

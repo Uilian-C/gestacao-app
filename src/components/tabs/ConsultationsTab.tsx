@@ -10,14 +10,17 @@ import { laborReportLines } from '../../lib/labor';
 import { planProgress, toPlan } from '../../lib/birthPlan';
 import { FichaGrid } from '../FichaBar';
 import { BMI_LABEL, GAIN_STATUS_LABEL } from '../../lib/weightGain';
-import type { BirthPlanRecord, Contraction, KickSession, Consultation, HealthMetric, PartnerComment, PregnancyProfile, QuestionItem, SymptomItem } from '../../types';
+import { PLAN_ITEMS } from '../../content/prenatalPlan';
+import { APPOINTMENT_KINDS, isConsultation, appointmentEmoji, appointmentTitle, hasResult, kindInfo, kindOf, resultOf } from '../../lib/appointments';
+import type { ExamItem } from '../../hooks/useGestationData';
+import type { AppointmentKind, BirthPlanRecord, Contraction, KickSession, Consultation, HealthMetric, PartnerComment, PregnancyProfile, QuestionItem, SymptomItem } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import AddressInput from '../AddressInput';
 import LocationLinks from '../LocationLinks';
 import SpecialtyIcon from '../SpecialtyIcon';
 import { InsightList } from '../InsightList';
 import { inputClass } from '../styles';
-import { Button, Card, EmptyState, Field, Pill, SectionTitle } from '../ui';
+import { Button, Card, Chip, EmptyState, Field, Pill, SectionTitle } from '../ui';
 
 export interface ReportRequest {
   specialtyId: SpecialtyId;
@@ -29,6 +32,18 @@ export interface NewConsultation {
   specialty: SpecialtyId;
   professional: string;
   location: string;
+  /** Consulta, exame, ultrassom ou vacina. */
+  kind: AppointmentKind;
+  /** Nome do exame, ultrassom ou vacina. */
+  title: string | null;
+  planItem: string | null;
+}
+
+/** Sugestões de nome para cada tipo, tiradas da jornada do pré-natal. */
+function suggestionsFor(kind: AppointmentKind) {
+  if (kind === 'vacina') return PLAN_ITEMS.filter(i => i.kind === 'vacina');
+  const exams = PLAN_ITEMS.filter(i => i.kind === 'exame');
+  return kind === 'ultrassom' ? exams.filter(i => i.title.startsWith('Ultrassom')) : exams.filter(i => !i.title.startsWith('Ultrassom'));
 }
 
 interface Props {
@@ -43,8 +58,12 @@ interface Props {
   report: ReportRequest | null;
   onOpenReport: (r: ReportRequest | null) => void;
   onCreateConsultation: (c: NewConsultation) => Promise<boolean>;
-  /** Abre os detalhes da consulta (com editar e excluir). */
+  /** Abre os detalhes do agendamento (com editar e excluir). */
   onOpenConsultation: (c: Consultation) => void;
+  /** Resultados já guardados (para saber o que falta guardar). */
+  exams: ExamItem[];
+  /** Guarda o resultado de um exame agendado, ou abre o que já foi guardado. */
+  onResult: (c: Consultation) => void;
   onCreateQuestion: (text: string, category: string, specialty: SpecialtyId) => Promise<boolean>;
   onAnswer: (id: string, answer: string) => Promise<boolean>;
   onDeleteQuestion: (q: QuestionItem) => void;
@@ -64,30 +83,39 @@ export default function ConsultationsTab(props: Props) {
 
   const upcoming = props.consultations.filter(c => daysBetween(today, localDay(c.scheduled_at)) >= 0);
   const past = props.consultations.filter(c => daysBetween(today, localDay(c.scheduled_at)) < 0).reverse();
+  const waiting = past.filter(c => hasResult(c) && !resultOf(c, props.exams)).length;
+  const row = (c: Consultation) => (
+    <ConsultationRow
+      key={c.id}
+      consultation={c}
+      today={today}
+      questions={props.questions}
+      result={resultOf(c, props.exams)}
+      onPrepare={() => props.onOpenReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id })}
+      onResult={() => props.onResult(c)}
+      onOpen={() => props.onOpenConsultation(c)}
+    />
+  );
 
   return (
     <div className="space-y-5">
       <Card>
-        <SectionTitle icon={<CalendarHeart className="w-5 h-5" />} title="Agenda de consultas" subtitle="Cada consulta gera um resumo com o que importa para aquela especialidade." />
+        <SectionTitle icon={<CalendarHeart className="w-5 h-5" />} title="Agendados" subtitle="Consultas, exames, ultrassons e vacinas marcados. Tudo vai para a Agenda, com lembrete na véspera." />
         {props.migrationPending ? (
           <p className="text-sm text-warn bg-warn-soft rounded-2xl p-4">
-            Para agendar consultas, rodem a migração <code>db/migrations/002_consultas_e_padroes.sql</code> no Neon. Enquanto isso, o resumo avulso abaixo já funciona.
+            Para agendar, rodem a migração <code>db/migrations/002_consultas_e_padroes.sql</code> no Neon. Enquanto isso, o resumo avulso abaixo já funciona.
           </p>
         ) : (
           <div className="space-y-4">
-            {upcoming.length === 0 && <p className="text-ink-soft">Nenhuma consulta marcada.</p>}
-            {upcoming.map(c => (
-              <ConsultationRow key={c.id} consultation={c} today={today} questions={props.questions} onPrepare={() => props.onOpenReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id })} onOpen={() => props.onOpenConsultation(c)} />
-            ))}
+            {upcoming.length === 0 && <p className="text-ink-soft">Nada marcado por enquanto.</p>}
+            {upcoming.map(c => row(c))}
             <ScheduleForm busy={props.busy} onCreate={props.onCreateConsultation} />
             {past.length > 0 && (
-              <details>
-                <summary className="cursor-pointer text-sm font-semibold text-ink-mute">Consultas anteriores ({past.length})</summary>
-                <div className="space-y-3 mt-3">
-                  {past.map(c => (
-                    <ConsultationRow key={c.id} consultation={c} today={today} questions={props.questions} onPrepare={() => props.onOpenReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id })} onOpen={() => props.onOpenConsultation(c)} />
-                  ))}
-                </div>
+              <details open={waiting > 0}>
+                <summary className="cursor-pointer text-sm font-semibold text-ink-mute">
+                  Já aconteceram ({past.length}){waiting > 0 && ` · ${waiting} sem resultado guardado`}
+                </summary>
+                <div className="space-y-3 mt-3">{past.map(c => row(c))}</div>
               </details>
             )}
           </div>
@@ -101,18 +129,29 @@ export default function ConsultationsTab(props: Props) {
   );
 }
 
-function ConsultationRow({ consultation: c, today, questions, onPrepare, onOpen }: { consultation: Consultation; today: Date; questions: QuestionItem[]; onPrepare: () => void; onOpen: () => void }) {
+function ConsultationRow({ consultation: c, today, questions, result, onPrepare, onResult, onOpen }: { consultation: Consultation; today: Date; questions: QuestionItem[]; result: ExamItem | null; onPrepare: () => void; onResult: () => void; onOpen: () => void }) {
   const spec = specialtyOf(c.specialty);
+  const kind = kindOf(c);
+  const consulta = kind === 'consulta';
   const when = parseTimestamp(c.scheduled_at);
   const days = daysBetween(today, localDay(c.scheduled_at));
   const pending = questions.filter(q => !q.doctor_answer && questionSpecialty(q.specialty) === spec.id).length;
+  const title = appointmentTitle(c);
   return (
     <div className="rounded-2xl border border-transparent bg-surface-2/60 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-      <SpecialtyIcon id={spec.id} />
+      {consulta ? (
+        <SpecialtyIcon id={spec.id} />
+      ) : (
+        <span className="w-10 h-10 rounded-2xl bg-brand-soft flex items-center justify-center text-lg shrink-0" aria-hidden>
+          {appointmentEmoji(c)}
+        </span>
+      )}
       <div className="flex-1 min-w-0">
-        <button type="button" onClick={onOpen} className="flex flex-wrap items-center gap-2 text-left" aria-label={`Consulta de ${spec.label}: ver detalhes, editar ou excluir`}>
-          <p className="font-semibold text-ink">{spec.label}</p>
+        <button type="button" onClick={onOpen} className="flex flex-wrap items-center gap-2 text-left" aria-label={consulta ? `Consulta de ${title}: ver detalhes, editar ou excluir` : `${kindInfo(kind).label}: ${title}: ver detalhes, editar ou excluir`}>
+          {!consulta && <span className="text-[11px] font-bold uppercase tracking-wide text-brand-strong">{kindInfo(kind).label}</span>}
+          <p className="font-semibold text-ink">{title}</p>
           {days >= 0 && <Pill tone={days <= 2 ? 'warm' : 'brand'}>{days === 0 ? 'hoje' : days === 1 ? 'amanhã' : `em ${days} dias`}</Pill>}
+          {result && <Pill tone="brand">resultado guardado</Pill>}
           <ChevronRight className="w-4 h-4 text-ink-mute" />
         </button>
         <p className="text-sm text-ink-soft">
@@ -122,7 +161,7 @@ function ConsultationRow({ consultation: c, today, questions, onPrepare, onOpen 
         {c.location && <div className="mt-2"><LocationLinks address={c.location} /></div>}
         {days >= 0 && (
           <p className="text-xs text-ink-mute mt-1 flex flex-wrap gap-x-3">
-            <span>{pending} {pending === 1 ? 'dúvida anotada' : 'dúvidas anotadas'}</span>
+            {consulta && <span>{pending} {pending === 1 ? 'dúvida anotada' : 'dúvidas anotadas'}</span>}
             <a href={googleCalendarUrl(c)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand underline underline-offset-2">
               <ExternalLink className="w-3 h-3" /> Google Agenda
             </a>
@@ -130,9 +169,18 @@ function ConsultationRow({ consultation: c, today, questions, onPrepare, onOpen 
         )}
       </div>
       <div className="flex gap-2">
-        <Button onClick={onPrepare} tone={days >= 0 ? 'soft' : 'ghost'}>
-          <FileText className="w-4 h-4" /> {days >= 0 ? 'Preparar resumo' : 'Ver resumo'}
-        </Button>
+        {consulta ? (
+          <Button onClick={onPrepare} tone={days >= 0 ? 'soft' : 'ghost'}>
+            <FileText className="w-4 h-4" /> {days >= 0 ? 'Preparar resumo' : 'Ver resumo'}
+          </Button>
+        ) : (
+          hasResult(c) &&
+          (result || days <= 0) && (
+            <Button onClick={onResult} tone={result ? 'ghost' : 'soft'}>
+              <FileText className="w-4 h-4" /> {result ? 'Ver resultado' : 'Guardar resultado'}
+            </Button>
+          )
+        )}
       </div>
     </div>
   );
@@ -145,16 +193,20 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
     if (!value) onClose?.();
   };
   const at = initial ? parseTimestamp(initial.scheduled_at) : null;
+  const [kind, setKind] = useState<AppointmentKind>(initial ? kindOf(initial) : 'consulta');
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [planItem, setPlanItem] = useState<string | null>(initial?.plan_item ?? null);
   const [date, setDate] = useState(at ? toISODate(at) : (initialDate ?? ''));
   const [time, setTime] = useState(at ? at.toTimeString().slice(0, 5) : '09:00');
-  const [specialty, setSpecialty] = useState<SpecialtyId>(initial ? questionSpecialty(initial.specialty) : 'obstetra');
+  const [specialty, setSpecialty] = useState<SpecialtyId>(initial && kindOf(initial) === 'consulta' ? questionSpecialty(initial.specialty) : 'obstetra');
   const [professional, setProfessional] = useState(initial?.professional_name ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
+  const consulta = kind === 'consulta';
 
   if (!open) {
     return (
       <Button tone="soft" onClick={() => setOpen(true)}>
-        <Plus className="w-4 h-4" /> Agendar consulta
+        <Plus className="w-4 h-4" /> Agendar
       </Button>
     );
   }
@@ -164,23 +216,85 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
       className="rounded-2xl bg-surface-2 p-4 space-y-4"
       onSubmit={async e => {
         e.preventDefault();
-        if (!date) return;
+        if (!date || (!consulta && !title.trim())) return;
         // Horário local com fuso explícito, para o banco guardar o instante certo.
         const local = new Date(`${date}T${time || '09:00'}`);
-        if (await onCreate({ scheduledAt: local.toISOString(), specialty, professional: professional.trim(), location: location.trim() })) {
+        const ok = await onCreate({
+          scheduledAt: local.toISOString(),
+          // Exames e ultrassons ficam com a especialidade "Ultrassom / exames"; vacinas, "Outra".
+          specialty: consulta ? specialty : kind === 'vacina' ? 'outra' : 'ultrassom',
+          professional: professional.trim(),
+          location: location.trim(),
+          kind,
+          title: consulta ? null : title.trim(),
+          planItem: consulta ? null : planItem,
+        });
+        if (ok) {
           setOpen(false);
           setDate('');
+          setTitle('');
+          setPlanItem(null);
           setProfessional('');
           setLocation('');
         }
       }}
     >
+      <div role="group" aria-label="Tipo de agendamento" className="grid grid-cols-4 gap-1.5">
+        {APPOINTMENT_KINDS.map(k => (
+          <button
+            key={k.id}
+            type="button"
+            aria-pressed={kind === k.id}
+            onClick={() => {
+              setKind(k.id);
+              setTitle('');
+              setPlanItem(null);
+            }}
+            className={`flex flex-col items-center gap-0.5 rounded-2xl px-1 py-2 text-[12px] font-bold transition ${kind === k.id ? 'bg-brand text-on-accent shadow-soft' : 'bg-surface text-ink-soft hover:text-ink'}`}
+          >
+            <span className="text-base leading-none" aria-hidden>{k.emoji}</span>
+            {k.label}
+          </button>
+        ))}
+      </div>
       <div className="grid sm:grid-cols-2 gap-4">
-        <Field label="Especialidade" htmlFor="esp">
-          <select id="esp" className={inputClass} value={specialty} onChange={e => setSpecialty(e.target.value as SpecialtyId)}>
-            {SPECIALTIES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-        </Field>
+        {consulta ? (
+          <Field label="Especialidade" htmlFor="esp">
+            <select id="esp" className={inputClass} value={specialty} onChange={e => setSpecialty(e.target.value as SpecialtyId)}>
+              {SPECIALTIES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </Field>
+        ) : (
+          <div className="space-y-2 sm:col-span-2">
+            <Field label={kind === 'vacina' ? 'Qual vacina?' : kind === 'ultrassom' ? 'Qual ultrassom?' : 'Qual exame?'} htmlFor="nome-agendamento">
+              <input
+                id="nome-agendamento"
+                className={inputClass}
+                placeholder={kind === 'vacina' ? 'Ex.: Vacina dTpa' : kind === 'ultrassom' ? 'Ex.: Ultrassom obstétrico' : 'Ex.: Exames de sangue'}
+                value={title}
+                maxLength={120}
+                onChange={e => {
+                  setTitle(e.target.value);
+                  setPlanItem(null);
+                }}
+              />
+            </Field>
+            <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" aria-label="Sugestões da jornada">
+              {suggestionsFor(kind).map(i => (
+                <Chip
+                  key={i.id}
+                  active={planItem === i.id}
+                  onClick={() => {
+                    setTitle(i.title);
+                    setPlanItem(i.id);
+                  }}
+                >
+                  {i.short}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Data" htmlFor="data-consulta">
             <input id="data-consulta" type="date" required className={inputClass} value={date} onChange={e => setDate(e.target.value)} />
@@ -189,8 +303,8 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
             <input id="hora-consulta" type="time" className={inputClass} value={time} onChange={e => setTime(e.target.value)} />
           </Field>
         </div>
-        <Field label="Profissional (opcional)" htmlFor="prof">
-          <input id="prof" className={inputClass} placeholder="Ex.: Dra. Ana" value={professional} onChange={e => setProfessional(e.target.value)} />
+        <Field label={consulta ? 'Profissional (opcional)' : 'Laboratório ou clínica (opcional)'} htmlFor="prof">
+          <input id="prof" className={inputClass} placeholder={consulta ? 'Ex.: Dra. Ana' : 'Ex.: Laboratório Vida'} value={professional} onChange={e => setProfessional(e.target.value)} />
         </Field>
         <Field label="Endereço (opcional)" htmlFor="local" hint="Escolha uma sugestão para ter atalhos de Maps, Waze e Uber.">
           <AddressInput id="local" placeholder="Digite o nome da clínica ou o endereço" value={location} onChange={setLocation} />
@@ -198,7 +312,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
       </div>
       <div className="flex gap-2 justify-end">
         <Button tone="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-        <Button type="submit" disabled={busy || !date}>{initial ? 'Salvar alterações' : 'Agendar'}</Button>
+        <Button type="submit" disabled={busy || !date || (!consulta && !title.trim())}>{initial ? 'Salvar alterações' : 'Agendar'}</Button>
       </div>
     </form>
   );
@@ -327,7 +441,7 @@ function QuestionsSection({ questions, busy, migrationPending, onCreateQuestion,
 function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
   const { request, today } = props;
   const consultation = props.consultations.find(c => c.id === request.consultationId) ?? null;
-  const [from, setFrom] = useState(() => toISODate(defaultReportPeriod(props.consultations, request.specialtyId, today).from));
+  const [from, setFrom] = useState(() => toISODate(defaultReportPeriod(props.consultations.filter(isConsultation), request.specialtyId, today).from));
 
   const report = useMemo(
     () =>

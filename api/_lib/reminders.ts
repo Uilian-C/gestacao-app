@@ -21,7 +21,12 @@ export interface ConsultationRow {
   local: string;
   professional_name: string | null;
   location: string | null;
+  /** consulta, exame, ultrassom ou vacina (migração 013). */
+  kind?: string | null;
+  title?: string | null;
 }
+
+const KIND_LABEL: Record<string, string> = { consulta: 'Consulta', exame: 'Exame', ultrassom: 'Ultrassom', vacina: 'Vacina' };
 
 export interface EntryRow {
   id: string;
@@ -61,8 +66,8 @@ export function planReminders(today: string, families: FamilyRow[], consultation
       kind: 'consultas',
       key: `consulta:${c.id}:${date === today ? 'dia' : 'vespera'}`,
       payload: {
-        title: `Consulta ${when} às ${time}`,
-        body: details ? clip(details, 140) : 'Toque para ver o endereço e as dúvidas para levar.',
+        title: `${KIND_LABEL[c.kind ?? 'consulta'] ?? 'Consulta'} ${when} às ${time}`,
+        body: clip([c.kind && c.kind !== 'consulta' ? c.title : null, details].filter(Boolean).join(' · '), 140) || 'Toque para ver o endereço e as dúvidas para levar.',
         url: '/?aba=consultas',
         tag: `consulta-${c.id}`,
       },

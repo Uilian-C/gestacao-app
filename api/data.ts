@@ -35,7 +35,16 @@ const symptomFields = {
   timeOfDay: z.string().max(12).nullish().transform(v => v || null),
 };
 const metricFields = { weight: nullableNum(20, 400), systolic: nullableInt(50, 260), diastolic: nullableInt(30, 180) };
-const consultationFields = { scheduledAt: timestamp, specialty: text(30), professional: optionalText(120), location: optionalText(200) };
+const consultationFields = {
+  scheduledAt: timestamp,
+  specialty: text(30),
+  professional: optionalText(120),
+  location: optionalText(200),
+  // Agendamento (migração 013): consulta, exame, ultrassom ou vacina; nome e item da jornada.
+  kind: z.enum(['consulta', 'exame', 'ultrassom', 'vacina']).optional(),
+  title: optionalText(120),
+  planItem: z.string().regex(/^[a-z0-9-]{1,40}$/).nullish().transform(v => v || null),
+};
 const FOLDERS = ['momento', 'dia', 'ideia', 'carta', 'barriga'] as const;
 const entryFields = {
   // Pode ficar vazio só na foto da barriga (a legenda é opcional); ver apply().
@@ -143,6 +152,20 @@ async function withFolder(folder: string, write: () => Promise<Array<{ id: strin
   }
 }
 
+/**
+ * Grava um agendamento com tipo, nome e item da jornada. Antes da migração 013
+ * essas colunas não existem: consultas ainda gravam (sem elas); exames, ultrassons e vacinas pedem a migração.
+ */
+async function withAppointment(kind: string | undefined, write: () => Promise<Array<{ id: string }>>, legacy: () => Promise<Array<{ id: string }>>) {
+  try {
+    return await write();
+  } catch (err) {
+    if ((err as { code?: string }).code !== '42703') throw err;
+    if (kind && kind !== 'consulta') throw new HttpError(503, 'Os agendamentos de exames ainda não estão ligados no servidor. Rode a migração db/migrations/013_agendamentos.sql no Neon.');
+    return legacy();
+  }
+}
+
 async function updated(sql: string, values: unknown[]) {
   const rows = await query(`${sql} RETURNING id`, values);
   if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
@@ -236,17 +259,27 @@ async function apply(m: Member, o: Op) {
     case 'updateMetric':
       if (o.weight === null && (o.systolic === null || o.diastolic === null)) throw new HttpError(400, 'Informe o peso ou a pressão.');
       return updated(`UPDATE health_metrics_log SET weight_kg = $1, systolic_bp = $2, diastolic_bp = $3 WHERE id::text = $4 AND family_id = $5`, [o.weight, o.systolic, o.diastolic, o.id, fid]);
-    case 'updateConsultation':
-      return updated(
-        `UPDATE consultations SET scheduled_at = $1, specialty = $2, professional_name = $3, location = $4 WHERE id::text = $5 AND family_id = $6`,
-        [o.scheduledAt, o.specialty, o.professional, o.location, o.id, fid],
-      );
-    case 'createConsultation':
-      return query(
-        `INSERT INTO consultations (family_id, scheduled_at, specialty, professional_name, location, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [fid, o.scheduledAt, o.specialty, o.professional, o.location, who],
-      );
+    case 'updateConsultation': {
+      const update = (full: boolean) =>
+        query<{ id: string }>(
+          `UPDATE consultations SET scheduled_at = $1, specialty = $2, professional_name = $3, location = $4
+           ${full ? ', kind = COALESCE($7, kind), title = $8, plan_item = $9' : ''}
+           WHERE id::text = $5 AND family_id = $6 RETURNING id::text AS id`,
+          [o.scheduledAt, o.specialty, o.professional, o.location, o.id, fid, ...(full ? [o.kind ?? null, o.title, o.planItem] : [])],
+        );
+      const rows = await withAppointment(o.kind, () => update(true), () => update(false));
+      if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
+      return rows;
+    }
+    case 'createConsultation': {
+      const insert = (full: boolean) =>
+        query<{ id: string }>(
+          `INSERT INTO consultations (family_id, scheduled_at, specialty, professional_name, location, created_by${full ? ', kind, title, plan_item' : ''})
+           VALUES ($1, $2, $3, $4, $5, $6${full ? ', $7, $8, $9' : ''}) RETURNING id::text AS id`,
+          [fid, o.scheduledAt, o.specialty, o.professional, o.location, who, ...(full ? [o.kind ?? 'consulta', o.title, o.planItem] : [])],
+        );
+      return withAppointment(o.kind, () => insert(true), () => insert(false));
+    }
     case 'createEntry': {
       if (!o.body && o.folder !== 'barriga') throw new HttpError(400, 'Escreva alguma coisa para guardar.');
       const insert = (folder: boolean) =>
@@ -346,7 +379,7 @@ function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } 
     case 'createMetric':
       return { action: 'registrou uma medição', body: 'Peso ou pressão: veja em Cuidados, na parte de saúde.', url: '/?aba=saude', tag: 'parceiro-medicao' };
     case 'createConsultation':
-      return { action: 'agendou uma consulta', body: 'Toque para ver data, hora e endereço.', url: '/?aba=consultas', tag: 'parceiro-consulta' };
+      return { action: APPOINTMENT_TEXT[o.kind ?? 'consulta'], body: 'Toque para ver data, hora e endereço.', url: '/?aba=consultas', tag: 'parceiro-consulta' };
     case 'createQuestion':
       return { action: 'anotou uma dúvida para a consulta', body: 'Toque para ver a lista de perguntas.', url: '/?aba=consultas', tag: 'parceiro-duvida' };
     case 'createTask':
@@ -361,6 +394,8 @@ function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } 
       return null;
   }
 }
+
+const APPOINTMENT_TEXT = { consulta: 'agendou uma consulta', exame: 'agendou um exame', ultrassom: 'agendou um ultrassom', vacina: 'agendou uma vacina' } as const;
 
 const REACTION_URL = { exam: '/?aba=exames', task: '/?aba=agenda', symptom: '/?aba=saude', entry: '/?aba=diario' } as const;
 

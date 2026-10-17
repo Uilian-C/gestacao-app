@@ -1,10 +1,10 @@
 import { PRENATAL_MILESTONES } from '../content/prenatalMilestones';
-import { specialtyOf } from '../data/specialties';
-import type { Author, Consultation, HealthMetric, PartnerTask, SymptomItem } from '../types';
+import { appointmentEmoji, appointmentTitle, kindInfo, kindOf } from './appointments';
+import type { AppointmentKind, Author, Consultation, HealthMetric, PartnerTask, SymptomItem } from '../types';
 import { daysBetween, isOverdue, localDay, parseLocalDate, parseTimestamp, toISODate } from './dates';
 import { isHighBloodPressure } from './health';
 
-export type EventKind = 'consulta' | 'tarefa' | 'marco' | 'momento';
+export type EventKind = 'consulta' | 'exame' | 'tarefa' | 'marco' | 'momento';
 
 export interface CalendarEvent {
   id: string;
@@ -22,6 +22,17 @@ export interface CalendarEvent {
   /** Momento com data para lembrar (vai para a agenda exportada). */
   reminder?: boolean;
   private?: boolean;
+  /** Consulta, exame, ultrassom ou vacina (agendamentos). */
+  appointment?: AppointmentKind;
+}
+
+/** Resultado guardado (exame ou ultrassom), que entra no dia em que foi feito. */
+export interface CalendarResult {
+  id: string;
+  title: string;
+  exam_date: string;
+  kind: string;
+  appointment_id?: string | null;
 }
 
 export interface CalendarMoment {
@@ -48,25 +59,34 @@ export interface CalendarData {
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
-export function buildCalendar(input: { dumDate: string; consultations: Consultation[]; tasks: PartnerTask[]; symptoms: SymptomItem[]; metrics: HealthMetric[]; journal?: CalendarMoment[]; today?: Date }): CalendarData {
+export function buildCalendar(input: { dumDate: string; consultations: Consultation[]; results?: CalendarResult[]; tasks: PartnerTask[]; symptoms: SymptomItem[]; metrics: HealthMetric[]; journal?: CalendarMoment[]; today?: Date }): CalendarData {
   const today = input.today ?? new Date();
   const events = new Map<string, CalendarEvent[]>();
   const push = (e: CalendarEvent) => events.set(e.date, [...(events.get(e.date) ?? []), e]);
 
   for (const c of input.consultations) {
     const when = parseTimestamp(c.scheduled_at);
-    const spec = specialtyOf(c.specialty);
+    const result = input.results?.find(r => r.appointment_id === c.id);
     push({
       id: `consulta-${c.id}`,
       kind: 'consulta',
+      appointment: kindOf(c),
       date: toISODate(localDay(c.scheduled_at)),
       time: hhmm(when),
-      title: spec.label,
-      detail: [c.professional_name, c.location].filter(Boolean).join(' · ') || undefined,
-      emoji: spec.emoji,
+      title: appointmentTitle(c),
+      detail: [result ? 'resultado guardado' : null, c.professional_name, c.location].filter(Boolean).join(' · ') || undefined,
+      emoji: appointmentEmoji(c),
       author: c.created_by,
       sourceId: c.id,
     });
+  }
+
+  // Resultados guardados entram no dia do exame; se vieram de um agendamento do mesmo dia, o agendamento já está lá.
+  const byId = new Map(input.consultations.map(c => [c.id, c]));
+  for (const r of input.results ?? []) {
+    const from = r.appointment_id ? byId.get(r.appointment_id) : undefined;
+    if (from && toISODate(localDay(from.scheduled_at)) === r.exam_date.slice(0, 10)) continue;
+    push({ id: `exame-${r.id}`, kind: 'exame', date: r.exam_date.slice(0, 10), title: r.title, detail: 'Resultado guardado', emoji: r.kind === 'ultrassom' ? '🖥️' : '🧪', sourceId: r.id });
   }
 
   for (const t of input.tasks) {
@@ -104,7 +124,7 @@ export function buildCalendar(input: { dumDate: string; consultations: Consultat
     }
   }
 
-  const order: Record<EventKind, number> = { marco: 0, consulta: 1, tarefa: 2, momento: 3 };
+  const order: Record<EventKind, number> = { marco: 0, consulta: 1, exame: 2, tarefa: 3, momento: 4 };
   for (const list of events.values()) list.sort((a, b) => order[a.kind] - order[b.kind] || (a.time ?? '').localeCompare(b.time ?? ''));
 
   const records = new Map<string, DayRecords>();
@@ -155,10 +175,10 @@ const dateStamp = (iso: string) => iso.replace(/-/g, '');
 export function googleCalendarUrl(c: Consultation): string {
   const start = parseTimestamp(c.scheduled_at);
   const end = new Date(start.getTime() + 60 * 60 * 1000);
-  const spec = specialtyOf(c.specialty);
+  const kind = kindOf(c);
   const params = new URLSearchParams({
     action: 'TEMPLATE',
-    text: `${spec.emoji} Consulta: ${spec.label}`,
+    text: `${appointmentEmoji(c)} ${kindInfo(kind).label}: ${appointmentTitle(c)}`,
     dates: `${utcStamp(start)}/${utcStamp(end)}`,
     details: [c.professional_name && `Profissional: ${c.professional_name}`, 'Levar o resumo gerado no app Tumtum.'].filter(Boolean).join('\n'),
   });
@@ -174,6 +194,8 @@ export function toIcs(events: CalendarEvent[], consultations: Consultation[], no
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Tumtum//PT-BR', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Tumtum'];
   for (const e of events) {
     if (e.kind === 'tarefa' && e.done) continue;
+    // Resultados já guardados não vão para a agenda exportada.
+    if (e.kind === 'exame') continue;
     // Momentos já vividos não vão para a agenda; só os lembretes.
     if (e.kind === 'momento' && !e.reminder) continue;
     // UID com o nome antigo de propósito: quem já importou a agenda não ganha eventos duplicados.
@@ -187,7 +209,7 @@ export function toIcs(events: CalendarEvent[], consultations: Consultation[], no
       const next = toISODate(addDays(parseLocalDate(e.date), 1));
       lines.push(`DTSTART;VALUE=DATE:${dateStamp(e.date)}`, `DTEND;VALUE=DATE:${dateStamp(next)}`);
     }
-    const prefix = e.kind === 'consulta' ? 'Consulta: ' : e.kind === 'tarefa' ? 'Tarefa: ' : '';
+    const prefix = e.kind === 'consulta' ? `${kindInfo(e.appointment ?? 'consulta').label}: ` : e.kind === 'tarefa' ? 'Tarefa: ' : '';
     lines.push(`SUMMARY:${escapeIcs(prefix + e.title)}`);
     if (e.detail) lines.push(`DESCRIPTION:${escapeIcs(e.detail)}`);
     lines.push('END:VEVENT');

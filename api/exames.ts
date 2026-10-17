@@ -26,6 +26,8 @@ const ops = z.discriminatedUnion('op', [
     planItem: z.string().regex(/^[a-z0-9-]{1,40}$/).nullish().transform(v => v || null),
     notes: z.string().trim().max(2000).nullish().transform(v => v || null),
     visibility: z.enum(['private', 'shared']),
+    // O agendamento de onde veio o resultado (migração 013), se houver.
+    appointmentId: id.nullish().transform(v => v || null),
   }),
   z.object({
     op: z.literal('addFile'),
@@ -92,13 +94,31 @@ export const POST = endpoint(async request => {
 
   switch (o.op) {
     case 'create': {
-      const rows = await query<{ id: string }>(
-        `INSERT INTO exams (family_id, user_id, author_role, kind, title, exam_date, plan_item, notes, visibility)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id::text AS id`,
-        [fid, member.userId, member.role, o.kind, o.title, o.date, o.planItem, o.notes, o.visibility],
-      );
+      if (o.appointmentId) {
+        const own = await query('SELECT 1 FROM consultations WHERE id::text = $1 AND family_id = $2', [o.appointmentId, fid]);
+        if (!own[0]) throw new HttpError(404, 'Agendamento não encontrado.');
+      }
+      const values = [fid, member.userId, member.role, o.kind, o.title, o.date, o.planItem, o.notes, o.visibility];
+      const rows = o.appointmentId
+        ? await query<{ id: string }>(
+            `INSERT INTO exams (family_id, user_id, author_role, kind, title, exam_date, plan_item, notes, visibility, appointment_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id::text AS id`,
+            [...values, o.appointmentId],
+          ).catch(err => {
+            // Antes da migração 013 o resultado grava sem a ligação com o agendamento.
+            if ((err as { code?: string }).code !== '42703') throw err;
+            return null;
+          })
+        : null;
+      const created =
+        rows ??
+        (await query<{ id: string }>(
+          `INSERT INTO exams (family_id, user_id, author_role, kind, title, exam_date, plan_item, notes, visibility)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id::text AS id`,
+          values,
+        ));
       if (o.visibility === 'shared') await notifyPartners(member).catch(err => console.error('Aviso ao parceiro não enviado', err));
-      return json({ ok: true, id: rows[0].id });
+      return json({ ok: true, id: created[0].id });
     }
     case 'addFile': {
       if (!storageReady()) throw new HttpError(503, STORAGE_HINT);

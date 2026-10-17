@@ -27,7 +27,7 @@ const photo = Buffer.from(
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
 
 await p.getByRole('button', { name: /^Cuidados/ }).first().click();
-await p.getByRole('button', { name: /^Exames/ }).click();
+await p.getByRole('button', { name: /^Resultados/ }).click();
 await p.getByText('Nenhum exame guardado ainda').waitFor({ timeout: 10000 }).catch(() => undefined);
 check(await p.getByText('Nenhum exame guardado ainda').isVisible(), 'sem exames: convite para guardar o primeiro');
 const chip = p.getByRole('button', { name: 'Morfológico 2º tri' });

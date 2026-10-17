@@ -92,6 +92,8 @@ export interface ExamItem {
   mine: boolean;
   created_at: string;
   files: ExamFile[];
+  /** Agendamento de onde veio o resultado (migração 013). */
+  appointment_id?: string | null;
 }
 
 export interface JournalEntry {

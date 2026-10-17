@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Bell, Camera, CalendarHeart, Check, CheckCircle2, Heart, Lightbulb, NotebookPen, Pencil, Route, Siren, Sparkles, Syringe } from 'lucide-react';
+import { ArrowRight, Bell, Camera, CalendarHeart, Check, CheckCircle2, FileCheck2, Heart, Lightbulb, NotebookPen, Pencil, Route, Siren, Sparkles, Syringe } from 'lucide-react';
 import { weekInfo } from '../../content/weeks';
 import { ALERT_SIGNS } from '../../content/symptomCatalog';
 import { FIRST_WEEK, LAST_WEEK, formatBR, type GestationalAge } from '../../lib/dates';
@@ -39,6 +39,10 @@ interface Props {
   exams: ExamItem[];
   onToggleTask: (task: PartnerTask) => void;
   onPrepareReport: (consultation: Consultation) => void;
+  /** Exames, ultrassons e vacinas agendados. */
+  appointments: Consultation[];
+  /** Guarda o resultado de um exame agendado. */
+  onResult: (c: Consultation) => void;
   onOpen: (target: HomeTarget, planItem?: string) => void;
   bloodType: string | null;
   /** IDs da jornada do pré-natal já marcados como feitos. */
@@ -59,7 +63,8 @@ const TONE: Record<TodayTone, { card: string; label: string; action: string }> =
 };
 
 function cardIcon(card: TodayCard) {
-  if (card.id.startsWith('consulta')) return <CalendarHeart />;
+  if (card.id.startsWith('consulta') || card.id.startsWith('agendado')) return <CalendarHeart />;
+  if (card.id.startsWith('resultado')) return <FileCheck2 />;
   if (card.id.startsWith('tarefa')) return <CheckCircle2 />;
   if (card.id.startsWith('momento')) return <Heart />;
   if (card.id.startsWith('lembrete')) return <Bell />;
@@ -153,6 +158,8 @@ export default function HomeTab(props: Props) {
     currentWeek,
     moments: props.journal,
     savedExams: new Set(props.exams.map(e => e.plan_item).filter((x): x is string => !!x)),
+    appointments: props.appointments,
+    withResult: new Set(props.exams.map(e => e.appointment_id).filter((x): x is string => !!x)),
   });
 
   const act = (a: TodayAction) => {
@@ -160,6 +167,7 @@ export default function HomeTab(props: Props) {
     else if (a.kind === 'exame') onOpen('exames', a.planItem);
     else if (a.kind === 'feito') props.onToggleStep(a.planItem, true);
     else if (a.kind === 'concluir') props.onToggleTask(a.task);
+    else if (a.kind === 'resultado') props.onResult(a.appointment);
     else onOpen('diario');
   };
 

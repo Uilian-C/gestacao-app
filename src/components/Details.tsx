@@ -1,9 +1,9 @@
 import { useState } from 'react';
+import { appointmentTitle, hasResult, kindInfo, kindOf, resultOf } from '../lib/appointments';
 import { AlertTriangle, Bell, CalendarHeart, Check, CheckCircle2, Clock, ExternalLink, FileText, HeartHandshake, Lock, NotebookPen, Pencil, RotateCcw, Scale, Trash2, Users } from 'lucide-react';
 import { isAlertSymptom } from '../content/symptomCatalog';
-import { specialtyOf } from '../data/specialties';
 import { googleCalendarUrl } from '../lib/calendar';
-import { formatBR, isOverdue, parseTimestamp } from '../lib/dates';
+import { formatBR, isOverdue, localDay, parseLocalDate, parseTimestamp, toISODate } from '../lib/dates';
 import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure, type ParsedMetric } from '../lib/health';
 import { INTENSITY } from '../lib/intensity';
 import { normalizeSymptomName, timeOfDayLabel } from '../lib/symptoms';
@@ -23,7 +23,7 @@ import { ScheduleForm, type NewConsultation } from './tabs/ConsultationsTab';
 import { TaskForm, type NewTask } from './tabs/TasksTab';
 import { Button, Pill } from './ui';
 import { ReactionBar, Thread, type OnReact } from './Social';
-import type { Reaction, ThreadComment } from '../hooks/useGestationData';
+import type { ExamItem, Reaction, ThreadComment } from '../hooks/useGestationData';
 
 // Detalhes de um registro numa janela: tudo o que foi anotado, e Editar e Excluir.
 // As listas ficam enxutas; o resto aparece aqui.
@@ -48,6 +48,9 @@ export interface DetailHandlers {
   onDeleteComment: (c: PartnerComment) => void;
   onToggleTask: (t: PartnerTask) => void;
   onPrepare: (c: Consultation) => void;
+  /** Exame ou ultrassom agendado: guarda o resultado, ou abre o que já foi guardado. */
+  onResult: (c: Consultation) => void;
+  exams: ExamItem[];
   /** Reações e conversa (migração 011). */
   socialAvailable: boolean;
   reactions: Reaction[];
@@ -266,12 +269,15 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
   }
 
   const c = detail.item;
-  const spec = specialtyOf(c.specialty);
+  const kind = kindOf(c);
+  const consulta = kind === 'consulta';
+  const result = resultOf(c, h.exams);
+  const happened = parseTimestamp(c.scheduled_at) <= new Date() || localDay(c.scheduled_at).getTime() <= parseLocalDate(toISODate(new Date())).getTime();
   const when = parseTimestamp(c.scheduled_at);
   return (
     <Sheet
       icon={<CalendarHeart />}
-      title={editing ? 'Editar consulta' : spec.label}
+      title={editing ? `Editar ${kindInfo(kind).label.toLowerCase()}` : appointmentTitle(c)}
       subtitle={editing ? null : `${when.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })} às ${when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
       onClose={editing ? () => setEditing(false) : onClose}
     >
@@ -279,7 +285,13 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
         <ScheduleForm initial={c} busy={h.busy} onClose={() => setEditing(false)} onCreate={async v => saved(await h.onUpdateConsultation(c.id, v))} />
       ) : (
         <>
-          <Facts items={[['Profissional', c.professional_name || '—'], ['Dúvidas anotadas', String(detail.pendingQuestions)]]} />
+          <Facts
+            items={
+              consulta
+                ? [['Profissional', c.professional_name || '—'], ['Dúvidas anotadas', String(detail.pendingQuestions)]]
+                : [['Tipo', `${kindInfo(kind).emoji} ${kindInfo(kind).label}`], ['Laboratório ou clínica', c.professional_name || '—'], ...(hasResult(c) ? [['Resultado', result ? 'guardado' : 'ainda não'] as [string, string]] : [])]
+            }
+          />
           {c.location && (
             <div className="mt-4 space-y-2">
               <p className="text-sm text-ink">{c.location}</p>
@@ -290,15 +302,30 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
             <ExternalLink className="w-4 h-4" /> Adicionar ao Google Agenda
           </a>
           <Actions onEdit={() => setEditing(true)} onDelete={remove}>
-            <Button
-              onClick={() => {
-                onClose();
-                h.onPrepare(c);
-              }}
-              className="w-full"
-            >
-              <FileText /> Preparar resumo da consulta
-            </Button>
+            {consulta ? (
+              <Button
+                onClick={() => {
+                  onClose();
+                  h.onPrepare(c);
+                }}
+                className="w-full"
+              >
+                <FileText /> Preparar resumo da consulta
+              </Button>
+            ) : (
+              hasResult(c) &&
+              (result || happened) && (
+                <Button
+                  onClick={() => {
+                    onClose();
+                    h.onResult(c);
+                  }}
+                  className="w-full"
+                >
+                  <FileText /> {result ? 'Ver resultado' : 'Guardar resultado'}
+                </Button>
+              )
+            )}
           </Actions>
         </>
       )}
