@@ -48,12 +48,13 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
 }
 
 /**
- * Partes de uma aba: chips logo abaixo do título, sempre no mesmo lugar e do
- * mesmo jeito em todas as abas. Desliza para o lado quando não cabe.
+ * Partes de uma aba, logo abaixo do cabeçalho: texto com um traço na cor da aba
+ * embaixo da parte ativa. Bem diferente das abas de baixo (pílulas) e dos botões,
+ * para não confundir os níveis. Todas cabem na largura da tela, sem cortar.
  */
-export function SubTabs<T extends string>({ value, options, onChange, label }: { value: T; options: Array<{ value: T; label: ReactNode }>; onChange: (v: T) => void; label: string }) {
+export function SubTabs<T extends string>({ value, options, onChange, label }: { value: T; options: Array<{ value: T; label: string; badge?: number }>; onChange: (v: T) => void; label: string }) {
   return (
-    <div className="no-print -mx-4 md:mx-0 px-4 md:px-0 mb-4 flex gap-2 overflow-x-auto no-scrollbar" role="group" aria-label={label}>
+    <div className="no-print mb-4 grid border-b border-line" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }} role="group" aria-label={label}>
       {options.map(o => {
         const on = value === o.value;
         return (
@@ -62,9 +63,11 @@ export function SubTabs<T extends string>({ value, options, onChange, label }: {
             type="button"
             onClick={() => onChange(o.value)}
             aria-pressed={on}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm transition ${on ? 'bg-brand text-on-accent font-extrabold shadow-soft' : 'bg-surface text-ink-soft font-semibold ring-1 ring-line hover:text-ink'}`}
+            className={`relative flex items-center justify-center gap-1.5 px-0.5 pt-2 pb-2.5 leading-tight transition ${options.length > 3 ? 'text-[13px] sm:text-[14px]' : 'text-[14px]'} ${on ? 'text-brand-strong font-extrabold' : 'text-ink-mute font-semibold hover:text-ink'}`}
           >
-            {o.label}
+            <span className="truncate">{o.label}</span>
+            {!!o.badge && <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-warm text-on-accent text-[11px] font-bold flex items-center justify-center tabular">{o.badge}</span>}
+            <span className={`absolute left-2 right-2 -bottom-px h-[3px] rounded-full transition ${on ? 'bg-brand' : 'bg-transparent'}`} aria-hidden />
           </button>
         );
       })}

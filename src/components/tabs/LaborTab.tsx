@@ -77,7 +77,7 @@ export default function LaborTab(props: Props) {
         options={[
           { value: 'movimentos', label: 'Movimentos' },
           { value: 'contracoes', label: 'Contrações' },
-          { value: 'plano', label: 'Plano de parto' },
+          { value: 'plano', label: 'Plano' },
           { value: 'mala', label: 'Mala' },
         ]}
       />
