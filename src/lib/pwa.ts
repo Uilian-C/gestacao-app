@@ -7,6 +7,7 @@ const TABS: Tab[] = ['inicio', 'diario', 'agenda', 'cuidados', 'parto'];
 const SUBTABS: Record<string, { tab: Tab; view: string }> = {
   consultas: { tab: 'cuidados', view: 'consultas' },
   exames: { tab: 'cuidados', view: 'exames' },
+  saude: { tab: 'cuidados', view: 'saude' },
   jornada: { tab: 'cuidados', view: 'jornada' },
   painel: { tab: 'cuidados', view: 'jornada' },
 };

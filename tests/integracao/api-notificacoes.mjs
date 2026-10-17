@@ -37,7 +37,7 @@ await A.call('/api/data', { op: 'createSymptom', week: 24, date: today, name: 'A
 await wait(300);
 let box = await inbox();
 check(of(box, 'a').length === 1 && of(box, 'a')[0].title.startsWith('Notificações do Tumtum'), 'A recebe só o teste (não é avisada do próprio registro)');
-check(of(box, 'b').some(p => p.title === 'Ana registrou um sintoma no diário' && !JSON.stringify(p).includes('Azia')), 'B é avisado do sintoma, sem o nome do sintoma na tela bloqueada');
+check(of(box, 'b').some(p => p.title === 'Ana registrou um sintoma' && p.url === '/?aba=saude' && !JSON.stringify(p).includes('Azia')), 'B é avisado do sintoma, sem o nome do sintoma na tela bloqueada');
 check(!(await B.call('/api/push')).data.endpoints.some(e => e.includes('gone')), 'aparelho que sumiu (410) sai da lista');
 
 await B.call('/api/push', { op: 'prefs', consultas: true, momentos: true, jornada: true, parceiro: false });

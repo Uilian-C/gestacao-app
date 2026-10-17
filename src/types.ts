@@ -115,9 +115,12 @@ export type DeletableKind = 'task' | 'symptom' | 'question' | 'comment' | 'metri
 export type Tab = 'inicio' | 'diario' | 'agenda' | 'cuidados' | 'parto';
 
 /** Partes de cada aba (os chips logo abaixo do título). */
-export type DiaryView = 'linha' | 'sintomas' | 'corpo' | 'resumo';
+/** Diário: a capa do fichário ou uma das pastas. */
+export type DiaryView = 'tudo' | 'momento' | 'dia' | 'ideia' | 'carta' | 'barriga';
 export type AgendaView = 'calendario' | 'tarefas';
-export type CareView = 'consultas' | 'exames' | 'jornada';
+export type CareView = 'consultas' | 'exames' | 'saude' | 'jornada';
+/** Cuidados → Saúde: os registros, os gráficos e o resumo. */
+export type HealthView = 'registros' | 'sintomas' | 'corpo' | 'resumo';
 
-/** Visões dos gráficos e da jornada (o antigo Painel, hoje dividido entre Diário e Cuidados). */
+/** Visões dos gráficos e da jornada (o antigo Painel, hoje dentro de Cuidados). */
 export type DashboardView = 'geral' | 'jornada' | 'sintomas' | 'corpo';

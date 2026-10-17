@@ -16,7 +16,6 @@ const tab = (p, name) => p.getByRole('button', { name: new RegExp(`^${name}`) })
 // ---- Mãe guarda um momento; pai manda abraço e comenta ----
 await tab(mae, 'Diário');
 await mae.getByRole('button', { name: 'Registrar', exact: true }).click();
-await mae.getByRole('dialog').getByRole('button', { name: 'Momento' }).click();
 await mae.getByLabel('O que aconteceu?').fill('Sentimos o bebê mexer pela primeira vez!');
 await mae.getByRole('button', { name: /Guardar momento/ }).click();
 await mae.waitForTimeout(1000);

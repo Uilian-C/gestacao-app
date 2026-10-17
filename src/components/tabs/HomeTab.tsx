@@ -21,7 +21,7 @@ import { InsightList } from '../InsightList';
 import IntensityDots from '../IntensityDots';
 
 /** Para onde o Início leva (abas e partes delas). */
-export type HomeTarget = 'diario' | 'graficos' | 'jornada' | 'tarefas' | 'exames';
+export type HomeTarget = 'diario' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames';
 
 interface Props {
   age: GestationalAge;
@@ -253,7 +253,7 @@ export default function HomeTab(props: Props) {
 
       <div className="grid md:grid-cols-2 gap-5">
         <Card>
-          <SectionTitle icon={<NotebookPen className="w-5 h-5" />} title="Como ela está" action={<LinkButton onClick={() => onOpen('diario')}>Ver diário</LinkButton>} />
+          <SectionTitle icon={<NotebookPen className="w-5 h-5" />} title="Como ela está" action={<LinkButton onClick={() => onOpen('saude')}>Ver saúde</LinkButton>} />
           {recentSymptoms.length === 0 && !lastWeight && !lastBp ? (
             <p className="text-ink-soft">Nada registrado ainda. Toque no + para o primeiro registro: em poucas semanas aparecem os padrões.</p>
           ) : (

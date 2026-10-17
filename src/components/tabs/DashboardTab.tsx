@@ -369,7 +369,7 @@ function SymptomTable({ stats, selectedKey, onSelect }: { stats: SymptomStats[];
     <Card>
       <SectionTitle icon={<Activity className="w-5 h-5" />} title="Frequência e tendência" subtitle="Toque em um sintoma para ver a evolução." />
       {stats.length === 0 ? (
-        <EmptyState icon={<Activity />} title="Nenhum sintoma no período">Use “Registrar sintoma”, logo acima, ou o Diário. Os registros aparecem aqui com frequência, intensidade e tendência.</EmptyState>
+        <EmptyState icon={<Activity />} title="Nenhum sintoma no período">Use o botão “Registrar”, aqui em Saúde. Os registros aparecem aqui com frequência, intensidade e tendência.</EmptyState>
       ) : (
         <ul className="divide-y divide-line">
           {stats.map(s => (

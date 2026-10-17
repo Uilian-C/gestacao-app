@@ -4,6 +4,7 @@ import { fetchAll } from './_lib/gestation.js';
 import { HttpError, endpoint, json, readJson, requireMember, type Member } from './_lib/http.js';
 import { notify, type PushPayload } from './_lib/push.js';
 import { VISIBLE_TARGET } from './_lib/social.js';
+import { deleteFiles } from './_lib/storage.js';
 
 // Toda consulta filtra por family_id = espaço de quem está logado. O autor dos
 // registros vem do login (papel no espaço), nunca do que o navegador envia.
@@ -35,7 +36,15 @@ const symptomFields = {
 };
 const metricFields = { weight: nullableNum(20, 400), systolic: nullableInt(50, 260), diastolic: nullableInt(30, 180) };
 const consultationFields = { scheduledAt: timestamp, specialty: text(30), professional: optionalText(120), location: optionalText(200) };
-const entryFields = { body: text(2000), visibility: z.enum(['private', 'shared']), remindOn: isoDate.nullish().transform(v => v || null) };
+const FOLDERS = ['momento', 'dia', 'ideia', 'carta', 'barriga'] as const;
+const entryFields = {
+  // Pode ficar vazio só na foto da barriga (a legenda é opcional); ver apply().
+  body: z.string().trim().max(4000),
+  visibility: z.enum(['private', 'shared']),
+  remindOn: isoDate.nullish().transform(v => v || null),
+  // Pasta do fichário (migração 012). Ao criar sem pasta, vai para "momento"; ao editar sem pasta, fica onde está.
+  folder: z.enum(FOLDERS).optional(),
+};
 
 const listName = z.enum(['prenatal', 'mala']);
 const itemFields = {
@@ -120,6 +129,20 @@ async function dropSocial(fid: string, type: 'entry' | 'exam' | 'symptom' | 'tas
 }
 
 /** Edição: 404 quando o registro não é do espaço (ou, no caso dos momentos, de quem edita). */
+/**
+ * Grava um registro do diário com a pasta. Antes da migração 012 a coluna não
+ * existe: os registros de "momento" ainda gravam (sem ela); as outras pastas pedem a migração.
+ */
+async function withFolder(folder: string, write: () => Promise<Array<{ id: string }>>, legacy: () => Promise<Array<{ id: string }>>) {
+  try {
+    return await write();
+  } catch (err) {
+    if ((err as { code?: string }).code !== '42703') throw err;
+    if (folder !== 'momento') throw new HttpError(503, 'As pastas do diário ainda não estão ligadas no servidor. Rode a migração db/migrations/012_fichario.sql no Neon.');
+    return legacy();
+  }
+}
+
 async function updated(sql: string, values: unknown[]) {
   const rows = await query(`${sql} RETURNING id`, values);
   if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
@@ -224,22 +247,38 @@ async function apply(m: Member, o: Op) {
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [fid, o.scheduledAt, o.specialty, o.professional, o.location, who],
       );
-    case 'createEntry':
-      return query(
-        `INSERT INTO journal_entries (family_id, user_id, author_role, entry_date, body, visibility, remind_on)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [fid, m.userId, who, o.date, o.body, o.visibility, o.remindOn],
-      );
-    case 'updateEntry':
-      // Cada um edita só os próprios momentos.
-      return updated(
-        `UPDATE journal_entries SET body = $1, visibility = $2, remind_on = $3 WHERE id::text = $4 AND family_id = $5 AND user_id = $6`,
-        [o.body, o.visibility, o.remindOn, o.id, fid, m.userId],
-      );
+    case 'createEntry': {
+      if (!o.body && o.folder !== 'barriga') throw new HttpError(400, 'Escreva alguma coisa para guardar.');
+      const insert = (folder: boolean) =>
+        query<{ id: string }>(
+          `INSERT INTO journal_entries (family_id, user_id, author_role, entry_date, body, visibility, remind_on${folder ? ', folder' : ''})
+           VALUES ($1, $2, $3, $4, $5, $6, $7${folder ? ', $8' : ''}) RETURNING id::text AS id`,
+          [fid, m.userId, who, o.date, o.body, o.visibility, o.remindOn, ...(folder ? [o.folder ?? 'momento'] : [])],
+        );
+      return withFolder(o.folder ?? 'momento', () => insert(true), () => insert(false));
+    }
+    case 'updateEntry': {
+      // Cada um edita só os próprios registros.
+      if (!o.body && o.folder !== 'barriga') throw new HttpError(400, 'Escreva alguma coisa para guardar.');
+      const update = (folder: boolean) =>
+        query<{ id: string }>(
+          `UPDATE journal_entries SET body = $1, visibility = $2, remind_on = $3${folder ? ', folder = COALESCE($7, folder)' : ''}
+           WHERE id::text = $4 AND family_id = $5 AND user_id = $6 RETURNING id::text AS id`,
+          [o.body, o.visibility, o.remindOn, o.id, fid, m.userId, ...(folder ? [o.folder ?? null] : [])],
+        );
+      const rows = await withFolder(o.folder ?? 'momento', () => update(true), () => update(false));
+      if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
+      return rows;
+    }
     case 'deleteEntry': {
-      // Cada um apaga só os próprios momentos.
+      // Cada um apaga só os próprios registros; as fotos saem do armazenamento junto.
+      const photos = await query<{ path: string; thumb_path: string | null }>(
+        `SELECT f.path, f.thumb_path FROM journal_files f JOIN journal_entries e ON e.id = f.entry_id WHERE e.id::text = $1 AND e.family_id = $2 AND e.user_id = $3`,
+        [o.id, fid, m.userId],
+      ).catch(() => []);
       const rows = await query('DELETE FROM journal_entries WHERE id::text = $1 AND family_id = $2 AND user_id = $3 RETURNING id', [o.id, fid, m.userId]);
-      if (rows.length === 0) throw new HttpError(404, 'Momento não encontrado.');
+      if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
+      await deleteFiles(photos.flatMap(p => [p.path, ...(p.thumb_path ? [p.thumb_path] : [])])).catch(err => console.error('Fotos não apagadas do armazenamento', err));
       return dropSocial(fid, 'entry', [o.id]);
     }
     case 'addItem':
@@ -303,9 +342,9 @@ async function apply(m: Member, o: Op) {
 function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } | null {
   switch (o.op) {
     case 'createSymptom':
-      return { action: 'registrou um sintoma no diário', body: 'Toque para ver e deixar um carinho.', url: '/?aba=diario', tag: 'parceiro-diario' };
+      return { action: 'registrou um sintoma', body: 'Toque para ver e deixar um carinho.', url: '/?aba=saude', tag: 'parceiro-diario' };
     case 'createMetric':
-      return { action: 'registrou uma medição', body: 'Peso ou pressão: veja no diário.', url: '/?aba=diario', tag: 'parceiro-medicao' };
+      return { action: 'registrou uma medição', body: 'Peso ou pressão: veja em Cuidados, na parte de saúde.', url: '/?aba=saude', tag: 'parceiro-medicao' };
     case 'createConsultation':
       return { action: 'agendou uma consulta', body: 'Toque para ver data, hora e endereço.', url: '/?aba=consultas', tag: 'parceiro-consulta' };
     case 'createQuestion':
@@ -313,15 +352,25 @@ function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } 
     case 'createTask':
       return { action: 'criou uma tarefa', body: o.title.length > 80 ? `${o.title.slice(0, 79)}…` : o.title, url: '/?aba=agenda', tag: 'parceiro-tarefa' };
     case 'createEntry':
-      return o.visibility === 'shared' ? { action: 'guardou um momento', body: 'Toque para ver no diário.', url: '/?aba=diario', tag: 'parceiro-momento' } : null;
+      return o.visibility === 'shared' ? { action: ENTRY_TEXT[o.folder ?? 'momento'], body: 'Toque para ver no diário.', url: '/?aba=diario', tag: 'parceiro-momento' } : null;
     case 'react':
-      return o.on ? { action: REACTION_TEXT[o.kind], body: 'Toque para ver.', url: o.targetType === 'exam' ? '/?aba=exames' : o.targetType === 'task' ? '/?aba=agenda' : '/?aba=diario', tag: `reacao-${o.targetId}` } : null;
+      return o.on ? { action: REACTION_TEXT[o.kind], body: 'Toque para ver.', url: REACTION_URL[o.targetType], tag: `reacao-${o.targetId}` } : null;
     case 'comment':
       return { action: o.targetType === 'exam' ? 'comentou num exame' : 'comentou num momento', body: 'Toque para ver a conversa.', url: o.targetType === 'exam' ? '/?aba=exames' : '/?aba=diario', tag: `conversa-${o.targetId}` };
     default:
       return null;
   }
 }
+
+const REACTION_URL = { exam: '/?aba=exames', task: '/?aba=agenda', symptom: '/?aba=saude', entry: '/?aba=diario' } as const;
+
+const ENTRY_TEXT = {
+  momento: 'guardou um momento',
+  dia: 'escreveu no diário',
+  ideia: 'anotou uma ideia no diário',
+  carta: 'escreveu uma carta para o bebê',
+  barriga: 'guardou uma foto da barriga',
+} as const;
 
 const REACTION_TEXT = { abraco: 'mandou um abraço', forca: 'mandou força', aqui: 'disse: estou aqui', festa: 'comemorou com você' } as const;
 
@@ -350,11 +399,13 @@ export const POST = endpoint(async request => {
   if (!parsed.success) throw new HttpError(400, 'Dados inválidos.');
   const result = await apply(member, parsed.data);
   const repeated = parsed.data.op === 'react' && parsed.data.on && Array.isArray(result) && result.length === 0;
+  // O registro novo do diário volta com o id, para o app enviar as fotos dele em seguida.
+  const createdId = parsed.data.op === 'createEntry' && Array.isArray(result) ? (result[0] as { id?: string } | undefined)?.id : undefined;
   // Já devolve os dados atualizados: o app não precisa de uma segunda chamada para recarregar.
   // O aviso para a outra pessoa sai ao mesmo tempo; se falhar, o registro continua salvo.
   const [data] = await Promise.all([
     fetchAll(member.familyId, member.userId),
     repeated ? undefined : notifyPartners(member, parsed.data).catch(err => console.error('Aviso ao parceiro não enviado', err)),
   ]);
-  return json({ ok: true, data });
+  return json({ ok: true, data, ...(createdId ? { id: createdId } : {}) });
 });

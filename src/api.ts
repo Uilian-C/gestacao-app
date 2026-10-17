@@ -55,7 +55,12 @@ export const api = {
   family: <T = { ok: true; family: FamilyState | null }>(op: string, payload: Record<string, unknown> = {}) => request<T>('/api/family', { op, ...payload }),
   /** Exames: create, addFile, deleteFile, delete. Ver api/exames.ts. */
   exams: <T = { ok: true; id?: string; data?: unknown }>(op: string, payload: Record<string, unknown> = {}) => request<T>('/api/exames', { op, ...payload }),
+  /** Fotos do diário: add, delete. Ver api/fotos.ts. */
+  photos: (op: 'add' | 'delete', payload: Record<string, unknown>) => request<{ ok: true; data?: unknown }>('/api/fotos', { op, ...payload }),
 };
 
 /** Endereço de uma foto ou PDF de exame (só abre para quem é do espaço). */
 export const examFileUrl = (fileId: string) => `/api/exames?arquivo=${encodeURIComponent(fileId)}`;
+
+/** Endereço de uma foto do diário; `mini` pede a miniatura (listas). */
+export const photoUrl = (photoId: string, mini = false) => `/api/fotos?id=${encodeURIComponent(photoId)}${mini ? '&mini=1' : ''}`;

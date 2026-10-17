@@ -31,6 +31,17 @@ for (const width of [300, 360, 412]) {
     const [sw, cw] = await p.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
     check(sw <= cw, `${width}px, ${tab}: nada passa da largura (${sw} ≤ ${cw})`);
   }
+  // Cuidados → Saúde (quatro partes) e as pastas do diário também cabem.
+  await p.getByRole('button', { name: /^Cuidados/ }).first().click();
+  await p.getByRole('button', { name: 'Saúde', exact: true }).click();
+  await p.waitForTimeout(400);
+  let [sw, cw] = await p.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+  check(sw <= cw, `${width}px, Cuidados → Saúde: nada passa da largura (${sw} ≤ ${cw})`);
+  await p.getByRole('button', { name: /^Diário/ }).first().click();
+  await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Barriguinha/ }).click();
+  await p.waitForTimeout(400);
+  [sw, cw] = await p.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+  check(sw <= cw, `${width}px, pasta Barriguinha: nada passa da largura (${sw} ≤ ${cw})`);
   if (width === 360) {
     await p.getByRole('button', { name: /^Início/ }).first().click();
     await p.waitForTimeout(500);

@@ -1,14 +1,10 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Bell, ChevronDown, Heart, Lock, Plus, Scale, Users } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Plus, Scale } from 'lucide-react';
 import { COMMON_SYMPTOMS, SYMPTOM_CATEGORIES, isAlertSymptom } from '../../content/symptomCatalog';
-import { WORK_RIGHTS, WORK_RIGHTS_SOURCE, WORK_TERMS } from '../../content/workRights';
-import { formatBR, parseLocalDate, toISODate } from '../../lib/dates';
 import { parseMetricInput, type ParsedMetric } from '../../lib/health';
 import { INTENSITY } from '../../lib/intensity';
 import { TIME_OF_DAY, normalizeSymptomName, timeOfDayFromHour, timeOfDayLabel } from '../../lib/symptoms';
-import type { JournalEntry } from '../../hooks/useGestationData';
 import type { Author, HealthMetric, SymptomItem, TimeOfDay } from '../../types';
-import Guide from '../Guide';
 import { inputClass } from '../styles';
 import { Button, Field, Segmented } from '../ui';
 
@@ -20,13 +16,6 @@ export interface NewSymptom {
   intensity: number;
   timeOfDay: TimeOfDay;
   notes: string;
-}
-
-export interface NewEntry {
-  date: string;
-  body: string;
-  visibility: 'private' | 'shared';
-  remindOn: string | null;
 }
 
 /** Categoria conhecida de um sintoma: histórico do casal primeiro, depois o catálogo. */
@@ -241,109 +230,3 @@ export function MetricForm({ author, busy, currentWeek, onCreate, initial }: { a
     </form>
   );
 }
-
-const MOMENT_IDEAS = ['Contamos no trabalho', 'Contamos para a família', 'Ouvimos o coração', 'Primeiro chute', 'Descobrimos o sexo', 'Escolhemos o nome', 'Chá de bebê', 'Ensaio de fotos'];
-
-const addDays = (iso: string, n: number) => {
-  const d = parseLocalDate(iso);
-  return toISODate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n));
-};
-
-/** Momentos: o diário afetivo, com lembrete opcional e privacidade por anotação. */
-export function MomentForm({ busy, available, onCreate, initial }: { busy: boolean; available: boolean; onCreate: (e: NewEntry) => Promise<boolean>; initial?: JournalEntry }) {
-  const today = toISODate(new Date());
-  const [body, setBody] = useState(initial?.body ?? '');
-  const [date, setDate] = useState(initial?.entry_date ?? today);
-  const [visibility, setVisibility] = useState<'private' | 'shared'>(initial?.visibility ?? 'shared');
-  const [remindOn, setRemindOn] = useState<string | null>(initial?.remind_on ?? null);
-  const [showDate, setShowDate] = useState(false);
-  const detail = 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition';
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!body.trim()) return;
-    if ((await onCreate({ date, body: body.trim(), visibility, remindOn })) && !initial) {
-      setBody('');
-      setDate(today);
-      setRemindOn(null);
-      setShowDate(false);
-    }
-  };
-
-  return (
-    <form onSubmit={submit} className="space-y-4">
-      {!available && <p className="text-xs text-warn bg-warn-soft rounded-2xl px-3 py-2">Para guardar momentos, rode a migração 008 no Neon.</p>}
-      <div className="space-y-2">
-        <textarea
-          aria-label="O que aconteceu?"
-          rows={3}
-          className={`${inputClass} resize-none`}
-          placeholder="O que aconteceu? Ex.: contamos hoje para a equipe do trabalho e vamos contar para a família em 15 dias."
-          value={body}
-          onChange={e => setBody(e.target.value)}
-        />
-        <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" aria-label="Ideias">
-          {MOMENT_IDEAS.map(idea => (
-            <button key={idea} type="button" onClick={() => setBody(b => (b.trim() ? b : idea))} className="shrink-0 rounded-full px-3 py-1 text-[13px] bg-surface-2 text-ink-soft hover:text-ink">
-              {idea}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Segmented
-          label="Quem vê"
-          size="sm"
-          value={visibility}
-          onChange={setVisibility}
-          options={[
-            { value: 'shared', label: <span className="flex items-center gap-1"><Users className="w-3 h-3" />Nós dois</span> },
-            { value: 'private', label: <span className="flex items-center gap-1"><Lock className="w-3 h-3" />Só eu</span> },
-          ]}
-        />
-        {!initial && (
-          <button type="button" onClick={() => setShowDate(v => !v)} className={`${detail} ${date !== today ? 'bg-brand-soft text-brand-strong' : 'bg-surface-2 text-ink-soft'}`}>
-            {date === today ? 'Hoje' : formatBR(date)} <ChevronDown className="w-3 h-3" />
-          </button>
-        )}
-        <button type="button" onClick={() => setRemindOn(r => (r ? null : addDays(today, 15)))} className={`${detail} ${remindOn ? 'bg-brand-soft text-brand-strong' : 'text-ink-mute hover:text-ink'}`}>
-          <Bell className="w-3 h-3" /> {remindOn ? `Lembrar em ${formatBR(remindOn)}` : 'Lembrar'}
-        </button>
-      </div>
-      {showDate && <input type="date" aria-label="Data do momento" max={today} className={inputClass} value={date} onChange={e => setDate(e.target.value || today)} />}
-      {remindOn && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {[7, 15, 30].map(n => (
-            <button key={n} type="button" onClick={() => setRemindOn(addDays(today, n))} className={`${detail} ${remindOn === addDays(today, n) ? 'bg-brand text-on-accent' : 'bg-surface-2 text-ink-soft'}`}>
-              em {n} dias
-            </button>
-          ))}
-          <input type="date" aria-label="Data do lembrete" min={today} className={`${inputClass} !py-1.5 !w-auto text-sm`} value={remindOn} onChange={e => setRemindOn(e.target.value || null)} />
-        </div>
-      )}
-      <p className="text-xs text-ink-mute -mt-1">
-        {visibility === 'private' ? 'Só você vai ver este momento, nem a outra pessoa do espaço.' : 'Vocês dois vão ver este momento.'}
-        {remindOn && ' O lembrete aparece no Início e na Agenda.'}
-      </p>
-
-      {WORK_TERMS.test(body) && (
-        <Guide title="Seus direitos no trabalho" source={WORK_RIGHTS_SOURCE}>
-          <ul className="space-y-1">
-            {WORK_RIGHTS.map(r => (
-              <li key={r} className="flex gap-2">
-                <span className="text-brand">•</span>
-                {r}
-              </li>
-            ))}
-          </ul>
-        </Guide>
-      )}
-
-      <Button type="submit" disabled={busy || !available || !body.trim()} className="w-full">
-        <Heart className="w-4 h-4" /> {initial ? 'Salvar alterações' : 'Guardar momento'}
-      </Button>
-    </form>
-  );
-}
-

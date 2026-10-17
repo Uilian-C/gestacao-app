@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Bell, CalendarHeart, Check, CheckCircle2, Clock, ExternalLink, FileText, Heart, HeartHandshake, Lock, NotebookPen, Pencil, RotateCcw, Scale, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarHeart, Check, CheckCircle2, Clock, ExternalLink, FileText, HeartHandshake, Lock, NotebookPen, Pencil, RotateCcw, Scale, Trash2, Users } from 'lucide-react';
 import { isAlertSymptom } from '../content/symptomCatalog';
 import { specialtyOf } from '../data/specialties';
 import { googleCalendarUrl } from '../lib/calendar';
@@ -9,8 +9,12 @@ import { INTENSITY } from '../lib/intensity';
 import { normalizeSymptomName, timeOfDayLabel } from '../lib/symptoms';
 import type { Detail } from '../lib/details';
 import type { Author, Consultation, PartnerComment, PartnerTask, SymptomItem } from '../types';
+import { photoUrl } from '../api';
+import { FOLDER, TONE, weekOn } from '../lib/folders';
 import AuthorBadge from './AuthorBadge';
-import { MetricForm, MomentForm, SymptomForm, type NewEntry, type NewSymptom } from './forms/RecordForms';
+import PhotoViewer from './PhotoViewer';
+import { EntryForm, type NewEntry } from './forms/EntryForm';
+import { MetricForm, SymptomForm, type NewSymptom } from './forms/RecordForms';
 import IntensityDots from './IntensityDots';
 import LocationLinks from './LocationLinks';
 import Sheet from './Sheet';
@@ -31,6 +35,9 @@ export interface DetailHandlers {
   symptoms: SymptomItem[];
   busy: boolean;
   journalAvailable: boolean;
+  /** Pastas e fotos do diário (migração 012). */
+  photosAvailable: boolean;
+  dumDate: string;
   onUpdateSymptom: (id: string, s: NewSymptom) => Promise<boolean>;
   onUpdateMetric: (id: string, m: ParsedMetric) => Promise<boolean>;
   onUpdateEntry: (id: string, e: NewEntry) => Promise<boolean>;
@@ -85,6 +92,7 @@ function Actions({ onEdit, onDelete, children }: { onEdit?: () => void; onDelete
 
 export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & { detail: Detail; onClose: () => void }) {
   const [editing, setEditing] = useState(false);
+  const [photo, setPhoto] = useState<number | null>(null);
   const remove = () => {
     onClose();
     h.onDelete(detail);
@@ -154,14 +162,42 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
 
   if (detail.kind === 'entry') {
     const e = detail.item;
+    const f = FOLDER[e.folder];
+    const t = TONE[f.tone];
+    const week = weekOn(h.dumDate, e.entry_date);
+    const letter = e.folder === 'carta';
     return (
-      <Sheet icon={<Heart />} title={editing ? 'Editar momento' : 'Momento'} subtitle={editing ? null : <span className="flex flex-wrap items-center gap-2">{formatBR(e.entry_date)} <AuthorBadge role={e.author_role} /></span>} onClose={editing ? () => setEditing(false) : onClose}>
+      <Sheet
+        icon={<f.Icon />}
+        title={editing ? `Editar: ${f.singular.toLowerCase()}` : e.folder === 'barriga' ? `Barriguinha · semana ${week}` : letter ? 'Carta para o bebê' : f.singular}
+        subtitle={editing ? null : <span className="flex flex-wrap items-center gap-2">{formatBR(e.entry_date)} · semana {week} <AuthorBadge role={e.author_role} /></span>}
+        onClose={editing ? () => setEditing(false) : onClose}
+      >
         {editing ? (
-          <MomentForm initial={e} busy={h.busy} available={h.journalAvailable} onCreate={async v => saved(await h.onUpdateEntry(e.id, v))} />
+          <EntryForm initial={e} busy={h.busy} available={h.journalAvailable} photosAvailable={h.photosAvailable} dumDate={h.dumDate} onSave={async v => saved(await h.onUpdateEntry(e.id, v))} />
         ) : (
           <>
-            <p className="font-display text-[1.3rem] leading-snug text-ink whitespace-pre-line">{e.body}</p>
+            {e.photos.length > 0 && (
+              <div className={`grid gap-2 mb-4 ${e.photos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                {e.photos.map((p, i) => (
+                  <button key={p.id} type="button" onClick={() => setPhoto(i)} aria-label={`Ver foto ${i + 1} em tela cheia`} className="block overflow-hidden rounded-2xl bg-surface-2">
+                    <img src={photoUrl(p.id, p.thumb)} alt="" className={`w-full object-cover ${e.photos.length === 1 ? 'max-h-[50vh]' : 'aspect-square'}`} />
+                  </button>
+                ))}
+              </div>
+            )}
+            {e.body && (
+              <div className={letter ? `rounded-2xl p-4 border-l-4 border-azul ${t.soft}` : ''}>
+                <p className={`font-display text-[1.3rem] leading-snug text-ink whitespace-pre-line ${letter ? 'italic' : ''}`}>{e.body}</p>
+                {letter && <p className="font-display italic text-ink-soft text-right mt-3">— {e.author_role === 'mae' ? 'mãe' : 'pai'}</p>}
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 mt-4">
+              {h.photosAvailable && (
+                <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full ${t.soft} ${t.text}`}>
+                  <f.Icon className="w-3 h-3" /> {f.title}
+                </span>
+              )}
               <Pill>{e.visibility === 'private' ? <><Lock /> Só você vê</> : <><Users /> Vocês dois veem</>}</Pill>
               {e.remind_on && <Pill tone="brand"><Bell /> Lembrar em {formatBR(e.remind_on)}</Pill>}
             </div>
@@ -171,7 +207,17 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
                 <Thread comments={h.threads.filter(c => c.target_type === 'entry' && c.target_id === e.id)} busy={h.busy} onSend={body => h.onThread('entry', e.id, body)} onDelete={h.onDeleteThread} />
               </div>
             )}
-            {e.mine ? <Actions onEdit={() => setEditing(true)} onDelete={remove} /> : <p className="text-xs text-ink-mute mt-5">Só quem escreveu pode editar ou excluir este momento.</p>}
+            {e.mine ? <Actions onEdit={() => setEditing(true)} onDelete={remove} /> : <p className="text-xs text-ink-mute mt-5">Só quem escreveu pode editar ou excluir este registro.</p>}
+            {photo !== null && e.photos.length > 0 && (
+              <PhotoViewer
+                title={e.folder === 'barriga' ? `Barriguinha · semana ${week}` : f.singular}
+                subtitle={formatBR(e.entry_date)}
+                photos={e.photos.map(p => ({ id: p.id, src: photoUrl(p.id) }))}
+                index={Math.min(photo, e.photos.length - 1)}
+                onIndex={setPhoto}
+                onClose={() => setPhoto(null)}
+              />
+            )}
           </>
         )}
       </Sheet>

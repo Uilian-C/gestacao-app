@@ -69,8 +69,9 @@ await pai.getByText(/^(Bom|Boa) /).first().waitFor();
 await pai.waitForTimeout(800);
 check(await pai.evaluate(() => document.documentElement.dataset.aba) === 'inicio', 'cor da aba aplicada');
 await shot(pai, '08-pai-home');
-// pai registra sintoma
-await pai.getByRole('button', { name: /^Diário/ }).first().click();
+// pai registra sintoma (Cuidados → Saúde)
+await pai.getByRole('button', { name: /^Cuidados/ }).first().click();
+await pai.getByRole('button', { name: 'Saúde', exact: true }).click();
 await pai.getByRole('button', { name: 'Registrar', exact: true }).click();
 await pai.getByPlaceholder('O que ela está sentindo?').fill('Inchaço nos pés');
 check(await pai.getByRole('button', { name: 'Escolha a intensidade' }).isDisabled(), 'sem intensidade, o botão pede para escolher');
@@ -79,7 +80,8 @@ check(await pai.getByRole('button', { name: /Físico/ }).isVisible(), 'tipo pree
 await pai.getByRole('button', { name: /Salvar · semana/ }).click();
 await pai.waitForTimeout(1200);
 await mae.reload();
-await mae.getByRole('button', { name: /^Diário/ }).first().click();
+await mae.getByRole('button', { name: /^Cuidados/ }).first().click();
+await mae.getByRole('button', { name: 'Saúde', exact: true }).click();
 await mae.waitForTimeout(1000);
 check(await mae.getByText('Inchaço nos pés').first().isVisible(), 'mãe vê o sintoma registrado pelo pai');
 await mae.getByRole('button', { name: /Abrir nosso espaço/ }).click();
