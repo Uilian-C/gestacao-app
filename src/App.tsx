@@ -2,6 +2,8 @@ import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { CloudRain, Plus, Sprout } from 'lucide-react';
 import BrandMark from './components/BrandMark';
 import QuickRecord, { type QuickMode } from './components/QuickRecord';
+import DetailSheet from './components/Details';
+import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import { takeTabFromUrl, takeViewFromUrl } from './lib/pwa';
 import { api, ApiError, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
@@ -79,6 +81,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   });
   const [examPreset, setExamPreset] = useState<string | null>(null);
   const [recording, setRecording] = useState<QuickMode[] | null>(null);
+  const [detail, setDetail] = useState<DetailTarget | null>(null);
 
   // A cor principal segue a aba (index.css, data-aba).
   useEffect(() => {
@@ -261,6 +264,23 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     }
   };
 
+  // Edições feitas na janela de detalhes.
+  const updateSymptom = (id: string, s: NewSymptom) =>
+    run(() => api.mutate('updateSymptom', { id, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }));
+  const updateMetric = (id: string, m: ParsedMetric) => run(() => api.mutate('updateMetric', { id, ...m }), 'Não foi possível salvar a medição.');
+  const updateEntry = (id: string, e: NewEntry) => run(() => api.mutate('updateEntry', { id, body: e.body, visibility: e.visibility, remindOn: e.remindOn }));
+  const updateTask = (id: string, t: NewTask) =>
+    run(() => api.mutate('updateTask', { id, title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null }));
+  const updateConsultation = (id: string, c: NewConsultation) =>
+    run(() => api.mutate('updateConsultation', { id, scheduledAt: c.scheduledAt, specialty: c.specialty, professional: c.professional || null, location: c.location || null }));
+  const deleteDetail = (d: Detail) => {
+    if (d.kind === 'symptom') scheduleDelete('symptom', d.item.id, d.item.symptom_name);
+    else if (d.kind === 'metric') scheduleDelete('metric', d.item.id, `medição da semana ${d.item.week_number}`);
+    else if (d.kind === 'entry') scheduleDelete('entry', d.item.id, 'momento');
+    else if (d.kind === 'task') scheduleDelete('task', d.item.id, `tarefa "${d.item.task_title}"`);
+    else scheduleDelete('consultation', d.item.id, 'consulta');
+  };
+
   const createConsultation = (c: NewConsultation) =>
     run(() =>
       api.mutate('createConsultation', { scheduledAt: c.scheduledAt, specialty: c.specialty, professional: c.professional || null, location: c.location || null }),
@@ -361,6 +381,16 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     if (target === 'exames') setExamPreset(planItem ?? null);
   };
   const recordModes = report ? [] : RECORD_MODES[activeTab];
+  // O registro aberto nos detalhes, com os dados atuais (some se foi apagado).
+  const openDetail = resolveDetail(detail, {
+    symptoms,
+    comments,
+    metrics,
+    journal,
+    tasks,
+    consultations,
+    pendingQuestions: specialty => questions.filter(q => !q.doctor_answer && questionSpecialty(q.specialty) === specialty).length,
+  });
   const dashboard = (view: DashboardView) => (
     <DashboardTab
       age={age}
@@ -459,15 +489,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 metrics={metrics}
                 selectedWeek={selectedWeek}
                 currentWeek={currentWeek}
-                busy={busy}
-                onComment={createComment}
-                onDeleteSymptom={s => scheduleDelete('symptom', s.id, s.symptom_name)}
-                onDeleteComment={c => scheduleDelete('comment', c.id, 'cuidado')}
-                onDeleteMetric={m => scheduleDelete('metric', m.id, `medição da semana ${m.week_number}`)}
+                onOpen={setDetail}
                 dumDate={dumDate}
                 journal={journal}
                 journalAvailable={data.journalAvailable}
-                onDeleteEntry={e => scheduleDelete('entry', e.id, 'momento')}
                 onRecord={() => setRecording(RECORD_MODES.diario)}
               />
             ) : (
@@ -503,6 +528,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 onToggleTask={toggleTask}
                 onNavigate={navigate}
                 onNotify={text => showToast({ text, tone: 'info' })}
+                onOpen={setDetail}
               />
             ) : (
               <TasksTab
@@ -512,7 +538,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 busy={busy}
                 onCreate={createTask}
                 onToggle={toggleTask}
-                onDelete={t => scheduleDelete('task', t.id, `tarefa "${t.task_title}"`)}
+                onOpen={t => setDetail({ kind: 'task', id: t.id })}
               />
             )}
           </>
@@ -550,7 +576,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
               window.scrollTo({ top: 0 });
             }}
             onCreateConsultation={createConsultation}
-            onDeleteConsultation={c => scheduleDelete('consultation', c.id, 'consulta')}
+            onOpenConsultation={c => setDetail({ kind: 'consultation', id: c.id })}
             onCreateQuestion={createQuestion}
             onAnswer={answerQuestion}
             onDeleteQuestion={q => scheduleDelete('question', q.id, 'dúvida')}
@@ -606,10 +632,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         <button
           type="button"
           onClick={() => setRecording(recordModes)}
-          className="no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-8 h-12 pl-3.5 pr-5 rounded-full text-white text-[15px] font-extrabold flex items-center gap-1.5 shadow-lift transition active:scale-95 hover:brightness-105"
-          style={{ background: 'linear-gradient(120deg, #c93d64, #2f78c4)' }}
+          className="tt-registrar no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-8 h-11 pl-3 pr-4 rounded-full text-white text-[14px] font-extrabold flex items-center gap-1.5 transition active:scale-95 hover:brightness-110"
         >
-          <Plus className="w-5 h-5" strokeWidth={2.8} />
+          <Plus className="w-[18px] h-[18px]" strokeWidth={3} />
           Registrar
         </button>
       )}
@@ -633,6 +658,30 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           bloodType={data.profile.bloodType}
           examsAvailable={data.examsAvailable ?? false}
           onSaveExam={saveExam}
+        />
+      )}
+
+      {openDetail && (
+        <DetailSheet
+          key={`${openDetail.kind}:${openDetail.item.id}`}
+          detail={openDetail}
+          onClose={() => setDetail(null)}
+          author={author}
+          trimester={age.trimester}
+          currentWeek={currentWeek}
+          symptoms={symptoms}
+          busy={busy}
+          journalAvailable={data.journalAvailable}
+          onUpdateSymptom={updateSymptom}
+          onUpdateMetric={updateMetric}
+          onUpdateEntry={updateEntry}
+          onUpdateTask={updateTask}
+          onUpdateConsultation={updateConsultation}
+          onDelete={deleteDetail}
+          onComment={createComment}
+          onDeleteComment={c => scheduleDelete('comment', c.id, 'cuidado')}
+          onToggleTask={toggleTask}
+          onPrepare={prepareReport}
         />
       )}
 

@@ -6,6 +6,7 @@ import type { Consultation, HealthMetric, PartnerTask, SymptomItem, Tab } from '
 import AuthorBadge from '../AuthorBadge';
 import IntensityDots from '../IntensityDots';
 import { Button, Card, Pill, Segmented } from '../ui';
+import type { DetailTarget } from '../../lib/details';
 import { ScheduleForm, type NewConsultation } from './ConsultationsTab';
 import { TaskForm, type NewTask } from './TasksTab';
 
@@ -24,6 +25,8 @@ interface Props {
   onToggleTask: (t: PartnerTask) => void;
   onNavigate: (tab: Tab) => void;
   onNotify: (text: string) => void;
+  /** Abre os detalhes de uma consulta, tarefa ou momento. */
+  onOpen: (target: DetailTarget) => void;
 }
 
 const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -108,7 +111,7 @@ export default function CalendarTab(props: Props) {
           {view === 'mes' ? (
             <MonthView year={cursor.year} month={cursor.month} dumDate={props.dumDate} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} />
           ) : (
-            <WeekView days={weekDays} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} />
+            <WeekView days={weekDays} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} onOpen={props.onOpen} />
           )}
         </Card>
 
@@ -128,6 +131,7 @@ export default function CalendarTab(props: Props) {
           onCreateTask={props.onCreateTask}
           onToggleTask={props.onToggleTask}
           onNavigate={props.onNavigate}
+          onOpen={props.onOpen}
         />
         </div>
       </div>
@@ -242,7 +246,7 @@ function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events,
   );
 }
 
-function WeekView({ days, todayIso, selected, onSelect, events, records, onToggleTask }: { days: Date[]; todayIso: string; selected: string; onSelect: (d: string) => void; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; onToggleTask: (id: string) => void }) {
+function WeekView({ days, todayIso, selected, onSelect, events, records, onToggleTask, onOpen }: { days: Date[]; todayIso: string; selected: string; onSelect: (d: string) => void; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; onToggleTask: (id: string) => void; onOpen: (target: DetailTarget) => void }) {
   return (
     <ol className="divide-y divide-line">
       {days.map(d => {
@@ -265,7 +269,7 @@ function WeekView({ days, todayIso, selected, onSelect, events, records, onToggl
               </div>
               <div className="flex-1 min-w-0 space-y-1.5 py-1">
                 {list.length === 0 && !rec && <p className="text-sm text-ink-mute">Nada marcado</p>}
-                {list.map(e => <EventLine key={e.id} event={e} onToggleTask={onToggleTask} />)}
+                {list.map(e => <EventLine key={e.id} event={e} onToggleTask={onToggleTask} onOpen={onOpen} />)}
                 {rec && <RecordLine records={rec} />}
               </div>
             </div>
@@ -276,7 +280,10 @@ function WeekView({ days, todayIso, selected, onSelect, events, records, onToggl
   );
 }
 
-function EventLine({ event: e, onToggleTask }: { event: CalendarEvent; onToggleTask?: (id: string) => void }) {
+const OPENS: Partial<Record<CalendarEvent['kind'], DetailTarget['kind']>> = { consulta: 'consultation', tarefa: 'task', momento: 'entry' };
+
+function EventLine({ event: e, onToggleTask, onOpen }: { event: CalendarEvent; onToggleTask?: (id: string) => void; onOpen?: (target: DetailTarget) => void }) {
+  const opens = onOpen && e.sourceId ? OPENS[e.kind] : undefined;
   const icon =
     e.kind === 'consulta' ? <Stethoscope className="w-4 h-4 text-brand" /> : e.kind === 'marco' ? <Flag className="w-4 h-4 text-warm" /> : e.kind === 'momento' ? (e.reminder ? <Bell className="w-4 h-4 text-casal" /> : <Heart className="w-4 h-4 text-casal" />) : e.overdue ? <AlertTriangle className="w-4 h-4 text-alert" /> : <CheckCircle2 className={`w-4 h-4 ${e.done ? 'text-ok' : 'text-ink-mute'}`} />;
   return (
@@ -295,14 +302,28 @@ function EventLine({ event: e, onToggleTask }: { event: CalendarEvent; onToggleT
       ) : (
         <span className="mt-0.5 shrink-0">{icon}</span>
       )}
-      <span className={`min-w-0 ${e.done ? 'line-through text-ink-mute' : 'text-ink'}`}>
-        {e.time && <strong className="tabular">{e.time} · </strong>}
-        <span className={e.kind === 'marco' && e.major ? 'font-semibold' : 'font-semibold'}>{e.title}</span>
-        {e.overdue && <span className="text-alert font-semibold"> · atrasada</span>}
-        {e.private && <span className="text-ink-mute font-normal"> · só você</span>}
-        {e.detail && <span className="block text-xs text-ink-mute">{e.detail}</span>}
-      </span>
+      {opens ? (
+        <button type="button" onClick={() => onOpen!({ kind: opens, id: e.sourceId! })} className={`min-w-0 text-left hover:underline underline-offset-2 ${e.done ? 'line-through text-ink-mute' : 'text-ink'}`}>
+          <EventText event={e} />
+        </button>
+      ) : (
+        <span className={`min-w-0 ${e.done ? 'line-through text-ink-mute' : 'text-ink'}`}>
+          <EventText event={e} />
+        </span>
+      )}
     </div>
+  );
+}
+
+function EventText({ event: e }: { event: CalendarEvent }) {
+  return (
+    <>
+      {e.time && <strong className="tabular">{e.time} · </strong>}
+      <span className="font-semibold">{e.title}</span>
+      {e.overdue && <span className="text-alert font-semibold"> · atrasada</span>}
+      {e.private && <span className="text-ink-mute font-normal"> · só você</span>}
+      {e.detail && <span className="block text-xs text-ink-mute">{e.detail}</span>}
+    </>
   );
 }
 
@@ -338,6 +359,7 @@ function DayPanel(props: {
   onCreateTask: (t: NewTask) => Promise<boolean>;
   onToggleTask: (t: PartnerTask) => void;
   onNavigate: (tab: Tab) => void;
+  onOpen: (target: DetailTarget) => void;
 }) {
   const [adding, setAdding] = useState<'consulta' | 'tarefa' | null>(null);
   const date = parseLocalDate(props.day);
@@ -362,7 +384,7 @@ function DayPanel(props: {
             const c = e.kind === 'consulta' ? consultationOf(e) : undefined;
             return (
               <li key={e.id} className="space-y-1.5">
-                <EventLine event={e} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} />
+                <EventLine event={e} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} onOpen={props.onOpen} />
                 {e.author && <span className="ml-6"><AuthorBadge role={e.author} prefix={e.kind === 'tarefa' ? 'Resp.:' : 'Por'} /></span>}
                 {c && (
                   <a href={googleCalendarUrl(c)} target="_blank" rel="noopener noreferrer" className="ml-6 inline-flex items-center gap-1 text-xs font-semibold text-brand underline underline-offset-2">

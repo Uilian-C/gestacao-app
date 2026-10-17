@@ -6,12 +6,13 @@ import { formatBR, parseLocalDate, toISODate } from '../../lib/dates';
 import { parseMetricInput, type ParsedMetric } from '../../lib/health';
 import { INTENSITY } from '../../lib/intensity';
 import { TIME_OF_DAY, normalizeSymptomName, timeOfDayFromHour, timeOfDayLabel } from '../../lib/symptoms';
-import type { Author, SymptomItem, TimeOfDay } from '../../types';
+import type { JournalEntry } from '../../hooks/useGestationData';
+import type { Author, HealthMetric, SymptomItem, TimeOfDay } from '../../types';
 import Guide from '../Guide';
 import { inputClass } from '../styles';
 import { Button, Field, Segmented } from '../ui';
 
-// Formulários de registro, usados no Diário e no registro rápido do Painel.
+// Formulários de registro: no botão "+" (registro rápido) e, preenchidos, para editar nos detalhes.
 
 export interface NewSymptom {
   name: string;
@@ -36,14 +37,15 @@ function knownCategories(history: SymptomItem[]) {
   return map;
 }
 
-export function SymptomForm({ trimester, history, busy, currentWeek, onCreate }: { trimester: 1 | 2 | 3; history: SymptomItem[]; busy: boolean; currentWeek: number; onCreate: (s: NewSymptom) => Promise<boolean> }) {
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState<string>('Físico');
-  const [categoryTouched, setCategoryTouched] = useState(false);
-  const [intensity, setIntensity] = useState(0);
-  const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(() => timeOfDayFromHour(new Date().getHours()));
-  const [notes, setNotes] = useState('');
-  const [editing, setEditing] = useState<'tipo' | 'quando' | 'obs' | null>(null);
+/** Registro de sintoma. Com `initial`, abre preenchido para editar (e não limpa ao salvar). */
+export function SymptomForm({ trimester, history, busy, currentWeek, onCreate, initial }: { trimester: 1 | 2 | 3; history: SymptomItem[]; busy: boolean; currentWeek: number; onCreate: (s: NewSymptom) => Promise<boolean>; initial?: SymptomItem }) {
+  const [name, setName] = useState(initial?.symptom_name ?? '');
+  const [category, setCategory] = useState<string>(initial?.category ?? 'Físico');
+  const [categoryTouched, setCategoryTouched] = useState(!!initial);
+  const [intensity, setIntensity] = useState(initial?.intensity ?? 0);
+  const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(() => initial?.time_of_day ?? timeOfDayFromHour(new Date().getHours()));
+  const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [editing, setEditing] = useState<'tipo' | 'quando' | 'obs' | null>(initial?.notes ? 'obs' : null);
 
   // Atalhos: os mais registrados pelo casal primeiro, depois os comuns do trimestre.
   const shortcuts = useMemo(() => {
@@ -72,7 +74,7 @@ export function SymptomForm({ trimester, history, busy, currentWeek, onCreate }:
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ready) return;
-    if (await onCreate({ name: name.trim(), category, intensity, timeOfDay, notes: notes.trim() })) {
+    if ((await onCreate({ name: name.trim(), category, intensity, timeOfDay, notes: notes.trim() })) && !initial) {
       setName('');
       setNotes('');
       setIntensity(0);
@@ -189,16 +191,18 @@ export function SymptomForm({ trimester, history, busy, currentWeek, onCreate }:
       )}
 
       <Button type="submit" disabled={busy || !ready} className="w-full">
-        {name.trim() && !intensity ? 'Escolha a intensidade' : `Salvar · semana ${currentWeek}`}
+        {name.trim() && !intensity ? 'Escolha a intensidade' : initial ? 'Salvar alterações' : `Salvar · semana ${currentWeek}`}
       </Button>
     </form>
   );
 }
 
-export function MetricForm({ author, busy, currentWeek, onCreate }: { author: Author; busy: boolean; currentWeek: number; onCreate: (m: ParsedMetric) => Promise<boolean> }) {
-  const [weight, setWeight] = useState('');
-  const [systolic, setSystolic] = useState('');
-  const [diastolic, setDiastolic] = useState('');
+const asText = (v: number | null | undefined) => (v === null || v === undefined ? '' : String(v).replace('.', ','));
+
+export function MetricForm({ author, busy, currentWeek, onCreate, initial }: { author: Author; busy: boolean; currentWeek: number; onCreate: (m: ParsedMetric) => Promise<boolean>; initial?: HealthMetric }) {
+  const [weight, setWeight] = useState(asText(initial?.weight_kg));
+  const [systolic, setSystolic] = useState(asText(initial?.systolic_bp));
+  const [diastolic, setDiastolic] = useState(asText(initial?.diastolic_bp));
   const [error, setError] = useState<string | null>(null);
 
   const submit = async (e: React.FormEvent) => {
@@ -209,7 +213,7 @@ export function MetricForm({ author, busy, currentWeek, onCreate }: { author: Au
       return;
     }
     setError(null);
-    if (await onCreate(parsed)) {
+    if ((await onCreate(parsed)) && !initial) {
       setWeight('');
       setSystolic('');
       setDiastolic('');
@@ -232,7 +236,7 @@ export function MetricForm({ author, busy, currentWeek, onCreate }: { author: Au
       <p className="text-xs text-ink-mute">Preencha só o que foi medido. Peso e pressão podem ser registrados separados.</p>
       {error && <p className="text-sm font-semibold text-alert" role="alert">{error}</p>}
       <Button type="submit" disabled={busy} className="w-full">
-        <Scale className="w-4 h-4" /> Registrar como {author === 'pai' ? 'pai' : 'mãe'} · semana {currentWeek}
+        <Scale className="w-4 h-4" /> {initial ? 'Salvar alterações' : `Registrar como ${author === 'pai' ? 'pai' : 'mãe'} · semana ${currentWeek}`}
       </Button>
     </form>
   );
@@ -246,19 +250,19 @@ const addDays = (iso: string, n: number) => {
 };
 
 /** Momentos: o diário afetivo, com lembrete opcional e privacidade por anotação. */
-export function MomentForm({ busy, available, onCreate }: { busy: boolean; available: boolean; onCreate: (e: NewEntry) => Promise<boolean> }) {
+export function MomentForm({ busy, available, onCreate, initial }: { busy: boolean; available: boolean; onCreate: (e: NewEntry) => Promise<boolean>; initial?: JournalEntry }) {
   const today = toISODate(new Date());
-  const [body, setBody] = useState('');
-  const [date, setDate] = useState(today);
-  const [visibility, setVisibility] = useState<'private' | 'shared'>('shared');
-  const [remindOn, setRemindOn] = useState<string | null>(null);
+  const [body, setBody] = useState(initial?.body ?? '');
+  const [date, setDate] = useState(initial?.entry_date ?? today);
+  const [visibility, setVisibility] = useState<'private' | 'shared'>(initial?.visibility ?? 'shared');
+  const [remindOn, setRemindOn] = useState<string | null>(initial?.remind_on ?? null);
   const [showDate, setShowDate] = useState(false);
   const detail = 'inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition';
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!body.trim()) return;
-    if (await onCreate({ date, body: body.trim(), visibility, remindOn })) {
+    if ((await onCreate({ date, body: body.trim(), visibility, remindOn })) && !initial) {
       setBody('');
       setDate(today);
       setRemindOn(null);
@@ -298,9 +302,11 @@ export function MomentForm({ busy, available, onCreate }: { busy: boolean; avail
             { value: 'private', label: <span className="flex items-center gap-1"><Lock className="w-3 h-3" />Só eu</span> },
           ]}
         />
-        <button type="button" onClick={() => setShowDate(v => !v)} className={`${detail} ${date !== today ? 'bg-brand-soft text-brand-strong' : 'bg-surface-2 text-ink-soft'}`}>
-          {date === today ? 'Hoje' : formatBR(date)} <ChevronDown className="w-3 h-3" />
-        </button>
+        {!initial && (
+          <button type="button" onClick={() => setShowDate(v => !v)} className={`${detail} ${date !== today ? 'bg-brand-soft text-brand-strong' : 'bg-surface-2 text-ink-soft'}`}>
+            {date === today ? 'Hoje' : formatBR(date)} <ChevronDown className="w-3 h-3" />
+          </button>
+        )}
         <button type="button" onClick={() => setRemindOn(r => (r ? null : addDays(today, 15)))} className={`${detail} ${remindOn ? 'bg-brand-soft text-brand-strong' : 'text-ink-mute hover:text-ink'}`}>
           <Bell className="w-3 h-3" /> {remindOn ? `Lembrar em ${formatBR(remindOn)}` : 'Lembrar'}
         </button>
@@ -335,7 +341,7 @@ export function MomentForm({ busy, available, onCreate }: { busy: boolean; avail
       )}
 
       <Button type="submit" disabled={busy || !available || !body.trim()} className="w-full">
-        <Heart className="w-4 h-4" /> Guardar momento
+        <Heart className="w-4 h-4" /> {initial ? 'Salvar alterações' : 'Guardar momento'}
       </Button>
     </form>
   );

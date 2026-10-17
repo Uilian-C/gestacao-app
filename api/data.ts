@@ -18,6 +18,24 @@ const optionalText = (max: number) => z.string().trim().max(max).nullish().trans
 const nullableInt = (min: number, max: number) => z.number().int().min(min).max(max).nullable();
 const nullableNum = (min: number, max: number) => z.number().min(min).max(max).nullable();
 
+const taskFields = {
+  title: text(300),
+  assignee: z.enum(['mae', 'pai', 'casal']),
+  priority: z.enum(['Alta', 'Média', 'Baixa']),
+  dueDate: isoDate.nullish().or(z.literal('')).transform(v => v || null),
+  notes: optionalText(2000),
+};
+const symptomFields = {
+  name: text(100),
+  intensity: z.number().int().min(1).max(5),
+  category: text(30),
+  notes: optionalText(2000),
+  timeOfDay: z.string().max(12).nullish().transform(v => v || null),
+};
+const metricFields = { weight: nullableNum(20, 400), systolic: nullableInt(50, 260), diastolic: nullableInt(30, 180) };
+const consultationFields = { scheduledAt: timestamp, specialty: text(30), professional: optionalText(120), location: optionalText(200) };
+const entryFields = { body: text(2000), visibility: z.enum(['private', 'shared']), remindOn: isoDate.nullish().transform(v => v || null) };
+
 const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('saveDum'), date: isoDate }),
   z.object({ op: z.literal('saveProfile'), preWeightKg: z.number().min(20).max(400), heightCm: z.number().min(40).max(250) }),
@@ -39,46 +57,21 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('saveKicks'), startedAt: timestamp, endedAt: timestamp, kicks: z.number().int().min(0).max(500), target: z.number().int().min(1).max(100) }),
   z.object({ op: z.literal('saveContraction'), startedAt: timestamp, endedAt: timestamp }),
   z.object({ op: z.literal('saveBirthPlan'), plan: z.record(z.string(), z.unknown()) }),
-  z.object({
-    op: z.literal('createTask'),
-    week,
-    title: text(300),
-    assignee: z.enum(['mae', 'pai', 'casal']),
-    priority: z.enum(['Alta', 'Média', 'Baixa']),
-    dueDate: isoDate.nullish().or(z.literal('')).transform(v => v || null),
-    notes: optionalText(2000),
-  }),
+  z.object({ op: z.literal('createTask'), week, ...taskFields }),
+  z.object({ op: z.literal('updateTask'), id, ...taskFields }),
   z.object({ op: z.literal('toggleTask'), id, done: z.boolean() }),
-  z.object({
-    op: z.literal('createSymptom'),
-    week,
-    date: isoDate,
-    name: text(100),
-    intensity: z.number().int().min(1).max(5),
-    category: text(30),
-    notes: optionalText(2000),
-    timeOfDay: z.string().max(12).nullish().transform(v => v || null),
-  }),
+  z.object({ op: z.literal('createSymptom'), week, date: isoDate, ...symptomFields }),
+  z.object({ op: z.literal('updateSymptom'), id, ...symptomFields }),
   z.object({ op: z.literal('createComment'), symptomId: id, text: text(2000) }),
   z.object({ op: z.literal('createQuestion'), week, text: text(2000), category: text(30), specialty: text(30) }),
   z.object({ op: z.literal('answerQuestion'), id, answer: text(4000) }),
-  z.object({
-    op: z.literal('createMetric'),
-    week,
-    date: isoDate,
-    weight: nullableNum(20, 400),
-    systolic: nullableInt(50, 260),
-    diastolic: nullableInt(30, 180),
-  }),
-  z.object({ op: z.literal('createConsultation'), scheduledAt: timestamp, specialty: text(30), professional: optionalText(120), location: optionalText(200) }),
+  z.object({ op: z.literal('createMetric'), week, date: isoDate, ...metricFields }),
+  z.object({ op: z.literal('updateMetric'), id, ...metricFields }),
+  z.object({ op: z.literal('createConsultation'), ...consultationFields }),
+  z.object({ op: z.literal('updateConsultation'), id, ...consultationFields }),
   z.object({ op: z.literal('setCheck'), list: z.enum(['prenatal', 'mala']), itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), done: z.boolean() }),
-  z.object({
-    op: z.literal('createEntry'),
-    date: isoDate,
-    body: text(2000),
-    visibility: z.enum(['private', 'shared']),
-    remindOn: isoDate.nullish().transform(v => v || null),
-  }),
+  z.object({ op: z.literal('createEntry'), date: isoDate, ...entryFields }),
+  z.object({ op: z.literal('updateEntry'), id, ...entryFields }),
   z.object({ op: z.literal('deleteEntry'), id }),
   z.object({ op: z.literal('delete'), kind: z.enum(['task', 'symptom', 'question', 'comment', 'metric', 'consultation', 'kick', 'contraction']), id }),
 ]);
@@ -94,6 +87,12 @@ const DELETE_TABLE = {
   kick: 'kick_sessions',
   contraction: 'contractions',
 } as const;
+
+/** Edição: 404 quando o registro não é do espaço (ou, no caso dos momentos, de quem edita). */
+async function updated(sql: string, values: unknown[]) {
+  const rows = await query(`${sql} RETURNING id`, values);
+  if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
+}
 
 async function apply(m: Member, o: Op) {
   const fid = m.familyId;
@@ -133,6 +132,11 @@ async function apply(m: Member, o: Op) {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [fid, o.week, o.title, o.assignee, o.priority, o.dueDate, o.notes, who],
       );
+    case 'updateTask':
+      return updated(
+        `UPDATE partner_tasks SET task_title = $1, assigned_to = $2, priority = $3, due_date = $4, notes = $5 WHERE id::text = $6 AND family_id = $7`,
+        [o.title, o.assignee, o.priority, o.dueDate, o.notes, o.id, fid],
+      );
     case 'toggleTask':
       return query('UPDATE partner_tasks SET is_completed = $1 WHERE id::text = $2 AND family_id = $3', [o.done, o.id, fid]);
     case 'createSymptom':
@@ -140,6 +144,11 @@ async function apply(m: Member, o: Op) {
         `INSERT INTO symptoms_log (family_id, week_number, log_date, symptom_name, intensity, created_by, category, notes, time_of_day)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [fid, o.week, o.date, o.name, o.intensity, who, o.category, o.notes, o.timeOfDay],
+      );
+    case 'updateSymptom':
+      return updated(
+        `UPDATE symptoms_log SET symptom_name = $1, intensity = $2, category = $3, notes = $4, time_of_day = $5 WHERE id::text = $6 AND family_id = $7`,
+        [o.name, o.intensity, o.category, o.notes, o.timeOfDay, o.id, fid],
       );
     case 'createComment': {
       // O sintoma comentado precisa ser do mesmo espaço.
@@ -170,6 +179,14 @@ async function apply(m: Member, o: Op) {
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [fid, o.week, o.date, o.weight, o.systolic, o.diastolic, who],
       );
+    case 'updateMetric':
+      if (o.weight === null && (o.systolic === null || o.diastolic === null)) throw new HttpError(400, 'Informe o peso ou a pressão.');
+      return updated(`UPDATE health_metrics_log SET weight_kg = $1, systolic_bp = $2, diastolic_bp = $3 WHERE id::text = $4 AND family_id = $5`, [o.weight, o.systolic, o.diastolic, o.id, fid]);
+    case 'updateConsultation':
+      return updated(
+        `UPDATE consultations SET scheduled_at = $1, specialty = $2, professional_name = $3, location = $4 WHERE id::text = $5 AND family_id = $6`,
+        [o.scheduledAt, o.specialty, o.professional, o.location, o.id, fid],
+      );
     case 'createConsultation':
       return query(
         `INSERT INTO consultations (family_id, scheduled_at, specialty, professional_name, location, created_by)
@@ -181,6 +198,12 @@ async function apply(m: Member, o: Op) {
         `INSERT INTO journal_entries (family_id, user_id, author_role, entry_date, body, visibility, remind_on)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [fid, m.userId, who, o.date, o.body, o.visibility, o.remindOn],
+      );
+    case 'updateEntry':
+      // Cada um edita só os próprios momentos.
+      return updated(
+        `UPDATE journal_entries SET body = $1, visibility = $2, remind_on = $3 WHERE id::text = $4 AND family_id = $5 AND user_id = $6`,
+        [o.body, o.visibility, o.remindOn, o.id, fid, m.userId],
       );
     case 'deleteEntry': {
       // Cada um apaga só os próprios momentos.

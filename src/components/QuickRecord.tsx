@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { useState } from 'react';
 import type { ParsedMetric } from '../lib/health';
 import type { Author, SymptomItem } from '../types';
 import { MetricForm, MomentForm, SymptomForm, type NewEntry, type NewSymptom } from './forms/RecordForms';
@@ -7,6 +6,7 @@ import { ScheduleForm, type NewConsultation } from './tabs/ConsultationsTab';
 import { planExams } from '../lib/journey';
 import { ExamForm, type SaveExam } from './tabs/ExamsTab';
 import { TaskForm, type NewTask } from './tabs/TasksTab';
+import Sheet from './Sheet';
 import { Segmented } from './ui';
 
 export type QuickMode = 'sintoma' | 'medicao' | 'momento' | 'consulta' | 'tarefa' | 'exame';
@@ -45,14 +45,6 @@ export interface QuickRecordProps {
  */
 export default function QuickRecord({ modes, initial, onClose, ...p }: QuickRecordProps & { modes: QuickMode[]; initial: QuickMode; onClose: () => void }) {
   const [mode, setMode] = useState<QuickMode>(initial);
-  const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   const done = <T,>(fn: (v: T) => Promise<boolean>) => async (v: T) => {
     const ok = await fn(v);
@@ -61,15 +53,8 @@ export default function QuickRecord({ modes, initial, onClose, ...p }: QuickReco
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="quick-title">
-      <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full sm:max-w-lg max-h-[92vh] overflow-y-auto bg-surface rounded-t-[28px] sm:rounded-[28px] shadow-lift p-5 sm:p-7 space-y-4 pb-[calc(env(safe-area-inset-bottom)+20px)]">
-        <div className="flex items-center justify-between gap-3">
-          <h2 id="quick-title" className="text-[1.25rem]">{TITLE[mode]}</h2>
-          <button ref={closeRef} type="button" onClick={onClose} aria-label="Fechar" className="w-9 h-9 rounded-full bg-surface-2 text-ink-soft flex items-center justify-center hover:text-ink">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+    <Sheet title={TITLE[mode]} onClose={onClose}>
+      <div className="space-y-4">
         {modes.length > 1 && <Segmented label="Tipo de registro" size="sm" value={mode} onChange={setMode} options={modes.map(m => ({ value: m, label: LABEL[m] }))} />}
         {mode === 'sintoma' && <SymptomForm trimester={p.trimester} history={p.symptoms} busy={p.busy} currentWeek={p.currentWeek} onCreate={done(p.onCreateSymptom)} />}
         {mode === 'medicao' && <MetricForm author={p.author} busy={p.busy} currentWeek={p.currentWeek} onCreate={done(p.onCreateMetric)} />}
@@ -83,6 +68,6 @@ export default function QuickRecord({ modes, initial, onClose, ...p }: QuickReco
             <p className="text-sm text-warn bg-warn-soft rounded-2xl p-4">Para guardar exames, rode a migração 010 no Neon.</p>
           ))}
       </div>
-    </div>
+    </Sheet>
   );
 }

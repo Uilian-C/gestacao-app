@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, Clock, ListChecks, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Clock, ListChecks, Plus, Sparkles } from 'lucide-react';
 import { suggestionsFor, type TaskSuggestion } from '../../content/taskSuggestions';
 import { formatBR, isOverdue, trimesterOf } from '../../lib/dates';
 import type { Assignee, PartnerTask, Priority } from '../../types';
@@ -27,12 +27,13 @@ interface Props {
   busy: boolean;
   onCreate: (task: NewTask) => Promise<boolean>;
   onToggle: (task: PartnerTask) => void;
-  onDelete: (task: PartnerTask) => void;
+  /** Abre os detalhes (com editar e excluir). */
+  onOpen: (task: PartnerTask) => void;
 }
 
 const PRIORITY_TONE: Record<Priority, 'neutral' | 'warn' | 'alert'> = { Baixa: 'neutral', Média: 'warn', Alta: 'alert' };
 
-export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCreate, onToggle, onDelete }: Props) {
+export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCreate, onToggle, onOpen }: Props) {
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('todos');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todas');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pendentes');
@@ -150,24 +151,20 @@ export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCre
                   <button onClick={() => onToggle(t)} aria-label={t.is_completed ? `Reabrir "${t.task_title}"` : `Concluir "${t.task_title}"`} className="mt-0.5 shrink-0">
                     {t.is_completed ? <CheckCircle2 className="w-6 h-6 text-ok" /> : <span className="block w-6 h-6 rounded-full border-2 border-ink-mute hover:border-brand" />}
                   </button>
-                  <div className="flex-1 min-w-0 space-y-1.5">
+                  <button type="button" onClick={() => onOpen(t)} className="flex-1 min-w-0 space-y-1.5 text-left" aria-label={`${t.task_title}: ver detalhes`}>
                     <p className={`font-semibold ${t.is_completed ? 'line-through text-ink-mute' : 'text-ink'}`}>{t.task_title}</p>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-ink-mute">
                       <AuthorBadge role={t.assigned_to} />
                       <Pill tone={PRIORITY_TONE[t.priority] ?? 'neutral'}>{t.priority}</Pill>
-                      <span>semana {t.week_number}</span>
                       {t.due_date && (
                         <span className={`flex items-center gap-1 font-semibold ${late ? 'text-alert' : ''}`}>
                           <Clock className="w-3.5 h-3.5" /> {late ? 'atrasada desde' : 'até'} {formatBR(t.due_date)}
                         </span>
                       )}
                     </div>
-                    {t.notes && <p className="text-sm text-ink-soft">{t.notes}</p>}
-                    <p className="text-xs text-ink-mute">Criada por {t.created_by === 'pai' ? 'pai' : 'mãe'}</p>
-                  </div>
-                  <button onClick={() => onDelete(t)} aria-label={`Excluir "${t.task_title}"`} className="p-1.5 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft">
-                    <Trash2 className="w-4 h-4" />
+                    {t.notes && <p className="text-sm text-ink-soft line-clamp-1">{t.notes}</p>}
                   </button>
+                  <ChevronRight className="w-4 h-4 text-ink-mute shrink-0 self-center" />
                 </li>
               );
             })}
@@ -178,12 +175,12 @@ export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCre
   );
 }
 
-export function TaskForm({ selectedWeek, busy, onCreate, initialDueDate, onCancel }: { selectedWeek: number; busy: boolean; onCreate: (t: NewTask) => Promise<boolean>; initialDueDate?: string; onCancel?: () => void }) {
-  const [title, setTitle] = useState('');
-  const [assignee, setAssignee] = useState<Assignee>('casal');
-  const [priority, setPriority] = useState<Priority>('Média');
-  const [dueDate, setDueDate] = useState(initialDueDate ?? '');
-  const [notes, setNotes] = useState('');
+export function TaskForm({ selectedWeek, busy, onCreate, initialDueDate, onCancel, initial }: { selectedWeek: number; busy: boolean; onCreate: (t: NewTask) => Promise<boolean>; initialDueDate?: string; onCancel?: () => void; initial?: PartnerTask }) {
+  const [title, setTitle] = useState(initial?.task_title ?? '');
+  const [assignee, setAssignee] = useState<Assignee>(initial?.assigned_to ?? 'casal');
+  const [priority, setPriority] = useState<Priority>(initial?.priority ?? 'Média');
+  const [dueDate, setDueDate] = useState(initial?.due_date ?? initialDueDate ?? '');
+  const [notes, setNotes] = useState(initial?.notes ?? '');
   return (
     <form
       className="rounded-2xl bg-surface-2 p-4 space-y-4 mb-5"
@@ -211,10 +208,10 @@ export function TaskForm({ selectedWeek, busy, onCreate, initialDueDate, onCance
           <input id="obs-tarefa" className={inputClass} value={notes} onChange={e => setNotes(e.target.value)} />
         </Field>
       </div>
-      <p className="text-xs text-ink-mute">A tarefa fica na semana {selectedWeek}. Para planejar outra semana, mude a semana no Início.</p>
+      {!initial && <p className="text-xs text-ink-mute">A tarefa fica na semana {selectedWeek}. Para planejar outra semana, mude a semana no Início.</p>}
       <div className="flex gap-2">
         {onCancel && <Button tone="ghost" onClick={onCancel}>Cancelar</Button>}
-        <Button type="submit" disabled={busy || !title.trim()} className="flex-1">Criar tarefa</Button>
+        <Button type="submit" disabled={busy || !title.trim()} className="flex-1">{initial ? 'Salvar alterações' : 'Criar tarefa'}</Button>
       </div>
     </form>
   );

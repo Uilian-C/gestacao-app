@@ -346,3 +346,32 @@
 @media (prefers-reduced-motion: reduce) {
   .tt-onda, .tt-onda-2 { animation: none; opacity: 0; }
 }
+
+/* ---- Botão "+ Registrar": o rosa da mãe e o azul do pai se misturando ---- */
+.tt-registrar {
+  background: linear-gradient(110deg, #d6336a 0%, #a8459e 48%, #2f78c4 100%);
+  background-size: 220% 100%;
+  box-shadow: 0 10px 22px -10px rgb(214 51 106 / 0.6), 0 8px 20px -12px rgb(47 120 196 / 0.7);
+  animation: tt-fluxo 5s ease-in-out infinite alternate;
+  overflow: hidden;
+}
+.tt-registrar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 35%, rgb(255 255 255 / 0.32) 50%, transparent 65%);
+  transform: translateX(-130%);
+  animation: tt-brilho 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes tt-fluxo {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
+}
+@keyframes tt-brilho {
+  0%, 72% { transform: translateX(-130%); }
+  100% { transform: translateX(130%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-registrar, .tt-registrar::after { animation: none; }
+}
