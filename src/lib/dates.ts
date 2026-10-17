@@ -89,3 +89,9 @@ export function isOverdue(dueIso: string | null | undefined, today: Date = new D
   if (!dueIso) return false;
   return daysBetween(today, parseLocalDate(dueIso)) < 0;
 }
+
+/** Semana da gestação num dia (1 a 45), pela DUM: a semana em que um registro daquele dia entra. */
+export function weekOfDay(dumDate: string, iso: string) {
+  const w = gestationalAge(dumDate, parseLocalDate(iso))?.weeks ?? 1;
+  return Math.min(45, Math.max(1, w));
+}

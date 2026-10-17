@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import type { ParsedMetric } from '../lib/health';
+import { Activity, CalendarPlus, FileCheck2, ListTodo, NotebookPen, Scale } from 'lucide-react';
 import type { Folder } from '../hooks/useGestationData';
-import type { Author, SymptomItem } from '../types';
+import type { Author, HealthMetric, SymptomItem } from '../types';
 import { EntryForm, type NewEntry } from './forms/EntryForm';
-import { MetricForm, SymptomForm, type NewSymptom } from './forms/RecordForms';
+import { MetricForm, SymptomForm, type NewMetric, type NewSymptom } from './forms/RecordForms';
 import { ScheduleForm, type NewConsultation } from './tabs/ConsultationsTab';
 import { planExams } from '../lib/journey';
 import { ExamForm, type SaveExam } from './tabs/ExamsTab';
@@ -12,6 +12,8 @@ import Sheet from './Sheet';
 import { Segmented } from './ui';
 
 export type QuickMode = 'sintoma' | 'medicao' | 'momento' | 'consulta' | 'tarefa' | 'exame';
+
+const ICON: Record<QuickMode, typeof Activity> = { sintoma: Activity, momento: NotebookPen, medicao: Scale, consulta: CalendarPlus, tarefa: ListTodo, exame: FileCheck2 };
 
 const LABEL: Record<QuickMode, string> = { sintoma: 'Sintoma', medicao: 'Peso e pressão', momento: 'Diário', consulta: 'Agendar', tarefa: 'Tarefa', exame: 'Resultado' };
 const TITLE: Record<QuickMode, string> = {
@@ -36,7 +38,9 @@ export interface QuickRecordProps {
   entryFolder?: Folder;
   entryIdea?: string;
   onCreateSymptom: (s: NewSymptom) => Promise<boolean>;
-  onCreateMetric: (m: ParsedMetric) => Promise<boolean>;
+  onCreateMetric: (m: NewMetric) => Promise<boolean>;
+  /** Medições, para mostrar a última ao lado do campo. */
+  metrics: HealthMetric[];
   onCreateEntry: (e: NewEntry) => Promise<boolean>;
   onCreateConsultation: (c: NewConsultation) => Promise<boolean>;
   selectedWeek: number;
@@ -62,9 +66,37 @@ export default function QuickRecord({ modes, initial, onClose, ...p }: QuickReco
   return (
     <Sheet title={TITLE[mode]} onClose={onClose}>
       <div className="space-y-4">
-        {modes.length > 1 && <Segmented label="Tipo de registro" size="sm" value={mode} onChange={setMode} options={modes.map(m => ({ value: m, label: LABEL[m] }))} />}
-        {mode === 'sintoma' && <SymptomForm trimester={p.trimester} history={p.symptoms} busy={p.busy} currentWeek={p.currentWeek} onCreate={done(p.onCreateSymptom)} />}
-        {mode === 'medicao' && <MetricForm author={p.author} busy={p.busy} currentWeek={p.currentWeek} onCreate={done(p.onCreateMetric)} />}
+        {modes.length > 3 ? (
+          // Muitos tipos (Início): uma grade de ícones, sem quebrar linha no meio.
+          <div role="group" aria-label="Tipo de registro" className="grid grid-cols-3 gap-2">
+            {modes.map(m => {
+              const Icon = ICON[m];
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={mode === m}
+                  onClick={() => setMode(m)}
+                  className={`flex flex-col items-center gap-1 rounded-2xl px-1 py-2.5 text-[12px] font-bold transition ${mode === m ? 'bg-brand text-on-accent shadow-soft' : 'bg-surface-2 text-ink-soft hover:text-ink'}`}
+                >
+                  <Icon className="w-5 h-5" aria-hidden />
+                  {LABEL[m]}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          modes.length > 1 && <Segmented label="Tipo de registro" size="sm" value={mode} onChange={setMode} options={modes.map(m => ({ value: m, label: LABEL[m] }))} />
+        )}
+        {mode === 'sintoma' && <SymptomForm author={p.author} dumDate={p.dumDate} trimester={p.trimester} history={p.symptoms} busy={p.busy} onCreate={done(p.onCreateSymptom)} />}
+        {mode === 'medicao' && (
+          <MetricForm
+            busy={p.busy}
+            dumDate={p.dumDate}
+            onCreate={done(p.onCreateMetric)}
+            last={{ weight: [...p.metrics].reverse().find(m => m.weight_kg !== null) ?? null, pressure: [...p.metrics].reverse().find(m => m.systolic_bp !== null) ?? null }}
+          />
+        )}
         {mode === 'momento' && <EntryForm busy={p.busy} available={p.journalAvailable} photosAvailable={p.photosAvailable} dumDate={p.dumDate} folder={p.entryFolder} idea={p.entryIdea} onSave={done(p.onCreateEntry)} />}
         {mode === 'consulta' && <ScheduleForm busy={p.busy} startOpen onCreate={done(p.onCreateConsultation)} onClose={onClose} />}
         {mode === 'tarefa' && <TaskForm selectedWeek={p.selectedWeek} busy={p.busy} onCreate={done(p.onCreateTask)} onCancel={onClose} />}

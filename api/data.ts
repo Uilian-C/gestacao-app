@@ -89,12 +89,13 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('updateTask'), id, ...taskFields }),
   z.object({ op: z.literal('toggleTask'), id, done: z.boolean() }),
   z.object({ op: z.literal('createSymptom'), week, date: isoDate, ...symptomFields }),
-  z.object({ op: z.literal('updateSymptom'), id, ...symptomFields }),
+  // Editar pode trocar o dia (e a semana junto); sem eles, o dia fica como estava.
+  z.object({ op: z.literal('updateSymptom'), id, week: week.optional(), date: isoDate.optional(), ...symptomFields }),
   z.object({ op: z.literal('createComment'), symptomId: id, text: text(2000) }),
   z.object({ op: z.literal('createQuestion'), week, text: text(2000), category: text(30), specialty: text(30) }),
   z.object({ op: z.literal('answerQuestion'), id, answer: text(4000) }),
   z.object({ op: z.literal('createMetric'), week, date: isoDate, ...metricFields }),
-  z.object({ op: z.literal('updateMetric'), id, ...metricFields }),
+  z.object({ op: z.literal('updateMetric'), id, week: week.optional(), date: isoDate.optional(), ...metricFields }),
   z.object({ op: z.literal('createConsultation'), ...consultationFields }),
   z.object({ op: z.literal('updateConsultation'), id, ...consultationFields }),
   z.object({ op: z.literal('setCheck'), list: z.enum(['prenatal', 'mala']), itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), done: z.boolean() }),
@@ -173,6 +174,12 @@ function checkinMissing(err: unknown): never {
   throw err;
 }
 
+/** Sintoma e medição são do que já aconteceu: o dia não pode estar no futuro (folga de um dia pelo fuso). */
+function notInFuture(iso: string) {
+  const limit = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  if (iso > limit) throw new HttpError(400, 'Escolha um dia que já passou (ou hoje).');
+}
+
 async function updated(sql: string, values: unknown[]) {
   const rows = await query(`${sql} RETURNING id`, values);
   if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
@@ -224,15 +231,19 @@ async function apply(m: Member, o: Op) {
     case 'toggleTask':
       return query('UPDATE partner_tasks SET is_completed = $1 WHERE id::text = $2 AND family_id = $3', [o.done, o.id, fid]);
     case 'createSymptom':
+      notInFuture(o.date);
       return query(
         `INSERT INTO symptoms_log (family_id, week_number, log_date, symptom_name, intensity, created_by, category, notes, time_of_day)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [fid, o.week, o.date, o.name, o.intensity, who, o.category, o.notes, o.timeOfDay],
       );
     case 'updateSymptom':
+      if (o.date) notInFuture(o.date);
       return updated(
-        `UPDATE symptoms_log SET symptom_name = $1, intensity = $2, category = $3, notes = $4, time_of_day = $5 WHERE id::text = $6 AND family_id = $7`,
-        [o.name, o.intensity, o.category, o.notes, o.timeOfDay, o.id, fid],
+        `UPDATE symptoms_log SET symptom_name = $1, intensity = $2, category = $3, notes = $4, time_of_day = $5,
+                log_date = COALESCE($8::date, log_date), week_number = COALESCE($9::int, week_number)
+         WHERE id::text = $6 AND family_id = $7`,
+        [o.name, o.intensity, o.category, o.notes, o.timeOfDay, o.id, fid, o.date ?? null, o.week ?? null],
       );
     case 'createComment': {
       // O sintoma comentado precisa ser do mesmo espaço.
@@ -257,6 +268,7 @@ async function apply(m: Member, o: Op) {
         [o.answer, o.id, fid],
       );
     case 'createMetric':
+      notInFuture(o.date);
       if (o.weight === null && (o.systolic === null || o.diastolic === null)) throw new HttpError(400, 'Informe o peso ou a pressão.');
       return query(
         `INSERT INTO health_metrics_log (family_id, week_number, recorded_at, weight_kg, systolic_bp, diastolic_bp, created_by)
@@ -265,7 +277,13 @@ async function apply(m: Member, o: Op) {
       );
     case 'updateMetric':
       if (o.weight === null && (o.systolic === null || o.diastolic === null)) throw new HttpError(400, 'Informe o peso ou a pressão.');
-      return updated(`UPDATE health_metrics_log SET weight_kg = $1, systolic_bp = $2, diastolic_bp = $3 WHERE id::text = $4 AND family_id = $5`, [o.weight, o.systolic, o.diastolic, o.id, fid]);
+      if (o.date) notInFuture(o.date);
+      return updated(
+        `UPDATE health_metrics_log SET weight_kg = $1, systolic_bp = $2, diastolic_bp = $3,
+                recorded_at = COALESCE($6::date, recorded_at), week_number = COALESCE($7::int, week_number)
+         WHERE id::text = $4 AND family_id = $5`,
+        [o.weight, o.systolic, o.diastolic, o.id, fid, o.date ?? null, o.week ?? null],
+      );
     case 'updateConsultation': {
       const update = (full: boolean) =>
         query<{ id: string }>(

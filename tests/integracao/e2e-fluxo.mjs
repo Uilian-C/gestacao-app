@@ -77,7 +77,7 @@ await pai.getByPlaceholder('O que ela está sentindo?').fill('Inchaço nos pés'
 check(await pai.getByRole('button', { name: 'Escolha a intensidade' }).isDisabled(), 'sem intensidade, o botão pede para escolher');
 await pai.getByRole('button', { name: '3: Moderado' }).click();
 check(await pai.getByRole('button', { name: /Físico/ }).isVisible(), 'tipo preenchido sozinho (Inchaço nos pés → Físico)');
-await pai.getByRole('button', { name: /Salvar · semana/ }).click();
+await pai.getByRole('button', { name: 'Salvar sintoma' }).click();
 await pai.waitForTimeout(1200);
 await mae.reload();
 await mae.getByRole('button', { name: /^Cuidados/ }).first().click();
