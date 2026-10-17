@@ -256,3 +256,44 @@
 /* Listas que rolam para o lado (sugestões): sem barra de rolagem visível. */
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ---- Símbolo do Tumtum batendo: tum-tum, pausa ---- */
+.tt-batida,
+.tt-eco {
+  transform-box: view-box;
+  transform-origin: 100px 108px;
+  animation: tt-batida 1.5s ease-in-out infinite;
+}
+.tt-eco {
+  animation-name: tt-eco;
+}
+.tt-luz {
+  animation: tt-luz 1.5s ease-in-out infinite;
+}
+@keyframes tt-batida {
+  0%, 22%, 100% { transform: scale(1); }
+  9% { transform: scale(1.06); }
+  31% { transform: scale(1.045); }
+  42% { transform: scale(1); }
+}
+@keyframes tt-eco {
+  0%, 26%, 100% { transform: scale(1); opacity: 0.55; }
+  13% { transform: scale(1.04); opacity: 0.85; }
+  36% { transform: scale(1.03); opacity: 0.75; }
+  48% { transform: scale(1); opacity: 0.55; }
+}
+/* A luz sobe de baixo para cima a cada batida */
+@keyframes tt-luz {
+  0% { transform: translateY(0); opacity: 0; }
+  3% { opacity: 1; }
+  20% { transform: translateY(-140px); opacity: 1; }
+  21% { transform: translateY(-140px); opacity: 0; }
+  22% { transform: translateY(0); opacity: 0; }
+  25% { opacity: 0.8; }
+  44% { transform: translateY(-140px); opacity: 0.8; }
+  45%, 100% { transform: translateY(-140px); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-batida, .tt-eco, .tt-luz { animation: none; }
+  .tt-luz { opacity: 0; }
+}

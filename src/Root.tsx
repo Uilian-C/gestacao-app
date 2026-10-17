@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CloudRain, Loader2 } from 'lucide-react';
+import { CloudRain } from 'lucide-react';
 import App from './App';
+import BrandMark from './components/BrandMark';
 import { api, ApiError, type FamilyState, type Me } from './api';
 import AuthScreen from './components/auth/AuthScreen';
 import ConsentScreen from './components/auth/ConsentScreen';
@@ -113,9 +114,10 @@ function Splash({ children }: { children?: React.ReactNode }) {
     <div className="min-h-screen bg-canvas text-ink flex items-center justify-center px-4">
       <div className="text-center space-y-3">
         {children ?? (
-          <p className="flex items-center gap-2 text-brand font-medium">
-            <Loader2 className="w-5 h-5 animate-spin" /> Abrindo o espaço de vocês...
-          </p>
+          <div className="space-y-3" role="status">
+            <BrandMark animated className="w-20 h-20 mx-auto" />
+            <p className="text-ink-soft font-medium">Abrindo o espaço de vocês...</p>
+          </div>
         )}
       </div>
     </div>
