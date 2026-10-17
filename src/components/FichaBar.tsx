@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { ChevronDown, ClipboardList, Pencil } from 'lucide-react';
 import { BLOOD_TYPES, buildFicha, fichaSummary, missingFicha, type FichaItem } from '../lib/ficha';
 import type { HealthMetric, PregnancyProfile } from '../types';
@@ -27,7 +27,7 @@ interface Props {
   onSave: (input: FichaInput) => Promise<boolean>;
 }
 
-/** Cabeçalho de prontuário: o mesmo resumo em todas as telas, com a ficha completa a um toque. */
+/** Ficha da gestante no topo do Início e de Cuidados: uma linha de resumo, com a ficha completa a um toque. */
 export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -37,57 +37,58 @@ export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
 
   return (
     <div className="no-print max-w-5xl mx-auto px-4 md:px-6">
-      <div className="rounded-[24px] bg-surface shadow-soft">
-        <button
-          onClick={() => setOpen(v => !v)}
-          aria-expanded={open}
-          className="w-full flex items-center gap-3 px-4 py-2.5 text-left"
-        >
-          <ClipboardList className="w-4 h-4 text-brand shrink-0" />
-          <span className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 text-sm">
-            {summary.map((s, i) => (
-              <span key={i} className={`tabular whitespace-nowrap rounded-full px-2 py-0.5 ${i === 0 ? 'font-semibold text-ink bg-brand-soft' : 'text-ink-soft bg-surface-2'}`}>
-                {s}
-              </span>
-            ))}
-            {missing.length > 0 && <span className="text-xs font-semibold text-warm whitespace-nowrap px-1">completar ficha</span>}
-          </span>
-          <ChevronDown className={`w-4 h-4 text-ink-mute shrink-0 transition ${open ? 'rotate-180' : ''}`} />
-        </button>
+      {/* Fechada, a ficha é só uma linha de texto: sem caixa, sem contornos. */}
+      <button onClick={() => setOpen(v => !v)} aria-expanded={open} className="w-full flex items-center gap-2.5 py-1.5 text-left">
+        <span className="w-8 h-8 rounded-full bg-brand-soft text-brand-strong flex items-center justify-center shrink-0">
+          <ClipboardList className="w-4 h-4" />
+        </span>
+        <span className="flex-1 min-w-0 text-sm text-ink-soft leading-snug tabular">
+          {summary.map((s, i) => (
+            <Fragment key={i}>
+              {i > 0 && <span className="text-ink-mute/70 mx-1.5" aria-hidden>·</span>}
+              <span className={`whitespace-nowrap ${/^\d+s \d+d$/.test(s) ? 'font-extrabold text-ink' : ''}`}>{s}</span>
+            </Fragment>
+          ))}
+        </span>
+        <span className="shrink-0 flex items-center gap-1.5 text-sm font-bold text-brand-strong">
+          {missing.length > 0 && <span className="w-2 h-2 rounded-full bg-warm" title="Ficha incompleta" aria-label="ficha incompleta" />}
+          Ficha
+          <ChevronDown className={`w-4 h-4 transition ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
 
-        {open && (
-          <div className="border-t border-line px-4 py-4 space-y-4">
-            {!editing ? (
-              <>
-                <FichaGrid items={items} />
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs text-ink-mute">
-                    {missing.length ? `Falta preencher: ${missing.join(', ').toLowerCase()}.` : 'Ficha completa. Ela aparece no topo de todo resumo de consulta.'}
+      {open && (
+        <div className="mt-2 rounded-[24px] bg-surface shadow-soft px-4 py-4 space-y-4">
+          {!editing ? (
+            <>
+              <FichaGrid items={items} />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-ink-mute">
+                  {missing.length ? `Falta preencher: ${missing.join(', ').toLowerCase()}.` : 'Ficha completa. Ela aparece no topo de todo resumo de consulta.'}
+                </p>
+                {profile.fichaAvailable ? (
+                  <Button tone="soft" onClick={() => setEditing(true)} className="!px-4 !py-2">
+                    <Pencil className="w-4 h-4" /> Editar ficha
+                  </Button>
+                ) : (
+                  <p className="text-xs text-warn bg-warn-soft rounded-xl px-3 py-2">
+                    Para editar, rodem a migração <code>db/migrations/003_ficha_gestante.sql</code> no Neon.
                   </p>
-                  {profile.fichaAvailable ? (
-                    <Button tone="soft" onClick={() => setEditing(true)} className="!px-4 !py-2">
-                      <Pencil className="w-4 h-4" /> Editar ficha
-                    </Button>
-                  ) : (
-                    <p className="text-xs text-warn bg-warn-soft rounded-xl px-3 py-2">
-                      Para editar, rodem a migração <code>db/migrations/003_ficha_gestante.sql</code> no Neon.
-                    </p>
-                  )}
-                </div>
-              </>
-            ) : (
-              <FichaForm
-                profile={profile}
-                busy={busy}
-                onCancel={() => setEditing(false)}
-                onSave={async input => {
-                  if (await onSave(input)) setEditing(false);
-                }}
-              />
-            )}
-          </div>
-        )}
-      </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <FichaForm
+              profile={profile}
+              busy={busy}
+              onCancel={() => setEditing(false)}
+              onSave={async input => {
+                if (await onSave(input)) setEditing(false);
+              }}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

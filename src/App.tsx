@@ -444,9 +444,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 window.scrollTo({ top: 0 });
               }}
               options={[
-                { value: 'linha', label: 'Linha do tempo' },
+                { value: 'linha', label: 'Registros' },
                 { value: 'sintomas', label: 'Sintomas' },
-                { value: 'corpo', label: 'Peso e pressão' },
+                { value: 'corpo', label: 'Medidas' },
                 { value: 'resumo', label: 'Resumo' },
               ]}
             />
@@ -484,7 +484,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
               onChange={setAgendaView}
               options={[
                 { value: 'calendario', label: 'Calendário' },
-                { value: 'tarefas', label: `Tarefas${overdueTasks ? ` (${overdueTasks} atrasada${overdueTasks > 1 ? 's' : ''})` : ''}` },
+                { value: 'tarefas', label: 'Tarefas', badge: overdueTasks },
               ]}
             />
             {agendaView === 'calendario' ? (
@@ -528,8 +528,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
               window.scrollTo({ top: 0 });
             }}
             options={[
-              { value: 'consultas', label: 'Consultas' },
-              { value: 'exames', label: `Exames${exams.length ? ` (${exams.length})` : ''}` },
+              { value: 'consultas', label: 'Consultas', badge: questions.filter(q => !q.doctor_answer).length },
+              { value: 'exames', label: 'Exames' },
               { value: 'jornada', label: 'Jornada' },
             ]}
           />
@@ -606,11 +606,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         <button
           type="button"
           onClick={() => setRecording(recordModes)}
-          aria-label="Registrar"
-          className="no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] md:bottom-8 w-[60px] h-[60px] rounded-full text-white flex items-center justify-center shadow-lift transition active:scale-95 hover:brightness-105"
-          style={{ background: 'linear-gradient(135deg, #ff7fa0, #2f84d6)' }}
+          className="no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-8 h-12 pl-3.5 pr-5 rounded-full text-white text-[15px] font-extrabold flex items-center gap-1.5 shadow-lift transition active:scale-95 hover:brightness-105"
+          style={{ background: 'linear-gradient(120deg, #c93d64, #2f78c4)' }}
         >
-          <Plus className="w-7 h-7" strokeWidth={2.6} />
+          <Plus className="w-5 h-5" strokeWidth={2.8} />
+          Registrar
         </button>
       )}
       {recording && (

@@ -31,9 +31,9 @@ await dlg.getByLabel('Peso (kg)').fill('64,5');
 await dlg.getByRole('button', { name: /Registrar como/ }).click();
 await p.waitForTimeout(1200);
 check(!(await dlg.isVisible()), 'janela fecha após salvar peso');
-await p.getByRole('button', { name: 'Peso e pressão', exact: true }).click();
+await p.getByRole('button', { name: 'Medidas', exact: true }).click();
 await p.waitForTimeout(500);
-check((await p.getByText(/64[,.]5/).count()) > 0, 'peso aparece em Peso e pressão');
+check((await p.getByText(/64[,.]5/).count()) > 0, 'peso aparece em Medidas');
 
 // Agenda: tarefa
 await tab('Agenda');
