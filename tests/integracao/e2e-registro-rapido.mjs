@@ -11,7 +11,7 @@ const modes = async () => (await dlg.getByRole('group', { name: 'Tipo de registr
 
 // Início: tudo o que dá para registrar
 await plus.click();
-check((await modes()) === 'Sintoma,Diário,Peso e pressão,Consulta,Tarefa,Exame', `Início oferece todos os registros (${await modes()})`);
+check((await modes()) === 'Sintoma,Diário,Peso e pressão,Agendar,Tarefa,Resultado', `Início oferece todos os registros (${await modes()})`);
 await p.screenshot({ path: `${OUT}rapido-inicio.png` });
 await dlg.getByLabel('O que ela está sentindo?').fill('Enjoo');
 await dlg.getByRole('button', { name: '3: Moderado' }).click();
@@ -51,7 +51,7 @@ check(!(await dlg.isVisible()) && (await p.getByRole('button', { name: 'Ideia: v
 // Agenda: tarefa
 await tab('Agenda');
 await plus.click();
-check((await modes()) === 'Tarefa,Consulta', 'Agenda oferece tarefa e consulta');
+check((await modes()) === 'Tarefa,Agendar', 'Agenda oferece tarefa e agendamento');
 await dlg.getByLabel('Tarefa').fill('Montar o berço');
 await dlg.getByRole('button', { name: 'Criar tarefa' }).click();
 await p.waitForTimeout(1200);
@@ -61,9 +61,9 @@ check(await p.getByText('Montar o berço').first().isVisible(), 'tarefa aparece 
 
 // Cuidados: consulta e exame; Esc fecha
 await tab('Cuidados');
-await p.getByRole('button', { name: /^Consultas/ }).click();
+await p.getByRole('button', { name: /^Agendados/ }).click();
 await plus.click();
-check((await modes()) === 'Consulta,Exame', 'Cuidados oferece consulta e exame');
+check((await modes()) === 'Agendar,Resultado', 'Cuidados oferece agendar e guardar resultado');
 await p.screenshot({ path: `${OUT}rapido-cuidados.png` });
 await p.keyboard.press('Escape');
 check(!(await dlg.isVisible()), 'Esc fecha');

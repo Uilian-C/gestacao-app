@@ -36,7 +36,8 @@ export const GET = endpoint(async request => {
     query<ConsultationRow>(
       `SELECT c.id::text AS id, c.family_id::text AS family_id,
               to_char(c.scheduled_at AT TIME ZONE $3, 'YYYY-MM-DD HH24:MI') AS local,
-              c.professional_name, c.location
+              c.professional_name, c.location,
+              COALESCE(to_jsonb(c) ->> 'kind', 'consulta') AS kind, to_jsonb(c) ->> 'title' AS title
        FROM consultations c
        WHERE (c.scheduled_at AT TIME ZONE $3)::date IN ($1::date, $2::date)`,
       [today, tomorrow, TIME_ZONE],

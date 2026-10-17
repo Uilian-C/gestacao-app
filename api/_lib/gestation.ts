@@ -52,8 +52,10 @@ export async function fetchAll(fid: string, userId: string) {
       [fid],
     ),
     query(
-      `SELECT id, scheduled_at::text AS scheduled_at, specialty, professional_name, location, notes, COALESCE(created_by, 'mae') AS created_by
-       FROM consultations WHERE family_id = $1
+      // Tipo, nome e item da jornada pelo jsonb: antes da migração 013 as colunas não existem e tudo é consulta.
+      `SELECT id, scheduled_at::text AS scheduled_at, specialty, professional_name, location, notes, COALESCE(created_by, 'mae') AS created_by,
+              COALESCE(to_jsonb(c) ->> 'kind', 'consulta') AS kind, to_jsonb(c) ->> 'title' AS title, to_jsonb(c) ->> 'plan_item' AS plan_item
+       FROM consultations c WHERE family_id = $1
        ORDER BY scheduled_at ASC`,
       [fid],
     ),
@@ -84,6 +86,7 @@ export async function fetchAll(fid: string, userId: string) {
     // Exames com a lista de arquivos; os particulares, de novo, só para quem enviou.
     query(
       `SELECT e.id, e.kind, e.title, e.exam_date::text AS exam_date, e.plan_item, e.notes, e.visibility, e.author_role,
+              to_jsonb(e) ->> 'appointment_id' AS appointment_id,
               COALESCE(e.user_id = $2, false) AS mine, e.created_at::text AS created_at,
               COALESCE(json_agg(json_build_object('id', f.id, 'content_type', f.content_type, 'size', f.size_bytes) ORDER BY f.created_at)
                        FILTER (WHERE f.id IS NOT NULL), '[]') AS files

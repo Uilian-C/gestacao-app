@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { AlertTriangle, Bell, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, Heart, ListPlus, NotebookPen, Stethoscope } from 'lucide-react';
-import { buildCalendar, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, monthGrid, toIcs, type CalendarEvent, type CalendarMoment, type DayRecords } from '../../lib/calendar';
+import { AlertTriangle, Bell, FileCheck2, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, Heart, ListPlus, NotebookPen, Stethoscope } from 'lucide-react';
+import { buildCalendar, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, monthGrid, toIcs, type CalendarEvent, type CalendarMoment, type CalendarResult, type DayRecords } from '../../lib/calendar';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, toISODate } from '../../lib/dates';
 import type { Consultation, HealthMetric, PartnerTask, SymptomItem, Tab } from '../../types';
 import AuthorBadge from '../AuthorBadge';
@@ -25,13 +25,19 @@ interface Props {
   onToggleTask: (t: PartnerTask) => void;
   onNavigate: (tab: Tab) => void;
   onNotify: (text: string) => void;
-  /** Abre os detalhes de uma consulta, tarefa ou momento. */
-  onOpen: (target: DetailTarget) => void;
+  /** Abre os detalhes de um agendamento, tarefa ou momento, ou o resultado de um exame. */
+  onOpen: OpenTarget;
+  /** Resultados guardados (exames e ultrassons), que entram no dia em que foram feitos. */
+  results: CalendarResult[];
 }
+
+/** O que um evento abre: os detalhes (agendamento, tarefa, momento) ou o resultado guardado. */
+export type OpenTarget = (target: DetailTarget | { kind: 'exam'; id: string }) => void;
 
 const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 const KIND_STYLE: Record<CalendarEvent['kind'], string> = {
   consulta: 'bg-brand-soft text-brand-strong',
+  exame: 'bg-verde-soft text-verde-strong',
   tarefa: 'bg-surface-2 text-ink-soft',
   marco: 'bg-warm-soft text-warm',
   momento: 'bg-casal-soft text-casal',
@@ -51,7 +57,7 @@ export default function CalendarTab(props: Props) {
     requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
   };
 
-  const cal = buildCalendar({ dumDate: props.dumDate, consultations: props.consultations, tasks: props.tasks, symptoms: props.symptoms, metrics: props.metrics, journal: props.journal, today });
+  const cal = buildCalendar({ dumDate: props.dumDate, consultations: props.consultations, results: props.results, tasks: props.tasks, symptoms: props.symptoms, metrics: props.metrics, journal: props.journal, today });
 
   const goToday = () => {
     setCursor({ year: today.getFullYear(), month: today.getMonth() });
@@ -161,7 +167,8 @@ function Legend() {
   );
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-      {item('bg-brand', 'Consulta')}
+      {item('bg-brand', 'Consulta, exame ou vacina marcados')}
+      {item('bg-verde', 'Resultado guardado')}
       {item('bg-ink-mute', 'Tarefa com prazo')}
       {item('bg-warm', 'Marco do pré-natal')}
       {item('bg-casal', 'Momento ou lembrete')}
@@ -177,6 +184,7 @@ function Legend() {
 function dotClass(e: CalendarEvent) {
   if (e.overdue) return 'bg-alert';
   if (e.kind === 'consulta') return 'bg-brand';
+  if (e.kind === 'exame') return 'bg-verde';
   if (e.kind === 'marco') return 'bg-warm';
   if (e.kind === 'momento') return 'bg-casal';
   return e.done ? 'bg-line' : 'bg-ink-mute';
@@ -246,7 +254,7 @@ function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events,
   );
 }
 
-function WeekView({ days, todayIso, selected, onSelect, events, records, onToggleTask, onOpen }: { days: Date[]; todayIso: string; selected: string; onSelect: (d: string) => void; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; onToggleTask: (id: string) => void; onOpen: (target: DetailTarget) => void }) {
+function WeekView({ days, todayIso, selected, onSelect, events, records, onToggleTask, onOpen }: { days: Date[]; todayIso: string; selected: string; onSelect: (d: string) => void; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; onToggleTask: (id: string) => void; onOpen: OpenTarget }) {
   return (
     <ol className="divide-y divide-line">
       {days.map(d => {
@@ -280,12 +288,12 @@ function WeekView({ days, todayIso, selected, onSelect, events, records, onToggl
   );
 }
 
-const OPENS: Partial<Record<CalendarEvent['kind'], DetailTarget['kind']>> = { consulta: 'consultation', tarefa: 'task', momento: 'entry' };
+const OPENS: Partial<Record<CalendarEvent['kind'], DetailTarget['kind'] | 'exam'>> = { consulta: 'consultation', exame: 'exam', tarefa: 'task', momento: 'entry' };
 
-function EventLine({ event: e, onToggleTask, onOpen }: { event: CalendarEvent; onToggleTask?: (id: string) => void; onOpen?: (target: DetailTarget) => void }) {
+function EventLine({ event: e, onToggleTask, onOpen }: { event: CalendarEvent; onToggleTask?: (id: string) => void; onOpen?: OpenTarget }) {
   const opens = onOpen && e.sourceId ? OPENS[e.kind] : undefined;
   const icon =
-    e.kind === 'consulta' ? <Stethoscope className="w-4 h-4 text-brand" /> : e.kind === 'marco' ? <Flag className="w-4 h-4 text-warm" /> : e.kind === 'momento' ? (e.reminder ? <Bell className="w-4 h-4 text-casal" /> : <Heart className="w-4 h-4 text-casal" />) : e.overdue ? <AlertTriangle className="w-4 h-4 text-alert" /> : <CheckCircle2 className={`w-4 h-4 ${e.done ? 'text-ok' : 'text-ink-mute'}`} />;
+    e.kind === 'consulta' ? (e.appointment && e.appointment !== 'consulta' ? <span className="text-[13px] leading-4" aria-hidden>{e.emoji}</span> : <Stethoscope className="w-4 h-4 text-brand" />) : e.kind === 'exame' ? <FileCheck2 className="w-4 h-4 text-verde" /> : e.kind === 'marco' ? <Flag className="w-4 h-4 text-warm" /> : e.kind === 'momento' ? (e.reminder ? <Bell className="w-4 h-4 text-casal" /> : <Heart className="w-4 h-4 text-casal" />) : e.overdue ? <AlertTriangle className="w-4 h-4 text-alert" /> : <CheckCircle2 className={`w-4 h-4 ${e.done ? 'text-ok' : 'text-ink-mute'}`} />;
   return (
     <div className="flex items-start gap-2 text-sm">
       {e.kind === 'tarefa' && onToggleTask && e.sourceId ? (
@@ -303,7 +311,7 @@ function EventLine({ event: e, onToggleTask, onOpen }: { event: CalendarEvent; o
         <span className="mt-0.5 shrink-0">{icon}</span>
       )}
       {opens ? (
-        <button type="button" onClick={() => onOpen!({ kind: opens, id: e.sourceId! })} className={`min-w-0 text-left hover:underline underline-offset-2 ${e.done ? 'line-through text-ink-mute' : 'text-ink'}`}>
+        <button type="button" onClick={() => onOpen!({ kind: opens, id: e.sourceId! } as DetailTarget | { kind: 'exam'; id: string })} className={`min-w-0 text-left hover:underline underline-offset-2 ${e.done ? 'line-through text-ink-mute' : 'text-ink'}`}>
           <EventText event={e} />
         </button>
       ) : (
@@ -359,7 +367,7 @@ function DayPanel(props: {
   onCreateTask: (t: NewTask) => Promise<boolean>;
   onToggleTask: (t: PartnerTask) => void;
   onNavigate: (tab: Tab) => void;
-  onOpen: (target: DetailTarget) => void;
+  onOpen: OpenTarget;
 }) {
   const [adding, setAdding] = useState<'consulta' | 'tarefa' | null>(null);
   const date = parseLocalDate(props.day);
@@ -431,7 +439,7 @@ function DayPanel(props: {
         <div className="flex flex-wrap gap-2 pt-1">
           {!props.migrationPending && !isPast && (
             <Button tone="soft" onClick={() => setAdding('consulta')} className="!px-3 !py-2">
-              <Stethoscope className="w-4 h-4" /> Consulta
+              <Stethoscope className="w-4 h-4" /> Agendar
             </Button>
           )}
           <Button tone="soft" onClick={() => setAdding('tarefa')} className="!px-3 !py-2">

@@ -99,7 +99,7 @@ await p.keyboard.press('Escape');
 
 // ---- Consulta: editar e preparar resumo ----
 await tab('Cuidados');
-await p.getByRole('button', { name: /^Consultas/ }).click();
+await p.getByRole('button', { name: /^Agendados/ }).click();
 await p.getByRole('button', { name: /Consulta de Obstetra.*ver detalhes/ }).click();
 await dlg.getByRole('button', { name: 'Editar' }).click();
 await dlg.getByLabel('Profissional (opcional)').fill('Dra. Marina Lima');

@@ -4,9 +4,11 @@ import { examFileUrl } from '../../api';
 import { PLAN_ITEMS, type PlanItem } from '../../content/prenatalPlan';
 import type { ExamFile, ExamItem, ExamKind, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { ReactionBar, Thread, type OnReact } from '../Social';
-import { formatBR, gestationalAge, parseLocalDate, toISODate } from '../../lib/dates';
+import { formatBR, gestationalAge, localDay, parseLocalDate, toISODate } from '../../lib/dates';
 import { planExams } from '../../lib/journey';
 import { FileProblem, formatSize, prepareFile, type PreparedFile } from '../../lib/examFiles';
+import { appointmentTitle, kindOf } from '../../lib/appointments';
+import type { Consultation } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import PhotoViewer from '../PhotoViewer';
 import { inputClass } from '../styles';
@@ -19,6 +21,8 @@ export interface NewExam {
   planItem: string | null;
   notes: string | null;
   visibility: 'private' | 'shared';
+  /** Agendamento de onde veio o resultado. */
+  appointmentId?: string | null;
 }
 
 /** Grava o exame (ou junta arquivos a um que já existe). Devolve a mensagem de erro, ou null se deu certo. */
@@ -36,6 +40,10 @@ interface Props {
   onDeleteFile: (exam: ExamItem, file: ExamFile) => void;
   /** Abre já o formulário para este item da jornada (vindo do Início). */
   initialPlanItem?: string | null;
+  /** Abre já o formulário preenchido com este agendamento (exame ou ultrassom que aconteceu). */
+  fromAppointment?: Consultation | null;
+  /** Leva até este resultado na lista. */
+  focusExam?: string | null;
   social: ExamSocial;
 }
 
@@ -57,7 +65,17 @@ const kindFor = (item: PlanItem): ExamKind => (item.id.startsWith('morfo') ? 'ul
 
 export default function ExamsTab(props: Props) {
   const [filter, setFilter] = useState<ExamKind | 'todos'>('todos');
-  const [formFor, setFormFor] = useState<PlanItem | 'novo' | null>(() => PLAN_ITEMS.find(i => i.id === props.initialPlanItem) ?? null);
+  const [formFor, setFormFor] = useState<PlanItem | 'novo' | 'agendado' | null>(() => (props.fromAppointment ? 'agendado' : (PLAN_ITEMS.find(i => i.id === props.initialPlanItem) ?? null)));
+  // Vindo de "Ver resultado": rola até o cartão do exame e o destaca por um instante.
+  useEffect(() => {
+    if (!props.focusExam) return;
+    const el = document.getElementById(`exame-${props.focusExam}`);
+    if (!el) return;
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 120, behavior: 'smooth' });
+    el.classList.add('ring-4', 'ring-brand/30');
+    const t = window.setTimeout(() => el.classList.remove('ring-4', 'ring-brand/30'), 2200);
+    return () => window.clearTimeout(t);
+  }, [props.focusExam]);
   const [viewer, setViewer] = useState<{ exam: ExamItem; index: number } | null>(null);
 
   const plan = planExams(props.bloodType);
@@ -76,13 +94,13 @@ export default function ExamsTab(props: Props) {
       <Card>
         <SectionTitle
           icon={<ScanHeart className="w-5 h-5" />}
-          title="Exames e ultrassons"
-          subtitle="Fotos dos resultados e PDFs num lugar só, para achar na hora da consulta."
+          title="Resultados"
+          subtitle="Laudos, fotos e PDFs dos exames e ultrassons já feitos, num lugar só. Para marcar um exame, use Agendados."
         />
 
         {props.available && props.exams.length > 0 && !formFor && (
           <Button onClick={() => setFormFor('novo')} className="w-full mb-4">
-            <Camera /> Guardar exame
+            <Camera /> Guardar resultado
           </Button>
         )}
 
@@ -97,6 +115,7 @@ export default function ExamsTab(props: Props) {
             key={typeof formFor === 'string' ? formFor : formFor.id}
             plan={plan}
             preset={typeof formFor === 'string' ? null : formFor}
+            appointment={formFor === 'agendado' ? props.fromAppointment : null}
             busy={props.busy}
             onSave={props.onSave}
             onDone={() => setFormFor(null)}
@@ -249,12 +268,14 @@ function PreparedList({ files, onRemove }: { files: PreparedFile[]; onRemove: (i
 }
 
 /** Formulário de exame. `bare`: sem moldura nem título, para usar dentro da janela de registro. */
-export function ExamForm({ plan, preset, busy, onSave, onDone, bare = false }: { plan: PlanItem[]; preset: PlanItem | null; busy: boolean; onSave: SaveExam; onDone: () => void; bare?: boolean }) {
+export function ExamForm({ plan, preset, appointment, busy, onSave, onDone, bare = false }: { plan: PlanItem[]; preset: PlanItem | null; appointment?: Consultation | null; busy: boolean; onSave: SaveExam; onDone: () => void; bare?: boolean }) {
   const today = toISODate(new Date());
-  const [kind, setKind] = useState<ExamKind>(preset ? kindFor(preset) : 'ultrassom');
-  const [planItem, setPlanItem] = useState<string>(preset?.id ?? '');
-  const [title, setTitle] = useState(preset?.title ?? '');
-  const [date, setDate] = useState(today);
+  // Vindo de um agendamento: tipo, nome, item da jornada e data já preenchidos.
+  const fromDay = appointment ? toISODate(localDay(appointment.scheduled_at)) : null;
+  const [kind, setKind] = useState<ExamKind>(appointment ? (kindOf(appointment) === 'ultrassom' ? 'ultrassom' : 'exame') : preset ? kindFor(preset) : 'ultrassom');
+  const [planItem, setPlanItem] = useState<string>(appointment?.plan_item && plan.some(i => i.id === appointment.plan_item) ? appointment.plan_item : (preset?.id ?? ''));
+  const [title, setTitle] = useState(appointment ? appointmentTitle(appointment) : (preset?.title ?? ''));
+  const [date, setDate] = useState(fromDay && fromDay < today ? fromDay : today);
   const [notes, setNotes] = useState('');
   const [visibility, setVisibility] = useState<'private' | 'shared'>('shared');
   const [sent, setSent] = useState<number | null>(null);
@@ -274,7 +295,7 @@ export function ExamForm({ plan, preset, busy, onSave, onDone, bare = false }: {
     e.preventDefault();
     if (!title.trim()) return;
     setSent(0);
-    const error = await onSave({ kind, title: title.trim(), date, planItem: planItem || null, notes: notes.trim() || null, visibility }, null, picked.files, setSent);
+    const error = await onSave({ kind, title: title.trim(), date, planItem: planItem || null, notes: notes.trim() || null, visibility, appointmentId: appointment?.id ?? null }, null, picked.files, setSent);
     setSent(null);
     if (error) picked.setProblem(error);
     else onDone();
@@ -285,7 +306,7 @@ export function ExamForm({ plan, preset, busy, onSave, onDone, bare = false }: {
     <form onSubmit={submit} className={bare ? 'space-y-4' : 'space-y-4 rounded-2xl bg-surface-2/50 p-4 mb-5'}>
       {!bare && (
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-base text-ink">Guardar exame</h3>
+          <h3 className="text-base text-ink">{appointment ? `Resultado: ${appointmentTitle(appointment)}` : 'Guardar resultado'}</h3>
           <button type="button" onClick={onDone} aria-label="Fechar" className="p-1.5 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2">
             <X className="w-4 h-4" />
           </button>
@@ -376,7 +397,7 @@ function ExamCard({ exam: e, dumDate, busy, social, onSave, onOpen, onDelete }: 
   };
 
   return (
-    <article className="rounded-2xl bg-surface-2/60 p-4 space-y-3">
+    <article id={`exame-${e.id}`} className="rounded-2xl bg-surface-2/60 p-4 space-y-3 transition-shadow">
       <div className="flex items-start gap-3">
         <span className="w-10 h-10 rounded-full bg-surface text-brand flex items-center justify-center shrink-0">
           <Icon className="w-5 h-5" />
