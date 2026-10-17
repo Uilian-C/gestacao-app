@@ -27,11 +27,17 @@ interface Props {
   onSave: (input: FichaInput) => Promise<boolean>;
 }
 
+const WEEKS = /^\d+s \d+d$/;
+
 /** Ficha da gestante no topo do Início e de Cuidados: uma linha de resumo, com a ficha completa a um toque. */
 export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const summary = fichaSummary(profile);
+  // Semana, trimestre e DPP primeiro: é o que mais se procura. O nome (o primeiro
+  // item, quando preenchido) vai para o fim, que é o que se corta quando não cabe.
+  const all = fichaSummary(profile);
+  const name = profile.motherName ? all[0] : null;
+  const summary = [...all.filter(s => s !== name), ...(name ? [name] : [])];
   const items = buildFicha(profile, metrics);
   const missing = missingFicha(items);
 
@@ -42,11 +48,13 @@ export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
         <span className="w-8 h-8 rounded-full bg-brand-soft text-brand-strong flex items-center justify-center shrink-0">
           <ClipboardList className="w-4 h-4" />
         </span>
-        <span className="flex-1 min-w-0 text-sm text-ink-soft leading-snug tabular">
+        {/* Uma linha só, cortada com reticências: com a ficha completa o resumo é longo e,
+            sem isso, passava por cima do "Ficha" e da largura da tela (o celular dava zoom). */}
+        <span className="flex-1 min-w-0 truncate text-sm text-ink-soft tabular">
           {summary.map((s, i) => (
             <Fragment key={i}>
-              {i > 0 && <span className="text-ink-mute/70 mx-1.5" aria-hidden>·</span>}
-              <span className={`whitespace-nowrap ${/^\d+s \d+d$/.test(s) ? 'font-extrabold text-ink' : ''}`}>{s}</span>
+              {i > 0 && <span className="text-ink-mute/70" aria-hidden> · </span>}
+              <span className={WEEKS.test(s) ? 'font-extrabold text-ink' : ''}>{s}</span>
             </Fragment>
           ))}
         </span>

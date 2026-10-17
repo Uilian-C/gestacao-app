@@ -71,7 +71,7 @@ function WeekHeart({ week }: { week: number }) {
   const c = 2 * Math.PI * r;
   const frac = Math.min(1, week / 40);
   return (
-    <div className="relative w-[210px] h-[210px] mx-auto">
+    <div className="relative w-full max-w-[210px] aspect-square mx-auto">
       <div className="tt-onda absolute inset-0 rounded-full border-2 border-rosa/60" aria-hidden />
       <div className="tt-onda-2 absolute inset-0 rounded-full border-2 border-azul/50" aria-hidden />
       <svg viewBox="0 0 210 210" className="absolute inset-0 w-full h-full -rotate-90" role="img" aria-label={`Semana ${week} de 40`}>
@@ -96,13 +96,18 @@ function WeekHeart({ week }: { week: number }) {
 /** Semanas para deslizar: a escolhida fica no centro, a atual com contorno. */
 function WeekStrip({ selected, current, onSelect }: { selected: number; current: number; onSelect: (w: number) => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Centraliza a semana escolhida rolando só a faixa (scrollIntoView rolava a página inteira ao trocar de aba).
+  const first = useRef(true);
   useEffect(() => {
-    const el = ref.current?.querySelector<HTMLElement>(`[data-semana="${selected}"]`);
-    el?.scrollIntoView?.({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    const strip = ref.current;
+    const el = strip?.querySelector<HTMLElement>(`[data-semana="${selected}"]`);
+    if (!strip || !el) return;
+    strip.scrollTo({ left: el.offsetLeft - (strip.clientWidth - el.offsetWidth) / 2, behavior: first.current ? 'auto' : 'smooth' });
+    first.current = false;
   }, [selected]);
   const weeks = Array.from({ length: LAST_WEEK - FIRST_WEEK + 1 }, (_, i) => FIRST_WEEK + i);
   return (
-    <div ref={ref} className="-mx-5 px-5 flex gap-2 overflow-x-auto no-scrollbar py-1" role="group" aria-label="Escolher semana">
+    <div ref={ref} className="relative -mx-5 px-5 flex gap-2 overflow-x-auto no-scrollbar py-1" role="group" aria-label="Escolher semana">
       {weeks.map(w => {
         const on = w === selected;
         return (
@@ -165,7 +170,7 @@ export default function HomeTab(props: Props) {
         </Card>
       )}
 
-      <section aria-label="Semana da gestação" className="rounded-[32px] bg-surface shadow-soft px-5 pt-6 pb-5">
+      <section aria-label="Semana da gestação" className="rounded-[32px] bg-surface shadow-soft px-5 pt-6 pb-5 overflow-hidden">
         <WeekHeart week={selectedWeek} />
         <div className="text-center mt-4 space-y-1">
           <p className="text-[13px] font-extrabold tracking-wide uppercase text-rosa">
