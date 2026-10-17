@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, CalendarHeart, ClipboardCopy, ExternalLink, FileText, HelpCircle, Plus, Printer, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, CalendarHeart, ChevronRight, ClipboardCopy, ExternalLink, FileText, HelpCircle, Plus, Printer, ShieldCheck, Trash2 } from 'lucide-react';
 import { googleCalendarUrl } from '../../lib/calendar';
 import { SPECIALTIES, questionSpecialty, specialtyOf, type SpecialtyId } from '../../data/specialties';
 import { daysBetween, formatBR, localDay, parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
@@ -43,7 +43,8 @@ interface Props {
   report: ReportRequest | null;
   onOpenReport: (r: ReportRequest | null) => void;
   onCreateConsultation: (c: NewConsultation) => Promise<boolean>;
-  onDeleteConsultation: (c: Consultation) => void;
+  /** Abre os detalhes da consulta (com editar e excluir). */
+  onOpenConsultation: (c: Consultation) => void;
   onCreateQuestion: (text: string, category: string, specialty: SpecialtyId) => Promise<boolean>;
   onAnswer: (id: string, answer: string) => Promise<boolean>;
   onDeleteQuestion: (q: QuestionItem) => void;
@@ -76,7 +77,7 @@ export default function ConsultationsTab(props: Props) {
           <div className="space-y-4">
             {upcoming.length === 0 && <p className="text-ink-soft">Nenhuma consulta marcada.</p>}
             {upcoming.map(c => (
-              <ConsultationRow key={c.id} consultation={c} today={today} questions={props.questions} onPrepare={() => props.onOpenReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id })} onDelete={() => props.onDeleteConsultation(c)} />
+              <ConsultationRow key={c.id} consultation={c} today={today} questions={props.questions} onPrepare={() => props.onOpenReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id })} onOpen={() => props.onOpenConsultation(c)} />
             ))}
             <ScheduleForm busy={props.busy} onCreate={props.onCreateConsultation} />
             {past.length > 0 && (
@@ -84,7 +85,7 @@ export default function ConsultationsTab(props: Props) {
                 <summary className="cursor-pointer text-sm font-semibold text-ink-mute">Consultas anteriores ({past.length})</summary>
                 <div className="space-y-3 mt-3">
                   {past.map(c => (
-                    <ConsultationRow key={c.id} consultation={c} today={today} questions={props.questions} onPrepare={() => props.onOpenReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id })} onDelete={() => props.onDeleteConsultation(c)} />
+                    <ConsultationRow key={c.id} consultation={c} today={today} questions={props.questions} onPrepare={() => props.onOpenReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id })} onOpen={() => props.onOpenConsultation(c)} />
                   ))}
                 </div>
               </details>
@@ -100,7 +101,7 @@ export default function ConsultationsTab(props: Props) {
   );
 }
 
-function ConsultationRow({ consultation: c, today, questions, onPrepare, onDelete }: { consultation: Consultation; today: Date; questions: QuestionItem[]; onPrepare: () => void; onDelete: () => void }) {
+function ConsultationRow({ consultation: c, today, questions, onPrepare, onOpen }: { consultation: Consultation; today: Date; questions: QuestionItem[]; onPrepare: () => void; onOpen: () => void }) {
   const spec = specialtyOf(c.specialty);
   const when = parseTimestamp(c.scheduled_at);
   const days = daysBetween(today, localDay(c.scheduled_at));
@@ -109,10 +110,11 @@ function ConsultationRow({ consultation: c, today, questions, onPrepare, onDelet
     <div className="rounded-2xl border border-transparent bg-surface-2/60 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
       <SpecialtyIcon id={spec.id} />
       <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={onOpen} className="flex flex-wrap items-center gap-2 text-left" aria-label={`Consulta de ${spec.label}: ver detalhes, editar ou excluir`}>
           <p className="font-semibold text-ink">{spec.label}</p>
           {days >= 0 && <Pill tone={days <= 2 ? 'warm' : 'brand'}>{days === 0 ? 'hoje' : days === 1 ? 'amanhã' : `em ${days} dias`}</Pill>}
-        </div>
+          <ChevronRight className="w-4 h-4 text-ink-mute" />
+        </button>
         <p className="text-sm text-ink-soft">
           {when.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })} às {when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
           {c.professional_name && ` · ${c.professional_name}`}
@@ -131,25 +133,23 @@ function ConsultationRow({ consultation: c, today, questions, onPrepare, onDelet
         <Button onClick={onPrepare} tone={days >= 0 ? 'soft' : 'ghost'}>
           <FileText className="w-4 h-4" /> {days >= 0 ? 'Preparar resumo' : 'Ver resumo'}
         </Button>
-        <button onClick={onDelete} aria-label={`Excluir consulta de ${spec.label}`} className="p-2 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft">
-          <Trash2 className="w-4 h-4" />
-        </button>
       </div>
     </div>
   );
 }
 
-export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, onClose }: { busy: boolean; onCreate: (c: NewConsultation) => Promise<boolean>; initialDate?: string; startOpen?: boolean; onClose?: () => void }) {
-  const [open, setOpenState] = useState(startOpen);
+export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, onClose, initial }: { busy: boolean; onCreate: (c: NewConsultation) => Promise<boolean>; initialDate?: string; startOpen?: boolean; onClose?: () => void; initial?: Consultation }) {
+  const [open, setOpenState] = useState(startOpen || !!initial);
   const setOpen = (value: boolean) => {
     setOpenState(value);
     if (!value) onClose?.();
   };
-  const [date, setDate] = useState(initialDate ?? '');
-  const [time, setTime] = useState('09:00');
-  const [specialty, setSpecialty] = useState<SpecialtyId>('obstetra');
-  const [professional, setProfessional] = useState('');
-  const [location, setLocation] = useState('');
+  const at = initial ? parseTimestamp(initial.scheduled_at) : null;
+  const [date, setDate] = useState(at ? toISODate(at) : (initialDate ?? ''));
+  const [time, setTime] = useState(at ? at.toTimeString().slice(0, 5) : '09:00');
+  const [specialty, setSpecialty] = useState<SpecialtyId>(initial ? questionSpecialty(initial.specialty) : 'obstetra');
+  const [professional, setProfessional] = useState(initial?.professional_name ?? '');
+  const [location, setLocation] = useState(initial?.location ?? '');
 
   if (!open) {
     return (
@@ -198,7 +198,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
       </div>
       <div className="flex gap-2 justify-end">
         <Button tone="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-        <Button type="submit" disabled={busy || !date}>Agendar</Button>
+        <Button type="submit" disabled={busy || !date}>{initial ? 'Salvar alterações' : 'Agendar'}</Button>
       </div>
     </form>
   );
