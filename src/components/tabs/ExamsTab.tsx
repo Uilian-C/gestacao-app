@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, FileText, FlaskConical, ImagePlus, Loader2, Lock, Paperclip, Plus, ScanHeart, Trash2, Users, X } from 'lucide-react';
+import { Camera, ChevronDown, ChevronRight, FileText, FlaskConical, ImagePlus, Loader2, Lock, Paperclip, Plus, ScanHeart, Search, Trash2, Users, X } from 'lucide-react';
 import { examFileUrl } from '../../api';
 import { PLAN_ITEMS, type PlanItem } from '../../content/prenatalPlan';
 import type { ExamFile, ExamItem, ExamKind, Reaction, ThreadComment } from '../../hooks/useGestationData';
-import { ReactionBar, Thread, type OnReact } from '../Social';
+import { ReactionBar, SocialCount, Thread, type OnReact } from '../Social';
+import Sheet from '../Sheet';
+import { bySeries, byTrimester, searchExams } from '../../lib/examArchive';
 import { formatBR, gestationalAge, localDay, parseLocalDate, toISODate } from '../../lib/dates';
 import { planExams } from '../../lib/journey';
 import { FileProblem, formatSize, prepareFile, type PreparedFile } from '../../lib/examFiles';
@@ -66,23 +68,22 @@ const kindFor = (item: PlanItem): ExamKind => (item.id.startsWith('morfo') ? 'ul
 export default function ExamsTab(props: Props) {
   const [filter, setFilter] = useState<ExamKind | 'todos'>('todos');
   const [formFor, setFormFor] = useState<PlanItem | 'novo' | 'agendado' | null>(() => (props.fromAppointment ? 'agendado' : (PLAN_ITEMS.find(i => i.id === props.initialPlanItem) ?? null)));
-  // Vindo de "Ver resultado": rola até o cartão do exame e o destaca por um instante.
-  useEffect(() => {
-    if (!props.focusExam) return;
-    const el = document.getElementById(`exame-${props.focusExam}`);
-    if (!el) return;
-    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 120, behavior: 'smooth' });
-    el.classList.add('ring-4', 'ring-brand/30');
-    const t = window.setTimeout(() => el.classList.remove('ring-4', 'ring-brand/30'), 2200);
-    return () => window.clearTimeout(t);
-  }, [props.focusExam]);
   const [viewer, setViewer] = useState<{ exam: ExamItem; index: number } | null>(null);
+  const [query, setQuery] = useState('');
+  const [mode, setMode] = useState<'tempo' | 'exame'>('tempo');
+  // Vindo de "Ver resultado" (agendamento ou calendário), o resultado já abre.
+  const [openId, setOpenId] = useState<string | null>(props.focusExam ?? null);
 
   const plan = planExams(props.bloodType);
   const saved = new Set(props.exams.map(e => e.plan_item).filter(Boolean));
   // Exames da jornada com a janela aberta agora e ainda sem resultado guardado.
   const dueNow = plan.filter(i => !saved.has(i.id) && props.currentWeek >= i.from && props.currentWeek <= i.to + 2);
-  const shown = props.exams.filter(e => filter === 'todos' || e.kind === filter);
+  const shown = searchExams(
+    props.exams.filter(e => filter === 'todos' || e.kind === filter),
+    query,
+  );
+  const opened = openId ? props.exams.find(e => e.id === openId) : undefined;
+  const row = (e: ExamItem) => <ExamRow key={e.id} exam={e} dumDate={props.dumDate} social={props.social} onOpen={() => setOpenId(e.id)} />;
   const kinds = (['ultrassom', 'exame', 'outro'] as ExamKind[]).filter(k => props.exams.some(e => e.kind === k));
 
   // Se o exame aberto no visualizador sumir (apagado), fecha.
@@ -147,23 +148,95 @@ export default function ExamsTab(props: Props) {
           </EmptyState>
         )}
 
-        {kinds.length > 1 && (
-          <div className="flex flex-wrap gap-2 mb-4" aria-label="Filtrar">
-            <Chip active={filter === 'todos'} onClick={() => setFilter('todos')}>Todos</Chip>
-            {kinds.map(k => (
-              <Chip key={k} active={filter === k} onClick={() => setFilter(k)}>
-                {KIND_LABEL[k]}s
-              </Chip>
-            ))}
+        {props.exams.length > 0 && (
+          <div className="space-y-3 mb-4">
+            <label className="relative block">
+              <Search className="w-4 h-4 text-ink-mute absolute left-3.5 top-1/2 -translate-y-1/2" aria-hidden />
+              <input type="search" aria-label="Buscar resultado" placeholder="Buscar: hemograma, morfológico, glicemia..." className={`${inputClass} !pl-10`} value={query} onChange={e => setQuery(e.target.value)} />
+            </label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Segmented label="Organizar" size="sm" value={mode} onChange={setMode} options={[{ value: 'tempo', label: 'Linha do tempo' }, { value: 'exame', label: 'Por exame' }]} />
+              {kinds.length > 1 && (
+                <div className="flex flex-wrap gap-1.5" aria-label="Filtrar">
+                  <Chip active={filter === 'todos'} onClick={() => setFilter('todos')}>Todos</Chip>
+                  {kinds.map(k => (
+                    <Chip key={k} active={filter === k} onClick={() => setFilter(k)}>
+                      {KIND_LABEL[k]}s · {props.exams.filter(e => e.kind === k).length}
+                    </Chip>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        <div className="space-y-3">
-          {shown.map(e => (
-            <ExamCard key={e.id} exam={e} dumDate={props.dumDate} busy={props.busy} social={props.social} onSave={props.onSave} onOpen={index => setViewer({ exam: e, index })} onDelete={() => props.onDelete(e)} />
-          ))}
-        </div>
+        {props.exams.length > 0 && shown.length === 0 && <p className="text-sm text-ink-mute py-6 text-center">Nenhum resultado com “{query}”.</p>}
+
+        {query.trim() ? (
+          <div className="space-y-2">{shown.map(row)}</div>
+        ) : mode === 'tempo' ? (
+          <div className="space-y-3">
+            {byTrimester(shown, props.dumDate).map((g, i) => (
+              <details key={g.trimester} open={i === 0} className="group rounded-2xl bg-surface-2/40 px-3 py-2">
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-2 py-1.5">
+                  <span className="font-extrabold text-ink">{g.label}</span>
+                  <span className="text-xs font-bold text-ink-mute flex items-center gap-1">
+                    {g.items.length} {g.items.length === 1 ? 'resultado' : 'resultados'}
+                    <ChevronDown className="w-4 h-4 transition group-open:rotate-180" />
+                  </span>
+                </summary>
+                <div className="space-y-3 pt-1 pb-2">
+                  {g.months.map(m => (
+                    <section key={m.key} className="space-y-2">
+                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-ink-mute px-1">{m.label}</h4>
+                      {m.items.map(row)}
+                    </section>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {bySeries(shown).map(sr =>
+              sr.items.length === 1 ? (
+                row(sr.items[0])
+              ) : (
+                <details key={sr.key} className="group rounded-2xl bg-surface-2/40 px-3 py-2">
+                  <summary className="cursor-pointer list-none flex items-center gap-3 py-1.5">
+                    <KindIcon kind={sr.kind} />
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-bold text-ink truncate">{sr.label}</span>
+                      <span className="block text-xs text-ink-mute">
+                        {sr.items.length} resultados · de {formatBR(sr.first)} a {formatBR(sr.last)}
+                      </span>
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-ink-mute transition group-open:rotate-180" />
+                  </summary>
+                  <div className="space-y-2 pt-1 pb-2">{sr.items.map(row)}</div>
+                </details>
+              ),
+            )}
+          </div>
+        )}
       </Card>
+
+      {opened && (
+        <Sheet title={opened.title} onClose={() => setOpenId(null)}>
+          <ExamCard
+            exam={opened}
+            dumDate={props.dumDate}
+            busy={props.busy}
+            social={props.social}
+            onSave={props.onSave}
+            onOpen={index => setViewer({ exam: opened, index })}
+            onDelete={() => {
+              setOpenId(null);
+              props.onDelete(opened);
+            }}
+          />
+        </Sheet>
+      )}
 
       {viewing && viewerImages.length > 0 && (
         <PhotoViewer
@@ -368,6 +441,43 @@ export function ExamForm({ plan, preset, appointment, busy, onSave, onDone, bare
         {sending ? (picked.files.length ? `Enviando ${Math.min(sent! + 1, picked.files.length)} de ${picked.files.length}...` : 'Guardando...') : picked.files.length ? `Guardar com ${picked.files.length} ${picked.files.length === 1 ? 'arquivo' : 'arquivos'}` : 'Guardar'}
       </Button>
     </form>
+  );
+}
+
+function KindIcon({ kind }: { kind: ExamKind }) {
+  const Icon = KIND_ICON[kind];
+  return (
+    <span className="w-9 h-9 rounded-full bg-surface text-brand flex items-center justify-center shrink-0">
+      <Icon className="w-[18px] h-[18px]" />
+    </span>
+  );
+}
+
+/** Linha enxuta do arquivo: abre o resultado completo numa janela (as fotos só carregam lá). */
+function ExamRow({ exam: e, dumDate, social, onOpen }: { exam: ExamItem; dumDate: string; social: ExamSocial; onOpen: () => void }) {
+  const week = gestationalAge(dumDate, parseLocalDate(e.exam_date))?.weeks;
+  const photos = e.files.filter(isImage).length;
+  const pdfs = e.files.length - photos;
+  const plan = e.plan_item ? PLAN_ITEMS.find(i => i.id === e.plan_item) : null;
+  const reactions = social.available ? social.reactions.filter(r => r.target_type === 'exam' && r.target_id === e.id).length : 0;
+  const comments = social.available ? social.threads.filter(c => c.target_type === 'exam' && c.target_id === e.id).length : 0;
+  return (
+    <button type="button" onClick={onOpen} aria-label={`${e.title}: abrir resultado`} className="w-full text-left rounded-2xl bg-surface px-3 py-2.5 flex items-center gap-3 shadow-soft transition hover:brightness-[0.99] active:scale-[0.995]">
+      <KindIcon kind={e.kind} />
+      <span className="flex-1 min-w-0">
+        <span className="block font-semibold text-ink truncate">{e.title}</span>
+        <span className="block text-xs text-ink-mute truncate">
+          {formatBR(e.exam_date)}
+          {week !== undefined && week >= 1 && ` · ${week} sem.`}
+          {photos > 0 && ` · ${photos} ${photos === 1 ? 'foto' : 'fotos'}`}
+          {pdfs > 0 && ` · ${pdfs} PDF`}
+          {plan && ` · jornada`}
+        </span>
+      </span>
+      {e.visibility === 'private' && <Lock className="w-3.5 h-3.5 text-ink-mute shrink-0" aria-label="só você" />}
+      <SocialCount reactions={reactions} comments={comments} />
+      <ChevronRight className="w-4 h-4 text-ink-mute shrink-0" />
+    </button>
   );
 }
 

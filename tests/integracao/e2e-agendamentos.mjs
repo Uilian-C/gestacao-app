@@ -59,7 +59,8 @@ check(await hemo.isVisible(), 'resultado guardado sem agendamento aparece no dia
 await p.screenshot({ path: `${OUT}agenda-resultado.png`, fullPage: true });
 await hemo.click();
 await p.waitForTimeout(600);
-check((await p.getByRole('button', { name: /^Resultados/ }).getAttribute('aria-pressed')) === 'true', 'tocar no resultado abre Cuidados → Resultados');
+check((await p.getByRole('button', { name: /^Resultados/ }).getAttribute('aria-pressed')) === 'true' && (await dlg.getByRole('heading', { name: 'Hemograma' }).isVisible()), 'tocar no resultado abre o Hemograma em Cuidados → Resultados');
+await p.keyboard.press('Escape');
 
 // ---- Guardar o resultado a partir do agendamento ----
 await p.getByRole('button', { name: /^Agendados/ }).click();
