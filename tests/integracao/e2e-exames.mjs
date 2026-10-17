@@ -26,7 +26,7 @@ const photo = Buffer.from(
 );
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
 
-await p.getByRole('button', { name: /^Consultas/ }).first().click();
+await p.getByRole('button', { name: /^Cuidados/ }).first().click();
 await p.getByRole('button', { name: /^Exames/ }).click();
 await p.getByText('Nenhum exame guardado ainda').waitFor({ timeout: 10000 }).catch(() => undefined);
 check(await p.getByText('Nenhum exame guardado ainda').isVisible(), 'sem exames: convite para guardar o primeiro');
@@ -51,7 +51,7 @@ const thumb = p.getByRole('button', { name: /Abrir foto de Ultrassom morfológic
 await thumb.locator('img').evaluate(img => img.complete || new Promise(r => (img.onload = r)));
 check(await thumb.locator('img').evaluate(img => img.naturalWidth > 0), 'miniatura carrega a foto pelo servidor');
 check(await p.getByRole('link', { name: /Abrir PDF/ }).isVisible(), 'PDF aparece como arquivo');
-check(await p.getByText('22 semanas').isVisible(), 'mostra a semana da gestação na data do exame');
+check(await p.locator('article').getByText('22 semanas').isVisible(), 'mostra a semana da gestação na data do exame');
 await p.screenshot({ path: `${OUT}exames-lista.png`, fullPage: true });
 
 const data = await api('/api/data');

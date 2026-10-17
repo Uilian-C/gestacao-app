@@ -128,7 +128,7 @@ function ConsultationRow({ consultation: c, today, questions, onPrepare, onDelet
         )}
       </div>
       <div className="flex gap-2">
-        <Button onClick={onPrepare} tone={days >= 0 ? 'primary' : 'ghost'}>
+        <Button onClick={onPrepare} tone={days >= 0 ? 'soft' : 'ghost'}>
           <FileText className="w-4 h-4" /> {days >= 0 ? 'Preparar resumo' : 'Ver resumo'}
         </Button>
         <button onClick={onDelete} aria-label={`Excluir consulta de ${spec.label}`} className="p-2 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft">

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { AlertTriangle, Bell, Heart, HeartHandshake, Lock, NotebookPen, Scale, Trash2 } from 'lucide-react';
 import { isAlertSymptom } from '../../content/symptomCatalog';
 import { formatBR, parseLocalDate, toISODate, type GestationalAge } from '../../lib/dates';
-import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure, type ParsedMetric } from '../../lib/health';
+import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure } from '../../lib/health';
 import { normalizeSymptomName, timeOfDayLabel } from '../../lib/symptoms';
 import type { Author, HealthMetric, PartnerComment, SymptomItem } from '../../types';
 import type { JournalEntry } from '../../hooks/useGestationData';
@@ -11,7 +11,7 @@ import IntensityDots from '../IntensityDots';
 import { inputClass } from '../styles';
 import { Button, Card, EmptyState, Pill, Segmented } from '../ui';
 import { INTENSITY } from '../../lib/intensity';
-import { MetricForm, MomentForm, SymptomForm, type NewEntry, type NewSymptom } from '../forms/RecordForms';
+import type { NewEntry, NewSymptom } from '../forms/RecordForms';
 
 export type { NewEntry, NewSymptom };
 
@@ -24,8 +24,6 @@ interface Props {
   selectedWeek: number;
   currentWeek: number;
   busy: boolean;
-  onCreateSymptom: (s: NewSymptom) => Promise<boolean>;
-  onCreateMetric: (m: ParsedMetric) => Promise<boolean>;
   onComment: (symptomId: string, text: string) => Promise<boolean>;
   onDeleteSymptom: (s: SymptomItem) => void;
   onDeleteComment: (c: PartnerComment) => void;
@@ -33,13 +31,13 @@ interface Props {
   dumDate: string;
   journal: JournalEntry[];
   journalAvailable: boolean;
-  onCreateEntry: (e: NewEntry) => Promise<boolean>;
   onDeleteEntry: (e: JournalEntry) => void;
+  /** Abre o registro (o mesmo do botão "+"). */
+  onRecord: () => void;
 }
 
 
 export default function DiaryTab(props: Props) {
-  const [mode, setMode] = useState<'sintoma' | 'medicao' | 'momento'>('sintoma');
   const [filter, setFilter] = useState<'recentes' | 'semana' | 'tudo'>('recentes');
 
   const now = new Date();
@@ -73,30 +71,7 @@ export default function DiaryTab(props: Props) {
     <div className="space-y-5">
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-[1.2rem] text-ink">Registrar hoje</h2>
-          <Segmented
-            label="Tipo de registro"
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: 'sintoma', label: 'Sintoma' },
-              { value: 'medicao', label: 'Peso e pressão' },
-              { value: 'momento', label: 'Momento' },
-            ]}
-          />
-        </div>
-        {mode === 'sintoma' ? (
-          <SymptomForm trimester={props.age.trimester} history={props.symptoms} busy={props.busy} currentWeek={props.currentWeek} onCreate={props.onCreateSymptom} />
-        ) : mode === 'medicao' ? (
-          <MetricForm author={props.author} busy={props.busy} currentWeek={props.currentWeek} onCreate={props.onCreateMetric} />
-        ) : (
-          <MomentForm busy={props.busy} available={props.journalAvailable} onCreate={props.onCreateEntry} />
-        )}
-      </Card>
-
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-[1.2rem] text-ink">Linha do tempo</h2>
+          <p className="text-sm font-semibold text-ink-soft">Período</p>
           <Segmented
             label="Período"
             size="sm"
@@ -111,7 +86,10 @@ export default function DiaryTab(props: Props) {
         </div>
         {days.length === 0 ? (
           <EmptyState icon={<NotebookPen />} title={filter === 'semana' ? `Nada registrado na semana ${props.selectedWeek}` : filter === 'recentes' ? 'Nada nos últimos 14 dias' : 'Nenhum registro ainda'}>
-            Comece pelo que ela sentiu hoje. Em poucas semanas o painel mostra os padrões.
+            <p>Comece pelo que ela sentiu hoje. Em poucas semanas os gráficos mostram os padrões.</p>
+            <div className="pt-3">
+              <Button onClick={props.onRecord}>Registrar agora</Button>
+            </div>
           </EmptyState>
         ) : (
           <ol className="space-y-5">
@@ -232,10 +210,10 @@ function MetricRow({ metric: m, onDelete }: { metric: HealthMetric; onDelete: (m
 function MomentRow({ entry: e, onDelete }: { entry: JournalEntry; onDelete: (e: JournalEntry) => void }) {
   const upcoming = e.remind_on && e.remind_on >= toISODate(new Date());
   return (
-    <div className="rounded-2xl px-4 py-3 bg-casal-soft flex items-start gap-3">
-      <Heart className="w-4 h-4 text-casal shrink-0 mt-1" />
+    <div className="rounded-2xl px-4 py-3 bg-rosa-soft flex items-start gap-3">
+      <Heart className="w-4 h-4 text-rosa fill-rosa shrink-0 mt-1" />
       <div className="min-w-0 flex-1 space-y-1">
-        <p className="text-ink whitespace-pre-line">{e.body}</p>
+        <p className="font-display text-[1.05rem] text-ink whitespace-pre-line">{e.body}</p>
         <p className="text-xs text-ink-mute flex flex-wrap items-center gap-x-2 gap-y-1">
           {e.visibility === 'private' && <span className="inline-flex items-center gap-1"><Lock className="w-3 h-3" /> só você</span>}
           {e.remind_on && (

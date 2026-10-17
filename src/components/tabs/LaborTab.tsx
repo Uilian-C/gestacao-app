@@ -7,7 +7,7 @@ import { formatDuration, laborStatus, summarizeKicks, timeContractions, type Lab
 import type { Author, BirthPlanRecord, Contraction, KickSession } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import { inputClass } from '../styles';
-import { Button, Card, Chip, EmptyState, Field, Segmented, SectionTitle } from '../ui';
+import { Button, Card, Chip, EmptyState, Field, Segmented, SectionTitle, SubTabs } from '../ui';
 
 type View = 'movimentos' | 'contracoes' | 'plano' | 'mala';
 
@@ -69,36 +69,31 @@ export default function LaborTab(props: Props) {
   const [view, setView] = useState<View>(() => (props.currentWeek >= 28 ? 'movimentos' : 'plano'));
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-3">
-        <h2 className="text-[1.2rem] text-ink">Reta final</h2>
-        <div className="-mx-1 px-1 overflow-x-auto no-scrollbar [&>div]:flex-nowrap">
-          <Segmented
-            label="Ferramenta"
-            size="sm"
-            value={view}
-            onChange={setView}
-            options={[
-              { value: 'movimentos', label: 'Movimentos' },
-              { value: 'contracoes', label: 'Contrações' },
-              { value: 'plano', label: 'Plano' },
-              { value: 'mala', label: 'Mala' },
-            ]}
-          />
-        </div>
+    <>
+      <SubTabs
+        label="Parte do parto"
+        value={view}
+        onChange={setView}
+        options={[
+          { value: 'movimentos', label: 'Movimentos' },
+          { value: 'contracoes', label: 'Contrações' },
+          { value: 'plano', label: 'Plano de parto' },
+          { value: 'mala', label: 'Mala' },
+        ]}
+      />
+      <div className="space-y-5">
+        {!props.available && view !== 'mala' && (
+          <p className="text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">
+            Para salvar contagens, contrações e o plano, rodem a migração <code>db/migrations/004_parto.sql</code> no Neon.
+          </p>
+        )}
+
+        {view === 'movimentos' && <KickCounter {...props} />}
+        {view === 'contracoes' && <ContractionTimer {...props} />}
+        {view === 'plano' && <BirthPlanEditor key={props.birthPlan?.updated_at ?? 'novo'} {...props} />}
+        {view === 'mala' && <HospitalBag {...props} />}
       </div>
-
-      {!props.available && view !== 'mala' && (
-        <p className="text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">
-          Para salvar contagens, contrações e o plano, rodem a migração <code>db/migrations/004_parto.sql</code> no Neon.
-        </p>
-      )}
-
-      {view === 'movimentos' && <KickCounter {...props} />}
-      {view === 'contracoes' && <ContractionTimer {...props} />}
-      {view === 'plano' && <BirthPlanEditor key={props.birthPlan?.updated_at ?? 'novo'} {...props} />}
-      {view === 'mala' && <HospitalBag {...props} />}
-    </div>
+    </>
   );
 }
 

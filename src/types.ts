@@ -112,7 +112,12 @@ export interface BirthPlanRecord {
 
 export type DeletableKind = 'task' | 'symptom' | 'question' | 'comment' | 'metric' | 'consultation' | 'kick' | 'contraction' | 'entry' | 'exam' | 'examFile';
 
-export type Tab = 'inicio' | 'agenda' | 'diario' | 'painel' | 'consultas' | 'parto';
+export type Tab = 'inicio' | 'diario' | 'agenda' | 'cuidados' | 'parto';
 
-/** Seções do Painel. */
+/** Partes de cada aba (os chips logo abaixo do título). */
+export type DiaryView = 'linha' | 'sintomas' | 'corpo' | 'resumo';
+export type AgendaView = 'calendario' | 'tarefas';
+export type CareView = 'consultas' | 'exames' | 'jornada';
+
+/** Visões dos gráficos e da jornada (o antigo Painel, hoje dividido entre Diário e Cuidados). */
 export type DashboardView = 'geral' | 'jornada' | 'sintomas' | 'corpo';

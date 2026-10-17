@@ -4,6 +4,7 @@ import { examFileUrl } from '../../api';
 import { PLAN_ITEMS, type PlanItem } from '../../content/prenatalPlan';
 import type { ExamFile, ExamItem, ExamKind } from '../../hooks/useGestationData';
 import { formatBR, gestationalAge, parseLocalDate, toISODate } from '../../lib/dates';
+import { planExams } from '../../lib/journey';
 import { FileProblem, formatSize, prepareFile, type PreparedFile } from '../../lib/examFiles';
 import AuthorBadge from '../AuthorBadge';
 import { inputClass } from '../styles';
@@ -31,22 +32,19 @@ interface Props {
   onSave: SaveExam;
   onDelete: (exam: ExamItem) => void;
   onDeleteFile: (exam: ExamItem, file: ExamFile) => void;
+  /** Abre já o formulário para este item da jornada (vindo do Início). */
+  initialPlanItem?: string | null;
 }
 
 const KIND_LABEL: Record<ExamKind, string> = { ultrassom: 'Ultrassom', exame: 'Exame', outro: 'Outro' };
 const KIND_ICON: Record<ExamKind, typeof ScanHeart> = { ultrassom: ScanHeart, exame: FlaskConical, outro: FileText };
 const isImage = (f: ExamFile) => f.content_type.startsWith('image/');
 
-function planExams(bloodType: string | null): PlanItem[] {
-  const rhNegative = !!bloodType && bloodType.trim().endsWith('-');
-  return PLAN_ITEMS.filter(i => i.kind === 'exame' && (!i.rhNegativeOnly || rhNegative));
-}
-
 const kindFor = (item: PlanItem): ExamKind => (item.id.startsWith('morfo') ? 'ultrassom' : 'exame');
 
 export default function ExamsTab(props: Props) {
   const [filter, setFilter] = useState<ExamKind | 'todos'>('todos');
-  const [formFor, setFormFor] = useState<PlanItem | 'novo' | null>(null);
+  const [formFor, setFormFor] = useState<PlanItem | 'novo' | null>(() => PLAN_ITEMS.find(i => i.id === props.initialPlanItem) ?? null);
   const [viewer, setViewer] = useState<{ exam: ExamItem; index: number } | null>(null);
 
   const plan = planExams(props.bloodType);
@@ -236,7 +234,8 @@ function PreparedList({ files, onRemove }: { files: PreparedFile[]; onRemove: (i
   );
 }
 
-function ExamForm({ plan, preset, busy, onSave, onDone }: { plan: PlanItem[]; preset: PlanItem | null; busy: boolean; onSave: SaveExam; onDone: () => void }) {
+/** Formulário de exame. `bare`: sem moldura nem título, para usar dentro da janela de registro. */
+export function ExamForm({ plan, preset, busy, onSave, onDone, bare = false }: { plan: PlanItem[]; preset: PlanItem | null; busy: boolean; onSave: SaveExam; onDone: () => void; bare?: boolean }) {
   const today = toISODate(new Date());
   const [kind, setKind] = useState<ExamKind>(preset ? kindFor(preset) : 'ultrassom');
   const [planItem, setPlanItem] = useState<string>(preset?.id ?? '');
@@ -269,13 +268,15 @@ function ExamForm({ plan, preset, busy, onSave, onDone }: { plan: PlanItem[]; pr
 
   const sending = sent !== null;
   return (
-    <form onSubmit={submit} className="space-y-4 rounded-2xl bg-surface-2/50 p-4 mb-5">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-base text-ink">Guardar exame</h3>
-        <button type="button" onClick={onDone} aria-label="Fechar" className="p-1.5 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
+    <form onSubmit={submit} className={bare ? 'space-y-4' : 'space-y-4 rounded-2xl bg-surface-2/50 p-4 mb-5'}>
+      {!bare && (
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-base text-ink">Guardar exame</h3>
+          <button type="button" onClick={onDone} aria-label="Fechar" className="p-1.5 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <FilePicker onAdd={picked.add} disabled={sending || picked.preparing} />
       {picked.preparing && (

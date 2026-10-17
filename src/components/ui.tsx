@@ -47,6 +47,31 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
   );
 }
 
+/**
+ * Partes de uma aba: chips logo abaixo do título, sempre no mesmo lugar e do
+ * mesmo jeito em todas as abas. Desliza para o lado quando não cabe.
+ */
+export function SubTabs<T extends string>({ value, options, onChange, label }: { value: T; options: Array<{ value: T; label: ReactNode }>; onChange: (v: T) => void; label: string }) {
+  return (
+    <div className="no-print -mx-4 md:mx-0 px-4 md:px-0 mb-4 flex gap-2 overflow-x-auto no-scrollbar" role="group" aria-label={label}>
+      {options.map(o => {
+        const on = value === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            aria-pressed={on}
+            className={`shrink-0 rounded-full px-4 py-2 text-sm transition ${on ? 'bg-brand text-on-accent font-extrabold shadow-soft' : 'bg-surface text-ink-soft font-semibold ring-1 ring-line hover:text-ink'}`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Chip({ children, active = false, onClick }: { children: ReactNode; active?: boolean; onClick?: () => void }) {
   return (
     <button
@@ -80,6 +105,15 @@ const BUTTON_TONES = {
 export function Button({ children, tone = 'primary', type = 'button', onClick, disabled, className = '' }: { children: ReactNode; tone?: keyof typeof BUTTON_TONES; type?: 'button' | 'submit'; onClick?: () => void; disabled?: boolean; className?: string }) {
   return (
     <button type={type} onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-ink-mute disabled:shadow-none [&_svg]:w-4 [&_svg]:h-4 ${BUTTON_TONES[tone]} ${className}`}>
+      {children}
+    </button>
+  );
+}
+
+/** Ação de navegação ("Ver tudo", "Ver diário"): texto na cor da aba, sem caixa. */
+export function LinkButton({ children, onClick, className = '' }: { children: ReactNode; onClick: () => void; className?: string }) {
+  return (
+    <button type="button" onClick={onClick} className={`inline-flex items-center gap-1 text-sm font-bold text-brand-strong hover:underline underline-offset-4 py-1.5 whitespace-nowrap [&_svg]:w-4 [&_svg]:h-4 ${className}`}>
       {children}
     </button>
   );

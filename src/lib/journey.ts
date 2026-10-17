@@ -13,6 +13,11 @@ export function planFor(bloodType: string | null): PlanItem[] {
  * feito: marcado como feito. pendente: a janela já passou sem marcação.
  * agora: a janela está aberta. em-breve: abre nas próximas 4 semanas. depois: mais adiante.
  */
+/** Exames da jornada (para ligar um resultado guardado ao item). */
+export function planExams(bloodType: string | null): PlanItem[] {
+  return planFor(bloodType).filter(i => i.kind === 'exame');
+}
+
 export function itemStatus(item: PlanItem, week: number, done: boolean): ItemStatus {
   if (done) return 'feito';
   if (week > item.to) return 'pendente';
