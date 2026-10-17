@@ -6,7 +6,7 @@ import { query } from './db.js';
 const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
 
 export async function fetchAll(fid: string, userId: string) {
-  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal] = await Promise.all([
+  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams] = await Promise.all([
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
@@ -79,6 +79,18 @@ export async function fetchAll(fid: string, userId: string) {
        ORDER BY entry_date DESC, created_at DESC`,
       [fid, userId],
     ).catch(() => null),
+    // Exames com a lista de arquivos; os particulares, de novo, só para quem enviou.
+    query(
+      `SELECT e.id, e.kind, e.title, e.exam_date::text AS exam_date, e.plan_item, e.notes, e.visibility, e.author_role,
+              COALESCE(e.user_id = $2, false) AS mine, e.created_at::text AS created_at,
+              COALESCE(json_agg(json_build_object('id', f.id, 'content_type', f.content_type, 'size', f.size_bytes) ORDER BY f.created_at)
+                       FILTER (WHERE f.id IS NOT NULL), '[]') AS files
+       FROM exams e LEFT JOIN exam_files f ON f.exam_id = e.id
+       WHERE e.family_id = $1 AND (e.visibility = 'shared' OR e.user_id = $2)
+       GROUP BY e.id
+       ORDER BY e.exam_date DESC, e.created_at DESC`,
+      [fid, userId],
+    ).catch(() => null),
   ]);
 
   const f = family[0] ?? {};
@@ -119,6 +131,8 @@ export async function fetchAll(fid: string, userId: string) {
     checksAvailable: checks !== null,
     journal: journal ?? [],
     journalAvailable: journal !== null,
+    exams: exams ?? [],
+    examsAvailable: exams !== null,
   };
 }
 

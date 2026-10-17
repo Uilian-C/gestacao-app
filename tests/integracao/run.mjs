@@ -5,7 +5,7 @@
 //
 // O banco é APAGADO a cada rodada: só aceita banco local.
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { resetDatabase } from './db.mjs';
 
 const ROOT = new URL('../../', import.meta.url).pathname;
@@ -25,6 +25,10 @@ if (!existsSync(cert)) {
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '2', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1'], { stdio: 'ignore' });
 }
 
+// Fotos e PDFs dos exames vão para uma pasta local, limpa a cada rodada.
+const FILES_DIR = `${SAIDA}arquivos`;
+rmSync(FILES_DIR, { recursive: true, force: true });
+
 const serverEnv = {
   ...process.env,
   DATABASE_URL,
@@ -34,9 +38,10 @@ const serverEnv = {
   PUSH_ALLOW_ANY_HOST: '1',
   AUTH_RATE_LIMIT: 'off',
   NODE_EXTRA_CA_CERTS: cert,
+  FILES_DIR,
 };
 // O servidor local não lê o .env.local aqui: os testes nunca usam as credenciais de verdade.
-for (const k of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'RESEND_API_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY']) delete serverEnv[k];
+for (const k of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'RESEND_API_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'BLOB_READ_WRITE_TOKEN', 'BLOB_STORE_ID']) delete serverEnv[k];
 
 const children = [];
 function start(name, cmd, args) {
@@ -74,12 +79,14 @@ const tests = [
   // [arquivo, precisa de banco novo?]
   ['api-isolamento.mjs', true],
   ['api-notificacoes.mjs', false],
+  ['api-exames.mjs', false],
   ['e2e-fluxo.mjs', true],
   ['e2e-momentos.mjs', false],
   ['e2e-registro-rapido.mjs', false],
   ['e2e-notificacoes.mjs', false],
   ['e2e-navegadores.mjs', false],
   ['e2e-marca.mjs', false],
+  ['e2e-exames.mjs', false],
 ];
 const only = process.argv.slice(2);
 
@@ -100,7 +107,7 @@ try {
     fresh = false;
     console.log(`\n▶ ${file}`);
     const code = await new Promise(resolve => {
-      const t = spawn(process.execPath, [`${HERE}${file}`], { cwd: ROOT, env: { ...process.env, LEGACY_CODE: legacy }, stdio: 'inherit' });
+      const t = spawn(process.execPath, [`${HERE}${file}`], { cwd: ROOT, env: { ...process.env, LEGACY_CODE: legacy, FILES_DIR }, stdio: 'inherit' });
       t.on('exit', resolve);
     });
     if (code !== 0) failed.push(file);

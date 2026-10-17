@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { auth } from './_lib/auth.js';
 import { query, transaction } from './_lib/db.js';
 import { HttpError, endpoint, findMembership, json, readJson, requireUser } from './_lib/http.js';
+import { deleteFamilyFiles, deleteFiles } from './_lib/storage.js';
 
 // Direitos do titular (LGPD, art. 18): baixar os dados e excluir a conta ou o espaço.
 
@@ -49,7 +50,14 @@ export const GET = endpoint(async request => {
        WHERE family_id = $1 AND (visibility = 'shared' OR user_id = $2) ORDER BY entry_date`,
       [fid, user.id],
     ).catch(() => []);
-    space = { profile: profile[0] ?? null, members, ...Object.fromEntries(DATA_TABLES.map((t, i) => [t, tables[i]])), journal_entries: journal };
+    // Exames: a lista com os arquivos de cada um. As fotos e PDFs em si se baixam pelo app.
+    const exams = await query(
+      `SELECT e.kind, e.title, e.exam_date, e.plan_item, e.notes, e.visibility, e.author_role, e.created_at,
+              (SELECT COUNT(*)::int FROM exam_files f WHERE f.exam_id = e.id) AS arquivos
+       FROM exams e WHERE e.family_id = $1 AND (e.visibility = 'shared' OR e.user_id = $2) ORDER BY e.exam_date`,
+      [fid, user.id],
+    ).catch(() => []);
+    space = { profile: profile[0] ?? null, members, ...Object.fromEntries(DATA_TABLES.map((t, i) => [t, tables[i]])), journal_entries: journal, exams };
   }
 
   const body = JSON.stringify(
@@ -84,6 +92,9 @@ export const POST = endpoint(async request => {
   const parsed = ops.safeParse(await readJson(request));
   if (!parsed.success) throw new HttpError(400, 'Digite EXCLUIR para confirmar.');
   const member = await findMembership(user.id);
+  // Arquivos que saem junto, apagados do armazenamento depois que o banco confirmar.
+  let removeSpaceFiles = false;
+  let removePaths: string[] = [];
 
   await transaction(async client => {
     if (member) {
@@ -92,16 +103,30 @@ export const POST = endpoint(async request => {
       // o espaço e todos os registros somem junto (ON DELETE CASCADE).
       if (parsed.data.op === 'deleteSpace' || rows.length <= 1) {
         await client.query('DELETE FROM families WHERE id = $1', [member.familyId]);
+        removeSpaceFiles = true;
       }
     }
     if (parsed.data.op === 'deleteAccount') {
       // Anotações particulares saem com a conta; as compartilhadas ficam no espaço.
       const { rows: table } = await client.query("SELECT to_regclass('public.journal_entries') AS t");
       if (table[0].t) await client.query("DELETE FROM journal_entries WHERE user_id = $1 AND visibility = 'private'", [user.id]);
+      // Exames particulares também; os compartilhados ficam com o espaço.
+      const { rows: exams } = await client.query("SELECT to_regclass('public.exam_files') AS t");
+      if (exams[0].t) {
+        const { rows: files } = await client.query(
+          `DELETE FROM exam_files f USING exams e WHERE f.exam_id = e.id AND e.user_id = $1 AND e.visibility = 'private' RETURNING f.path`,
+          [user.id],
+        );
+        removePaths = files.map((f: { path: string }) => f.path);
+        await client.query("DELETE FROM exams WHERE user_id = $1 AND visibility = 'private'", [user.id]);
+      }
       // Sessões, contas de login, consentimentos e vínculo com o espaço vão junto.
       await client.query('DELETE FROM "user" WHERE id = $1', [user.id]);
     }
   });
+
+  if (member && removeSpaceFiles) await deleteFamilyFiles(member.familyId).catch(err => console.error('Arquivos do espaço não apagados', err));
+  else await deleteFiles(removePaths).catch(err => console.error('Arquivos particulares não apagados', err));
 
   // Apaga os cookies do login neste aparelho: o login guardado em cookie
   // (que evita ir ao banco a cada chamada) não pode sobreviver à conta.

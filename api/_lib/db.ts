@@ -4,8 +4,8 @@ import pg from 'pg';
 // ela nunca vai para o navegador.
 export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  // Os dados do espaço são lidos em 12 consultas em paralelo.
-  max: 12,
+  // Os dados do espaço são lidos em 13 consultas em paralelo.
+  max: 13,
   idleTimeoutMillis: 10_000,
   connectionTimeoutMillis: 10_000,
 });

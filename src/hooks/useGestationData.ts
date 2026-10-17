@@ -24,6 +24,33 @@ export interface GestationData {
   /** Momentos: os compartilhados e os particulares de quem está logado. */
   journal: JournalEntry[];
   journalAvailable: boolean;
+  /** Exames e ultrassons: os compartilhados e os particulares de quem está logado. */
+  exams: ExamItem[];
+  /** A migração 010 já foi aplicada. */
+  examsAvailable: boolean;
+}
+
+export interface ExamFile {
+  id: string;
+  content_type: string;
+  size: number;
+}
+
+export type ExamKind = 'ultrassom' | 'exame' | 'outro';
+
+export interface ExamItem {
+  id: string;
+  kind: ExamKind;
+  title: string;
+  exam_date: string;
+  /** Item da jornada do pré-natal a que o exame corresponde. */
+  plan_item: string | null;
+  notes: string | null;
+  visibility: 'private' | 'shared';
+  author_role: 'mae' | 'pai';
+  mine: boolean;
+  created_at: string;
+  files: ExamFile[];
 }
 
 export interface JournalEntry {

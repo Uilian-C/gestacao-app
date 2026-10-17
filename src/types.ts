@@ -110,7 +110,7 @@ export interface BirthPlanRecord {
   updated_at: string | null;
 }
 
-export type DeletableKind = 'task' | 'symptom' | 'question' | 'comment' | 'metric' | 'consultation' | 'kick' | 'contraction' | 'entry';
+export type DeletableKind = 'task' | 'symptom' | 'question' | 'comment' | 'metric' | 'consultation' | 'kick' | 'contraction' | 'entry' | 'exam' | 'examFile';
 
 export type Tab = 'inicio' | 'agenda' | 'diario' | 'painel' | 'consultas' | 'parto';
 

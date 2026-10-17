@@ -6,6 +6,7 @@ import { auth } from '../api/_lib/auth.ts';
 import * as account from '../api/account.ts';
 import * as config from '../api/config.ts';
 import * as data from '../api/data.ts';
+import * as exames from '../api/exames.ts';
 import * as family from '../api/family.ts';
 import * as lembretes from '../api/lembretes.ts';
 import * as places from '../api/places.ts';
@@ -16,6 +17,7 @@ const routes: Record<string, Partial<Record<string, Handler>>> = {
   '/api/account': account,
   '/api/config': config,
   '/api/data': data,
+  '/api/exames': exames,
   '/api/family': family,
   '/api/lembretes': lembretes,
   '/api/places': places,

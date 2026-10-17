@@ -2,7 +2,11 @@ import type { Tab } from '../types';
 
 const TABS: Tab[] = ['inicio', 'agenda', 'diario', 'painel', 'consultas', 'parto'];
 
+// Atalhos de link que abrem uma parte de uma aba.
+const SUBTABS: Record<string, { tab: Tab; view: string }> = { exames: { tab: 'consultas', view: 'exames' } };
+
 let linkedTab: Tab | null | undefined;
+let linkedView: string | null = null;
 
 /** Aba pedida pelo link (/?aba=consultas), usada ao tocar numa notificação. Lê uma vez e limpa a URL. */
 export function takeTabFromUrl(): Tab | null {
@@ -16,7 +20,17 @@ function readTab(): Tab | null {
   if (!tab) return null;
   url.searchParams.delete('aba');
   window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  if (SUBTABS[tab]) {
+    linkedView = SUBTABS[tab].view;
+    return SUBTABS[tab].tab;
+  }
   return TABS.includes(tab) ? tab : null;
+}
+
+/** Parte da aba pedida pelo link (/?aba=exames abre Consultas em Exames). */
+export function takeViewFromUrl(): string | null {
+  takeTabFromUrl();
+  return linkedView;
 }
 
 /** Registra o service worker (abre mais rápido e recebe notificações). */
