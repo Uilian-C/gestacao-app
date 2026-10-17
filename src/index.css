@@ -211,7 +211,16 @@
     border-color: var(--c-line);
   }
 
+  /* O Chrome do Android aumenta textos por conta própria ("font boosting"); aqui o layout já é feito para o celular. */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overflow-x: clip;
+  }
+
   body {
+    /* Nada pode alargar a página: se algo passar da tela, o celular diminui o zoom de tudo. */
+    overflow-x: clip;
     background: var(--c-canvas);
     color: var(--c-ink);
     font-family: var(--font-sans);

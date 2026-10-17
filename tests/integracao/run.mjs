@@ -89,6 +89,7 @@ const tests = [
   ['e2e-marca.mjs', false],
   ['e2e-exames.mjs', false],
   ['e2e-detalhes.mjs', false],
+  ['e2e-largura.mjs', false],
 ];
 const only = process.argv.slice(2);
 
