@@ -5,6 +5,7 @@ import { formatBR, isOverdue, trimesterOf } from '../../lib/dates';
 import type { Assignee, PartnerTask, Priority } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import { inputClass } from '../styles';
+import DayPicker from '../forms/DayPicker';
 import { Button, Card, Chip, EmptyState, Field, Pill, Segmented, SectionTitle } from '../ui';
 
 type AssigneeFilter = 'todos' | Assignee;
@@ -175,40 +176,45 @@ export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCre
   );
 }
 
-export function TaskForm({ selectedWeek, busy, onCreate, initialDueDate, onCancel, initial }: { selectedWeek: number; busy: boolean; onCreate: (t: NewTask) => Promise<boolean>; initialDueDate?: string; onCancel?: () => void; initial?: PartnerTask }) {
+export function TaskForm({ selectedWeek: _selectedWeek, busy, onCreate, initialDueDate, onCancel, initial }: { selectedWeek: number; busy: boolean; onCreate: (t: NewTask) => Promise<boolean>; initialDueDate?: string; onCancel?: () => void; initial?: PartnerTask }) {
+  void _selectedWeek;
   const [title, setTitle] = useState(initial?.task_title ?? '');
   const [assignee, setAssignee] = useState<Assignee>(initial?.assigned_to ?? 'casal');
   const [priority, setPriority] = useState<Priority>(initial?.priority ?? 'Média');
-  const [dueDate, setDueDate] = useState(initial?.due_date ?? initialDueDate ?? '');
+  const [dueDate, setDueDate] = useState(initial?.due_date?.slice(0, 10) ?? initialDueDate ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [more, setMore] = useState(!!initial?.notes || initial?.priority === 'Alta');
   return (
     <form
-      className="rounded-2xl bg-surface-2 p-4 space-y-4 mb-5"
+      className="rounded-2xl bg-surface-2/60 p-4 space-y-4 mb-5"
       onSubmit={async e => {
         e.preventDefault();
         if (title.trim()) await onCreate({ title: title.trim(), assignee, priority, dueDate, notes: notes.trim() });
       }}
     >
       <Field label="Tarefa" htmlFor="titulo-tarefa">
-        <input id="titulo-tarefa" className={inputClass} placeholder="Ex.: Comprar o carrinho" value={title} onChange={e => setTitle(e.target.value)} />
+        <input id="titulo-tarefa" autoFocus={!initial} className={`${inputClass} text-[1.05rem]`} placeholder="Ex.: Comprar o carrinho" value={title} onChange={e => setTitle(e.target.value)} maxLength={300} />
       </Field>
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <span className="text-sm font-semibold text-ink-soft block">Quem cuida</span>
-          <Segmented label="Responsável" size="sm" value={assignee} onChange={setAssignee} options={[{ value: 'mae', label: 'Mãe' }, { value: 'pai', label: 'Pai' }, { value: 'casal', label: 'Casal' }]} />
-        </div>
-        <div className="space-y-1.5">
-          <span className="text-sm font-semibold text-ink-soft block">Prioridade</span>
-          <Segmented label="Prioridade" size="sm" value={priority} onChange={setPriority} options={[{ value: 'Baixa', label: 'Baixa' }, { value: 'Média', label: 'Média' }, { value: 'Alta', label: 'Alta' }]} />
-        </div>
-        <Field label="Prazo (opcional)" htmlFor="prazo">
-          <input id="prazo" type="date" className={inputClass} value={dueDate} onChange={e => setDueDate(e.target.value)} />
-        </Field>
-        <Field label="Observação (opcional)" htmlFor="obs-tarefa">
-          <input id="obs-tarefa" className={inputClass} value={notes} onChange={e => setNotes(e.target.value)} />
-        </Field>
+      <div className="space-y-1.5">
+        <span className="text-sm font-semibold text-ink-soft block">Quem cuida</span>
+        <Segmented label="Responsável" size="sm" value={assignee} onChange={setAssignee} options={[{ value: 'mae', label: 'Mãe' }, { value: 'pai', label: 'Pai' }, { value: 'casal', label: 'Casal' }]} />
       </div>
-      {!initial && <p className="text-xs text-ink-mute">A tarefa fica na semana {selectedWeek}. Para planejar outra semana, mude a semana no Início.</p>}
+      <DayPicker mode="due" label="Prazo" value={dueDate} onChange={setDueDate} />
+      {more ? (
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <span className="text-sm font-semibold text-ink-soft block">Prioridade</span>
+            <Segmented label="Prioridade" size="sm" value={priority} onChange={setPriority} options={[{ value: 'Baixa', label: 'Baixa' }, { value: 'Média', label: 'Média' }, { value: 'Alta', label: 'Alta' }]} />
+          </div>
+          <Field label="Observação (opcional)" htmlFor="obs-tarefa">
+            <input id="obs-tarefa" className={inputClass} value={notes} onChange={e => setNotes(e.target.value)} />
+          </Field>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setMore(true)} className="inline-flex items-center gap-1 text-sm font-bold text-brand-strong">
+          <Plus className="w-4 h-4" /> Prioridade e observação
+        </button>
+      )}
       <div className="flex gap-2">
         {onCancel && <Button tone="ghost" onClick={onCancel}>Cancelar</Button>}
         <Button type="submit" disabled={busy || !title.trim()} className="flex-1">{initial ? 'Salvar alterações' : 'Criar tarefa'}</Button>

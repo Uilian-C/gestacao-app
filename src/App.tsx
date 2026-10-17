@@ -33,8 +33,9 @@ const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
 const LaborTab = lazy(() => import('./components/tabs/LaborTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
-import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, toISODate } from './lib/dates';
-import { pressureInsights, type ParsedMetric } from './lib/health';
+import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, toISODate, weekOfDay } from './lib/dates';
+import { pressureInsights } from './lib/health';
+import type { NewMetric } from './components/forms/RecordForms';
 import { findPatterns, toEntries } from './lib/symptoms';
 import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, DiaryView, HealthView, PartnerTask, Tab } from './types';
 import { isConsultation, resultOf } from './lib/appointments';
@@ -229,7 +230,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   const createTask = (t: NewTask) =>
     run(() =>
-      api.mutate('createTask', { week: t.week ?? selectedWeek, title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null }),
+      api.mutate('createTask', { week: t.week ?? (t.dueDate ? weekOfDay(dumDate!, t.dueDate) : currentWeek), title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null }),
     );
 
   // Marcar e desmarcar aparece na hora; o servidor confirma em seguida.
@@ -240,7 +241,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   const createSymptom = (s: NewSymptom) =>
     run(() =>
-      api.mutate('createSymptom', { week: currentWeek, date: today, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }),
+      api.mutate('createSymptom', { week: weekOfDay(dumDate!, s.date), date: s.date, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }),
     );
 
   const createComment = (symptomId: string, text: string) => run(() => api.mutate('createComment', { symptomId, text }));
@@ -250,7 +251,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   const answerQuestion = (id: string, answer: string) => run(() => api.mutate('answerQuestion', { id, answer }));
 
-  const createMetric = (m: ParsedMetric) => run(() => api.mutate('createMetric', { week: currentWeek, date: today, ...m }), 'Não foi possível salvar a medição.');
+  const createMetric = ({ date, ...m }: NewMetric) => run(() => api.mutate('createMetric', { week: weekOfDay(dumDate!, date), date, ...m }), 'Não foi possível salvar a medição.');
 
   const setCheck = (list: 'prenatal' | 'mala', itemId: string, done: boolean) => {
     patch(d => ({
@@ -359,8 +360,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   // Edições feitas na janela de detalhes.
   const updateSymptom = (id: string, s: NewSymptom) =>
-    run(() => api.mutate('updateSymptom', { id, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }));
-  const updateMetric = (id: string, m: ParsedMetric) => run(() => api.mutate('updateMetric', { id, ...m }), 'Não foi possível salvar a medição.');
+    run(() => api.mutate('updateSymptom', { id, week: weekOfDay(dumDate!, s.date), date: s.date, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }));
+  const updateMetric = (id: string, { date, ...m }: NewMetric) => run(() => api.mutate('updateMetric', { id, week: weekOfDay(dumDate!, date), date, ...m }), 'Não foi possível salvar a medição.');
   const updateEntry = (id: string, e: NewEntry) => saveEntry(id, e);
   const updateTask = (id: string, t: NewTask) =>
     run(() => api.mutate('updateTask', { id, title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null }));
@@ -842,6 +843,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           entryIdea={entryStart.idea}
           onCreateSymptom={createSymptom}
           onCreateMetric={createMetric}
+          metrics={metrics}
           onCreateEntry={createEntry}
           onCreateConsultation={createConsultation}
           onCreateTask={createTask}

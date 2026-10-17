@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, ChevronDown, ImagePlus, Loader2, Lock, Users, X } from 'lucide-react';
+import { Bell, ImagePlus, Loader2, Lock, Users, X } from 'lucide-react';
 import { photoUrl } from '../../api';
 import { WORK_RIGHTS, WORK_RIGHTS_SOURCE, WORK_TERMS } from '../../content/workRights';
 import type { Folder, JournalEntry } from '../../hooks/useGestationData';
@@ -7,6 +7,7 @@ import { formatBR, parseLocalDate, toISODate } from '../../lib/dates';
 import { FileProblem, preparePhoto, type PreparedPhoto } from '../../lib/examFiles';
 import { FOLDER, FOLDERS, TONE, weekOn } from '../../lib/folders';
 import Guide from '../Guide';
+import DayPicker from './DayPicker';
 import { inputClass } from '../styles';
 import { Button, Segmented } from '../ui';
 
@@ -50,7 +51,6 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
   const [date, setDate] = useState(initial?.entry_date ?? today);
   const [visibility, setVisibility] = useState<'private' | 'shared'>(initial?.visibility ?? 'shared');
   const [remindOn, setRemindOn] = useState<string | null>(initial?.remind_on ?? null);
-  const [showDate, setShowDate] = useState(false);
   const [photos, setPhotos] = useState<PreparedPhoto[]>([]);
   const [removed, setRemoved] = useState<string[]>([]);
   const [preparing, setPreparing] = useState(false);
@@ -194,6 +194,8 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
 
       {!belly && photosAvailable && photoStrip}
 
+      {!initial && <DayPicker value={date} onChange={setDate} dumDate={dumDate} />}
+
       <div className="flex flex-wrap items-center gap-1.5">
         <Segmented
           label="Quem vê"
@@ -205,16 +207,10 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
             { value: 'private', label: <span className="flex items-center gap-1"><Lock className="w-3 h-3" />Só eu</span> },
           ]}
         />
-        {!initial && (
-          <button type="button" onClick={() => setShowDate(v => !v)} className={`${chip} ${date !== today ? 'bg-brand-soft text-brand-strong' : 'bg-surface-2 text-ink-soft'}`}>
-            {date === today ? 'Hoje' : formatBR(date)} <ChevronDown className="w-3 h-3" />
-          </button>
-        )}
         <button type="button" onClick={() => setRemindOn(r => (r ? null : addDays(today, 15)))} className={`${chip} ${remindOn ? 'bg-brand-soft text-brand-strong' : 'text-ink-mute hover:text-ink'}`}>
           <Bell className="w-3 h-3" /> {remindOn ? `Lembrar em ${formatBR(remindOn)}` : 'Lembrar'}
         </button>
       </div>
-      {showDate && <input type="date" aria-label="Data do registro" max={today} className={inputClass} value={date} onChange={e => setDate(e.target.value || today)} />}
       {remindOn && (
         <div className="flex flex-wrap items-center gap-1.5">
           {[7, 15, 30].map(n => (

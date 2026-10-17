@@ -15,7 +15,7 @@ check((await modes()) === 'Sintoma,Diário,Peso e pressão,Agendar,Tarefa,Result
 await p.screenshot({ path: `${OUT}rapido-inicio.png` });
 await dlg.getByLabel('O que ela está sentindo?').fill('Enjoo');
 await dlg.getByRole('button', { name: '3: Moderado' }).click();
-await dlg.getByRole('button', { name: /Salvar · semana/ }).click();
+await dlg.getByRole('button', { name: 'Salvar sintoma' }).click();
 await p.waitForTimeout(1200);
 check(!(await dlg.isVisible()), 'janela fecha após salvar sintoma');
 
@@ -29,7 +29,7 @@ await plus.click();
 check((await modes()) === 'Sintoma,Peso e pressão', 'Saúde oferece sintoma e medição');
 await dlg.getByRole('button', { name: 'Peso e pressão' }).click();
 await dlg.getByLabel('Peso (kg)').fill('64,5');
-await dlg.getByRole('button', { name: /Registrar como/ }).click();
+await dlg.getByRole('button', { name: /Salvar medição/ }).click();
 await p.waitForTimeout(1200);
 check(!(await dlg.isVisible()), 'janela fecha após salvar peso');
 await p.getByRole('button', { name: 'Medidas', exact: true }).click();

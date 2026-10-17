@@ -4,7 +4,7 @@ import { AlertTriangle, Bell, CalendarHeart, Check, CheckCircle2, Clock, Externa
 import { isAlertSymptom } from '../content/symptomCatalog';
 import { googleCalendarUrl } from '../lib/calendar';
 import { formatBR, isOverdue, localDay, parseLocalDate, parseTimestamp, toISODate } from '../lib/dates';
-import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure, type ParsedMetric } from '../lib/health';
+import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure } from '../lib/health';
 import { INTENSITY } from '../lib/intensity';
 import { normalizeSymptomName, timeOfDayLabel } from '../lib/symptoms';
 import type { Detail } from '../lib/details';
@@ -14,7 +14,7 @@ import { FOLDER, TONE, weekOn } from '../lib/folders';
 import AuthorBadge from './AuthorBadge';
 import PhotoViewer from './PhotoViewer';
 import { EntryForm, type NewEntry } from './forms/EntryForm';
-import { MetricForm, SymptomForm, type NewSymptom } from './forms/RecordForms';
+import { MetricForm, SymptomForm, type NewMetric, type NewSymptom } from './forms/RecordForms';
 import IntensityDots from './IntensityDots';
 import LocationLinks from './LocationLinks';
 import Sheet from './Sheet';
@@ -39,7 +39,7 @@ export interface DetailHandlers {
   photosAvailable: boolean;
   dumDate: string;
   onUpdateSymptom: (id: string, s: NewSymptom) => Promise<boolean>;
-  onUpdateMetric: (id: string, m: ParsedMetric) => Promise<boolean>;
+  onUpdateMetric: (id: string, m: NewMetric) => Promise<boolean>;
   onUpdateEntry: (id: string, e: NewEntry) => Promise<boolean>;
   onUpdateTask: (id: string, t: NewTask) => Promise<boolean>;
   onUpdateConsultation: (id: string, c: NewConsultation) => Promise<boolean>;
@@ -111,7 +111,7 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
     return (
       <Sheet icon={<NotebookPen />} title={editing ? 'Editar sintoma' : s.symptom_name} subtitle={editing ? null : <span className="flex flex-wrap items-center gap-2">{formatBR(s.log_date)} · semana {s.week_number} <AuthorBadge role={s.created_by} /></span>} onClose={editing ? () => setEditing(false) : onClose}>
         {editing ? (
-          <SymptomForm initial={s} trimester={h.trimester} history={h.symptoms} busy={h.busy} currentWeek={h.currentWeek} onCreate={async v => saved(await h.onUpdateSymptom(s.id, v))} />
+          <SymptomForm initial={s} author={h.author} dumDate={h.dumDate} trimester={h.trimester} history={h.symptoms} busy={h.busy} onCreate={async v => saved(await h.onUpdateSymptom(s.id, v))} />
         ) : (
           <>
             {alert && (
@@ -146,7 +146,7 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
     return (
       <Sheet icon={<Scale />} title={editing ? 'Editar medição' : 'Peso e pressão'} subtitle={editing ? null : <span className="flex flex-wrap items-center gap-2">{formatBR(m.recorded_at)} · semana {m.week_number} <AuthorBadge role={m.created_by} /></span>} onClose={editing ? () => setEditing(false) : onClose}>
         {editing ? (
-          <MetricForm initial={m} author={h.author} busy={h.busy} currentWeek={h.currentWeek} onCreate={async v => saved(await h.onUpdateMetric(m.id, v))} />
+          <MetricForm initial={m} dumDate={h.dumDate} busy={h.busy} onCreate={async v => saved(await h.onUpdateMetric(m.id, v))} />
         ) : (
           <>
             <Facts
