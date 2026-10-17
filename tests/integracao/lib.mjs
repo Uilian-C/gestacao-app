@@ -50,7 +50,12 @@ export function client() {
     }
     return { status: res.status, data };
   };
-  return { call };
+  /** GET sem ler como JSON: para arquivos. */
+  const raw = async path => {
+    const res = await fetch(BASE + path, { headers: { cookie: [...jar.values()].join('; ') } });
+    return { status: res.status, headers: res.headers, bytes: Buffer.from(await res.arrayBuffer()) };
+  };
+  return { call, raw };
 }
 
 /** Chromium do Playwright. CHROMIUM_PATH aponta para um navegador já instalado; HTTPS_PROXY, se houver, é respeitado. */

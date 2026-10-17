@@ -2,7 +2,7 @@ import { Suspense, lazy, useRef, useState } from 'react';
 import { CloudRain, Sprout } from 'lucide-react';
 import BrandMark from './components/BrandMark';
 import PushPrompt from './components/PushPrompt';
-import { takeTabFromUrl } from './lib/pwa';
+import { takeTabFromUrl, takeViewFromUrl } from './lib/pwa';
 import { api, ApiError, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
 import Header from './components/Header';
@@ -15,6 +15,7 @@ import type { BirthPlan } from './lib/birthPlan';
 import HomeTab from './components/tabs/HomeTab';
 import DiaryTab, { type NewEntry, type NewSymptom } from './components/tabs/DiaryTab';
 import type { NewConsultation, ReportRequest } from './components/tabs/ConsultationsTab';
+import type { SaveExam } from './components/tabs/ExamsTab';
 import TasksTab, { type NewTask } from './components/tabs/TasksTab';
 
 // Abas com gráficos, relatório e calendário carregam só quando abertas: o app abre mais rápido no celular.
@@ -22,6 +23,7 @@ const DashboardTab = lazy(() => import('./components/tabs/DashboardTab'));
 const ConsultationsTab = lazy(() => import('./components/tabs/ConsultationsTab'));
 const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
 const LaborTab = lazy(() => import('./components/tabs/LaborTab'));
+const ExamsTab = lazy(() => import('./components/tabs/ExamsTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
 import { FIRST_WEEK, clampWeek, daysBetween, gestationalAge, isOverdue, localDay, parseLocalDate, toISODate } from './lib/dates';
@@ -56,6 +58,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
   const [agendaView, setAgendaView] = useState<'calendario' | 'tarefas'>('calendario');
+  const [consultasView, setConsultasView] = useState<'consultas' | 'exames'>(() => (takeViewFromUrl() === 'exames' ? 'exames' : 'consultas'));
   const [dashboardView, setDashboardView] = useState<DashboardView>('geral');
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -103,7 +106,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     }
   };
 
-  const deleteItem = (kind: DeletableKind, id: string) => (kind === 'entry' ? api.mutate('deleteEntry', { id }) : api.mutate('delete', { kind, id }));
+  const deleteItem = (kind: DeletableKind, id: string) => {
+    if (kind === 'entry') return api.mutate('deleteEntry', { id });
+    if (kind === 'exam') return api.exams('delete', { id });
+    if (kind === 'examFile') return api.exams('deleteFile', { id });
+    return api.mutate('delete', { kind, id });
+  };
 
   /** Esconde o item na hora e só apaga no banco depois do prazo para desfazer. */
   const scheduleDelete = (kind: DeletableKind, id: string, label: string) => {
@@ -193,6 +201,41 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const createEntry = (e: NewEntry) =>
     run(() => api.mutate('createEntry', { ...e }), 'Não foi possível guardar. Se for a primeira vez, rode a migração db/migrations/008_momentos.sql no Neon.');
 
+  /**
+   * Exame novo (ou arquivos a mais num exame que já existe): grava o exame, envia os
+   * arquivos um por vez e, se for da jornada, marca o item como feito.
+   */
+  const saveExam: SaveExam = async (exam, examId, files, onProgress) => {
+    setBusy(true);
+    let id = examId;
+    try {
+      if (!id && exam) id = (await api.exams<{ ok: true; id: string }>('create', { ...exam })).id;
+      for (let i = 0; i < files.length; i++) {
+        await api.exams('addFile', { examId: id, contentType: files[i].contentType, data: files[i].data });
+        onProgress(i + 1);
+      }
+      if (exam?.planItem && !data?.checks.some(c => c.list === 'prenatal' && c.item_id === exam.planItem)) await api.mutate('setCheck', { list: 'prenatal', itemId: exam.planItem, done: true }).catch(() => undefined);
+      await refresh();
+      return null;
+    } catch (err) {
+      console.error(err);
+      refresh().catch(() => undefined);
+      if (err instanceof ApiError && err.status === 401) {
+        onAccessLost();
+        return 'Sua sessão terminou. Entre de novo.';
+      }
+      const reason = err instanceof ApiError ? err.message : 'Verifique a conexão e tente de novo.';
+      // O exame já existe: o formulário fecha e o aviso diz o que faltou (dá para juntar o arquivo depois).
+      if (id && !examId) {
+        showToast({ text: `O exame foi guardado, mas um arquivo não foi enviado. ${reason}`, tone: 'error' });
+        return null;
+      }
+      return examId ? `Não foi possível enviar. ${reason}` : `Não foi possível guardar. ${reason}`;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const createConsultation = (c: NewConsultation) =>
     run(() =>
       api.mutate('createConsultation', { scheduledAt: c.scheduledAt, specialty: c.specialty, professional: c.professional || null, location: c.location || null }),
@@ -251,6 +294,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   // Feito = marcado pelo casal ou comprovado pelo uso (ex.: consulta de obstetra realizada).
   const doneSteps = new Set([...data.checks.filter(c => c.list === 'prenatal').map(c => c.item_id), ...autoDone(visitsOf(data.consultations, dumDate, now))]);
   const packed = new Set(data.checks.filter(c => c.list === 'mala').map(c => c.item_id));
+  const exams = visible('exam', data.exams ?? []).map(e => ({ ...e, files: e.files.filter(f => !pendingDeletes.has(`examFile:${f.id}`)) }));
   const overdueTasks = tasks.filter(t => !t.is_completed && isOverdue(t.due_date)).length;
   const questions = visible('question', data.questions);
   const comments = visible('comment', data.comments);
@@ -412,7 +456,36 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             }}
           />
         )}
-        {activeTab === 'consultas' && (
+        {activeTab === 'consultas' && !report && (
+          <div className="no-print mb-4 flex justify-end">
+            <Segmented
+              label="Consultas ou exames"
+              value={consultasView}
+              onChange={v => {
+                setConsultasView(v);
+                window.scrollTo({ top: 0 });
+              }}
+              options={[
+                { value: 'consultas', label: 'Consultas' },
+                { value: 'exames', label: `Exames${exams.length ? ` (${exams.length})` : ''}` },
+              ]}
+            />
+          </div>
+        )}
+        {activeTab === 'consultas' && consultasView === 'exames' && !report && (
+          <ExamsTab
+            exams={exams}
+            available={data.examsAvailable ?? false}
+            dumDate={dumDate}
+            currentWeek={currentWeek}
+            bloodType={data.profile.bloodType}
+            busy={busy}
+            onSave={saveExam}
+            onDelete={e => scheduleDelete('exam', e.id, `exame "${e.title}"`)}
+            onDeleteFile={(_, f) => scheduleDelete('examFile', f.id, f.content_type === 'application/pdf' ? 'PDF' : 'foto')}
+          />
+        )}
+        {activeTab === 'consultas' && (consultasView === 'consultas' || report) && (
           <ConsultationsTab
             profile={profile}
             consultations={consultations}

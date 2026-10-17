@@ -53,4 +53,9 @@ export const api = {
   me: () => request<Me>('/api/family'),
   account: (op: 'deleteAccount' | 'deleteSpace', confirm: string) => request<{ ok: true }>('/api/account', { op, confirm }),
   family: <T = { ok: true; family: FamilyState | null }>(op: string, payload: Record<string, unknown> = {}) => request<T>('/api/family', { op, ...payload }),
+  /** Exames: create, addFile, deleteFile, delete. Ver api/exames.ts. */
+  exams: <T = { ok: true; id?: string; data?: unknown }>(op: string, payload: Record<string, unknown> = {}) => request<T>('/api/exames', { op, ...payload }),
 };
+
+/** Endereço de uma foto ou PDF de exame (só abre para quem é do espaço). */
+export const examFileUrl = (fileId: string) => `/api/exames?arquivo=${encodeURIComponent(fileId)}`;
