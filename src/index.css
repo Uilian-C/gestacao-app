@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 /*
-  Tema "acolhedor": fundo areia, superfícies claras, verde-sálvia como cor
-  principal e tons suaves para mãe (rosé), pai (azul sereno) e casal (lavanda).
+  Tema "acolhedor": fundo areia e superfícies claras. Mãe em rosa e pai em azul,
+  as cores do logo; a cor principal muda por aba (ver mais abaixo).
   As cores são variáveis: o modo escuro (uso à noite) troca só os valores.
 */
 :root {
@@ -14,17 +14,14 @@
   --c-ink-soft: #5e5650;
   --c-ink-mute: #7a7169;
 
-  --c-brand: #5e7d6c;
-  --c-brand-strong: #4a6657;
   --c-on-accent: #ffffff;
-  --c-brand-soft: #e8efea;
   --c-warm: #a5603a;
   --c-warm-soft: #f8ede4;
 
-  --c-mae: #a85d6e;
-  --c-mae-soft: #f6e6ea;
-  --c-pai: #4a6a8a;
-  --c-pai-soft: #e6edf4;
+  --c-mae: #c93d64;
+  --c-mae-soft: #ffe6ee;
+  --c-pai: #2f78c4;
+  --c-pai-soft: #e3f0fd;
   --c-casal: #7a6596;
   --c-casal-soft: #efebf5;
 
@@ -67,16 +64,13 @@
     --c-ink-soft: #c9c2ba;
     --c-ink-mute: #9b938b;
 
-    --c-brand: #8fb5a0;
-    --c-brand-strong: #a9c8b6;
     --c-on-accent: #131211;
-    --c-brand-soft: color-mix(in oklab, var(--c-brand) 16%, var(--c-surface));
     --c-warm: #d9a07c;
     --c-warm-soft: color-mix(in oklab, var(--c-warm) 11%, var(--c-surface));
 
-    --c-mae: #d39aa7;
+    --c-mae: #f08aa6;
     --c-mae-soft: color-mix(in oklab, var(--c-mae) 16%, var(--c-surface));
-    --c-pai: #91afcd;
+    --c-pai: #7cb6ef;
     --c-pai-soft: color-mix(in oklab, var(--c-pai) 16%, var(--c-surface));
     --c-casal: #b4a5d1;
     --c-casal-soft: color-mix(in oklab, var(--c-casal) 16%, var(--c-surface));
@@ -105,35 +99,62 @@
 }
 
 /*
-  Cor de quem está usando o aparelho: a cor principal (botões, abas, destaques)
-  vira rosé para a mãe e azul para o pai, e o fundo ganha um leve tom da mesma
-  cor. Assim fica claro, em qualquer tela, em nome de quem o registro será feito.
+  Os quatro tons do app, tirados do coração do logo: rosa (Início e Diário),
+  azul (Agenda), verde-água (Cuidados) e coral (Parto). Cada aba usa o seu como
+  cor principal (botões, chips, aba ativa); os cartões do Início usam o tom do
+  assunto (consulta em verde, tarefa em azul...). O fundo continua claro.
 */
-:root[data-author='mae'] {
-  --c-brand: #a85d6e;
-  --c-brand-strong: #8c4a59;
-  --c-brand-soft: #f6e6ea;
-  --c-canvas: #fbf6f4;
-}
-:root[data-author='pai'] {
-  --c-brand: #4a6a8a;
-  --c-brand-strong: #3a5672;
-  --c-brand-soft: #e6edf4;
-  --c-canvas: #f6f7f8;
+:root {
+  --c-rosa: #c93d64;
+  --c-rosa-strong: #a52f51;
+  --c-rosa-soft: #ffe6ee;
+  --c-azul: #2f78c4;
+  --c-azul-strong: #1f5f9e;
+  --c-azul-soft: #e3f0fd;
+  --c-verde: #1d7f76;
+  --c-verde-strong: #16655e;
+  --c-verde-soft: #dcf2ee;
+  --c-coral: #b84a28;
+  --c-coral-strong: #963a1e;
+  --c-coral-soft: #fde9e0;
 }
 @media (prefers-color-scheme: dark) {
-  :root[data-author='mae'] {
-    --c-brand: #d39aa7;
-    --c-brand-strong: #e3b5bf;
-    --c-brand-soft: color-mix(in oklab, var(--c-brand) 16%, var(--c-surface));
-    --c-canvas: #141212;
+  :root {
+    --c-rosa: #f08aa6;
+    --c-rosa-strong: #f6a9be;
+    --c-rosa-soft: color-mix(in oklab, #f08aa6 16%, var(--c-surface));
+    --c-azul: #7cb6ef;
+    --c-azul-strong: #a3cbf3;
+    --c-azul-soft: color-mix(in oklab, #7cb6ef 16%, var(--c-surface));
+    --c-verde: #6fc7bb;
+    --c-verde-strong: #96d7ce;
+    --c-verde-soft: color-mix(in oklab, #6fc7bb 16%, var(--c-surface));
+    --c-coral: #f0a07f;
+    --c-coral-strong: #f5bba3;
+    --c-coral-soft: color-mix(in oklab, #f0a07f 16%, var(--c-surface));
   }
-  :root[data-author='pai'] {
-    --c-brand: #91afcd;
-    --c-brand-strong: #b1c7de;
-    --c-brand-soft: color-mix(in oklab, var(--c-brand) 16%, var(--c-surface));
-    --c-canvas: #121314;
-  }
+}
+:root,
+:root[data-aba='inicio'],
+:root[data-aba='diario'] {
+  --c-brand: var(--c-rosa);
+  --c-brand-strong: var(--c-rosa-strong);
+  --c-brand-soft: var(--c-rosa-soft);
+}
+:root[data-aba='agenda'] {
+  --c-brand: var(--c-azul);
+  --c-brand-strong: var(--c-azul-strong);
+  --c-brand-soft: var(--c-azul-soft);
+}
+:root[data-aba='cuidados'] {
+  --c-brand: var(--c-verde);
+  --c-brand-strong: var(--c-verde-strong);
+  --c-brand-soft: var(--c-verde-soft);
+}
+:root[data-aba='parto'] {
+  --c-brand: var(--c-coral);
+  --c-brand-strong: var(--c-coral-strong);
+  --c-brand-soft: var(--c-coral-soft);
 }
 
 @theme inline {
@@ -155,6 +176,18 @@
   --color-warm: var(--c-warm);
   --color-warm-soft: var(--c-warm-soft);
   --color-on-accent: var(--c-on-accent);
+  --color-rosa: var(--c-rosa);
+  --color-rosa-strong: var(--c-rosa-strong);
+  --color-rosa-soft: var(--c-rosa-soft);
+  --color-azul: var(--c-azul);
+  --color-azul-strong: var(--c-azul-strong);
+  --color-azul-soft: var(--c-azul-soft);
+  --color-verde: var(--c-verde);
+  --color-verde-strong: var(--c-verde-strong);
+  --color-verde-soft: var(--c-verde-soft);
+  --color-coral: var(--c-coral);
+  --color-coral-strong: var(--c-coral-strong);
+  --color-coral-soft: var(--c-coral-soft);
   --color-mae: var(--c-mae);
   --color-mae-soft: var(--c-mae-soft);
   --color-pai: var(--c-pai);
@@ -296,4 +329,20 @@
 @media (prefers-reduced-motion: reduce) {
   .tt-batida, .tt-eco, .tt-luz { animation: none; }
   .tt-luz { opacity: 0; }
+}
+
+/* ---- Anel da semana no Início: ondas saindo no ritmo do tum-tum ---- */
+.tt-onda {
+  animation: tt-onda 1.5s ease-out infinite;
+}
+.tt-onda-2 {
+  animation: tt-onda 1.5s ease-out 0.33s infinite;
+}
+@keyframes tt-onda {
+  0% { transform: scale(0.86); opacity: 0.5; }
+  70% { opacity: 0; }
+  100% { transform: scale(1.18); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-onda, .tt-onda-2 { animation: none; opacity: 0; }
 }

@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BookOpen, CalendarHeart, ChevronDown, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Plus, Route, Scale, Sparkles, TrendingUp, X } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BookOpen, CalendarHeart, ChevronDown, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Route, Scale, Sparkles, TrendingUp, X } from 'lucide-react';
 import { PHASES, PLAN_SOURCE } from '../../content/prenatalPlan';
 import type { CheckItem } from '../../hooks/useGestationData';
 import { autoDone, itemStatus, phaseOf, planFor, planProgress, plannedVisitWeeks, visitsOf, type Visit } from '../../lib/journey';
 import { gestationMonth } from '../../lib/ficha';
 import Guide from '../Guide';
-import QuickRecord, { type QuickMode, type QuickRecordProps } from '../QuickRecord';
 import { JourneyTimeline, PlanProgressChart } from '../charts/journeyCharts';
 import { PhaseStrip, StepList } from '../journey/Journey';
 import { SYMPTOM_CATEGORIES } from '../../content/symptomCatalog';
@@ -18,7 +17,7 @@ import AuthorBadge from '../AuthorBadge';
 import { BloodPressureChart, CategoryHeatmap, Sparkline, SymptomTrendChart, TimeOfDayBars, WeightChart, type WeightPoint } from '../charts/charts';
 import { InsightList } from '../InsightList';
 import { inputClass } from '../styles';
-import { Button, Card, EmptyState, Field, Pill, Segmented, SectionTitle } from '../ui';
+import { Button, Card, EmptyState, Field, LinkButton, Pill, Segmented, SectionTitle } from '../ui';
 
 type PeriodId = '4sem' | 'trimestre' | 'tudo';
 
@@ -36,21 +35,13 @@ interface Props {
   checksAvailable: boolean;
   onToggleStep: (itemId: string, done: boolean) => void;
   view: DashboardView;
+  /** Leva a outra visão (que pode estar em outra aba: a jornada fica em Cuidados). */
   onViewChange: (view: DashboardView) => void;
   consultations: Consultation[];
-  quick: QuickRecordProps;
 }
 
 const fmt = (n: number, d = 1) => n.toLocaleString('pt-BR', { maximumFractionDigits: d });
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-
-// Atalho de registro de cada seção: o que faz sentido anotar olhando para ela.
-const QUICK: Record<DashboardView, { label: string; modes: QuickMode[] }> = {
-  geral: { label: 'Registrar', modes: ['sintoma', 'medicao', 'momento'] },
-  jornada: { label: 'Agendar consulta', modes: ['consulta'] },
-  sintomas: { label: 'Registrar sintoma', modes: ['sintoma'] },
-  corpo: { label: 'Registrar peso ou pressão', modes: ['medicao'] },
-};
 
 const TREND: Record<Trend, { label: string; tone: 'alert' | 'ok' | 'neutral' | 'brand'; icon: React.ReactNode }> = {
   subindo: { label: 'piorando', tone: 'alert', icon: <ArrowUpRight className="w-3.5 h-3.5" /> },
@@ -60,11 +51,9 @@ const TREND: Record<Trend, { label: string; tone: 'alert' | 'ok' | 'neutral' | '
 };
 
 export default function DashboardTab(props: Props) {
-  const { age, profile, symptoms, comments, metrics, migrationPending, busy, onSaveProfile, currentWeek, checks, checksAvailable, onToggleStep, view, onViewChange, consultations } = props;
+  const { age, profile, symptoms, comments, metrics, migrationPending, busy, onSaveProfile, currentWeek, checks, checksAvailable, onToggleStep, view, consultations } = props;
   const [periodId, setPeriodId] = useState<PeriodId>('4sem');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [quickOpen, setQuickOpen] = useState(false);
-  const quick = QUICK[view];
 
   const today = parseLocalDate(toISODate(new Date()));
   const dum = parseLocalDate(profile.dumDate);
@@ -118,23 +107,8 @@ export default function DashboardTab(props: Props) {
   const plannedVisits = plannedVisitWeeks(firstVisit ?? 8);
   const phase = phaseOf(currentWeek);
 
-  const views: Array<{ value: DashboardView; label: string }> = [
-    { value: 'geral', label: 'Geral' },
-    { value: 'jornada', label: 'Jornada' },
-    { value: 'sintomas', label: 'Sintomas' },
-    { value: 'corpo', label: 'Corpo' },
-  ];
-
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <Segmented label="Seção do painel" value={view} onChange={onViewChange} options={views} />
-        <Button tone="soft" onClick={() => setQuickOpen(true)} className="!px-4 !py-2">
-          <Plus /> {quick.label}
-        </Button>
-      </div>
-      {quickOpen && <QuickRecord {...props.quick} modes={quick.modes} initial={quick.modes[0]} onClose={() => setQuickOpen(false)} />}
-
       {view === 'geral' && (
         <Overview
           {...props}
@@ -301,7 +275,7 @@ function Overview({ profile, metrics, currentWeek, onViewChange, entries, progre
 
       {insights.length > 0 && (
         <Card>
-          <SectionTitle icon={<Lightbulb className="w-5 h-5" />} title="O que os registros mostram" action={<Button tone="soft" className="!px-3 !py-1.5" onClick={() => onViewChange('sintomas')}>Ver</Button>} />
+          <SectionTitle icon={<Lightbulb className="w-5 h-5" />} title="O que os registros mostram" action={<LinkButton onClick={() => onViewChange('sintomas')}>Ver tudo</LinkButton>} />
           <InsightList insights={insights.slice(0, 2)} compact />
         </Card>
       )}

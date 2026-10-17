@@ -74,7 +74,7 @@ async function notifyPartners(m: Member) {
   if (rows.length === 0) return;
   const who = rows[0].name || (m.role === 'mae' ? 'A mãe' : 'O pai');
   // Sem o nome do exame: a notificação aparece na tela bloqueada.
-  await notify(rows.map(r => r.user_id), 'parceiro', { title: `${who} guardou um exame`, body: 'Toque para ver em Consultas, na parte de exames.', url: '/?aba=exames', tag: 'parceiro-exame' });
+  await notify(rows.map(r => r.user_id), 'parceiro', { title: `${who} guardou um exame`, body: 'Toque para ver em Cuidados, na parte de exames.', url: '/?aba=exames', tag: 'parceiro-exame' });
 }
 
 /** Arquivo de um exame: GET /api/exames?arquivo=<id> */

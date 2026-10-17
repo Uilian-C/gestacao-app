@@ -1,7 +1,7 @@
-import { Suspense, lazy, useRef, useState } from 'react';
-import { CloudRain, Sprout } from 'lucide-react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { CloudRain, Plus, Sprout } from 'lucide-react';
 import BrandMark from './components/BrandMark';
-import PushPrompt from './components/PushPrompt';
+import QuickRecord, { type QuickMode } from './components/QuickRecord';
 import { takeTabFromUrl, takeViewFromUrl } from './lib/pwa';
 import { api, ApiError, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
@@ -10,12 +10,13 @@ import FichaBar, { type FichaInput } from './components/FichaBar';
 import Nav from './components/Nav';
 import Toast, { type ToastMessage } from './components/Toast';
 import { DumForm } from './components/DumForm';
-import { Card, Segmented } from './components/ui';
+import { Card, SubTabs } from './components/ui';
 import type { BirthPlan } from './lib/birthPlan';
-import HomeTab from './components/tabs/HomeTab';
+import HomeTab, { type HomeTarget } from './components/tabs/HomeTab';
 import DiaryTab, { type NewEntry, type NewSymptom } from './components/tabs/DiaryTab';
 import type { NewConsultation, ReportRequest } from './components/tabs/ConsultationsTab';
-import type { SaveExam } from './components/tabs/ExamsTab';
+// Exames vêm junto com o botão "+" (que tem o formulário de exame).
+import ExamsTab, { type SaveExam } from './components/tabs/ExamsTab';
 import TasksTab, { type NewTask } from './components/tabs/TasksTab';
 
 // Abas com gráficos, relatório e calendário carregam só quando abertas: o app abre mais rápido no celular.
@@ -23,16 +24,29 @@ const DashboardTab = lazy(() => import('./components/tabs/DashboardTab'));
 const ConsultationsTab = lazy(() => import('./components/tabs/ConsultationsTab'));
 const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
 const LaborTab = lazy(() => import('./components/tabs/LaborTab'));
-const ExamsTab = lazy(() => import('./components/tabs/ExamsTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
 import { FIRST_WEEK, clampWeek, daysBetween, gestationalAge, isOverdue, localDay, parseLocalDate, toISODate } from './lib/dates';
 import { pressureInsights, type ParsedMetric } from './lib/health';
 import { findPatterns, toEntries } from './lib/symptoms';
-import type { Consultation, DashboardView, DeletableKind, PartnerTask, Tab } from './types';
+import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, DiaryView, PartnerTask, Tab } from './types';
 import { autoDone, visitsOf } from './lib/journey';
 
 const UNDO_WINDOW_MS = 5000;
+
+const TITLE: Record<Tab, string> = { inicio: 'Tumtum', diario: 'Diário', agenda: 'Agenda', cuidados: 'Cuidados', parto: 'Parto' };
+
+/** O que o botão "+" oferece em cada aba (o primeiro abre selecionado). Parto não tem: lá os registros são os cronômetros. */
+const RECORD_MODES: Record<Tab, QuickMode[]> = {
+  inicio: ['sintoma', 'momento', 'medicao', 'consulta', 'tarefa', 'exame'],
+  diario: ['sintoma', 'momento', 'medicao'],
+  agenda: ['tarefa', 'consulta'],
+  cuidados: ['consulta', 'exame'],
+  parto: [],
+};
+
+/** Gráficos e jornada (o antigo Painel): de que parte de qual aba cada um faz parte. */
+const DIARY_CHART: Partial<Record<DiaryView, DashboardView>> = { sintomas: 'sintomas', corpo: 'corpo', resumo: 'geral' };
 
 function greetingFor(hour: number): string {
   if (hour < 5) return 'Boa madrugada';
@@ -57,9 +71,19 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [activeTab, setActiveTab] = useState<Tab>(() => takeTabFromUrl() ?? 'inicio');
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
-  const [agendaView, setAgendaView] = useState<'calendario' | 'tarefas'>('calendario');
-  const [consultasView, setConsultasView] = useState<'consultas' | 'exames'>(() => (takeViewFromUrl() === 'exames' ? 'exames' : 'consultas'));
-  const [dashboardView, setDashboardView] = useState<DashboardView>('geral');
+  const [diaryView, setDiaryView] = useState<DiaryView>('linha');
+  const [agendaView, setAgendaView] = useState<AgendaView>('calendario');
+  const [careView, setCareView] = useState<CareView>(() => {
+    const v = takeViewFromUrl();
+    return v === 'exames' || v === 'jornada' ? v : 'consultas';
+  });
+  const [examPreset, setExamPreset] = useState<string | null>(null);
+  const [recording, setRecording] = useState<QuickMode[] | null>(null);
+
+  // A cor principal segue a aba (index.css, data-aba).
+  useEffect(() => {
+    document.documentElement.dataset.aba = activeTab;
+  }, [activeTab]);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
@@ -76,7 +100,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const showToast = (message: Omit<ToastMessage, 'id'>) => setToast({ ...message, id: ++toastSeq.current });
   const navigate = (tab: Tab) => {
     setActiveTab(tab);
-    if (tab !== 'consultas') setReport(null);
+    if (tab !== 'cuidados') setReport(null);
+    setExamPreset(null);
     window.scrollTo({ top: 0 });
   };
 
@@ -261,7 +286,16 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     );
   }
 
-  const header = <Header firstName={me.user.name.split(' ')[0]} members={family.members} greeting={greetingFor(now.getHours())} onOpenSpace={() => setSpaceOpen(true)} />;
+  const header = (
+    <Header
+      firstName={me.user.name.split(' ')[0]}
+      members={family.members}
+      greeting={greetingFor(now.getHours())}
+      onOpenSpace={() => setSpaceOpen(true)}
+      title={activeTab === 'inicio' || !age ? undefined : TITLE[activeTab]}
+      week={age ? currentWeek : null}
+    />
+  );
   const spaceSheet = spaceOpen && <SpaceSheet me={me} family={family} onClose={() => setSpaceOpen(false)} onFamilyChange={onFamilyChange} onSignOut={onSignOut} onAccountDeleted={onSignOut} />;
 
   if (!dumDate || !age) {
@@ -302,20 +336,61 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const nextConsultation = consultations.find(c => daysBetween(parseLocalDate(today), localDay(c.scheduled_at)) >= 0) ?? null;
   const prepareReport = (c: Consultation) => {
     setReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id });
-    setActiveTab('consultas');
+    setActiveTab('cuidados');
+    setCareView('consultas');
     window.scrollTo({ top: 0 });
   };
+  const openCare = (view: CareView) => {
+    navigate('cuidados');
+    setCareView(view);
+  };
+  // Os gráficos e a jornada levam um ao outro, mesmo estando em abas diferentes.
+  const openDashboardView = (v: DashboardView) => {
+    if (v === 'jornada') return openCare('jornada');
+    navigate('diario');
+    setDiaryView(v === 'geral' ? 'resumo' : v);
+  };
+  const openFromHome = (target: HomeTarget, planItem?: string) => {
+    if (target === 'diario') return navigate('diario');
+    if (target === 'graficos') return openDashboardView('sintomas');
+    if (target === 'tarefas') {
+      navigate('agenda');
+      return setAgendaView('tarefas');
+    }
+    openCare(target);
+    if (target === 'exames') setExamPreset(planItem ?? null);
+  };
+  const recordModes = report ? [] : RECORD_MODES[activeTab];
+  const dashboard = (view: DashboardView) => (
+    <DashboardTab
+      age={age}
+      profile={profile}
+      symptoms={symptoms}
+      comments={comments}
+      metrics={metrics}
+      migrationPending={data.migrationPending}
+      busy={busy}
+      onSaveProfile={saveProfile}
+      currentWeek={currentWeek}
+      checks={data.checks}
+      checksAvailable={data.checksAvailable}
+      onToggleStep={(id, done) => setCheck('prenatal', id, done)}
+      view={view}
+      onViewChange={openDashboardView}
+      consultations={consultations}
+    />
+  );
 
   return (
-    <div className="min-h-screen bg-canvas text-ink pb-28 md:pb-12">
+    <div className="min-h-screen bg-canvas text-ink pb-32 md:pb-12">
       {header}
-      <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />
+      {(activeTab === 'inicio' || activeTab === 'cuidados') && <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />}
       <Nav
         active={activeTab}
         onChange={navigate}
         badges={{
           agenda: overdueTasks,
-          consultas: questions.filter(q => !q.doctor_answer).length,
+          cuidados: questions.filter(q => !q.doctor_answer).length,
         }}
       />
 
@@ -333,8 +408,6 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           </p>
         )}
 
-        {activeTab === 'inicio' && <PushPrompt />}
-
         {activeTab === 'inicio' && (
           <HomeTab
             age={age}
@@ -344,34 +417,69 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onSelectWeek={setPickedWeek}
             onSaveDum={saveDum}
             nextConsultation={nextConsultation}
-            questions={questions}
             symptoms={symptoms}
             metrics={metrics}
             tasks={tasks}
             insights={recentInsights}
+            journal={journal}
+            exams={exams}
             onToggleTask={toggleTask}
-            onNavigate={navigate}
             onPrepareReport={prepareReport}
-            onOpenTasks={() => {
-              setAgendaView('tarefas');
-              navigate('agenda');
-            }}
+            onOpen={openFromHome}
             bloodType={data.profile.bloodType}
             doneSteps={doneSteps}
             checksAvailable={data.checksAvailable}
-            busy={busy}
             onToggleStep={(id, done) => setCheck('prenatal', id, done)}
             reminders={journal.filter(e => e.remind_on && e.remind_on >= today && daysBetween(parseLocalDate(today), parseLocalDate(e.remind_on)) <= 30)}
-            onOpenJourney={() => {
-              setDashboardView('jornada');
-              navigate('painel');
-            }}
           />
         )}
+
+        {activeTab === 'diario' && (
+          <>
+            <SubTabs
+              label="Parte do diário"
+              value={diaryView}
+              onChange={v => {
+                setDiaryView(v);
+                window.scrollTo({ top: 0 });
+              }}
+              options={[
+                { value: 'linha', label: 'Linha do tempo' },
+                { value: 'sintomas', label: 'Sintomas' },
+                { value: 'corpo', label: 'Peso e pressão' },
+                { value: 'resumo', label: 'Resumo' },
+              ]}
+            />
+            {diaryView === 'linha' ? (
+              <DiaryTab
+                author={author}
+                age={age}
+                symptoms={symptoms}
+                comments={comments}
+                metrics={metrics}
+                selectedWeek={selectedWeek}
+                currentWeek={currentWeek}
+                busy={busy}
+                onComment={createComment}
+                onDeleteSymptom={s => scheduleDelete('symptom', s.id, s.symptom_name)}
+                onDeleteComment={c => scheduleDelete('comment', c.id, 'cuidado')}
+                onDeleteMetric={m => scheduleDelete('metric', m.id, `medição da semana ${m.week_number}`)}
+                dumDate={dumDate}
+                journal={journal}
+                journalAvailable={data.journalAvailable}
+                onDeleteEntry={e => scheduleDelete('entry', e.id, 'momento')}
+                onRecord={() => setRecording(RECORD_MODES.diario)}
+              />
+            ) : (
+              dashboard(DIARY_CHART[diaryView]!)
+            )}
+          </>
+        )}
+
         {activeTab === 'agenda' && (
-          <div className="no-print mb-4 flex justify-end">
-            <Segmented
-              label="Visão da agenda"
+          <>
+            <SubTabs
+              label="Parte da agenda"
               value={agendaView}
               onChange={setAgendaView}
               options={[
@@ -379,113 +487,54 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 { value: 'tarefas', label: `Tarefas${overdueTasks ? ` (${overdueTasks} atrasada${overdueTasks > 1 ? 's' : ''})` : ''}` },
               ]}
             />
-          </div>
+            {agendaView === 'calendario' ? (
+              <CalendarTab
+                dumDate={dumDate}
+                currentWeek={currentWeek}
+                consultations={consultations}
+                tasks={tasks}
+                symptoms={symptoms}
+                metrics={metrics}
+                journal={journal}
+                busy={busy}
+                migrationPending={data.migrationPending}
+                onCreateConsultation={createConsultation}
+                onCreateTask={createTask}
+                onToggleTask={toggleTask}
+                onNavigate={navigate}
+                onNotify={text => showToast({ text, tone: 'info' })}
+              />
+            ) : (
+              <TasksTab
+                tasks={tasks}
+                selectedWeek={selectedWeek}
+                currentWeek={currentWeek}
+                busy={busy}
+                onCreate={createTask}
+                onToggle={toggleTask}
+                onDelete={t => scheduleDelete('task', t.id, `tarefa "${t.task_title}"`)}
+              />
+            )}
+          </>
         )}
-        {activeTab === 'agenda' && agendaView === 'calendario' && (
-          <CalendarTab
-            dumDate={dumDate}
-            currentWeek={currentWeek}
-            consultations={consultations}
-            tasks={tasks}
-            symptoms={symptoms}
-            metrics={metrics}
-            journal={journal}
-            busy={busy}
-            migrationPending={data.migrationPending}
-            onCreateConsultation={createConsultation}
-            onCreateTask={createTask}
-            onToggleTask={toggleTask}
-            onNavigate={navigate}
-            onNotify={text => showToast({ text, tone: 'info' })}
-          />
-        )}
-        {activeTab === 'diario' && (
-          <DiaryTab
-            author={author}
-            age={age}
-            symptoms={symptoms}
-            comments={comments}
-            metrics={metrics}
-            selectedWeek={selectedWeek}
-            currentWeek={currentWeek}
-            busy={busy}
-            onCreateSymptom={createSymptom}
-            onCreateMetric={createMetric}
-            onComment={createComment}
-            onDeleteSymptom={s => scheduleDelete('symptom', s.id, s.symptom_name)}
-            onDeleteComment={c => scheduleDelete('comment', c.id, 'cuidado')}
-            onDeleteMetric={m => scheduleDelete('metric', m.id, `medição da semana ${m.week_number}`)}
-            dumDate={dumDate}
-            journal={journal}
-            journalAvailable={data.journalAvailable}
-            onCreateEntry={createEntry}
-            onDeleteEntry={e => scheduleDelete('entry', e.id, 'momento')}
-          />
-        )}
-        {activeTab === 'painel' && (
-          <DashboardTab
-            age={age}
-            profile={profile}
-            symptoms={symptoms}
-            comments={comments}
-            metrics={metrics}
-            migrationPending={data.migrationPending}
-            busy={busy}
-            onSaveProfile={saveProfile}
-            currentWeek={currentWeek}
-            checks={data.checks}
-            checksAvailable={data.checksAvailable}
-            onToggleStep={(id, done) => setCheck('prenatal', id, done)}
-            view={dashboardView}
-            onViewChange={v => {
-              setDashboardView(v);
+
+        {activeTab === 'cuidados' && !report && (
+          <SubTabs
+            label="Parte dos cuidados"
+            value={careView}
+            onChange={v => {
+              setCareView(v);
+              setExamPreset(null);
               window.scrollTo({ top: 0 });
             }}
-            consultations={consultations}
-            quick={{
-              author,
-              trimester: age.trimester,
-              currentWeek,
-              symptoms,
-              busy,
-              journalAvailable: data.journalAvailable,
-              onCreateSymptom: createSymptom,
-              onCreateMetric: createMetric,
-              onCreateEntry: createEntry,
-              onCreateConsultation: createConsultation,
-            }}
+            options={[
+              { value: 'consultas', label: 'Consultas' },
+              { value: 'exames', label: `Exames${exams.length ? ` (${exams.length})` : ''}` },
+              { value: 'jornada', label: 'Jornada' },
+            ]}
           />
         )}
-        {activeTab === 'consultas' && !report && (
-          <div className="no-print mb-4 flex justify-end">
-            <Segmented
-              label="Consultas ou exames"
-              value={consultasView}
-              onChange={v => {
-                setConsultasView(v);
-                window.scrollTo({ top: 0 });
-              }}
-              options={[
-                { value: 'consultas', label: 'Consultas' },
-                { value: 'exames', label: `Exames${exams.length ? ` (${exams.length})` : ''}` },
-              ]}
-            />
-          </div>
-        )}
-        {activeTab === 'consultas' && consultasView === 'exames' && !report && (
-          <ExamsTab
-            exams={exams}
-            available={data.examsAvailable ?? false}
-            dumDate={dumDate}
-            currentWeek={currentWeek}
-            bloodType={data.profile.bloodType}
-            busy={busy}
-            onSave={saveExam}
-            onDelete={e => scheduleDelete('exam', e.id, `exame "${e.title}"`)}
-            onDeleteFile={(_, f) => scheduleDelete('examFile', f.id, f.content_type === 'application/pdf' ? 'PDF' : 'foto')}
-          />
-        )}
-        {activeTab === 'consultas' && (consultasView === 'consultas' || report) && (
+        {activeTab === 'cuidados' && (careView === 'consultas' || report) && (
           <ConsultationsTab
             profile={profile}
             consultations={consultations}
@@ -511,17 +560,23 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             birthPlan={data.birthPlan}
           />
         )}
-        {activeTab === 'agenda' && agendaView === 'tarefas' && (
-          <TasksTab
-            tasks={tasks}
-            selectedWeek={selectedWeek}
+        {activeTab === 'cuidados' && careView === 'exames' && !report && (
+          <ExamsTab
+            key={examPreset ?? 'exames'}
+            exams={exams}
+            available={data.examsAvailable ?? false}
+            dumDate={dumDate}
             currentWeek={currentWeek}
+            bloodType={data.profile.bloodType}
             busy={busy}
-            onCreate={createTask}
-            onToggle={toggleTask}
-            onDelete={t => scheduleDelete('task', t.id, `tarefa "${t.task_title}"`)}
+            onSave={saveExam}
+            onDelete={e => scheduleDelete('exam', e.id, `exame "${e.title}"`)}
+            onDeleteFile={(_, f) => scheduleDelete('examFile', f.id, f.content_type === 'application/pdf' ? 'PDF' : 'foto')}
+            initialPlanItem={examPreset}
           />
         )}
+        {activeTab === 'cuidados' && careView === 'jornada' && !report && dashboard('jornada')}
+
         {activeTab === 'parto' && (
           <LaborTab
             author={author}
@@ -546,6 +601,40 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         )}
         </Suspense>
       </main>
+
+      {recordModes.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setRecording(recordModes)}
+          aria-label="Registrar"
+          className="no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] md:bottom-8 w-[60px] h-[60px] rounded-full text-white flex items-center justify-center shadow-lift transition active:scale-95 hover:brightness-105"
+          style={{ background: 'linear-gradient(135deg, #ff7fa0, #2f84d6)' }}
+        >
+          <Plus className="w-7 h-7" strokeWidth={2.6} />
+        </button>
+      )}
+      {recording && (
+        <QuickRecord
+          modes={recording}
+          initial={recording[0]}
+          onClose={() => setRecording(null)}
+          author={author}
+          trimester={age.trimester}
+          currentWeek={currentWeek}
+          selectedWeek={selectedWeek}
+          symptoms={symptoms}
+          busy={busy}
+          journalAvailable={data.journalAvailable}
+          onCreateSymptom={createSymptom}
+          onCreateMetric={createMetric}
+          onCreateEntry={createEntry}
+          onCreateConsultation={createConsultation}
+          onCreateTask={createTask}
+          bloodType={data.profile.bloodType}
+          examsAvailable={data.examsAvailable ?? false}
+          onSaveExam={saveExam}
+        />
+      )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
       {spaceSheet}

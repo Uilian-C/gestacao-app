@@ -5,7 +5,8 @@ const b = await launch();
 const p = await phone(b);
 await quickAccount(p);
 await p.getByRole('button', { name: /^Diário/ }).first().click();
-await p.getByRole('button', { name: 'Momento' }).click();
+await p.getByRole('button', { name: 'Registrar', exact: true }).click();
+await p.getByRole('dialog').getByRole('button', { name: 'Momento' }).click();
 await p.getByLabel('O que aconteceu?').fill('Contamos hoje para a empresa. Vamos contar para a família em 15 dias.');
 check(await p.getByText('Seus direitos no trabalho').isVisible(), 'guia de direitos aparece ao falar da empresa');
 await p.getByRole('button', { name: 'Só eu' }).click();
@@ -17,7 +18,7 @@ check(await p.getByText('só você').first().isVisible(), 'momento particular na
 await p.screenshot({ path: `${OUT}momento-linha.png`, fullPage: false });
 await p.getByRole('button', { name: /^Início/ }).first().click();
 await p.waitForTimeout(600);
-check(await p.getByText('em 15 dias', { exact: true }).isVisible(), 'lembrete aparece no Início');
+check(await p.getByText('Lembrete em 15 dias').isVisible(), 'lembrete aparece no Início, na faixa Hoje');
 await p.screenshot({ path: `${OUT}momento-inicio.png`, fullPage: false });
 await b.close();
 finish();

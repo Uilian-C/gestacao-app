@@ -9,7 +9,6 @@ import Onboarding from './components/auth/Onboarding';
 import { authClient } from './lib/authClient';
 import { clearPendingInvite } from './lib/invite';
 
-const AUTHOR_KEY = 'nossa-gestacao:autor';
 
 // Ao abrir, o espaço e os dados já começam a vir junto com a checagem do login,
 // em vez de esperar uma pela outra. Só serve se for da mesma pessoa que está logada.
@@ -20,19 +19,6 @@ async function loadMe(userId: string) {
   boot = null;
   const result = early ? await early : null;
   return result && result.user.id === userId ? result : api.me();
-}
-
-/** A cor do app segue o papel de quem está logado (mãe rosé, pai azul; sem login, neutro). */
-function applyAuthorColor(role: string | undefined) {
-  const root = document.documentElement;
-  if (role) root.dataset.author = role;
-  else delete root.dataset.author;
-  try {
-    if (role) localStorage.setItem(AUTHOR_KEY, role);
-    else localStorage.removeItem(AUTHOR_KEY);
-  } catch {
-    // Armazenamento bloqueado: a cor só não fica guardada para a próxima abertura.
-  }
 }
 
 /** Porta de entrada: login, depois o espaço da família, depois o app. */
@@ -66,7 +52,6 @@ export default function Root() {
   }, [userId, attempt]);
 
   const current = me && me.user.id === userId ? me : null;
-  useEffect(() => applyAuthorColor(current?.family?.role), [current?.family?.role]);
 
   const { refetch } = session;
   const setFamily = useCallback((family: FamilyState | null) => setMe(prev => (prev ? { ...prev, family } : prev)), []);

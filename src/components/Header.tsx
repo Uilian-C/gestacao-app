@@ -7,23 +7,34 @@ interface Props {
   members: FamilyMember[];
   greeting: string;
   onOpenSpace: () => void;
+  /** Nas abas que não são o Início: cabeçalho fino, com o nome da aba e a semana. */
+  title?: string;
+  week?: number | null;
 }
 
-export default function Header({ firstName, members, greeting, onOpenSpace }: Props) {
+export default function Header({ firstName, members, greeting, onOpenSpace, title, week }: Props) {
   return (
     <header className="no-print bg-canvas transition-colors duration-300">
-      <div className="max-w-5xl mx-auto px-4 md:px-6 pt-5 pb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-11 h-11 rounded-full bg-surface shadow-soft flex items-center justify-center shrink-0">
-            <BrandMark className="w-8 h-8" />
+      <div className={`max-w-5xl mx-auto px-4 md:px-6 flex items-center justify-between gap-3 ${title ? 'pt-4 pb-2' : 'pt-5 pb-3'}`}>
+        {title ? (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <BrandMark className="w-8 h-8 shrink-0" />
+            <h1 className="text-[1.5rem] text-ink leading-tight truncate">{title}</h1>
+            {week != null && <span className="shrink-0 rounded-full bg-brand-soft text-brand-strong text-xs font-extrabold px-2.5 py-1 tabular">{week} semanas</span>}
           </div>
-          <div className="min-w-0">
-            <p className="text-sm text-ink-mute truncate">
-              {greeting}, {firstName}
-            </p>
-            <h1 className="text-[1.45rem] text-ink leading-tight whitespace-nowrap">Tumtum</h1>
+        ) : (
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-full bg-surface shadow-soft flex items-center justify-center shrink-0">
+              <BrandMark className="w-8 h-8" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm text-ink-mute truncate">
+                {greeting}, {firstName}
+              </p>
+              <h1 className="text-[1.45rem] text-ink leading-tight whitespace-nowrap">Tumtum</h1>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Quem participa do espaço; abre convites, papel e saída da conta. */}
         <button
@@ -34,7 +45,7 @@ export default function Header({ firstName, members, greeting, onOpenSpace }: Pr
         >
           <span className="flex -space-x-2">
             {members.slice(0, 3).map(m => (
-              <span key={m.userId} className={`w-7 h-7 rounded-full ring-2 ring-surface flex items-center justify-center text-[11px] text-on-accent ${m.role === 'mae' ? 'bg-mae' : 'bg-pai'}`}>
+              <span key={m.userId} className={`w-7 h-7 rounded-full ring-2 ring-surface flex items-center justify-center text-[11px] font-extrabold text-on-accent ${m.role === 'mae' ? 'bg-mae' : 'bg-pai'}`}>
                 {m.name.trim().charAt(0).toUpperCase() || '?'}
               </span>
             ))}

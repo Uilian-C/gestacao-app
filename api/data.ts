@@ -218,7 +218,7 @@ function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } 
     case 'createSymptom':
       return { action: 'registrou um sintoma no diário', body: 'Toque para ver e deixar um carinho.', url: '/?aba=diario', tag: 'parceiro-diario' };
     case 'createMetric':
-      return { action: 'registrou uma medição', body: 'Peso ou pressão: veja no painel.', url: '/?aba=painel', tag: 'parceiro-medicao' };
+      return { action: 'registrou uma medição', body: 'Peso ou pressão: veja no diário.', url: '/?aba=diario', tag: 'parceiro-medicao' };
     case 'createConsultation':
       return { action: 'agendou uma consulta', body: 'Toque para ver data, hora e endereço.', url: '/?aba=consultas', tag: 'parceiro-consulta' };
     case 'createQuestion':

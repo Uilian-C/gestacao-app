@@ -111,7 +111,7 @@ export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCre
         <SectionTitle
           title="Lista"
           action={
-            <Button tone={formOpen ? 'ghost' : 'primary'} onClick={() => setFormOpen(v => !v)} className="!px-4 !py-2">
+            <Button tone={formOpen ? 'ghost' : 'soft'} onClick={() => setFormOpen(v => !v)} className="!px-4 !py-2">
               {formOpen ? 'Fechar' : <><Plus className="w-4 h-4" /> Nova tarefa</>}
             </Button>
           }
