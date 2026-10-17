@@ -15,18 +15,5 @@
       "path": "/api/lembretes",
       "schedule": "0 11 * * *"
     }
-  ],
-  "redirects": [
-    {
-      "source": "/:path*",
-      "has": [
-        {
-          "type": "host",
-          "value": "gestacao-app.vercel.app"
-        }
-      ],
-      "destination": "https://meutumtum.com.br/:path*",
-      "permanent": false
-    }
   ]
 }

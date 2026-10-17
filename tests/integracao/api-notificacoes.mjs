@@ -46,7 +46,10 @@ await A.call('/api/data', { op: 'createMetric', week: 24, date: today, weight: 6
 await wait(300);
 check(of(await inbox(), 'b').length === before, 'B desligou "parceiro": não recebe a medição');
 
-const tomorrow9 = new Date(Date.now() + 86400000); tomorrow9.setUTCHours(12, 30, 0, 0); // 09:30 em São Paulo
+// "Amanhã" no calendário de São Paulo (não no UTC: depois das 21h de Brasília o UTC já virou o dia).
+const [ty, tm, td] = today.split('-').map(Number);
+const tomorrowYmd = new Date(Date.UTC(ty, tm - 1, td + 1)).toISOString().slice(0, 10);
+const tomorrow9 = new Date(`${tomorrowYmd}T09:30:00-03:00`); // 09:30 em São Paulo
 await B.call('/api/data', { op: 'createConsultation', scheduledAt: tomorrow9.toISOString(), specialty: 'obstetra', professional: 'Dra. Ana', location: 'Clínica Bem Nascer' });
 await A.call('/api/data', { op: 'createEntry', date: today, body: 'Contar para a família', visibility: 'private', remindOn: today });
 await wait(300);
