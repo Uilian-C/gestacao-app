@@ -6,7 +6,6 @@ const p = await phone(b);
 await quickAccount(p);
 await p.getByRole('button', { name: /^Diário/ }).first().click();
 await p.getByRole('button', { name: 'Registrar', exact: true }).click();
-await p.getByRole('dialog').getByRole('button', { name: 'Momento' }).click();
 await p.getByLabel('O que aconteceu?').fill('Contamos hoje para a empresa. Vamos contar para a família em 15 dias.');
 check(await p.getByText('Seus direitos no trabalho').isVisible(), 'guia de direitos aparece ao falar da empresa');
 await p.getByRole('button', { name: 'Só eu' }).click();

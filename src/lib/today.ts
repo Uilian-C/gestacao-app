@@ -2,6 +2,7 @@ import type { JournalEntry } from '../hooks/useGestationData';
 import { specialtyOf } from '../data/specialties';
 import type { Consultation, PartnerTask } from '../types';
 import { daysBetween, isOverdue, localDay, parseLocalDate, parseTimestamp } from './dates';
+import { FOLDER } from './folders';
 import { windowText, type Step } from './journey';
 
 // Faixa "Hoje" do Início: o que pede atenção agora, em cartões pequenos que
@@ -103,7 +104,9 @@ export function todayCards(input: {
   // O último momento da outra pessoa, se for recente: um jeito de ver o que ela guardou.
   const moment = input.moments.find(m => !m.mine && m.visibility === 'shared' && daysBetween(parseLocalDate(m.entry_date), today) <= 7);
   if (moment) {
-    cards.push({ id: `momento-${moment.id}`, tone: 'rosa', label: moment.author_role === 'mae' ? 'Momento da mãe' : 'Momento do pai', title: moment.body, detail: '', action: { label: 'Ver no diário', do: { kind: 'diario' } } });
+    const what = FOLDER[moment.folder ?? 'momento'];
+    const who = moment.author_role === 'mae' ? 'da mãe' : 'do pai';
+    cards.push({ id: `momento-${moment.id}`, tone: 'rosa', label: `${what.singular} ${who}`, title: moment.body || 'Uma foto nova da barriga', detail: '', action: { label: 'Ver no diário', do: { kind: 'diario' } } });
   }
 
   return cards;

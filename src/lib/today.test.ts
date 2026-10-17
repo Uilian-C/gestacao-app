@@ -8,7 +8,7 @@ import { todayCards } from './today';
 const TODAY = parseLocalDate('2026-10-16');
 const item = (id: string) => PLAN_ITEMS.find(i => i.id === id)!;
 const task = (over: Partial<PartnerTask>): PartnerTask => ({ id: 't', week_number: 22, task_title: 'Montar o berço', assigned_to: 'pai', is_completed: false, priority: 'Média', created_by: 'mae', ...over });
-const moment = (over: Partial<JournalEntry>): JournalEntry => ({ id: 'm', entry_date: '2026-10-15', body: 'Sentimos o bebê mexer', visibility: 'shared', remind_on: null, author_role: 'pai', mine: false, created_at: '', ...over });
+const moment = (over: Partial<JournalEntry>): JournalEntry => ({ id: 'm', entry_date: '2026-10-15', body: 'Sentimos o bebê mexer', visibility: 'shared', remind_on: null, author_role: 'pai', mine: false, created_at: '', folder: 'momento', photos: [], ...over });
 const base = { today: TODAY, dumDate: '2026-05-15', reminders: [], nextConsultation: null, steps: [], tasks: [], currentWeek: 22, moments: [], savedExams: new Set<string>() };
 
 describe('todayCards', () => {

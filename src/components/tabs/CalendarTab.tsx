@@ -168,7 +168,7 @@ function Legend() {
       {item('bg-alert', 'Atrasado ou alerta')}
       <span className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
         <span className="w-3 h-3 rounded-full border-2" style={{ borderColor: 'var(--c-int-3)' }} />
-        Dia com registro no diário
+        Dia com registro de saúde
       </span>
     </div>
   );
@@ -208,7 +208,7 @@ function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events,
                   key={iso}
                   role="gridcell"
                   aria-selected={isSelected}
-                  aria-label={`${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}${list.length ? `, ${list.length} ${list.length === 1 ? 'evento' : 'eventos'}` : ''}${rec ? ', com registro no diário' : ''}`}
+                  aria-label={`${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}${list.length ? `, ${list.length} ${list.length === 1 ? 'evento' : 'eventos'}` : ''}${rec ? ', com registro de saúde' : ''}`}
                   onClick={() => onSelect(iso)}
                   className={`relative min-w-0 min-h-14 md:min-h-24 rounded-xl p-0.5 md:p-1.5 text-left flex flex-col gap-1 transition border ${isSelected ? 'border-brand bg-brand-soft/60' : 'border-transparent hover:bg-surface-2'} ${inMonth ? '' : 'opacity-45'}`}
                 >
@@ -399,7 +399,7 @@ function DayPanel(props: {
 
       {props.records && (
         <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
-          <p className="text-xs font-semibold text-ink-mute">Diário</p>
+          <p className="text-xs font-semibold text-ink-mute">Saúde</p>
           {props.records.symptoms.map(s => (
             <div key={s.id} className="flex items-center justify-between gap-2 text-sm">
               <span className="text-ink">{s.symptom_name}</span>

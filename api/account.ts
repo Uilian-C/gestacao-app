@@ -46,11 +46,15 @@ export const GET = endpoint(async request => {
       ...DATA_TABLES.map(t => query(`SELECT * FROM ${t} WHERE family_id = $1 ORDER BY ${t === 'birth_plan' ? 'updated_at' : 'created_at'}`, [fid]).catch(() => [])),
     ]);
     // Momentos: os do próprio titular e os compartilhados; nunca os particulares de outra pessoa.
-    const journal = await query(
-      `SELECT entry_date, body, visibility, remind_on, author_role, created_at FROM journal_entries
-       WHERE family_id = $1 AND (visibility = 'shared' OR user_id = $2) ORDER BY entry_date`,
-      [fid, user.id],
-    ).catch(() => []);
+    const journalSql = (photos: boolean) =>
+      `SELECT entry_date, COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS pasta, body, visibility, remind_on, author_role, created_at
+              ${photos ? ', (SELECT COUNT(*)::int FROM journal_files f WHERE f.entry_id = j.id) AS fotos' : ''}
+       FROM journal_entries j
+       WHERE family_id = $1 AND (visibility = 'shared' OR user_id = $2) ORDER BY entry_date`;
+    // As fotos em si se baixam pelo app; aqui vai quantas cada registro tem (se a migração 012 já rodou).
+    const journal = await query(journalSql(true), [fid, user.id])
+      .catch(() => query(journalSql(false), [fid, user.id]))
+      .catch(() => []);
     // Exames: a lista com os arquivos de cada um. As fotos e PDFs em si se baixam pelo app.
     const exams = await query(
       `SELECT e.kind, e.title, e.exam_date, e.plan_item, e.notes, e.visibility, e.author_role, e.created_at,
@@ -112,7 +116,7 @@ export const POST = endpoint(async request => {
   const member = await findMembership(user.id);
   // Arquivos que saem junto, apagados do armazenamento depois que o banco confirmar.
   let removeSpaceFiles = false;
-  let removePaths: string[] = [];
+  const removePaths: string[] = [];
 
   await transaction(async client => {
     if (member) {
@@ -139,6 +143,15 @@ export const POST = endpoint(async request => {
             await client.query(`DELETE FROM reactions WHERE target_type = $2 AND target_id IN (${ids})`, [user.id, type]);
           }
         }
+        // Fotos dos registros particulares: as linhas saem junto (ON DELETE CASCADE); os arquivos, logo depois.
+        const { rows: photosTable } = await client.query("SELECT to_regclass('public.journal_files') AS t");
+        if (photosTable[0].t) {
+          const { rows: photos } = await client.query(
+            `SELECT f.path, f.thumb_path FROM journal_files f JOIN journal_entries e ON e.id = f.entry_id WHERE e.user_id = $1 AND e.visibility = 'private'`,
+            [user.id],
+          );
+          removePaths.push(...photos.flatMap((p: { path: string; thumb_path: string | null }) => [p.path, ...(p.thumb_path ? [p.thumb_path] : [])]));
+        }
         await client.query("DELETE FROM journal_entries WHERE user_id = $1 AND visibility = 'private'", [user.id]);
       }
       // Exames particulares também; os compartilhados ficam com o espaço.
@@ -148,7 +161,7 @@ export const POST = endpoint(async request => {
           `DELETE FROM exam_files f USING exams e WHERE f.exam_id = e.id AND e.user_id = $1 AND e.visibility = 'private' RETURNING f.path`,
           [user.id],
         );
-        removePaths = files.map((f: { path: string }) => f.path);
+        removePaths.push(...files.map((f: { path: string }) => f.path));
         await client.query("DELETE FROM exams WHERE user_id = $1 AND visibility = 'private'", [user.id]);
       }
       // Sessões, contas de login, consentimentos e vínculo com o espaço vão junto.

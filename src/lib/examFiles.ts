@@ -49,14 +49,14 @@ async function decode(file: File): Promise<ImageBitmap | HTMLImageElement> {
   }
 }
 
-async function shrinkPhoto(file: File): Promise<Blob> {
+async function shrinkPhoto(file: File, maxSide = MAX_SIDE, maxBytes = MAX_FILE_BYTES): Promise<Blob> {
   let image: ImageBitmap | HTMLImageElement;
   try {
     image = await decode(file);
   } catch {
     throw new FileProblem(`Não foi possível abrir "${file.name}". Tente tirar a foto de novo ou enviar como JPG.`);
   }
-  const { width, height } = fitWithin(image.width, image.height);
+  const { width, height } = fitWithin(image.width, image.height, maxSide);
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -68,7 +68,7 @@ async function shrinkPhoto(file: File): Promise<Blob> {
   if ('close' in image) image.close();
   for (const quality of [0.82, 0.7, 0.55]) {
     const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', quality));
-    if (blob && blob.size <= MAX_FILE_BYTES) return blob;
+    if (blob && blob.size <= maxBytes) return blob;
   }
   throw new FileProblem(`A foto "${file.name}" ficou grande demais mesmo reduzida.`);
 }
@@ -86,3 +86,28 @@ export async function prepareFile(file: File): Promise<PreparedFile> {
 }
 
 export const formatSize = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`);
+
+// ---- Fotos do diário ----
+// Fotos de lembrança não precisam ser legíveis como um laudo: 1600 px no lado
+// maior bastam para a tela cheia. Junto vai uma miniatura de 480 px para as listas.
+
+export const PHOTO_SIDE = 1600;
+export const THUMB_SIDE = 480;
+const THUMB_BYTES = 200 * 1024;
+
+export interface PreparedPhoto {
+  data: string;
+  thumb: string;
+  /** Miniatura local para mostrar antes de enviar. */
+  preview: string;
+  name: string;
+}
+
+export async function preparePhoto(file: File): Promise<PreparedPhoto> {
+  if (!file.type.startsWith('image/') && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)) {
+    throw new FileProblem(`"${file.name}" não é uma foto.`);
+  }
+  const photo = await shrinkPhoto(file, PHOTO_SIDE);
+  const thumb = await shrinkPhoto(file, THUMB_SIDE, THUMB_BYTES);
+  return { data: await toBase64(photo), thumb: await toBase64(thumb), preview: URL.createObjectURL(thumb), name: file.name };
+}

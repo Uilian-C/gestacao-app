@@ -11,7 +11,7 @@ const modes = async () => (await dlg.getByRole('group', { name: 'Tipo de registr
 
 // Início: tudo o que dá para registrar
 await plus.click();
-check((await modes()) === 'Sintoma,Momento,Peso e pressão,Consulta,Tarefa,Exame', `Início oferece todos os registros (${await modes()})`);
+check((await modes()) === 'Sintoma,Diário,Peso e pressão,Consulta,Tarefa,Exame', `Início oferece todos os registros (${await modes()})`);
 await p.screenshot({ path: `${OUT}rapido-inicio.png` });
 await dlg.getByLabel('O que ela está sentindo?').fill('Enjoo');
 await dlg.getByRole('button', { name: '3: Moderado' }).click();
@@ -19,13 +19,14 @@ await dlg.getByRole('button', { name: /Salvar · semana/ }).click();
 await p.waitForTimeout(1200);
 check(!(await dlg.isVisible()), 'janela fecha após salvar sintoma');
 
-// Diário: sintoma, momento e medição
-await tab('Diário');
+// Cuidados → Saúde: sintoma e medição (os registros de saúde saíram do Diário)
+await tab('Cuidados');
+await p.getByRole('button', { name: 'Saúde', exact: true }).click();
 await p.getByRole('button', { name: 'Sintomas', exact: true }).click();
 await p.waitForTimeout(500);
-check(await p.getByText('Enjoo').first().isVisible(), 'sintoma aparece nos gráficos do Diário');
+check(await p.getByText('Enjoo').first().isVisible(), 'sintoma aparece nos gráficos de Saúde');
 await plus.click();
-check((await modes()) === 'Sintoma,Momento,Peso e pressão', 'Diário oferece sintoma, momento e medição');
+check((await modes()) === 'Sintoma,Peso e pressão', 'Saúde oferece sintoma e medição');
 await dlg.getByRole('button', { name: 'Peso e pressão' }).click();
 await dlg.getByLabel('Peso (kg)').fill('64,5');
 await dlg.getByRole('button', { name: /Registrar como/ }).click();
@@ -34,6 +35,18 @@ check(!(await dlg.isVisible()), 'janela fecha após salvar peso');
 await p.getByRole('button', { name: 'Medidas', exact: true }).click();
 await p.waitForTimeout(500);
 check((await p.getByText(/64[,.]5/).count()) > 0, 'peso aparece em Medidas');
+
+// Diário: só o fichário, já na pasta aberta
+await tab('Diário');
+check((await p.getByText('Enjoo').count()) === 0, 'sintoma não aparece no Diário');
+await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Ideias/ }).click();
+await plus.click();
+check((await dlg.getByRole('group', { name: 'Tipo de registro' }).count()) === 0, 'Diário abre direto o registro do fichário');
+check((await dlg.getByRole('radio', { name: /Ideias/ }).getAttribute('aria-checked')) === 'true', 'registro abre na pasta que estava aberta');
+await dlg.getByLabel('O que aconteceu?').fill('Nomes que gostamos: Helena, Theo');
+await dlg.getByRole('button', { name: 'Guardar ideia' }).click();
+await p.waitForTimeout(1200);
+check(!(await dlg.isVisible()) && (await p.getByRole('button', { name: 'Ideia: ver detalhes' }).isVisible()), 'ideia aparece na pasta Ideias');
 
 // Agenda: tarefa
 await tab('Agenda');
@@ -48,6 +61,7 @@ check(await p.getByText('Montar o berço').first().isVisible(), 'tarefa aparece 
 
 // Cuidados: consulta e exame; Esc fecha
 await tab('Cuidados');
+await p.getByRole('button', { name: /^Consultas/ }).click();
 await plus.click();
 check((await modes()) === 'Consulta,Exame', 'Cuidados oferece consulta e exame');
 await p.screenshot({ path: `${OUT}rapido-cuidados.png` });

@@ -4,7 +4,7 @@ import BrandMark from './components/BrandMark';
 import QuickRecord, { type QuickMode } from './components/QuickRecord';
 import DetailSheet from './components/Details';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
-import type { ListItem, ThreadComment } from './hooks/useGestationData';
+import type { Folder, ListItem, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
 import { takeTabFromUrl, takeViewFromUrl } from './lib/pwa';
 import { api, ApiError, type FamilyState, type Me } from './api';
@@ -14,10 +14,12 @@ import FichaBar, { type FichaInput } from './components/FichaBar';
 import Nav from './components/Nav';
 import Toast, { type ToastMessage } from './components/Toast';
 import { DumForm } from './components/DumForm';
-import { Card, SubTabs } from './components/ui';
+import { Card, Segmented, SubTabs } from './components/ui';
 import type { BirthPlan } from './lib/birthPlan';
 import HomeTab, { type HomeTarget } from './components/tabs/HomeTab';
-import DiaryTab, { type NewEntry, type NewSymptom } from './components/tabs/DiaryTab';
+import DiaryTab from './components/tabs/DiaryTab';
+import HealthTab, { type NewSymptom } from './components/tabs/HealthTab';
+import type { NewEntry } from './components/forms/EntryForm';
 import type { NewConsultation, ReportRequest } from './components/tabs/ConsultationsTab';
 // Exames vêm junto com o botão "+" (que tem o formulário de exame).
 import ExamsTab, { type SaveExam } from './components/tabs/ExamsTab';
@@ -33,7 +35,7 @@ import { useGestationData } from './hooks/useGestationData';
 import { FIRST_WEEK, clampWeek, daysBetween, gestationalAge, isOverdue, localDay, parseLocalDate, toISODate } from './lib/dates';
 import { pressureInsights, type ParsedMetric } from './lib/health';
 import { findPatterns, toEntries } from './lib/symptoms';
-import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, DiaryView, PartnerTask, Tab } from './types';
+import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, DiaryView, HealthView, PartnerTask, Tab } from './types';
 import { autoDone, visitsOf } from './lib/journey';
 
 const UNDO_WINDOW_MS = 5000;
@@ -43,14 +45,17 @@ const TITLE: Record<Tab, string> = { inicio: 'Tumtum', diario: 'Diário', agenda
 /** O que o botão "+" oferece em cada aba (o primeiro abre selecionado). Parto não tem: lá os registros são os cronômetros. */
 const RECORD_MODES: Record<Tab, QuickMode[]> = {
   inicio: ['sintoma', 'momento', 'medicao', 'consulta', 'tarefa', 'exame'],
-  diario: ['sintoma', 'momento', 'medicao'],
+  diario: ['momento'],
   agenda: ['tarefa', 'consulta'],
   cuidados: ['consulta', 'exame'],
   parto: [],
 };
 
-/** Gráficos e jornada (o antigo Painel): de que parte de qual aba cada um faz parte. */
-const DIARY_CHART: Partial<Record<DiaryView, DashboardView>> = { sintomas: 'sintomas', corpo: 'corpo', resumo: 'geral' };
+/** Em Cuidados → Saúde, o botão "+" registra sintoma e peso/pressão. */
+const HEALTH_MODES: QuickMode[] = ['sintoma', 'medicao'];
+
+/** Gráficos de Cuidados → Saúde (o antigo Painel). */
+const HEALTH_CHART: Record<Exclude<HealthView, 'registros'>, DashboardView> = { sintomas: 'sintomas', corpo: 'corpo', resumo: 'geral' };
 
 function greetingFor(hour: number): string {
   if (hour < 5) return 'Boa madrugada';
@@ -75,14 +80,17 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [activeTab, setActiveTab] = useState<Tab>(() => takeTabFromUrl() ?? 'inicio');
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
-  const [diaryView, setDiaryView] = useState<DiaryView>('linha');
+  const [diaryView, setDiaryView] = useState<DiaryView>('tudo');
+  const [healthView, setHealthView] = useState<HealthView>('registros');
   const [agendaView, setAgendaView] = useState<AgendaView>('calendario');
   const [careView, setCareView] = useState<CareView>(() => {
     const v = takeViewFromUrl();
-    return v === 'exames' || v === 'jornada' ? v : 'consultas';
+    return v === 'exames' || v === 'jornada' || v === 'saude' ? v : 'consultas';
   });
   const [examPreset, setExamPreset] = useState<string | null>(null);
   const [recording, setRecording] = useState<QuickMode[] | null>(null);
+  /** Pasta (e ideia) com que o diário abre no registro. */
+  const [entryStart, setEntryStart] = useState<{ folder: Folder; idea?: string }>({ folder: 'momento' });
   const [detail, setDetail] = useState<DetailTarget | null>(null);
 
   // A cor principal segue a aba (index.css, data-aba).
@@ -230,8 +238,43 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     return run(() => api.mutate('setCheck', { list, itemId, done }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/007_checklists.sql no Neon.');
   };
 
-  const createEntry = (e: NewEntry) =>
-    run(() => api.mutate('createEntry', { ...e }), 'Não foi possível guardar. Se for a primeira vez, rode a migração db/migrations/008_momentos.sql no Neon.');
+  /**
+   * Registro do diário (novo ou editado): grava o texto e depois as fotos, uma
+   * por vez. Se o registro foi guardado e uma foto falhou, avisa o que faltou.
+   */
+  const saveEntry = async (id: string | null, e: NewEntry) => {
+    setBusy(true);
+    let entryId = id;
+    try {
+      const fields = { body: e.body, visibility: e.visibility, remindOn: e.remindOn, folder: e.folder };
+      if (id) await api.mutate('updateEntry', { id, ...fields });
+      else entryId = ((await api.mutate('createEntry', { date: e.date, ...fields })) as { id?: string }).id ?? null;
+      if (entryId) {
+        for (const photoId of e.removePhotos) await api.photos('delete', { id: photoId });
+        for (const p of e.photos) await api.photos('add', { entryId, data: p.data, thumb: p.thumb });
+      }
+      await refresh();
+      return true;
+    } catch (err) {
+      console.error(err);
+      refresh().catch(() => undefined);
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        onAccessLost();
+        return false;
+      }
+      const reason = err instanceof ApiError ? err.message : 'Verifique a conexão e tente de novo.';
+      // O registro novo já existe: o formulário fecha e o aviso diz o que faltou.
+      if (entryId && !id) {
+        showToast({ text: `Guardado, mas uma foto não foi enviada. ${reason}`, tone: 'error' });
+        return true;
+      }
+      showToast({ text: `Não foi possível guardar. ${reason}`, tone: 'error' });
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+  const createEntry = (e: NewEntry) => saveEntry(null, e);
 
   /**
    * Exame novo (ou arquivos a mais num exame que já existe): grava o exame, envia os
@@ -296,7 +339,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const updateSymptom = (id: string, s: NewSymptom) =>
     run(() => api.mutate('updateSymptom', { id, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }));
   const updateMetric = (id: string, m: ParsedMetric) => run(() => api.mutate('updateMetric', { id, ...m }), 'Não foi possível salvar a medição.');
-  const updateEntry = (id: string, e: NewEntry) => run(() => api.mutate('updateEntry', { id, body: e.body, visibility: e.visibility, remindOn: e.remindOn }));
+  const updateEntry = (id: string, e: NewEntry) => saveEntry(id, e);
   const updateTask = (id: string, t: NewTask) =>
     run(() => api.mutate('updateTask', { id, title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null }));
   const updateConsultation = (id: string, c: NewConsultation) =>
@@ -401,11 +444,20 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   // Os gráficos e a jornada levam um ao outro, mesmo estando em abas diferentes.
   const openDashboardView = (v: DashboardView) => {
     if (v === 'jornada') return openCare('jornada');
-    navigate('diario');
-    setDiaryView(v === 'geral' ? 'resumo' : v);
+    openCare('saude');
+    setHealthView(v === 'geral' ? 'resumo' : v);
+  };
+  /** Abre o registro do diário já numa pasta. */
+  const writeEntry = (folder: Folder, idea?: string) => {
+    setEntryStart({ folder, idea });
+    setRecording(RECORD_MODES.diario);
   };
   const openFromHome = (target: HomeTarget, planItem?: string) => {
     if (target === 'diario') return navigate('diario');
+    if (target === 'saude') {
+      openCare('saude');
+      return setHealthView('registros');
+    }
     if (target === 'graficos') return openDashboardView('sintomas');
     if (target === 'tarefas') {
       navigate('agenda');
@@ -414,7 +466,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     openCare(target);
     if (target === 'exames') setExamPreset(planItem ?? null);
   };
-  const recordModes = report ? [] : RECORD_MODES[activeTab];
+  const recordModes = report ? [] : activeTab === 'cuidados' && careView === 'saude' ? HEALTH_MODES : RECORD_MODES[activeTab];
   // O registro aberto nos detalhes, com os dados atuais (some se foi apagado).
   const openDetail = resolveDetail(detail, {
     symptoms,
@@ -507,42 +559,22 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         )}
 
         {activeTab === 'diario' && (
-          <>
-            <SubTabs
-              label="Parte do diário"
-              value={diaryView}
-              onChange={v => {
-                setDiaryView(v);
-                window.scrollTo({ top: 0 });
-              }}
-              options={[
-                { value: 'linha', label: 'Registros' },
-                { value: 'sintomas', label: 'Sintomas' },
-                { value: 'corpo', label: 'Medidas' },
-                { value: 'resumo', label: 'Resumo' },
-              ]}
-            />
-            {diaryView === 'linha' ? (
-              <DiaryTab
-                author={author}
-                age={age}
-                symptoms={symptoms}
-                comments={comments}
-                metrics={metrics}
-                selectedWeek={selectedWeek}
-                currentWeek={currentWeek}
-                onOpen={setDetail}
-                dumDate={dumDate}
-                journal={journal}
-                journalAvailable={data.journalAvailable}
-                onRecord={() => setRecording(RECORD_MODES.diario)}
-                reactions={socialAvailable ? reactions : []}
-                threads={threads}
-              />
-            ) : (
-              dashboard(DIARY_CHART[diaryView]!)
-            )}
-          </>
+          <DiaryTab
+            view={diaryView}
+            onView={v => {
+              setDiaryView(v);
+              window.scrollTo({ top: 0 });
+            }}
+            journal={journal}
+            journalAvailable={data.journalAvailable}
+            photosAvailable={data.photosAvailable ?? false}
+            dumDate={dumDate}
+            reactions={socialAvailable ? reactions : []}
+            threads={threads}
+            onOpen={setDetail}
+            onWrite={writeEntry}
+            onOpenHealth={() => openCare('saude')}
+          />
         )}
 
         {activeTab === 'agenda' && (
@@ -600,6 +632,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             options={[
               { value: 'consultas', label: 'Consultas', badge: questions.filter(q => !q.doctor_answer).length },
               { value: 'exames', label: 'Exames' },
+              { value: 'saude', label: 'Saúde' },
               { value: 'jornada', label: 'Jornada' },
             ]}
           />
@@ -646,6 +679,38 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             social={{ available: socialAvailable, reactions, threads, onReact: react, onThread: sendThread, onDeleteThread: deleteThread }}
           />
         )}
+        {activeTab === 'cuidados' && careView === 'saude' && !report && (
+          <>
+            <Segmented
+              label="Parte da saúde"
+              size="sm"
+              value={healthView}
+              onChange={v => {
+                setHealthView(v);
+                window.scrollTo({ top: 0 });
+              }}
+              options={[
+                { value: 'registros', label: 'Registros' },
+                { value: 'sintomas', label: 'Sintomas' },
+                { value: 'corpo', label: 'Medidas' },
+                { value: 'resumo', label: 'Resumo' },
+              ]}
+            />
+            {healthView === 'registros' ? (
+              <HealthTab
+                symptoms={symptoms}
+                comments={comments}
+                metrics={metrics}
+                selectedWeek={selectedWeek}
+                onOpen={setDetail}
+                onRecord={() => setRecording(HEALTH_MODES)}
+                reactions={socialAvailable ? reactions : []}
+              />
+            ) : (
+              dashboard(HEALTH_CHART[healthView])
+            )}
+          </>
+        )}
         {activeTab === 'cuidados' && careView === 'jornada' && !report && dashboard('jornada')}
 
         {activeTab === 'parto' && (
@@ -683,7 +748,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {recordModes.length > 0 && (
         <button
           type="button"
-          onClick={() => setRecording(recordModes)}
+          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' ? 'momento' : diaryView) : (setEntryStart({ folder: 'momento' }), setRecording(recordModes)))}
           className="tt-registrar no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-8 h-11 pl-3 pr-4 rounded-full text-white text-[14px] font-extrabold flex items-center gap-1.5 transition active:scale-95 hover:brightness-110"
         >
           <Plus className="w-[18px] h-[18px]" strokeWidth={3} />
@@ -702,6 +767,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           symptoms={symptoms}
           busy={busy}
           journalAvailable={data.journalAvailable}
+          photosAvailable={data.photosAvailable ?? false}
+          dumDate={dumDate}
+          entryFolder={entryStart.folder}
+          entryIdea={entryStart.idea}
           onCreateSymptom={createSymptom}
           onCreateMetric={createMetric}
           onCreateEntry={createEntry}
@@ -724,6 +793,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           symptoms={symptoms}
           busy={busy}
           journalAvailable={data.journalAvailable}
+          photosAvailable={data.photosAvailable ?? false}
+          dumDate={dumDate}
           onUpdateSymptom={updateSymptom}
           onUpdateMetric={updateMetric}
           onUpdateEntry={updateEntry}

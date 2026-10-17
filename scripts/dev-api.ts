@@ -8,6 +8,7 @@ import * as config from '../api/config.ts';
 import * as data from '../api/data.ts';
 import * as exames from '../api/exames.ts';
 import * as family from '../api/family.ts';
+import * as fotos from '../api/fotos.ts';
 import * as lembretes from '../api/lembretes.ts';
 import * as places from '../api/places.ts';
 import * as push from '../api/push.ts';
@@ -18,6 +19,7 @@ const routes: Record<string, Partial<Record<string, Handler>>> = {
   '/api/config': config,
   '/api/data': data,
   '/api/exames': exames,
+  '/api/fotos': fotos,
   '/api/family': family,
   '/api/lembretes': lembretes,
   '/api/places': places,

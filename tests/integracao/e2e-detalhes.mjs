@@ -16,8 +16,9 @@ await p.reload();
 const dlg = p.getByRole('dialog');
 const tab = name => p.getByRole('button', { name: new RegExp(`^${name}`) }).first().click();
 
-// ---- Sintoma: detalhes, cuidado, editar, excluir ----
-await tab('Diário');
+// ---- Sintoma: detalhes, cuidado, editar, excluir (Cuidados → Saúde) ----
+await tab('Cuidados');
+await p.getByRole('button', { name: 'Saúde', exact: true }).click();
 await p.getByRole('button', { name: /Enjoo, moderado: ver detalhes/ }).click();
 await dlg.waitFor();
 check(await dlg.getByRole('heading', { name: 'Enjoo' }).isVisible() && await dlg.getByText('Pior de manhã').isVisible(), 'sintoma abre com observação e detalhes');
@@ -43,16 +44,21 @@ await dlg.getByText('68,9 kg').waitFor();
 check(true, 'peso editado');
 await p.keyboard.press('Escape');
 
-// ---- Momento: editar ----
+// ---- Momento: editar (Diário) ----
+await tab('Diário');
 await p.getByRole('button', { name: 'Momento: ver detalhes' }).click();
 await dlg.getByRole('button', { name: 'Editar' }).click();
 await dlg.getByLabel('O que aconteceu?').fill('Sentimos o bebê mexer pela primeira vez!');
 await dlg.getByRole('button', { name: /Salvar alterações/ }).click();
 await dlg.getByText('Sentimos o bebê mexer pela primeira vez!').waitFor();
+await dlg.getByRole('button', { name: 'Editar' }).waitFor();
 check(true, 'momento editado');
+await p.screenshot({ path: `${OUT}detalhe-momento.png` });
 await p.keyboard.press('Escape');
+await dlg.waitFor({ state: 'hidden' });
 
 // ---- Excluir pelo detalhe, com desfazer ----
+await tab('Cuidados');
 await p.getByRole('button', { name: /Enjoo, forte: ver detalhes/ }).click();
 await dlg.getByRole('button', { name: 'Excluir', exact: true }).click();
 check(!(await dlg.isVisible()) && await p.getByText('Excluído: Enjoo').isVisible(), 'excluir fecha a janela e oferece desfazer');
@@ -93,6 +99,7 @@ await p.keyboard.press('Escape');
 
 // ---- Consulta: editar e preparar resumo ----
 await tab('Cuidados');
+await p.getByRole('button', { name: /^Consultas/ }).click();
 await p.getByRole('button', { name: /Consulta de Obstetra.*ver detalhes/ }).click();
 await dlg.getByRole('button', { name: 'Editar' }).click();
 await dlg.getByLabel('Profissional (opcional)').fill('Dra. Marina Lima');

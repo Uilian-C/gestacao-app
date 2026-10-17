@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, ChevronLeft, ChevronRight, ExternalLink, FileText, FlaskConical, ImagePlus, Loader2, Lock, Paperclip, Plus, ScanHeart, Trash2, Users, X } from 'lucide-react';
+import { Camera, FileText, FlaskConical, ImagePlus, Loader2, Lock, Paperclip, Plus, ScanHeart, Trash2, Users, X } from 'lucide-react';
 import { examFileUrl } from '../../api';
 import { PLAN_ITEMS, type PlanItem } from '../../content/prenatalPlan';
 import type { ExamFile, ExamItem, ExamKind, Reaction, ThreadComment } from '../../hooks/useGestationData';
@@ -8,6 +8,7 @@ import { formatBR, gestationalAge, parseLocalDate, toISODate } from '../../lib/d
 import { planExams } from '../../lib/journey';
 import { FileProblem, formatSize, prepareFile, type PreparedFile } from '../../lib/examFiles';
 import AuthorBadge from '../AuthorBadge';
+import PhotoViewer from '../PhotoViewer';
 import { inputClass } from '../styles';
 import { Button, Card, Chip, EmptyState, Field, Pill, SectionTitle, Segmented } from '../ui';
 
@@ -146,13 +147,14 @@ export default function ExamsTab(props: Props) {
       </Card>
 
       {viewing && viewerImages.length > 0 && (
-        <Viewer
-          exam={viewing}
-          images={viewerImages}
+        <PhotoViewer
+          title={viewing.title}
+          subtitle={formatBR(viewing.exam_date)}
+          photos={viewerImages.map(f => ({ id: f.id, src: examFileUrl(f.id) }))}
           index={Math.min(viewer!.index, viewerImages.length - 1)}
           onIndex={index => setViewer({ exam: viewing, index })}
           onClose={() => setViewer(null)}
-          onDeleteFile={f => props.onDeleteFile(viewing, f)}
+          onDelete={p => props.onDeleteFile(viewing, viewerImages.find(f => f.id === p.id)!)}
         />
       )}
     </div>
@@ -448,62 +450,5 @@ function ExamCard({ exam: e, dumDate, busy, social, onSave, onOpen, onDelete }: 
         </div>
       )}
     </article>
-  );
-}
-
-/** Foto em tela cheia, com as outras fotos do mesmo exame ao lado. */
-function Viewer({ exam, images, index, onIndex, onClose, onDeleteFile }: { exam: ExamItem; images: ExamFile[]; index: number; onIndex: (i: number) => void; onClose: () => void; onDeleteFile: (f: ExamFile) => void }) {
-  const file = images[index];
-  const go = (step: number) => onIndex((index + step + images.length) % images.length);
-
-  useEffect(() => {
-    const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') onClose();
-      if (ev.key === 'ArrowRight' && images.length > 1) onIndex((index + 1) % images.length);
-      if (ev.key === 'ArrowLeft' && images.length > 1) onIndex((index - 1 + images.length) % images.length);
-    };
-    window.addEventListener('keydown', onKey);
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = overflow;
-    };
-  }, [index, images.length, onClose, onIndex]);
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col" role="dialog" aria-modal="true" aria-label={`Foto de ${exam.title}`}>
-      <div className="flex items-center gap-2 px-3 py-2 text-white" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold truncate">{exam.title}</p>
-          <p className="text-xs text-white/70">
-            {formatBR(exam.exam_date)}
-            {images.length > 1 && ` · ${index + 1} de ${images.length}`}
-          </p>
-        </div>
-        <a href={examFileUrl(file.id)} target="_blank" rel="noopener" aria-label="Abrir original" className="p-2 rounded-full hover:bg-white/10">
-          <ExternalLink className="w-5 h-5" />
-        </a>
-        <button type="button" onClick={() => onDeleteFile(file)} aria-label="Excluir esta foto" className="p-2 rounded-full hover:bg-white/10">
-          <Trash2 className="w-5 h-5" />
-        </button>
-        <button type="button" onClick={onClose} aria-label="Fechar" className="p-2 rounded-full hover:bg-white/10">
-          <X className="w-6 h-6" />
-        </button>
-      </div>
-      <div className="relative flex-1 min-h-0 flex items-center justify-center p-2" onClick={ev => ev.target === ev.currentTarget && onClose()}>
-        <img key={file.id} src={examFileUrl(file.id)} alt={`Foto de ${exam.title}`} className="max-w-full max-h-full object-contain select-none" />
-        {images.length > 1 && (
-          <>
-            <button type="button" onClick={() => go(-1)} aria-label="Foto anterior" className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 text-white flex items-center justify-center">
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-            <button type="button" onClick={() => go(1)} aria-label="Próxima foto" className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 text-white flex items-center justify-center">
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          </>
-        )}
-      </div>
-    </div>
   );
 }

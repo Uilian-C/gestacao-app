@@ -24,6 +24,8 @@ export interface GestationData {
   /** Momentos: os compartilhados e os particulares de quem está logado. */
   journal: JournalEntry[];
   journalAvailable: boolean;
+  /** A migração 012 (pastas e fotos do diário) já foi aplicada. */
+  photosAvailable?: boolean;
   /** Exames e ultrassons: os compartilhados e os particulares de quem está logado. */
   exams: ExamItem[];
   /** A migração 010 já foi aplicada. */
@@ -102,6 +104,17 @@ export interface JournalEntry {
   /** Escrito por quem está logado (só esses podem ser apagados). */
   mine: boolean;
   created_at: string;
+  /** Pasta do fichário (antes da migração 012, tudo é "momento"). */
+  folder: Folder;
+  /** Fotos do registro; `thumb` diz se há miniatura para as listas. */
+  photos: EntryPhoto[];
+}
+
+export type Folder = 'momento' | 'dia' | 'ideia' | 'carta' | 'barriga';
+
+export interface EntryPhoto {
+  id: string;
+  thumb: boolean;
 }
 
 export interface CheckItem {

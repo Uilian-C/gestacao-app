@@ -4,29 +4,17 @@ import { query } from './_lib/db.js';
 import { fetchAll } from './_lib/gestation.js';
 import { HttpError, endpoint, json, readJson, requireMember, type Member } from './_lib/http.js';
 import { notify } from './_lib/push.js';
+import { EXTENSION, FAMILY_QUOTA_BYTES, FILE_TYPES, MAX_FILE_BYTES, QUOTA_MESSAGE, base64Max, familyUsedBytes, privateFileHeaders, type FileType } from './_lib/files.js';
 import { deleteFiles, getFile, putFile, storageReady } from './_lib/storage.js';
 
 // Exames e ultrassons: o registro (título, data, tipo) e as fotos ou PDFs.
 // Os arquivos nunca têm endereço público: saem só por aqui, para quem é do
 // espaço (e, se o exame for particular, só para quem enviou).
 
-/** Tamanho máximo de cada arquivo. O app reduz as fotos antes de enviar; isto vale para PDFs. */
-const MAX_FILE_BYTES = 3 * 1024 * 1024;
 const MAX_FILES_PER_EXAM = 12;
-/** Espaço total por família, para os custos de armazenamento não escaparem. */
-const FAMILY_QUOTA_BYTES = 200 * 1024 * 1024;
 
 const MIGRATION_HINT = 'Os exames ainda não estão ligados no servidor. Rode a migração db/migrations/010_exames.sql no Neon.';
 const STORAGE_HINT = 'O armazenamento de arquivos ainda não está ligado. Crie o Blob (privado) na Vercel e conecte ao projeto.';
-
-const TYPES = {
-  'image/jpeg': (b: Buffer) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
-  'image/png': (b: Buffer) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
-  'image/webp': (b: Buffer) => b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP',
-  'application/pdf': (b: Buffer) => b.toString('latin1', 0, 5) === '%PDF-',
-} as const;
-type FileType = keyof typeof TYPES;
-const EXTENSION: Record<FileType, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' };
 
 const id = z.string().uuid();
 const ops = z.discriminatedUnion('op', [
@@ -42,9 +30,9 @@ const ops = z.discriminatedUnion('op', [
   z.object({
     op: z.literal('addFile'),
     examId: id,
-    contentType: z.enum(Object.keys(TYPES) as [FileType, ...FileType[]]),
+    contentType: z.enum(Object.keys(FILE_TYPES) as [FileType, ...FileType[]]),
     // Base64: até 3 MB de arquivo cabem no limite de 4,5 MB por chamada da Vercel.
-    data: z.string().min(8).max(Math.ceil((MAX_FILE_BYTES * 4) / 3) + 8),
+    data: z.string().min(8).max(base64Max(MAX_FILE_BYTES)),
   }),
   z.object({ op: z.literal('deleteFile'), id }),
   z.object({ op: z.literal('delete'), id }),
@@ -91,18 +79,7 @@ export const GET = endpoint(async request => {
   if (!rows[0]) throw new HttpError(404, 'Arquivo não encontrado.');
   const file = await getFile(rows[0].path);
   if (!file) throw new HttpError(404, 'Arquivo não encontrado.');
-  const type = rows[0].content_type;
-  return new Response(file.body as BodyInit, {
-    headers: {
-      'Content-Type': type,
-      'Content-Disposition': `inline; filename="exame.${EXTENSION[type as FileType] ?? 'bin'}"`,
-      // Só o navegador de quem pediu guarda uma cópia, e por pouco tempo.
-      'Cache-Control': 'private, max-age=3600',
-      'X-Content-Type-Options': 'nosniff',
-      // Fotos abertas sozinhas não executam nada. (Nos PDFs isso desligaria o leitor de PDF do navegador.)
-      ...(type === 'application/pdf' ? {} : { 'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox" }),
-    },
-  });
+  return new Response(file.body as BodyInit, { headers: privateFileHeaders(rows[0].content_type, 'exame') });
 });
 
 export const POST = endpoint(async request => {
@@ -129,14 +106,10 @@ export const POST = endpoint(async request => {
       const bytes = Buffer.from(o.data, 'base64');
       if (bytes.length === 0) throw new HttpError(400, 'Arquivo vazio.');
       if (bytes.length > MAX_FILE_BYTES) throw new HttpError(413, 'Arquivo grande demais (máximo 3 MB). Para PDFs, tente salvar em tamanho menor.');
-      if (!TYPES[o.contentType](bytes)) throw new HttpError(415, 'Envie uma foto (JPG, PNG ou WebP) ou um PDF.');
-      const [usage] = await query<{ files: number; used: string }>(
-        `SELECT (SELECT COUNT(*)::int FROM exam_files WHERE exam_id::text = $1) AS files,
-                (SELECT COALESCE(SUM(size_bytes), 0)::text FROM exam_files WHERE family_id = $2) AS used`,
-        [o.examId, fid],
-      );
+      if (!FILE_TYPES[o.contentType](bytes)) throw new HttpError(415, 'Envie uma foto (JPG, PNG ou WebP) ou um PDF.');
+      const [usage] = await query<{ files: number }>('SELECT COUNT(*)::int AS files FROM exam_files WHERE exam_id::text = $1', [o.examId]);
       if (usage.files >= MAX_FILES_PER_EXAM) throw new HttpError(409, `Cada exame guarda até ${MAX_FILES_PER_EXAM} arquivos.`);
-      if (Number(usage.used) + bytes.length > FAMILY_QUOTA_BYTES) throw new HttpError(409, 'O espaço de arquivos de vocês está cheio. Apaguem arquivos que não precisam mais.');
+      if ((await familyUsedBytes(fid)) + bytes.length > FAMILY_QUOTA_BYTES) throw new HttpError(409, QUOTA_MESSAGE);
 
       const path = `familias/${fid}/${randomUUID()}.${EXTENSION[o.contentType]}`;
       await putFile(path, bytes, o.contentType);

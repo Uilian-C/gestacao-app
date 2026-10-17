@@ -117,6 +117,10 @@
   --c-coral: #b84a28;
   --c-coral-strong: #963a1e;
   --c-coral-soft: #fde9e0;
+  /* Lilás: o meio do degradê do logo, usado nas fotos da barriga do diário. */
+  --c-lilas: #7b55c4;
+  --c-lilas-strong: #61409f;
+  --c-lilas-soft: #efe8fb;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -132,6 +136,9 @@
     --c-coral: #f0a07f;
     --c-coral-strong: #f5bba3;
     --c-coral-soft: color-mix(in oklab, #f0a07f 16%, var(--c-surface));
+    --c-lilas: #b9a0ef;
+    --c-lilas-strong: #cdbbf5;
+    --c-lilas-soft: color-mix(in oklab, #b9a0ef 16%, var(--c-surface));
   }
 }
 :root,
@@ -188,6 +195,9 @@
   --color-coral: var(--c-coral);
   --color-coral-strong: var(--c-coral-strong);
   --color-coral-soft: var(--c-coral-soft);
+  --color-lilas: var(--c-lilas);
+  --color-lilas-strong: var(--c-lilas-strong);
+  --color-lilas-soft: var(--c-lilas-soft);
   --color-mae: var(--c-mae);
   --color-mae-soft: var(--c-mae-soft);
   --color-pai: var(--c-pai);

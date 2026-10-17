@@ -7,7 +7,7 @@ import { visibleTargetSql } from './social.js';
 const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
 
 export async function fetchAll(fid: string, userId: string) {
-  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams, social] = await Promise.all([
+  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams, social, photos] = await Promise.all([
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
@@ -73,9 +73,10 @@ export async function fetchAll(fid: string, userId: string) {
     query(`SELECT list, item_id, done_at::text AS done_at FROM checklist WHERE family_id = $1`, [fid]).catch(() => null),
     // Momentos particulares só voltam para quem escreveu.
     query(
+      // A pasta vem pelo jsonb: antes da migração 012 a coluna não existe e tudo é "momento".
       `SELECT id, entry_date::text AS entry_date, body, visibility, remind_on::text AS remind_on, author_role,
-              (user_id = $2) AS mine, created_at::text AS created_at
-       FROM journal_entries
+              (user_id = $2) AS mine, created_at::text AS created_at, COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS folder
+       FROM journal_entries j
        WHERE family_id = $1 AND (visibility = 'shared' OR user_id = $2)
        ORDER BY entry_date DESC, created_at DESC`,
       [fid, userId],
@@ -102,6 +103,14 @@ export async function fetchAll(fid: string, userId: string) {
             FROM reactions r WHERE r.family_id = $1 AND ${visibleTargetSql('r')}) AS reactions,
          (SELECT COALESCE(json_agg(json_build_object('id', c.id, 'target_type', c.target_type, 'target_id', c.target_id, 'body', c.body, 'author_role', c.author_role, 'mine', COALESCE(c.user_id = $2, false), 'created_at', c.created_at) ORDER BY c.created_at), '[]')
             FROM comments c WHERE c.family_id = $1 AND ${visibleTargetSql('c')}) AS threads`,
+      [fid, userId],
+    ).catch(() => null),
+    // Fotos do diário (migração 012), só dos registros que esta pessoa vê.
+    query<{ entry_id: string; id: string; thumb: boolean }>(
+      `SELECT f.entry_id::text AS entry_id, f.id::text AS id, (f.thumb_path IS NOT NULL) AS thumb
+       FROM journal_files f JOIN journal_entries e ON e.id = f.entry_id
+       WHERE f.family_id = $1 AND (e.visibility = 'shared' OR e.user_id = $2)
+       ORDER BY f.created_at`,
       [fid, userId],
     ).catch(() => null),
   ]);
@@ -142,8 +151,9 @@ export async function fetchAll(fid: string, userId: string) {
     laborAvailable: true,
     checks: checks ?? [],
     checksAvailable: checks !== null,
-    journal: journal ?? [],
+    journal: (journal ?? []).map(e => ({ ...e, photos: (photos ?? []).filter(p => p.entry_id === e.id).map(p => ({ id: p.id, thumb: p.thumb })) })),
     journalAvailable: journal !== null,
+    photosAvailable: photos !== null,
     exams: exams ?? [],
     examsAvailable: exams !== null,
     listItems: social?.[0].items ?? [],
