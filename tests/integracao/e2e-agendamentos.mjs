@@ -15,10 +15,10 @@ const api = path => p.evaluate(async path => (await fetch(path)).json(), path);
 // Um exame já feito, sem agendamento (o caso do dia 13/10).
 await p.evaluate(date => fetch('/api/exames', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'create', kind: 'exame', title: 'Hemograma', date, visibility: 'shared' }) }), await iso(-3));
 
-// ---- Agendar um ultrassom (ontem) em Cuidados → Agendados ----
-await tab('Cuidados');
-await p.getByRole('button', { name: /^Agendados/ }).waitFor();
-check(await p.getByRole('button', { name: /^Agendados/ }).isVisible() && await p.getByRole('button', { name: /^Resultados/ }).isVisible(), 'Cuidados tem Agendados e Resultados');
+// ---- Agendar um ultrassom (ontem) em Agenda → Próximos ----
+await tab('Agenda');
+await p.getByRole('button', { name: /^Próximos/ }).waitFor();
+check((await p.getByRole('button', { name: /^Próximos/ }).getAttribute('aria-pressed')) === 'true', 'Agenda abre em Próximos, onde se agenda');
 await p.getByRole('button', { name: 'Agendar', exact: true }).first().click();
 await p.getByRole('group', { name: 'Tipo de agendamento' }).getByRole('button', { name: 'Ultrassom' }).click();
 await p.getByRole('button', { name: 'Morfológico 2º tri' }).click();
@@ -30,18 +30,18 @@ await p.locator('form').getByRole('button', { name: 'Agendar', exact: true }).cl
 await p.waitForTimeout(1200);
 const saved = (await api('/api/data')).consultations.find(c => c.kind === 'ultrassom');
 check(saved?.plan_item === 'morfo-2', 'ultrassom agendado com o item da jornada');
-// Com resultado pendente, "Já aconteceram" já vem aberto.
-const row = p.getByRole('button', { name: /^Ultrassom: Ultrassom morfológico/ });
-check(await row.isVisible(), 'ultrassom aparece em Agendados');
-check(await p.getByRole('button', { name: 'Guardar resultado' }).first().isVisible(), 'depois da data, oferece "Guardar resultado"');
+const missing = p.getByRole('region', { name: 'Falta guardar o resultado' });
+check(await missing.getByText('Ultrassom morfológico do 2º trimestre').isVisible(), 'ultrassom de ontem aparece em "Falta guardar o resultado"');
+check(await missing.getByRole('button', { name: 'Guardar resultado' }).isVisible(), 'depois da data, oferece "Guardar resultado"');
 await p.screenshot({ path: `${OUT}agendados.png`, fullPage: true });
 
 // ---- Início pede o resultado ----
 await tab('Início');
-check(await p.getByText('Como foi o ultrassom?').isVisible(), 'Início pergunta como foi o ultrassom');
+check(await p.getByText(/Falta guardar 1 resultado: Ultrassom morfológico/).isVisible(), 'Início lembra de guardar o resultado, em "Para não esquecer"');
 
 // ---- Agenda: o ultrassom e o hemograma no calendário ----
 await tab('Agenda');
+await p.getByRole('button', { name: 'Calendário', exact: true }).click();
 await p.getByRole('gridcell').first().waitFor();
 const dayLabel = d => p.evaluate(d => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }); }, d);
 const openDay = async d => {
@@ -63,7 +63,8 @@ check((await p.getByRole('button', { name: /^Resultados/ }).getAttribute('aria-p
 await p.keyboard.press('Escape');
 
 // ---- Guardar o resultado a partir do agendamento ----
-await p.getByRole('button', { name: /^Agendados/ }).click();
+await tab('Agenda');
+await p.getByRole('button', { name: /^Próximos/ }).click();
 await p.getByRole('button', { name: 'Guardar resultado' }).first().click();
 await p.waitForTimeout(600);
 check((await p.getByLabel('Nome').inputValue()) === 'Ultrassom morfológico do 2º trimestre' && (await p.getByLabel('Data do exame').inputValue()) === yesterday, 'formulário já vem com nome e data do agendamento');
@@ -71,10 +72,15 @@ await p.getByRole('button', { name: /^Guardar/ }).last().click();
 await p.waitForTimeout(1500);
 const result = (await api('/api/data')).exams.find(e => e.title === 'Ultrassom morfológico do 2º trimestre');
 check(result?.appointment_id === saved.id && result.plan_item === 'morfo-2', 'resultado ligado ao agendamento e à jornada');
-await p.getByRole('button', { name: /^Agendados/ }).click();
-await p.getByText(/Já aconteceram/).click().catch(() => undefined);
-check(await p.getByText('resultado guardado').first().isVisible() && await p.getByRole('button', { name: 'Ver resultado' }).isVisible(), 'agendamento mostra "resultado guardado" e "Ver resultado"');
+await tab('Agenda');
+await p.getByRole('button', { name: /^Próximos/ }).click();
+check((await p.getByRole('region', { name: 'Falta guardar o resultado' }).count()) === 0, 'some de "Falta guardar o resultado"');
+await p.getByText(/Já aconteceram/).click();
+check(await p.getByText(/resultado guardado/).first().isVisible(), 'em "Já aconteceram", mostra "resultado guardado"');
+await p.getByRole('button', { name: /Ultrassom morfológico do 2º trimestre/ }).first().click();
+check(await dlg.getByRole('button', { name: 'Ver resultado' }).isVisible(), 'detalhe do agendamento oferece "Ver resultado"');
+await p.keyboard.press('Escape');
 await tab('Início');
-check((await p.getByText('Como foi o ultrassom?').count()) === 0, 'Início para de pedir o resultado');
+check((await p.getByText(/Falta guardar/).count()) === 0, 'Início para de pedir o resultado');
 await b.close();
 finish();

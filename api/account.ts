@@ -8,6 +8,7 @@ import { deleteFamilyFiles, deleteFiles } from './_lib/storage.js';
 // Direitos do titular (LGPD, art. 18): baixar os dados e excluir a conta ou o espaço.
 
 const DATA_TABLES = [
+  'checkins',
   'symptoms_log',
   'partner_comments',
   'medical_appointments',

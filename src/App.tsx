@@ -4,7 +4,7 @@ import BrandMark from './components/BrandMark';
 import QuickRecord, { type QuickMode } from './components/QuickRecord';
 import DetailSheet from './components/Details';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
-import type { Folder, ListItem, ThreadComment } from './hooks/useGestationData';
+import type { Folder, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
 import { takeTabFromUrl, takeViewFromUrl } from './lib/pwa';
 import { api, ApiError, type FamilyState, type Me } from './api';
@@ -19,6 +19,7 @@ import type { BirthPlan } from './lib/birthPlan';
 import HomeTab, { type HomeTarget } from './components/tabs/HomeTab';
 import DiaryTab from './components/tabs/DiaryTab';
 import HealthTab, { type NewSymptom } from './components/tabs/HealthTab';
+import UpcomingTab from './components/tabs/UpcomingTab';
 import type { NewEntry } from './components/forms/EntryForm';
 import type { NewConsultation, ReportRequest } from './components/tabs/ConsultationsTab';
 // Exames vêm junto com o botão "+" (que tem o formulário de exame).
@@ -32,7 +33,7 @@ const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
 const LaborTab = lazy(() => import('./components/tabs/LaborTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
-import { FIRST_WEEK, clampWeek, daysBetween, gestationalAge, isOverdue, localDay, parseLocalDate, toISODate } from './lib/dates';
+import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, toISODate } from './lib/dates';
 import { pressureInsights, type ParsedMetric } from './lib/health';
 import { findPatterns, toEntries } from './lib/symptoms';
 import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, DiaryView, HealthView, PartnerTask, Tab } from './types';
@@ -47,8 +48,8 @@ const TITLE: Record<Tab, string> = { inicio: 'Tumtum', diario: 'Diário', agenda
 const RECORD_MODES: Record<Tab, QuickMode[]> = {
   inicio: ['sintoma', 'momento', 'medicao', 'consulta', 'tarefa', 'exame'],
   diario: ['momento'],
-  agenda: ['tarefa', 'consulta'],
-  cuidados: ['consulta', 'exame'],
+  agenda: ['consulta', 'tarefa'],
+  cuidados: ['exame', 'sintoma', 'medicao'],
   parto: [],
 };
 
@@ -95,10 +96,13 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [report, setReport] = useState<ReportRequest | null>(null);
   const [diaryView, setDiaryView] = useState<DiaryView>('tudo');
   const [healthView, setHealthView] = useState<HealthView>('registros');
-  const [agendaView, setAgendaView] = useState<AgendaView>('calendario');
+  const [agendaView, setAgendaView] = useState<AgendaView>(() => {
+    const v = takeViewFromUrl();
+    return v === 'calendario' || v === 'tarefas' ? v : 'proximos';
+  });
   const [careView, setCareView] = useState<CareView>(() => {
     const v = takeViewFromUrl();
-    return v === 'exames' || v === 'jornada' || v === 'saude' ? v : 'consultas';
+    return v === 'exames' || v === 'jornada' || v === 'duvidas' ? v : 'saude';
   });
   const [examPreset, setExamPreset] = useState<string | null>(null);
   /** Resultados: abrir o formulário a partir de um agendamento, ou levar até um resultado. */
@@ -448,12 +452,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const consultations = visible('consultation', data.consultations);
   // Só as consultas têm resumo e contam como consulta do pré-natal; exames, ultrassons e vacinas são agendamentos à parte.
   const consultsOnly = consultations.filter(isConsultation);
-  const appointments = consultations.filter(c => !isConsultation(c));
-  const nextConsultation = consultsOnly.find(c => daysBetween(parseLocalDate(today), localDay(c.scheduled_at)) >= 0) ?? null;
   const prepareReport = (c: Consultation) => {
     setReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id });
     setActiveTab('cuidados');
-    setCareView('consultas');
+    setCareView('duvidas');
     window.scrollTo({ top: 0 });
   };
   const openCare = (view: CareView) => {
@@ -482,6 +484,17 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     openCare('exames');
     setFocusExam(id);
   };
+  // Primeiro nome da outra pessoa do espaço, para o Início ("Caio hoje: bem").
+  const partner = family.members.find(m => !m.me);
+  const partnerName = partner ? partner.name.split(' ')[0] || null : null;
+  /** Check-in do dia: aparece na hora; o servidor confirma em seguida. */
+  const checkin = (mood: Mood | null) => {
+    patch(d => ({
+      ...d,
+      checkins: [...(mood ? [{ day: today, mood, author_role: author, mine: true }] : []), ...(d.checkins ?? []).filter(c => !(c.mine && c.day === today))],
+    }));
+    return run(() => api.mutate('checkin', { day: today, mood }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/014_checkin.sql no Neon.');
+  };
   const openFromHome = (target: HomeTarget, planItem?: string) => {
     if (target === 'diario') return navigate('diario');
     if (target === 'saude') {
@@ -489,9 +502,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       return setHealthView('registros');
     }
     if (target === 'graficos') return openDashboardView('sintomas');
-    if (target === 'tarefas') {
+    if (target === 'tarefas' || target === 'agenda') {
       navigate('agenda');
-      return setAgendaView('tarefas');
+      return setAgendaView(target === 'tarefas' ? 'tarefas' : 'proximos');
     }
     openCare(target);
     if (target === 'exames') setExamPreset(planItem ?? null);
@@ -569,24 +582,24 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             currentWeek={currentWeek}
             onSelectWeek={setPickedWeek}
             onSaveDum={saveDum}
-            nextConsultation={nextConsultation}
-            symptoms={symptoms}
-            metrics={metrics}
-            tasks={tasks}
             insights={recentInsights}
+            role={author}
+            partnerName={partnerName}
+            consultations={consultations}
+            tasks={tasks}
             journal={journal}
             exams={exams}
-            onToggleTask={toggleTask}
-            onPrepareReport={prepareReport}
-            appointments={appointments}
-            onResult={openResult}
+            checkins={data.checkins ?? []}
+            checkinAvailable={data.checkinAvailable ?? false}
+            busy={busy}
+            onCheckin={checkin}
             onOpen={openFromHome}
+            onOpenDetail={setDetail}
+            onResult={openResult}
+            onWrite={() => writeEntry('dia')}
             bloodType={data.profile.bloodType}
             doneSteps={doneSteps}
             hiddenSteps={hiddenSteps}
-            checksAvailable={data.checksAvailable}
-            onToggleStep={(id, done) => setCheck('prenatal', id, done)}
-            reminders={journal.filter(e => e.remind_on && e.remind_on >= today && daysBetween(parseLocalDate(today), parseLocalDate(e.remind_on)) <= 30)}
           />
         )}
 
@@ -614,13 +627,30 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             <SubTabs
               label="Parte da agenda"
               value={agendaView}
-              onChange={setAgendaView}
+              onChange={v => {
+                setAgendaView(v);
+                window.scrollTo({ top: 0 });
+              }}
               options={[
+                { value: 'proximos', label: 'Próximos' },
                 { value: 'calendario', label: 'Calendário' },
                 { value: 'tarefas', label: 'Tarefas', badge: overdueTasks },
               ]}
             />
-            {agendaView === 'calendario' ? (
+            {agendaView === 'proximos' && (
+              <UpcomingTab
+                consultations={consultations}
+                tasks={tasks}
+                journal={journal}
+                exams={exams}
+                busy={busy}
+                migrationPending={data.migrationPending}
+                onCreateConsultation={createConsultation}
+                onOpen={setDetail}
+                onResult={openResult}
+              />
+            )}
+            {agendaView === 'calendario' && (
               <CalendarTab
                 dumDate={dumDate}
                 currentWeek={currentWeek}
@@ -639,7 +669,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 onNotify={text => showToast({ text, tone: 'info' })}
                 onOpen={t => (t.kind === 'exam' ? openExam(t.id) : setDetail(t))}
               />
-            ) : (
+            )}
+            {agendaView === 'tarefas' && (
               <TasksTab
                 tasks={tasks}
                 selectedWeek={selectedWeek}
@@ -663,14 +694,14 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
               window.scrollTo({ top: 0 });
             }}
             options={[
-              { value: 'consultas', label: 'Agendados', badge: questions.filter(q => !q.doctor_answer).length },
-              { value: 'exames', label: 'Resultados' },
               { value: 'saude', label: 'Saúde' },
+              { value: 'exames', label: 'Resultados' },
+              { value: 'duvidas', label: 'Dúvidas', badge: questions.filter(q => !q.doctor_answer).length },
               { value: 'jornada', label: 'Jornada' },
             ]}
           />
         )}
-        {activeTab === 'cuidados' && (careView === 'consultas' || report) && (
+        {activeTab === 'cuidados' && (careView === 'duvidas' || report) && (
           <ConsultationsTab
             profile={profile}
             consultations={consultations}
@@ -685,10 +716,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
               setReport(r);
               window.scrollTo({ top: 0 });
             }}
-            onCreateConsultation={createConsultation}
             onOpenConsultation={c => setDetail({ kind: 'consultation', id: c.id })}
-            exams={exams}
-            onResult={openResult}
+            onOpenAgenda={() => {
+              navigate('agenda');
+              setAgendaView('proximos');
+            }}
             onCreateQuestion={createQuestion}
             onAnswer={answerQuestion}
             onDeleteQuestion={q => scheduleDelete('question', q.id, 'dúvida')}
