@@ -18,6 +18,8 @@ import { inputClass } from './styles';
 import { ScheduleForm, type NewConsultation } from './tabs/ConsultationsTab';
 import { TaskForm, type NewTask } from './tabs/TasksTab';
 import { Button, Pill } from './ui';
+import { ReactionBar, Thread, type OnReact } from './Social';
+import type { Reaction, ThreadComment } from '../hooks/useGestationData';
 
 // Detalhes de um registro numa janela: tudo o que foi anotado, e Editar e Excluir.
 // As listas ficam enxutas; o resto aparece aqui.
@@ -39,6 +41,13 @@ export interface DetailHandlers {
   onDeleteComment: (c: PartnerComment) => void;
   onToggleTask: (t: PartnerTask) => void;
   onPrepare: (c: Consultation) => void;
+  /** Reações e conversa (migração 011). */
+  socialAvailable: boolean;
+  reactions: Reaction[];
+  threads: ThreadComment[];
+  onReact: OnReact;
+  onThread: (targetType: 'entry' | 'exam', targetId: string, body: string) => Promise<boolean>;
+  onDeleteThread: (c: ThreadComment) => void;
 }
 
 const WHO: Record<string, string> = { mae: 'Mãe', pai: 'Pai', casal: 'Casal' };
@@ -107,6 +116,11 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
               ]}
             />
             {s.notes && <p className="text-[15px] text-ink mt-4 whitespace-pre-line">{s.notes}</p>}
+            {h.socialAvailable && (
+              <div className="mt-4">
+                <ReactionBar targetType="symptom" targetId={s.id} reactions={h.reactions} onReact={h.onReact} />
+              </div>
+            )}
             <Care symptom={s} comments={detail.comments} busy={h.busy} onComment={h.onComment} onDeleteComment={h.onDeleteComment} />
             <Actions onEdit={() => setEditing(true)} onDelete={remove} />
           </>
@@ -151,6 +165,12 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
               <Pill>{e.visibility === 'private' ? <><Lock /> Só você vê</> : <><Users /> Vocês dois veem</>}</Pill>
               {e.remind_on && <Pill tone="brand"><Bell /> Lembrar em {formatBR(e.remind_on)}</Pill>}
             </div>
+            {h.socialAvailable && (
+              <div className="mt-5 space-y-4">
+                <ReactionBar targetType="entry" targetId={e.id} reactions={h.reactions} onReact={h.onReact} />
+                <Thread comments={h.threads.filter(c => c.target_type === 'entry' && c.target_id === e.id)} busy={h.busy} onSend={body => h.onThread('entry', e.id, body)} onDelete={h.onDeleteThread} />
+              </div>
+            )}
             {e.mine ? <Actions onEdit={() => setEditing(true)} onDelete={remove} /> : <p className="text-xs text-ink-mute mt-5">Só quem escreveu pode editar ou excluir este momento.</p>}
           </>
         )}
@@ -176,6 +196,12 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
               ]}
             />
             {t.notes && <p className="text-[15px] text-ink mt-4 whitespace-pre-line">{t.notes}</p>}
+            {h.socialAvailable && t.is_completed && (
+              <div className="mt-4 space-y-2">
+                <p className="text-sm font-semibold text-ok flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Feita!</p>
+                <ReactionBar targetType="task" targetId={t.id} reactions={h.reactions} kinds={['festa']} onReact={h.onReact} />
+              </div>
+            )}
             <Actions onEdit={() => setEditing(true)} onDelete={remove}>
               <Button
                 onClick={() => {

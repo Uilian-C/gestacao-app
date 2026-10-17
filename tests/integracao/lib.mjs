@@ -10,9 +10,21 @@ mkdirSync(OUT, { recursive: true });
 
 export const errs = [];
 let failures = 0;
+// No GitHub Actions, cada falha também vira uma anotação: dá para ler o que falhou sem abrir o log.
+const ANNOTATE = !!process.env.GITHUB_ACTIONS;
+const annotate = text => ANNOTATE && console.log(`::error title=${process.argv[1].split('/').pop()}::${String(text).split('\n')[0].slice(0, 300)}`);
+process.on('uncaughtException', err => {
+  annotate(err?.message ?? err);
+  console.error(err);
+  process.exit(1);
+});
+
 export function check(cond, label) {
   console.log(`${cond ? 'ok    ' : 'FALHOU'} ${label}`);
-  if (!cond) failures++;
+  if (!cond) {
+    failures++;
+    annotate(label);
+  }
 }
 
 /** Fecha o teste: lista erros de página e sai com código 1 se algo falhou. */

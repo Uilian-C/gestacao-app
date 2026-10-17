@@ -167,6 +167,8 @@ export const POST = endpoint(async request => {
       await visibleExam(member, o.id);
       const files = await query<{ path: string }>('SELECT path FROM exam_files WHERE exam_id::text = $1 AND family_id = $2', [o.id, fid]);
       await query('DELETE FROM exams WHERE id::text = $1 AND family_id = $2', [o.id, fid]);
+      await query("DELETE FROM reactions WHERE family_id = $1 AND target_type = 'exam' AND target_id::text = $2", [fid, o.id]).catch(() => undefined);
+      await query("DELETE FROM comments WHERE family_id = $1 AND target_type = 'exam' AND target_id::text = $2", [fid, o.id]).catch(() => undefined);
       await deleteFiles(files.map(f => f.path)).catch(err => console.error('Arquivos não apagados do armazenamento', err));
       break;
     }

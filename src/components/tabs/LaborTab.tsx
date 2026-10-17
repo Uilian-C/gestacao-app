@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, ChevronDown, ClipboardCopy, Footprints, Luggage, Printer, RefreshCw, RotateCcw, Timer, Trash2 } from 'lucide-react';
-import { BAG_ITEM_COUNT, HOSPITAL_BAG } from '../../content/hospitalBag';
+import { HOSPITAL_BAG } from '../../content/hospitalBag';
+import type { ListItem } from '../../hooks/useGestationData';
+import { AddItem, HiddenItems, MenuButton, RowMenu } from '../EditableList';
+import { useRowMenu } from '../../hooks/useRowMenu';
 import { BIRTH_TYPE, PLAN_SECTIONS, planProgress, planToText, toPlan, type BirthPlan } from '../../lib/birthPlan';
 import { formatBR, parseTimestamp, toISODate } from '../../lib/dates';
 import { formatDuration, laborStatus, summarizeKicks, timeContractions, type LaborStatus } from '../../lib/labor';
@@ -10,6 +13,7 @@ import { inputClass } from '../styles';
 import { Button, Card, Chip, EmptyState, Field, Segmented, SectionTitle, SubTabs } from '../ui';
 
 type View = 'movimentos' | 'contracoes' | 'plano' | 'mala';
+type BagGroupId = 'mae' | 'bebe' | 'acompanhante';
 
 interface Props {
   author: Author;
@@ -31,6 +35,14 @@ interface Props {
   packed: Set<string>;
   checksAvailable: boolean;
   onTogglePacked: (itemId: string, done: boolean) => void;
+  /** Itens que o casal pôs na mala e os da lista padrão que ocultou. */
+  bagItems: ListItem[];
+  hiddenBag: Set<string>;
+  listsAvailable: boolean;
+  onAddItem: (title: string, group: BagGroupId) => Promise<boolean>;
+  onRenameItem: (item: ListItem, title: string) => Promise<boolean>;
+  onDeleteItem: (item: ListItem) => void;
+  onHideItem: (itemId: string, hidden: boolean) => void;
 }
 
 // O que está em andamento fica guardado no aparelho: fechar o app no meio não perde a contagem.
@@ -473,38 +485,67 @@ function PlanRow({ title, summary, open, onToggle, children }: { title: string; 
 
 /* ---------------- Mala da maternidade ---------------- */
 
-function HospitalBag({ packed, checksAvailable, busy, onTogglePacked }: Props) {
-  const done = HOSPITAL_BAG.reduce((n, g) => n + g.items.filter(i => packed.has(i.id)).length, 0);
+function HospitalBag({ packed, checksAvailable, busy, onTogglePacked, bagItems, hiddenBag, listsAvailable, onAddItem, onRenameItem, onDeleteItem, onHideItem }: Props) {
+  const menu = useRowMenu();
+  // Cada grupo: os itens da lista padrão que valem para o casal e os que eles puseram.
+  const groups = HOSPITAL_BAG.map(g => ({
+    ...g,
+    rows: [
+      ...g.items.filter(i => !hiddenBag.has(i.id)).map(i => ({ id: i.id, label: i.label, custom: null as ListItem | null })),
+      ...bagItems.filter(i => (i.bag_group ?? 'mae') === g.id).map(i => ({ id: i.id, label: i.title, custom: i })),
+    ],
+  }));
+  const total = groups.reduce((n, g) => n + g.rows.length, 0);
+  const done = groups.reduce((n, g) => n + g.rows.filter(r => packed.has(r.id)).length, 0);
+  const hidden = HOSPITAL_BAG.flatMap(g => g.items).filter(i => hiddenBag.has(i.id));
+
   return (
     <Card>
-      <SectionTitle icon={<Luggage className="w-5 h-5" />} title="Mala da maternidade" subtitle="Deixem pronta até 36 semanas. Confiram também a lista da maternidade de vocês." />
+      <SectionTitle icon={<Luggage className="w-5 h-5" />} title="Mala da maternidade" subtitle="Deixem pronta até 36 semanas. Ajustem a lista ao que a maternidade de vocês pede." />
       {!checksAvailable && <p className="text-xs text-warn bg-warn-soft rounded-2xl px-3 py-2 mb-3">Para marcar itens, rode a migração 007 no Neon.</p>}
+      {!listsAvailable && <p className="text-xs text-warn bg-warn-soft rounded-2xl px-3 py-2 mb-3">Para pôr itens próprios na mala, rode a migração 011 no Neon.</p>}
       <div className="flex items-center gap-3 mb-4">
-        <div className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={done} aria-valuemin={0} aria-valuemax={BAG_ITEM_COUNT} aria-label="Itens separados">
-          <div className="h-full bg-ok rounded-full transition-all" style={{ width: `${(done / BAG_ITEM_COUNT) * 100}%` }} />
+        <div className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={done} aria-valuemin={0} aria-valuemax={total} aria-label="Itens separados">
+          <div className="h-full bg-ok rounded-full transition-all" style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
         </div>
-        <span className="text-xs text-ink-mute tabular">{done} de {BAG_ITEM_COUNT}</span>
+        <span className="text-xs text-ink-mute tabular">{done} de {total}</span>
       </div>
       <div className="space-y-5">
-        {HOSPITAL_BAG.map(g => (
+        {groups.map(g => (
           <div key={g.id}>
             <h3 className="text-sm font-semibold text-ink mb-1">{g.title}</h3>
             <ul>
-              {g.items.map(i => {
-                const isDone = packed.has(i.id);
+              {g.rows.map(r => {
+                const isDone = packed.has(r.id);
                 return (
-                  <li key={i.id}>
-                    <label className="flex items-center gap-3 py-2 cursor-pointer">
-                      <input type="checkbox" className="w-5 h-5 accent-[var(--c-ok)] shrink-0" checked={isDone} disabled={busy || !checksAvailable} onChange={e => onTogglePacked(i.id, e.target.checked)} />
-                      <span className={`text-sm ${isDone ? 'text-ink-mute line-through' : 'text-ink'}`}>{i.label}</span>
-                    </label>
+                  <li key={r.id}>
+                    <div className="flex items-center gap-2">
+                      <label className="flex-1 min-w-0 flex items-center gap-3 py-2 cursor-pointer">
+                        <input type="checkbox" className="w-5 h-5 accent-[var(--c-ok)] shrink-0" checked={isDone} disabled={busy || !checksAvailable} onChange={e => onTogglePacked(r.id, e.target.checked)} />
+                        <span className={`text-sm ${isDone ? 'text-ink-mute line-through' : 'text-ink'}`}>{r.label}</span>
+                        {r.custom && <span className="text-[11px] font-bold text-brand-strong bg-brand-soft rounded-full px-2 py-0.5 shrink-0">de vocês</span>}
+                      </label>
+                      {listsAvailable && <MenuButton open={menu.open === r.id} label={r.label} onClick={() => menu.toggle(r.id)} />}
+                    </div>
+                    {menu.open === r.id && (
+                      <RowMenu
+                        onDone={menu.close}
+                        actions={
+                          r.custom
+                            ? { custom: { title: r.label, onRename: t => onRenameItem(r.custom!, t), onDelete: () => onDeleteItem(r.custom!) } }
+                            : { onHide: () => onHideItem(r.id, true) }
+                        }
+                      />
+                    )}
                   </li>
                 );
               })}
             </ul>
+            {listsAvailable && <AddItem placeholder={g.id === 'bebe' ? 'Ex.: Pomada para assaduras' : g.id === 'mae' ? 'Ex.: Travesseiro de amamentação' : 'Ex.: Cobertor'} disabled={busy} onAdd={title => onAddItem(title, g.id as BagGroupId)} />}
           </div>
         ))}
       </div>
+      <HiddenItems items={hidden} onShow={id => onHideItem(id, false)} />
     </Card>
   );
 }

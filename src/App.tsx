@@ -4,6 +4,8 @@ import BrandMark from './components/BrandMark';
 import QuickRecord, { type QuickMode } from './components/QuickRecord';
 import DetailSheet from './components/Details';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
+import type { ListItem, ThreadComment } from './hooks/useGestationData';
+import type { OnReact } from './components/Social';
 import { takeTabFromUrl, takeViewFromUrl } from './lib/pwa';
 import { api, ApiError, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
@@ -138,6 +140,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     if (kind === 'entry') return api.mutate('deleteEntry', { id });
     if (kind === 'exam') return api.exams('delete', { id });
     if (kind === 'examFile') return api.exams('deleteFile', { id });
+    if (kind === 'item') return api.mutate('deleteItem', { id });
+    if (kind === 'thread') return api.mutate('deleteComment', { id });
     return api.mutate('delete', { kind, id });
   };
 
@@ -264,6 +268,30 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     }
   };
 
+  // Listas editáveis (mala e jornada).
+  const addItem = (list: 'prenatal' | 'mala', title: string, bagGroup: string | null, week: number | null) =>
+    run(() => api.mutate('addItem', { list, title, bagGroup, week }), 'Não foi possível adicionar. Se for a primeira vez, rode a migração 011 no Neon.');
+  const renameItem = (item: ListItem, title: string) => run(() => api.mutate('updateItem', { id: item.id, title, bagGroup: item.bag_group, week: item.week }));
+  const deleteListItem = (item: ListItem) => scheduleDelete('item', item.id, `"${item.title}"`);
+  const hideItem = (list: 'prenatal' | 'mala', itemId: string, hidden: boolean) => {
+    patch(d => ({ ...d, hiddenItems: hidden ? [...d.hiddenItems, { list, item_id: itemId }] : d.hiddenItems.filter(h => !(h.list === list && h.item_id === itemId)) }));
+    if (hidden) showToast({ text: 'Item oculto. Ele fica em "Itens ocultos", no fim da lista.', tone: 'info' });
+    return run(() => api.mutate('hideItem', { list, itemId, hidden }));
+  };
+
+  // Curtir e comentar. A reação aparece na hora; o servidor confirma em seguida.
+  const react: OnReact = (targetType, targetId, kind, on) => {
+    patch(d => ({
+      ...d,
+      reactions: on
+        ? [...d.reactions, { target_type: targetType, target_id: targetId, kind, author_role: author, mine: true }]
+        : d.reactions.filter(r => !(r.target_type === targetType && r.target_id === targetId && r.kind === kind && r.mine)),
+    }));
+    run(() => api.mutate('react', { targetType, targetId, kind, on }), 'Não foi possível reagir. Se for a primeira vez, rode a migração 011 no Neon.');
+  };
+  const sendThread = (targetType: 'entry' | 'exam', targetId: string, body: string) => run(() => api.mutate('comment', { targetType, targetId, body }), 'Não foi possível enviar o comentário.');
+  const deleteThread = (c: ThreadComment) => scheduleDelete('thread', c.id, 'comentário');
+
   // Edições feitas na janela de detalhes.
   const updateSymptom = (id: string, s: NewSymptom) =>
     run(() => api.mutate('updateSymptom', { id, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }));
@@ -348,6 +376,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   // Feito = marcado pelo casal ou comprovado pelo uso (ex.: consulta de obstetra realizada).
   const doneSteps = new Set([...data.checks.filter(c => c.list === 'prenatal').map(c => c.item_id), ...autoDone(visitsOf(data.consultations, dumDate, now))]);
   const packed = new Set(data.checks.filter(c => c.list === 'mala').map(c => c.item_id));
+  const listItems = visible('item', data.listItems ?? []);
+  const reactions = data.reactions ?? [];
+  const threads = visible('thread', data.threads ?? []);
+  const socialAvailable = data.socialAvailable ?? false;
+  const hiddenOf = (list: 'prenatal' | 'mala') => new Set((data.hiddenItems ?? []).filter(h => h.list === list).map(h => h.item_id));
+  const hiddenSteps = hiddenOf('prenatal');
   const exams = visible('exam', data.exams ?? []).map(e => ({ ...e, files: e.files.filter(f => !pendingDeletes.has(`examFile:${f.id}`)) }));
   const overdueTasks = tasks.filter(t => !t.is_completed && isOverdue(t.due_date)).length;
   const questions = visible('question', data.questions);
@@ -408,6 +442,13 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       view={view}
       onViewChange={openDashboardView}
       consultations={consultations}
+      ownSteps={listItems.filter(i => i.list === 'prenatal')}
+      hiddenSteps={hiddenSteps}
+      listsAvailable={data.socialAvailable ?? false}
+      onAddStep={(title, week) => addItem('prenatal', title, null, week)}
+      onRenameItem={renameItem}
+      onDeleteItem={deleteListItem}
+      onHideStep={(id, hidden) => hideItem('prenatal', id, hidden)}
     />
   );
 
@@ -458,6 +499,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onOpen={openFromHome}
             bloodType={data.profile.bloodType}
             doneSteps={doneSteps}
+            hiddenSteps={hiddenSteps}
             checksAvailable={data.checksAvailable}
             onToggleStep={(id, done) => setCheck('prenatal', id, done)}
             reminders={journal.filter(e => e.remind_on && e.remind_on >= today && daysBetween(parseLocalDate(today), parseLocalDate(e.remind_on)) <= 30)}
@@ -494,6 +536,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 journal={journal}
                 journalAvailable={data.journalAvailable}
                 onRecord={() => setRecording(RECORD_MODES.diario)}
+                reactions={socialAvailable ? reactions : []}
+                threads={threads}
               />
             ) : (
               dashboard(DIARY_CHART[diaryView]!)
@@ -599,6 +643,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onDelete={e => scheduleDelete('exam', e.id, `exame "${e.title}"`)}
             onDeleteFile={(_, f) => scheduleDelete('examFile', f.id, f.content_type === 'application/pdf' ? 'PDF' : 'foto')}
             initialPlanItem={examPreset}
+            social={{ available: socialAvailable, reactions, threads, onReact: react, onThread: sendThread, onDeleteThread: deleteThread }}
           />
         )}
         {activeTab === 'cuidados' && careView === 'jornada' && !report && dashboard('jornada')}
@@ -623,6 +668,13 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             packed={packed}
             checksAvailable={data.checksAvailable}
             onTogglePacked={(id, done) => setCheck('mala', id, done)}
+            bagItems={listItems.filter(i => i.list === 'mala')}
+            hiddenBag={hiddenOf('mala')}
+            listsAvailable={data.socialAvailable ?? false}
+            onAddItem={(title, group) => addItem('mala', title, group, null)}
+            onRenameItem={renameItem}
+            onDeleteItem={deleteListItem}
+            onHideItem={(id, hidden) => hideItem('mala', id, hidden)}
           />
         )}
         </Suspense>
@@ -682,6 +734,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onDeleteComment={c => scheduleDelete('comment', c.id, 'cuidado')}
           onToggleTask={toggleTask}
           onPrepare={prepareReport}
+          socialAvailable={socialAvailable}
+          reactions={reactions}
+          threads={threads}
+          onReact={react}
+          onThread={sendThread}
+          onDeleteThread={deleteThread}
         />
       )}
 

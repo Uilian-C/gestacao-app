@@ -1,4 +1,5 @@
 import { query } from './db.js';
+import { visibleTargetSql } from './social.js';
 
 // Tudo o que o espaço tem registrado, de uma vez. Usado ao abrir o app (/api/family)
 // e depois de cada gravação (/api/data), sempre filtrado pelo espaço de quem está logado.
@@ -6,7 +7,7 @@ import { query } from './db.js';
 const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
 
 export async function fetchAll(fid: string, userId: string) {
-  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams] = await Promise.all([
+  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams, social] = await Promise.all([
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
@@ -91,6 +92,18 @@ export async function fetchAll(fid: string, userId: string) {
        ORDER BY e.exam_date DESC, e.created_at DESC`,
       [fid, userId],
     ).catch(() => null),
+    // Listas editáveis e reações/conversa numa consulta só (só o que esta pessoa pode ver).
+    query<{ items: unknown[]; hidden: unknown[]; reactions: unknown[]; threads: unknown[] }>(
+      `SELECT
+         (SELECT COALESCE(json_agg(json_build_object('id', i.id, 'list', i.list, 'title', i.title, 'bag_group', i.bag_group, 'week', i.week, 'created_by', i.created_by) ORDER BY i.created_at), '[]')
+            FROM checklist_items i WHERE i.family_id = $1) AS items,
+         (SELECT COALESCE(json_agg(json_build_object('list', h.list, 'item_id', h.item_id)), '[]') FROM checklist_hidden h WHERE h.family_id = $1) AS hidden,
+         (SELECT COALESCE(json_agg(json_build_object('target_type', r.target_type, 'target_id', r.target_id, 'kind', r.kind, 'author_role', r.author_role, 'mine', r.user_id = $2) ORDER BY r.created_at), '[]')
+            FROM reactions r WHERE r.family_id = $1 AND ${visibleTargetSql('r')}) AS reactions,
+         (SELECT COALESCE(json_agg(json_build_object('id', c.id, 'target_type', c.target_type, 'target_id', c.target_id, 'body', c.body, 'author_role', c.author_role, 'mine', COALESCE(c.user_id = $2, false), 'created_at', c.created_at) ORDER BY c.created_at), '[]')
+            FROM comments c WHERE c.family_id = $1 AND ${visibleTargetSql('c')}) AS threads`,
+      [fid, userId],
+    ).catch(() => null),
   ]);
 
   const f = family[0] ?? {};
@@ -133,6 +146,11 @@ export async function fetchAll(fid: string, userId: string) {
     journalAvailable: journal !== null,
     exams: exams ?? [],
     examsAvailable: exams !== null,
+    listItems: social?.[0].items ?? [],
+    hiddenItems: social?.[0].hidden ?? [],
+    reactions: social?.[0].reactions ?? [],
+    threads: social?.[0].threads ?? [],
+    socialAvailable: social !== null,
   };
 }
 

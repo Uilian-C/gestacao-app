@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BookOpen, CalendarHeart, ChevronDown, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Route, Scale, Sparkles, TrendingUp, X } from 'lucide-react';
-import { PHASES, PLAN_SOURCE } from '../../content/prenatalPlan';
-import type { CheckItem } from '../../hooks/useGestationData';
+import { Activity, ListPlus, ArrowDownRight, ArrowRight, ArrowUpRight, BookOpen, CalendarHeart, ChevronDown, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Route, Scale, Sparkles, TrendingUp, X } from 'lucide-react';
+import { PHASES, PLAN_ITEMS, PLAN_SOURCE } from '../../content/prenatalPlan';
+import type { CheckItem, ListItem } from '../../hooks/useGestationData';
+import { AddItem, HiddenItems, MenuButton, RowMenu } from '../EditableList';
+import { useRowMenu } from '../../hooks/useRowMenu';
 import { autoDone, itemStatus, phaseOf, planFor, planProgress, plannedVisitWeeks, visitsOf, type Visit } from '../../lib/journey';
 import { gestationMonth } from '../../lib/ficha';
 import Guide from '../Guide';
 import { JourneyTimeline, PlanProgressChart } from '../charts/journeyCharts';
-import { PhaseStrip, StepList } from '../journey/Journey';
+import { DoneToggle, PhaseStrip, StepList } from '../journey/Journey';
 import { SYMPTOM_CATEGORIES } from '../../content/symptomCatalog';
 import { daysBetween, formatBR, parseLocalDate, toISODate, type GestationalAge } from '../../lib/dates';
 import { isHighBloodPressure } from '../../lib/health';
@@ -35,6 +37,14 @@ interface Props {
   checksAvailable: boolean;
   onToggleStep: (itemId: string, done: boolean) => void;
   view: DashboardView;
+  /** Itens da jornada: os que o casal pôs e os da lista padrão que ocultou. */
+  ownSteps: ListItem[];
+  hiddenSteps: Set<string>;
+  listsAvailable: boolean;
+  onAddStep: (title: string, week: number | null) => Promise<boolean>;
+  onRenameItem: (item: ListItem, title: string) => Promise<boolean>;
+  onDeleteItem: (item: ListItem) => void;
+  onHideStep: (itemId: string, hidden: boolean) => void;
   /** Leva a outra visão (que pode estar em outra aba: a jornada fica em Cuidados). */
   onViewChange: (view: DashboardView) => void;
   consultations: Consultation[];
@@ -93,7 +103,7 @@ export default function DashboardTab(props: Props) {
 
   // ----- Jornada (plano de referência + o que o casal já fez) -----
   const now = new Date();
-  const items = planFor(profile.bloodType);
+  const items = planFor(profile.bloodType, props.hiddenSteps);
   const visits = visitsOf(consultations, profile.dumDate, now);
   const auto = autoDone(visits);
   const prenatal = checks.filter(c => c.list === 'prenatal');
@@ -151,6 +161,7 @@ export default function DashboardTab(props: Props) {
               visits={visits}
               plannedVisits={plannedVisits}
               autoDoneIds={auto}
+              onHide={props.listsAvailable ? item => props.onHideStep(item.id, true) : undefined}
             />
             <h3 className="text-sm font-semibold text-ink mt-6 mb-2">Vacinas a qualquer momento</h3>
             <StepList
@@ -160,6 +171,8 @@ export default function DashboardTab(props: Props) {
               onToggle={(item, value) => onToggleStep(item.id, value)}
             />
           </Card>
+
+          <OwnSteps {...props} done={done} />
 
           <PhaseGuide currentWeek={currentWeek} />
         </>
@@ -596,6 +609,40 @@ function PressureSection({ metrics }: { metrics: HealthMetric[] }) {
           </details>
         </>
       )}
+    </Card>
+  );
+}
+
+/** Itens que o casal pôs na jornada (ex.: um exame que a médica pediu) e os ocultados. */
+function OwnSteps({ ownSteps, hiddenSteps, listsAvailable, busy, checksAvailable, onToggleStep, onAddStep, onRenameItem, onDeleteItem, onHideStep, done }: Props & { done: Set<string> }) {
+  const menu = useRowMenu();
+  if (!listsAvailable) return null;
+  const hidden = PLAN_ITEMS.filter(i => hiddenSteps.has(i.id)).map(i => ({ id: i.id, label: i.title }));
+  const sorted = [...ownSteps].sort((a, b) => (a.week ?? 99) - (b.week ?? 99));
+  return (
+    <Card>
+      <SectionTitle icon={<ListPlus className="w-5 h-5" />} title="Itens de vocês" subtitle="O que a equipe pediu e não está na lista padrão: um exame a mais, uma vacina, uma visita." />
+      {sorted.length === 0 && <p className="text-sm text-ink-soft mb-1">Nenhum item próprio ainda.</p>}
+      <ul className="divide-y divide-line">
+        {sorted.map(i => {
+          const isDone = done.has(i.id);
+          return (
+            <li key={i.id} className="py-2">
+              <div className="flex items-center gap-3">
+                <DoneToggle done={isDone} label={i.title} busy={busy || !checksAvailable} onToggle={() => onToggleStep(i.id, !isDone)} />
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold ${isDone ? 'text-ink-mute line-through' : 'text-ink'}`}>{i.title}</p>
+                  {i.week && <p className="text-xs text-ink-mute">semana {i.week}</p>}
+                </div>
+                <MenuButton open={menu.open === i.id} label={i.title} onClick={() => menu.toggle(i.id)} />
+              </div>
+              {menu.open === i.id && <RowMenu onDone={menu.close} actions={{ custom: { title: i.title, onRename: t => onRenameItem(i, t), onDelete: () => onDeleteItem(i) } }} />}
+            </li>
+          );
+        })}
+      </ul>
+      <AddItem placeholder="Ex.: Ecocardiograma fetal" withWeek disabled={busy} onAdd={onAddStep} />
+      <HiddenItems items={hidden} onShow={id => onHideStep(id, false)} />
     </Card>
   );
 }

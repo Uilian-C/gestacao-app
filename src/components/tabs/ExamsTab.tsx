@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, ChevronLeft, ChevronRight, ExternalLink, FileText, FlaskConical, ImagePlus, Loader2, Lock, Paperclip, Plus, ScanHeart, Trash2, Users, X } from 'lucide-react';
 import { examFileUrl } from '../../api';
 import { PLAN_ITEMS, type PlanItem } from '../../content/prenatalPlan';
-import type { ExamFile, ExamItem, ExamKind } from '../../hooks/useGestationData';
+import type { ExamFile, ExamItem, ExamKind, Reaction, ThreadComment } from '../../hooks/useGestationData';
+import { ReactionBar, Thread, type OnReact } from '../Social';
 import { formatBR, gestationalAge, parseLocalDate, toISODate } from '../../lib/dates';
 import { planExams } from '../../lib/journey';
 import { FileProblem, formatSize, prepareFile, type PreparedFile } from '../../lib/examFiles';
@@ -34,6 +35,17 @@ interface Props {
   onDeleteFile: (exam: ExamItem, file: ExamFile) => void;
   /** Abre já o formulário para este item da jornada (vindo do Início). */
   initialPlanItem?: string | null;
+  social: ExamSocial;
+}
+
+/** Reações e conversa nos exames (migração 011). */
+export interface ExamSocial {
+  available: boolean;
+  reactions: Reaction[];
+  threads: ThreadComment[];
+  onReact: OnReact;
+  onThread: (targetType: 'exam', targetId: string, body: string) => Promise<boolean>;
+  onDeleteThread: (c: ThreadComment) => void;
 }
 
 const KIND_LABEL: Record<ExamKind, string> = { ultrassom: 'Ultrassom', exame: 'Exame', outro: 'Outro' };
@@ -128,7 +140,7 @@ export default function ExamsTab(props: Props) {
 
         <div className="space-y-3">
           {shown.map(e => (
-            <ExamCard key={e.id} exam={e} dumDate={props.dumDate} busy={props.busy} onSave={props.onSave} onOpen={index => setViewer({ exam: e, index })} onDelete={() => props.onDelete(e)} />
+            <ExamCard key={e.id} exam={e} dumDate={props.dumDate} busy={props.busy} social={props.social} onSave={props.onSave} onOpen={index => setViewer({ exam: e, index })} onDelete={() => props.onDelete(e)} />
           ))}
         </div>
       </Card>
@@ -336,7 +348,9 @@ export function ExamForm({ plan, preset, busy, onSave, onDone, bare = false }: {
   );
 }
 
-function ExamCard({ exam: e, dumDate, busy, onSave, onOpen, onDelete }: { exam: ExamItem; dumDate: string; busy: boolean; onSave: SaveExam; onOpen: (imageIndex: number) => void; onDelete: () => void }) {
+function ExamCard({ exam: e, dumDate, busy, social, onSave, onOpen, onDelete }: { exam: ExamItem; dumDate: string; busy: boolean; social: ExamSocial; onSave: SaveExam; onOpen: (imageIndex: number) => void; onDelete: () => void }) {
+  const [talking, setTalking] = useState(false);
+  const talk = social.threads.filter(c => c.target_type === 'exam' && c.target_id === e.id);
   const Icon = KIND_ICON[e.kind];
   const week = gestationalAge(dumDate, parseLocalDate(e.exam_date))?.weeks;
   const plan = e.plan_item ? PLAN_ITEMS.find(i => i.id === e.plan_item) : null;
@@ -421,6 +435,18 @@ function ExamCard({ exam: e, dumDate, busy, onSave, onOpen, onDelete }: { exam: 
         )}
       </div>
       {problem && <p className="text-sm text-alert" role="alert">{problem}</p>}
+
+      {social.available && (
+        <div className="space-y-3 border-t border-line pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <ReactionBar targetType="exam" targetId={e.id} reactions={social.reactions} kinds={e.kind === 'ultrassom' ? ['abraco', 'festa'] : ['abraco', 'forca']} onReact={social.onReact} />
+            <button type="button" onClick={() => setTalking(v => !v)} aria-expanded={talking} className="inline-flex items-center gap-1.5 min-h-10 rounded-full px-3.5 text-sm font-bold text-ink-soft bg-surface hover:text-ink">
+              Conversa{talk.length ? ` · ${talk.length}` : ''}
+            </button>
+          </div>
+          {talking && <Thread comments={talk} busy={busy} onSend={body => social.onThread('exam', e.id, body)} onDelete={social.onDeleteThread} />}
+        </div>
+      )}
     </article>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, CalendarHeart, Check } from 'lucide-react';
+import { AlertCircle, CalendarHeart, Check, EyeOff } from 'lucide-react';
 import { PHASES, type PlanItem } from '../../content/prenatalPlan';
 import { useElementWidth } from '../../hooks/useElementWidth';
 import { itemStatus, windowText, type ItemStatus, type Visit } from '../../lib/journey';
@@ -102,7 +102,7 @@ const BAR: Record<ItemStatus, React.CSSProperties> = {
 
 const LEGEND: Record<ItemStatus, string> = { agora: 'janela aberta', pendente: 'pendente', feito: 'feito', 'em-breve': 'próximas semanas', depois: 'mais adiante' };
 
-export function JourneyTimeline({ items, currentWeek, done, dumDate, busy, onToggle, visits, plannedVisits, autoDoneIds }: { items: PlanItem[]; currentWeek: number; done: Set<string>; dumDate: string; busy: boolean; onToggle: (item: PlanItem, done: boolean) => void; visits: Visit[]; plannedVisits: number[]; autoDoneIds: Set<string> }) {
+export function JourneyTimeline({ items, currentWeek, done, dumDate, busy, onToggle, visits, plannedVisits, autoDoneIds, onHide }: { items: PlanItem[]; currentWeek: number; done: Set<string>; dumDate: string; busy: boolean; onToggle: (item: PlanItem, done: boolean) => void; visits: Visit[]; plannedVisits: number[]; autoDoneIds: Set<string>; onHide?: (item: PlanItem) => void }) {
   const [open, setOpen] = useState<string | null>(null);
   const timed = items.filter(i => !i.anytime).sort((a, b) => a.from - b.from || a.to - b.to);
   const now = pct(currentWeek + 0.5);
@@ -156,6 +156,11 @@ export function JourneyTimeline({ items, currentWeek, done, dumDate, busy, onTog
                     </p>
                     <p className="text-sm text-ink-soft">{item.why}</p>
                     {autoDoneIds.has(item.id) && <p className="text-xs text-ok">Marcado automaticamente pela consulta registrada no app.</p>}
+                    {onHide && (
+                      <button type="button" onClick={() => onHide(item)} className="inline-flex items-center gap-1.5 pt-1 text-xs font-bold text-ink-mute hover:text-ink">
+                        <EyeOff className="w-3.5 h-3.5" /> Não se aplica a nós (ocultar)
+                      </button>
+                    )}
                   </div>
                   <DoneToggle done={status === 'feito'} label={item.title} busy={busy} onToggle={() => onToggle(item, status !== 'feito')} />
                 </div>

@@ -46,4 +46,3 @@ export const HOSPITAL_BAG: BagGroup[] = [
   },
 ];
 
-export const BAG_ITEM_COUNT = HOSPITAL_BAG.reduce((n, g) => n + g.items.length, 0);
