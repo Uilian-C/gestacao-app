@@ -1,27 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Bell, Camera, CalendarHeart, Check, CheckCircle2, FileCheck2, Heart, Lightbulb, NotebookPen, Pencil, Route, Siren, Sparkles, Syringe } from 'lucide-react';
+import { ArrowRight, Footprints, HandHeart, Heart, Pencil, Route, Siren, Sparkles } from 'lucide-react';
 import { weekInfo } from '../../content/weeks';
+import { WEEK_CARDS_SOURCE, weekCards } from '../../content/weekCards';
 import { ALERT_SIGNS } from '../../content/symptomCatalog';
-import { FIRST_WEEK, LAST_WEEK, formatBR, type GestationalAge } from '../../lib/dates';
-import type { ExamItem, JournalEntry } from '../../hooks/useGestationData';
-import { isHighBloodPressure } from '../../lib/health';
+import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, parseTimestamp, toISODate, type GestationalAge } from '../../lib/dates';
+import type { Checkin, ExamItem, JournalEntry, Mood } from '../../hooks/useGestationData';
+import type { DetailTarget } from '../../lib/details';
 import { nextSteps, phaseOf, planFor } from '../../lib/journey';
 import { gestationMonth } from '../../lib/ficha';
-import { todayCards, type TodayAction, type TodayCard, type TodayTone } from '../../lib/today';
-import Guide from '../Guide';
-import { PhaseStrip } from '../journey/Journey';
+import { appointmentTitle } from '../../lib/appointments';
+import { buildUpcoming } from '../../lib/upcoming';
 import type { Insight } from '../../lib/symptoms';
-import type { Consultation, HealthMetric, PartnerTask, SymptomItem } from '../../types';
-import AuthorBadge from '../AuthorBadge';
+import type { Author, Consultation, PartnerTask } from '../../types';
+import { photoUrl } from '../../api';
 import BrandMark from '../BrandMark';
+import CheckIn from '../CheckIn';
 import { DumForm } from '../DumForm';
 import PushPrompt from '../PushPrompt';
-import { Card, LinkButton, Pill, SectionTitle } from '../ui';
+import { Card, LinkButton, SectionTitle } from '../ui';
 import { InsightList } from '../InsightList';
-import IntensityDots from '../IntensityDots';
+import { Row } from './UpcomingTab';
 
 /** Para onde o Início leva (abas e partes delas). */
-export type HomeTarget = 'diario' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames';
+export type HomeTarget = 'diario' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
 
 interface Props {
   age: GestationalAge;
@@ -30,46 +31,30 @@ interface Props {
   currentWeek: number;
   onSelectWeek: (week: number) => void;
   onSaveDum: (iso: string) => Promise<boolean>;
-  nextConsultation: Consultation | null;
-  symptoms: SymptomItem[];
-  metrics: HealthMetric[];
-  tasks: PartnerTask[];
   insights: Insight[];
+  role: Author;
+  /** Primeiro nome da outra pessoa do espaço (se já entrou). */
+  partnerName: string | null;
+  consultations: Consultation[];
+  tasks: PartnerTask[];
   journal: JournalEntry[];
   exams: ExamItem[];
-  onToggleTask: (task: PartnerTask) => void;
-  onPrepareReport: (consultation: Consultation) => void;
-  /** Exames, ultrassons e vacinas agendados. */
-  appointments: Consultation[];
-  /** Guarda o resultado de um exame agendado. */
-  onResult: (c: Consultation) => void;
+  checkins: Checkin[];
+  checkinAvailable: boolean;
+  busy: boolean;
+  onCheckin: (mood: Mood | null) => void;
   onOpen: (target: HomeTarget, planItem?: string) => void;
+  /** Abre os detalhes de um agendamento, tarefa ou registro do diário. */
+  onOpenDetail: (target: DetailTarget) => void;
+  /** Guardar o resultado de um exame que já aconteceu. */
+  onResult: (c: Consultation) => void;
+  /** Escrever no diário (dia sem compromisso). */
+  onWrite: () => void;
   bloodType: string | null;
   /** IDs da jornada do pré-natal já marcados como feitos. */
   doneSteps: Set<string>;
   /** Itens da jornada que o casal ocultou. */
   hiddenSteps: Set<string>;
-  checksAvailable: boolean;
-  onToggleStep: (itemId: string, done: boolean) => void;
-  /** Lembretes de momentos nos próximos 30 dias. */
-  reminders: JournalEntry[];
-}
-
-const TONE: Record<TodayTone, { card: string; label: string; action: string }> = {
-  rosa: { card: 'bg-rosa-soft', label: 'text-rosa-strong', action: 'text-rosa-strong' },
-  azul: { card: 'bg-azul-soft', label: 'text-azul-strong', action: 'text-azul-strong' },
-  verde: { card: 'bg-verde-soft', label: 'text-verde-strong', action: 'text-verde-strong' },
-  coral: { card: 'bg-coral-soft', label: 'text-coral-strong', action: 'text-coral-strong' },
-};
-
-function cardIcon(card: TodayCard) {
-  if (card.id.startsWith('consulta') || card.id.startsWith('agendado')) return <CalendarHeart />;
-  if (card.id.startsWith('resultado')) return <FileCheck2 />;
-  if (card.id.startsWith('tarefa')) return <CheckCircle2 />;
-  if (card.id.startsWith('momento')) return <Heart />;
-  if (card.id.startsWith('lembrete')) return <Bell />;
-  if (card.action?.do.kind === 'exame') return <Camera />;
-  return card.label.startsWith('Vacina') ? <Syringe /> : <Route />;
 }
 
 /** Anel da gestação (40 semanas) com o coração batendo no centro e ondas saindo dele. */
@@ -136,40 +121,25 @@ function WeekStrip({ selected, current, onSelect }: { selected: number; current:
 }
 
 export default function HomeTab(props: Props) {
-  const { age, selectedWeek, currentWeek, onSelectWeek, symptoms, metrics, insights, onOpen } = props;
+  const { age, selectedWeek, currentWeek, onSelectWeek, insights, onOpen } = props;
   const [editingDum, setEditingDum] = useState(false);
   const info = weekInfo(selectedWeek);
-  const today = new Date();
-
+  const now = new Date();
+  const todayIso = toISODate(now);
   const alerts = insights.filter(i => i.tone === 'alerta');
-  const otherInsights = insights.filter(i => i.tone !== 'alerta').slice(0, 3);
-  const recentSymptoms = symptoms.slice(0, 3);
-  const lastWeight = [...metrics].reverse().find(m => m.weight_kg !== null);
-  const lastBp = [...metrics].reverse().find(m => m.systolic_bp !== null && m.diastolic_bp !== null);
   const phase = phaseOf(currentWeek);
+  const cards = weekCards(selectedWeek);
+  const dayOfPregnancy = daysBetween(parseLocalDate(props.dumDate), parseLocalDate(todayIso)) + 1;
 
-  const cards = todayCards({
-    today,
-    dumDate: props.dumDate,
-    reminders: props.reminders,
-    nextConsultation: props.nextConsultation,
-    steps: nextSteps(planFor(props.bloodType, props.hiddenSteps), currentWeek, props.doneSteps, 3),
-    tasks: props.tasks,
-    currentWeek,
-    moments: props.journal,
-    savedExams: new Set(props.exams.map(e => e.plan_item).filter((x): x is string => !!x)),
-    appointments: props.appointments,
-    withResult: new Set(props.exams.map(e => e.appointment_id).filter((x): x is string => !!x)),
-  });
-
-  const act = (a: TodayAction) => {
-    if (a.kind === 'resumo') props.onPrepareReport(a.consultation);
-    else if (a.kind === 'exame') onOpen('exames', a.planItem);
-    else if (a.kind === 'feito') props.onToggleStep(a.planItem, true);
-    else if (a.kind === 'concluir') props.onToggleTask(a.task);
-    else if (a.kind === 'resultado') props.onResult(a.appointment);
-    else onOpen('diario');
-  };
+  const up = buildUpcoming({ consultations: props.consultations, tasks: props.tasks, journal: props.journal, exams: props.exams, today: now });
+  const lateSteps = nextSteps(planFor(props.bloodType, props.hiddenSteps), currentWeek, props.doneSteps, 20).filter(s => s.status === 'pendente');
+  // O último registro compartilhado da outra pessoa no diário, se for recente.
+  const partnerEntry = props.journal.find(e => !e.mine && e.visibility === 'shared' && daysBetween(parseLocalDate(e.entry_date), parseLocalDate(todayIso)) <= 14);
+  const partnerToday = props.checkins.some(c => !c.mine && c.day === todayIso) || props.journal.some(e => !e.mine && e.created_at && toISODate(parseTimestamp(e.created_at)) === todayIso);
+  const pending = [
+    lateSteps.length > 0 && { id: 'jornada', text: `${lateSteps.length} ${lateSteps.length === 1 ? 'item da jornada' : 'itens da jornada'} para conferir: ${lateSteps.slice(0, 2).map(s => s.item.short).join(', ')}`, go: () => onOpen('jornada') },
+    up.missingResults.length > 0 && { id: 'resultados', text: `${up.missingResults.length === 1 ? 'Falta guardar 1 resultado' : `Faltam guardar ${up.missingResults.length} resultados`}: ${appointmentTitle(up.missingResults[0])}`, go: () => props.onResult(up.missingResults[0]) },
+  ].filter(Boolean) as Array<{ id: string; text: string; go: () => void }>;
 
   return (
     <div className="space-y-6">
@@ -179,6 +149,11 @@ export default function HomeTab(props: Props) {
           <InsightList insights={alerts} />
         </Card>
       )}
+
+      <p className="-mt-2 px-1 text-sm text-ink-soft first-letter:uppercase">
+        {now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        {props.partnerName && partnerToday && <> · {props.partnerName} já passou por aqui hoje</>}
+      </p>
 
       <section aria-label="Semana da gestação" className="rounded-[32px] bg-surface shadow-soft px-5 pt-6 pb-5 overflow-hidden">
         <WeekHeart week={selectedWeek} />
@@ -199,7 +174,13 @@ export default function HomeTab(props: Props) {
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-ink-soft">
           <span className="tabular">
-            {age.daysToDpp >= 0 ? <>Faltam <strong className="text-ink">{age.daysToDpp} dias</strong> · DPP {age.dpp.toLocaleDateString('pt-BR')}</> : <>DPP foi em {age.dpp.toLocaleDateString('pt-BR')}</>}
+            {age.daysToDpp >= 0 ? (
+              <>
+                Dia <strong className="text-ink">{dayOfPregnancy}</strong> de 280 · faltam <strong className="text-ink">{age.daysToDpp} dias</strong>
+              </>
+            ) : (
+              <>DPP foi em {age.dpp.toLocaleDateString('pt-BR')}</>
+            )}
           </span>
           <span className="flex items-center gap-1">
             {selectedWeek !== currentWeek && <LinkButton onClick={() => onSelectWeek(currentWeek)}>Voltar para hoje</LinkButton>}
@@ -222,89 +203,93 @@ export default function HomeTab(props: Props) {
         {age.isPostTerm && <p className="mt-3 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
       </section>
 
-      <PushPrompt />
+      {props.checkinAvailable && <CheckIn role={props.role} partnerName={props.partnerName} checkins={props.checkins} busy={props.busy} onCheckin={props.onCheckin} />}
 
-      <section aria-labelledby="hoje-titulo" className="space-y-3">
-        <div className="flex items-baseline justify-between gap-3">
+      <section aria-labelledby="hoje-titulo" className="space-y-2.5">
+        <div className="flex items-baseline justify-between gap-3 px-1">
           <h2 id="hoje-titulo" className="text-[1.3rem] text-ink">Hoje</h2>
-          {cards.length > 1 && <span className="text-sm text-ink-mute">{cards.length} coisas para vocês</span>}
+          {up.today.length > 0 && <span className="text-sm text-ink-mute">{up.today.length === 1 ? '1 compromisso' : `${up.today.length} compromissos`}</span>}
         </div>
-        {cards.length === 0 ? (
-          <div className="rounded-[24px] bg-rosa-soft px-5 py-4 flex items-center gap-3">
-            <Sparkles className="w-5 h-5 text-rosa-strong shrink-0" />
-            <p className="text-ink">Tudo em dia por aqui. Aproveitem a semana.</p>
+        {up.today.length === 0 ? (
+          <div className="rounded-[24px] bg-rosa-soft px-5 py-4 space-y-2">
+            <p className="flex items-center gap-2 text-ink">
+              <Sparkles className="w-5 h-5 text-rosa-strong shrink-0" /> Dia livre por aqui. Que tal guardar um momento?
+            </p>
+            <button type="button" onClick={props.onWrite} className="inline-flex items-center gap-1.5 text-sm font-extrabold text-rosa-strong">
+              Escrever no diário <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
         ) : (
-          <ul className="-mx-4 px-4 md:mx-0 md:px-0 flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1">
-            {cards.map(card => {
-              const tone = TONE[card.tone];
+          up.today.map(i => <Row key={i.id} item={i} today onOpen={() => props.onOpenDetail(i.consultation ? { kind: 'consultation', id: i.consultation.id } : i.task ? { kind: 'task', id: i.task.id } : { kind: 'entry', id: i.entry!.id })} />)
+        )}
+      </section>
+
+      <PushPrompt />
+
+      {up.week.length > 0 && (
+        <section aria-labelledby="semana-titulo" className="rounded-[28px] bg-surface shadow-soft p-5 space-y-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 id="semana-titulo" className="text-[1.2rem] text-ink">Nos próximos 7 dias</h2>
+            <LinkButton onClick={() => onOpen('agenda')}>Ver a agenda</LinkButton>
+          </div>
+          <ul className="space-y-2.5">
+            {up.week.slice(0, 4).map(i => {
+              const d = parseLocalDate(i.day);
               return (
-                <li key={card.id} className={`snap-start shrink-0 w-[78%] max-w-[270px] rounded-[24px] p-4 flex flex-col gap-2 ${tone.card}`}>
-                  <p className={`flex items-center gap-1.5 text-[12px] font-extrabold uppercase tracking-wide [&_svg]:w-4 [&_svg]:h-4 ${tone.label}`}>
-                    {cardIcon(card)} {card.label}
-                  </p>
-                  <p className="font-display text-[1.1rem] leading-snug text-ink line-clamp-3">{card.title}</p>
-                  {card.detail && <p className="text-sm text-ink-soft">{card.detail}</p>}
-                  {card.action && (
-                    <button type="button" onClick={() => act(card.action!.do)} disabled={card.action.do.kind === 'feito' && (!props.checksAvailable)} className={`mt-auto self-start inline-flex items-center gap-1.5 text-sm font-extrabold py-1 disabled:opacity-50 ${tone.action}`}>
-                      {card.action.do.kind === 'concluir' || card.action.do.kind === 'feito' ? <Check className="w-4 h-4" /> : null}
-                      {card.action.label}
-                      {card.action.do.kind !== 'concluir' && card.action.do.kind !== 'feito' ? <ArrowRight className="w-4 h-4" /> : null}
-                    </button>
-                  )}
+                <li key={i.id} className="flex items-center gap-3">
+                  <span className="w-12 shrink-0 rounded-2xl bg-surface-2 py-1.5 text-center leading-tight">
+                    <span className="block text-[11px] font-extrabold uppercase text-ink-mute">{d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
+                    <span className="block font-display text-[1.1rem] font-semibold text-ink tabular">{d.getDate()}</span>
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-bold text-ink truncate">{i.title}</span>
+                    <span className="block text-xs text-ink-mute truncate">
+                      {i.label}
+                      {i.time && ` · ${i.time}`}
+                    </span>
+                  </span>
                 </li>
               );
             })}
           </ul>
-        )}
+          {up.week.length > 4 && <p className="text-xs text-ink-mute">e mais {up.week.length - 4} na agenda.</p>}
+        </section>
+      )}
+
+      <section aria-labelledby="nesta-semana" className="space-y-2.5">
+        <h2 id="nesta-semana" className="px-1 text-[1.3rem] text-ink">
+          {selectedWeek === currentWeek ? 'Nesta semana' : `Na semana ${selectedWeek}`}
+        </h2>
+        <ul className="-mx-4 px-4 flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1">
+          <WeekCard tone="bg-coral-soft" label="Seu corpo" labelTone="text-coral-strong" icon={<Footprints />} title={cards.body.title} text={cards.body.text} />
+          <WeekCard tone="bg-azul-soft" label="Para o pai" labelTone="text-azul-strong" icon={<HandHeart />} title={cards.partner.title} text={cards.partner.text} />
+          <WeekCard tone="bg-verde-soft" label={`Fase: ${phase.title}`} labelTone="text-verde-strong" icon={<Route />} title={phase.visits} text={phase.focus} onClick={() => onOpen('jornada')} />
+        </ul>
+        <p className="px-1 text-[11px] text-ink-mute">Referência: {WEEK_CARDS_SOURCE}. Cada gestação é única.</p>
       </section>
 
-      <div className="grid md:grid-cols-2 gap-5">
-        <Card>
-          <SectionTitle icon={<NotebookPen className="w-5 h-5" />} title="Como ela está" action={<LinkButton onClick={() => onOpen('saude')}>Ver saúde</LinkButton>} />
-          {recentSymptoms.length === 0 && !lastWeight && !lastBp ? (
-            <p className="text-ink-soft">Nada registrado ainda. Toque no + para o primeiro registro: em poucas semanas aparecem os padrões.</p>
-          ) : (
-            <ul className="space-y-2.5">
-              {recentSymptoms.map(s => (
-                <li key={s.id} className="flex items-center justify-between gap-2">
-                  <span className="min-w-0">
-                    <span className="font-semibold text-ink">{s.symptom_name}</span>
-                    <span className="text-sm text-ink-mute"> · {formatBR(s.log_date)}</span>
-                  </span>
-                  <span className="flex items-center gap-2 shrink-0">
-                    <IntensityDots value={s.intensity} />
-                    <AuthorBadge role={s.created_by} />
-                  </span>
-                </li>
-              ))}
-              {(lastWeight || lastBp) && (
-                <li className="flex flex-wrap gap-2 pt-1">
-                  {lastWeight && <Pill>Peso {lastWeight.weight_kg!.toLocaleString('pt-BR')} kg · {formatBR(lastWeight.recorded_at)}</Pill>}
-                  {lastBp && (
-                    <Pill tone={isHighBloodPressure(lastBp.systolic_bp, lastBp.diastolic_bp) ? 'alert' : 'neutral'}>
-                      Pressão {lastBp.systolic_bp}/{lastBp.diastolic_bp} · {formatBR(lastBp.recorded_at)}
-                    </Pill>
-                  )}
-                </li>
-              )}
-            </ul>
-          )}
-        </Card>
+      {partnerEntry && (
+        <button type="button" onClick={() => props.onOpenDetail({ kind: 'entry', id: partnerEntry.id })} className="w-full text-left rounded-[28px] bg-surface shadow-soft p-4 space-y-2.5">
+          <span className="flex items-center gap-1.5 text-[12px] font-extrabold uppercase tracking-wide text-rosa-strong">
+            <Heart className="w-4 h-4 fill-current" /> Do diário · {partnerEntry.author_role === 'mae' ? 'da mãe' : 'do pai'}
+          </span>
+          {partnerEntry.photos?.[0] && <img src={photoUrl(partnerEntry.photos[0].id, partnerEntry.photos[0].thumb)} alt="" loading="lazy" className="w-full max-h-56 rounded-2xl object-cover bg-surface-2" />}
+          {partnerEntry.body && <p className="font-display text-[1.1rem] leading-snug text-ink line-clamp-3">{partnerEntry.body}</p>}
+          <span className="block text-sm font-extrabold text-rosa-strong">Abrir e mandar um abraço</span>
+        </button>
+      )}
 
-        <Card>
-          <SectionTitle icon={<Route className="w-5 h-5" />} title={`Fase: ${phase.title}`} subtitle={`${phase.label} · ${phase.visits.toLowerCase()}`} action={<LinkButton onClick={() => onOpen('jornada')}>Ver jornada</LinkButton>} />
-          <PhaseStrip week={currentWeek} />
-          <Guide className="mt-4">{phase.focus}</Guide>
-        </Card>
-
-        {otherInsights.length > 0 && (
-          <Card>
-            <SectionTitle icon={<Lightbulb className="w-5 h-5" />} title="Padrões recentes" action={<LinkButton onClick={() => onOpen('graficos')}>Ver gráficos</LinkButton>} />
-            <InsightList insights={otherInsights} compact />
-          </Card>
-        )}
-      </div>
+      {pending.length > 0 && (
+        <section aria-label="Para não esquecer" className="rounded-[24px] bg-surface shadow-soft p-4 space-y-1">
+          <h2 className="text-sm font-extrabold text-ink font-sans">Para não esquecer</h2>
+          {pending.map(p => (
+            <button key={p.id} type="button" onClick={p.go} className="w-full flex items-center justify-between gap-3 py-2 text-left text-sm text-ink-soft hover:text-ink">
+              <span className="min-w-0">{p.text}</span>
+              <ArrowRight className="w-4 h-4 shrink-0 text-ink-mute" />
+            </button>
+          ))}
+        </section>
+      )}
 
       <details className="rounded-[28px] bg-surface shadow-soft p-5 md:p-6 group">
         <summary className="cursor-pointer font-semibold text-ink flex items-center gap-2 list-none">
@@ -317,5 +302,28 @@ export default function HomeTab(props: Props) {
         </ul>
       </details>
     </div>
+  );
+}
+
+function WeekCard({ tone, label, labelTone, icon, title, text, onClick }: { tone: string; label: string; labelTone: string; icon: React.ReactNode; title: string; text: string; onClick?: () => void }) {
+  const inner = (
+    <>
+      <span className={`flex items-center gap-1.5 text-[12px] font-extrabold uppercase tracking-wide [&_svg]:w-4 [&_svg]:h-4 ${labelTone}`}>
+        {icon} {label}
+      </span>
+      <span className="block font-display text-[1.1rem] leading-snug text-ink">{title}</span>
+      <span className="block text-sm text-ink-soft">{text}</span>
+    </>
+  );
+  return (
+    <li className={`snap-start shrink-0 w-[72%] max-w-[250px] rounded-[24px] ${tone}`}>
+      {onClick ? (
+        <button type="button" onClick={onClick} className="w-full h-full text-left p-4 flex flex-col gap-2">
+          {inner}
+        </button>
+      ) : (
+        <div className="p-4 flex flex-col gap-2 h-full">{inner}</div>
+      )}
+    </li>
   );
 }

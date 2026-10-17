@@ -98,9 +98,9 @@ check(await dlg.getByText('Dra. Marina').isVisible(), 'consulta abre pelo calend
 await p.keyboard.press('Escape');
 
 // ---- Consulta: editar e preparar resumo ----
-await tab('Cuidados');
-await p.getByRole('button', { name: /^Agendados/ }).click();
-await p.getByRole('button', { name: /Consulta de Obstetra.*ver detalhes/ }).click();
+await tab('Agenda');
+await p.getByRole('button', { name: /^Próximos/ }).click();
+await p.getByRole('button', { name: /^Consulta: Obstetra.*ver detalhes/ }).click();
 await dlg.getByRole('button', { name: 'Editar' }).click();
 await dlg.getByLabel('Profissional (opcional)').fill('Dra. Marina Lima');
 await dlg.getByRole('button', { name: 'Salvar alterações' }).click();

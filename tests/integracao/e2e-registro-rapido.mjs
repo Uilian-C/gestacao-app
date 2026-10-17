@@ -51,7 +51,8 @@ check(!(await dlg.isVisible()) && (await p.getByRole('button', { name: 'Ideia: v
 // Agenda: tarefa
 await tab('Agenda');
 await plus.click();
-check((await modes()) === 'Tarefa,Agendar', 'Agenda oferece tarefa e agendamento');
+check((await modes()) === 'Agendar,Tarefa', 'Agenda oferece agendar e tarefa');
+await dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button', { name: 'Tarefa' }).click();
 await dlg.getByLabel('Tarefa').fill('Montar o berço');
 await dlg.getByRole('button', { name: 'Criar tarefa' }).click();
 await p.waitForTimeout(1200);
@@ -61,9 +62,9 @@ check(await p.getByText('Montar o berço').first().isVisible(), 'tarefa aparece 
 
 // Cuidados: consulta e exame; Esc fecha
 await tab('Cuidados');
-await p.getByRole('button', { name: /^Agendados/ }).click();
+await p.getByRole('button', { name: /^Resultados/ }).click();
 await plus.click();
-check((await modes()) === 'Agendar,Resultado', 'Cuidados oferece agendar e guardar resultado');
+check((await modes()) === 'Resultado,Sintoma,Peso e pressão', 'Cuidados oferece resultado, sintoma e medição');
 await p.screenshot({ path: `${OUT}rapido-cuidados.png` });
 await p.keyboard.press('Escape');
 check(!(await dlg.isVisible()), 'Esc fecha');

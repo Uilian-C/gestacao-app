@@ -110,6 +110,8 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('react'), targetType, targetId: uuid, kind: z.enum(['abraco', 'forca', 'aqui', 'festa']), on: z.boolean() }),
   z.object({ op: z.literal('comment'), targetType: z.enum(['entry', 'exam']), targetId: uuid, body: text(1000) }),
   z.object({ op: z.literal('deleteComment'), id: uuid }),
+  // Check-in do dia (migração 014): o humor de cada um; null apaga.
+  z.object({ op: z.literal('checkin'), day: isoDate, mood: z.enum(['otima', 'bem', 'cansada', 'enjoada', 'ansiosa']).nullable() }),
   z.object({ op: z.literal('delete'), kind: z.enum(['task', 'symptom', 'question', 'comment', 'metric', 'consultation', 'kick', 'contraction']), id }),
 ]);
 
@@ -164,6 +166,11 @@ async function withAppointment(kind: string | undefined, write: () => Promise<Ar
     if (kind && kind !== 'consulta') throw new HttpError(503, 'Os agendamentos de exames ainda não estão ligados no servidor. Rode a migração db/migrations/013_agendamentos.sql no Neon.');
     return legacy();
   }
+}
+
+function checkinMissing(err: unknown): never {
+  if ((err as { code?: string }).code === '42P01') throw new HttpError(503, 'O check-in do dia ainda não está ligado no servidor. Rode a migração db/migrations/014_checkin.sql no Neon.');
+  throw err;
 }
 
 async function updated(sql: string, values: unknown[]) {
@@ -343,6 +350,15 @@ async function apply(m: Member, o: Op) {
       if (rows.length === 0) throw new HttpError(404, 'Comentário não encontrado.');
       return;
     }
+    case 'checkin':
+      if (o.mood === null) return query('DELETE FROM checkins WHERE user_id = $1 AND day = $2', [m.userId, o.day]).catch(checkinMissing);
+      // (xmax = 0) diz se a linha é nova: só o primeiro check-in do dia avisa a outra pessoa.
+      return query<{ inserted: boolean }>(
+        `INSERT INTO checkins (family_id, user_id, author_role, day, mood) VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (user_id, day) DO UPDATE SET mood = EXCLUDED.mood, family_id = EXCLUDED.family_id, updated_at = NOW()
+         RETURNING (xmax = 0) AS inserted`,
+        [fid, m.userId, who, o.day, o.mood],
+      ).catch(checkinMissing);
     case 'setCheck':
       if (!o.done) return query('DELETE FROM checklist WHERE family_id = $1 AND list = $2 AND item_id = $3', [fid, o.list, o.itemId]);
       return query(
@@ -379,13 +395,15 @@ function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } 
     case 'createMetric':
       return { action: 'registrou uma medição', body: 'Peso ou pressão: veja em Cuidados, na parte de saúde.', url: '/?aba=saude', tag: 'parceiro-medicao' };
     case 'createConsultation':
-      return { action: APPOINTMENT_TEXT[o.kind ?? 'consulta'], body: 'Toque para ver data, hora e endereço.', url: '/?aba=consultas', tag: 'parceiro-consulta' };
+      return { action: APPOINTMENT_TEXT[o.kind ?? 'consulta'], body: 'Toque para ver data, hora e endereço.', url: '/?aba=proximos', tag: 'parceiro-consulta' };
     case 'createQuestion':
-      return { action: 'anotou uma dúvida para a consulta', body: 'Toque para ver a lista de perguntas.', url: '/?aba=consultas', tag: 'parceiro-duvida' };
+      return { action: 'anotou uma dúvida para a consulta', body: 'Toque para ver a lista de perguntas.', url: '/?aba=duvidas', tag: 'parceiro-duvida' };
     case 'createTask':
       return { action: 'criou uma tarefa', body: o.title.length > 80 ? `${o.title.slice(0, 79)}…` : o.title, url: '/?aba=agenda', tag: 'parceiro-tarefa' };
     case 'createEntry':
       return o.visibility === 'shared' ? { action: ENTRY_TEXT[o.folder ?? 'momento'], body: 'Toque para ver no diário.', url: '/?aba=diario', tag: 'parceiro-momento' } : null;
+    case 'checkin':
+      return o.mood ? { action: 'contou como está hoje', body: 'Toque para ver no Início.', url: '/', tag: 'checkin' } : null;
     case 'react':
       return o.on ? { action: REACTION_TEXT[o.kind], body: 'Toque para ver.', url: REACTION_URL[o.targetType], tag: `reacao-${o.targetId}` } : null;
     case 'comment':
@@ -433,7 +451,10 @@ export const POST = endpoint(async request => {
   const parsed = ops.safeParse(await readJson(request));
   if (!parsed.success) throw new HttpError(400, 'Dados inválidos.');
   const result = await apply(member, parsed.data);
-  const repeated = parsed.data.op === 'react' && parsed.data.on && Array.isArray(result) && result.length === 0;
+  const repeated =
+    (parsed.data.op === 'react' && parsed.data.on && Array.isArray(result) && result.length === 0) ||
+    // Trocar a resposta do check-in no mesmo dia não avisa de novo.
+    (parsed.data.op === 'checkin' && !(Array.isArray(result) && (result[0] as { inserted?: boolean } | undefined)?.inserted));
   // O registro novo do diário volta com o id, para o app enviar as fotos dele em seguida.
   const createdId = parsed.data.op === 'createEntry' && Array.isArray(result) ? (result[0] as { id?: string } | undefined)?.id : undefined;
   // Já devolve os dados atualizados: o app não precisa de uma segunda chamada para recarregar.

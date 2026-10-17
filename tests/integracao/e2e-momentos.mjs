@@ -17,7 +17,9 @@ check(await p.getByText('só você').first().isVisible(), 'momento particular na
 await p.screenshot({ path: `${OUT}momento-linha.png`, fullPage: false });
 await p.getByRole('button', { name: /^Início/ }).first().click();
 await p.waitForTimeout(600);
-check(await p.getByText('Lembrete em 15 dias').isVisible(), 'lembrete aparece no Início, na faixa Hoje');
+await p.getByRole('button', { name: /^Agenda(\s|$)/ }).first().click();
+await p.waitForTimeout(600);
+check(await p.getByRole('region', { name: 'Depois' }).getByText(/Contamos hoje para a empresa/).isVisible(), 'lembrete aparece na Agenda → Próximos, no dia marcado');
 await p.screenshot({ path: `${OUT}momento-inicio.png`, fullPage: false });
 await b.close();
 finish();

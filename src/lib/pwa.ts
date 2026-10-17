@@ -5,10 +5,15 @@ const TABS: Tab[] = ['inicio', 'diario', 'agenda', 'cuidados', 'parto'];
 // Atalhos de link que abrem uma parte de uma aba. Os nomes antigos (painel,
 // consultas) continuam valendo: notificações já entregues ainda apontam para eles.
 const SUBTABS: Record<string, { tab: Tab; view: string }> = {
-  consultas: { tab: 'cuidados', view: 'consultas' },
-  agendados: { tab: 'cuidados', view: 'consultas' },
-  resultados: { tab: 'cuidados', view: 'exames' },
+  // Agenda: o que tem data (os avisos de consulta antigos apontam para "consultas").
+  consultas: { tab: 'agenda', view: 'proximos' },
+  agendados: { tab: 'agenda', view: 'proximos' },
+  proximos: { tab: 'agenda', view: 'proximos' },
+  tarefas: { tab: 'agenda', view: 'tarefas' },
+  // Cuidados: o que a equipe médica lê.
+  duvidas: { tab: 'cuidados', view: 'duvidas' },
   exames: { tab: 'cuidados', view: 'exames' },
+  resultados: { tab: 'cuidados', view: 'exames' },
   saude: { tab: 'cuidados', view: 'saude' },
   jornada: { tab: 'cuidados', view: 'jornada' },
   painel: { tab: 'cuidados', view: 'jornada' },

@@ -7,7 +7,7 @@ import { visibleTargetSql } from './social.js';
 const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
 
 export async function fetchAll(fid: string, userId: string) {
-  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams, social, photos] = await Promise.all([
+  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams, social, photos, checkins] = await Promise.all([
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
@@ -116,6 +116,12 @@ export async function fetchAll(fid: string, userId: string) {
        ORDER BY f.created_at`,
       [fid, userId],
     ).catch(() => null),
+    // Check-ins do dia (migração 014): os últimos 60 dias dos dois.
+    query(
+      `SELECT day::text AS day, mood, author_role, (user_id = $2) AS mine
+       FROM checkins WHERE family_id = $1 AND day >= CURRENT_DATE - 60 ORDER BY day DESC`,
+      [fid, userId],
+    ).catch(() => null),
   ]);
 
   const f = family[0] ?? {};
@@ -157,6 +163,8 @@ export async function fetchAll(fid: string, userId: string) {
     journal: (journal ?? []).map(e => ({ ...e, photos: (photos ?? []).filter(p => p.entry_id === e.id).map(p => ({ id: p.id, thumb: p.thumb })) })),
     journalAvailable: journal !== null,
     photosAvailable: photos !== null,
+    checkins: checkins ?? [],
+    checkinAvailable: checkins !== null,
     exams: exams ?? [],
     examsAvailable: exams !== null,
     listItems: social?.[0].items ?? [],

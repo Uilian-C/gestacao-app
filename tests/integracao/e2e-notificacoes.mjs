@@ -45,8 +45,8 @@ check(await p.getByRole('button', { name: 'Ativar neste aparelho' }).isVisible()
 await p.goto(`${BASE}/?aba=consultas`);
 await p.waitForTimeout(1200);
 check(await p.evaluate(() => location.search === ''), 'link da notificação some da barra de endereço');
-check(await p.getByRole('button', { name: /^Cuidados/ }).first().evaluate(el => el.getAttribute('aria-current') === 'page'), 'link antigo ?aba=consultas abre a aba Cuidados');
-check((await p.getByRole('button', { name: /^Agendados/ }).getAttribute('aria-pressed')) === 'true', 'na parte Agendados');
+check(await p.getByRole('button', { name: /^Agenda(\s|$)/ }).first().evaluate(el => el.getAttribute('aria-current') === 'page'), 'link antigo ?aba=consultas abre a Agenda');
+check((await p.getByRole('button', { name: /^Próximos/ }).getAttribute('aria-pressed')) === 'true', 'na parte Próximos');
 await p.screenshot({ path: `${OUT}push-link.png` });
 await b.close();
 finish();

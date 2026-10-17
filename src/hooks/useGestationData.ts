@@ -26,6 +26,9 @@ export interface GestationData {
   journalAvailable: boolean;
   /** A migração 012 (pastas e fotos do diário) já foi aplicada. */
   photosAvailable?: boolean;
+  /** Check-ins do dia dos dois, últimos 60 dias (migração 014). */
+  checkins?: Checkin[];
+  checkinAvailable?: boolean;
   /** Exames e ultrassons: os compartilhados e os particulares de quem está logado. */
   exams: ExamItem[];
   /** A migração 010 já foi aplicada. */
@@ -110,6 +113,15 @@ export interface JournalEntry {
   folder: Folder;
   /** Fotos do registro; `thumb` diz se há miniatura para as listas. */
   photos: EntryPhoto[];
+}
+
+export type Mood = 'otima' | 'bem' | 'cansada' | 'enjoada' | 'ansiosa';
+
+export interface Checkin {
+  day: string;
+  mood: Mood;
+  author_role: 'mae' | 'pai';
+  mine: boolean;
 }
 
 export type Folder = 'momento' | 'dia' | 'ideia' | 'carta' | 'barriga';

@@ -84,6 +84,7 @@ const tests = [
   ['api-social.mjs', false],
   ['api-fichario.mjs', false],
   ['api-agendamentos.mjs', false],
+  ['api-checkin.mjs', false],
   ['e2e-fluxo.mjs', true],
   ['e2e-momentos.mjs', false],
   ['e2e-registro-rapido.mjs', false],
@@ -97,6 +98,7 @@ const tests = [
   ['e2e-fichario.mjs', false],
   ['e2e-agendamentos.mjs', false],
   ['e2e-arquivo.mjs', false],
+  ['e2e-inicio.mjs', false],
 ];
 const only = process.argv.slice(2);
 

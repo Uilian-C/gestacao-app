@@ -68,7 +68,7 @@ export function planReminders(today: string, families: FamilyRow[], consultation
       payload: {
         title: `${KIND_LABEL[c.kind ?? 'consulta'] ?? 'Consulta'} ${when} às ${time}`,
         body: clip([c.kind && c.kind !== 'consulta' ? c.title : null, details].filter(Boolean).join(' · '), 140) || 'Toque para ver o endereço e as dúvidas para levar.',
-        url: '/?aba=consultas',
+        url: '/?aba=proximos',
         tag: `consulta-${c.id}`,
       },
     });
