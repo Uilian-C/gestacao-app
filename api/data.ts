@@ -27,6 +27,8 @@ const taskFields = {
   priority: z.enum(['Alta', 'Média', 'Baixa']),
   dueDate: isoDate.nullish().or(z.literal('')).transform(v => v || null),
   notes: optionalText(2000),
+  // Lembrete (migração 017): o dia em que o celular avisa quem cuida. Sem o campo (app antigo), fica como está.
+  remindOn: isoDate.nullish().or(z.literal('')).transform(v => (v === undefined ? undefined : v || null)),
 };
 const symptomFields = {
   name: text(100),
@@ -174,6 +176,15 @@ async function withAppointment(kind: string | undefined, write: () => Promise<Ar
   }
 }
 
+/** Dia do lembrete da tarefa (migração 017). Antes dela, o app nem mostra a opção. */
+async function setTaskReminder(id: string, remindOn: string | null) {
+  try {
+    await query('UPDATE partner_tasks SET remind_on = $1 WHERE id::text = $2', [remindOn, id]);
+  } catch (err) {
+    if ((err as { code?: string }).code !== '42703') throw err;
+  }
+}
+
 /** Quem vai ao agendamento (migração 016). Antes dela, o app nem mostra a pergunta. */
 async function setAttendees(id: string, attendees: string | null) {
   try {
@@ -231,17 +242,22 @@ async function apply(m: Member, o: Op) {
       if (updated.length === 0) await query('INSERT INTO birth_plan (family_id, data, updated_by) VALUES ($1, $2::jsonb, $3)', [fid, data, who]);
       return;
     }
-    case 'createTask':
-      return query(
+    case 'createTask': {
+      const rows = await query<{ id: string }>(
         `INSERT INTO partner_tasks (family_id, week_number, task_title, assigned_to, priority, due_date, notes, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id::text AS id`,
         [fid, o.week, o.title, o.assignee, o.priority, o.dueDate, o.notes, who],
       );
+      if (o.remindOn) await setTaskReminder(rows[0].id, o.remindOn);
+      return rows;
+    }
     case 'updateTask':
-      return updated(
+      await updated(
         `UPDATE partner_tasks SET task_title = $1, assigned_to = $2, priority = $3, due_date = $4, notes = $5 WHERE id::text = $6 AND family_id = $7`,
         [o.title, o.assignee, o.priority, o.dueDate, o.notes, o.id, fid],
       );
+      if (o.remindOn !== undefined) await setTaskReminder(o.id, o.remindOn);
+      return;
     case 'toggleTask':
       return query('UPDATE partner_tasks SET is_completed = $1 WHERE id::text = $2 AND family_id = $3', [o.done, o.id, fid]);
     case 'createSymptom':

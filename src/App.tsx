@@ -40,7 +40,7 @@ import { findPatterns, toEntries } from './lib/symptoms';
 import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, DiaryView, HealthView, PartnerTask, Tab } from './types';
 import { isConsultation, resultOf } from './lib/appointments';
 import { autoDone, visitsOf } from './lib/journey';
-import { AttendeesReady, PeopleContext } from './lib/people';
+import { AttendeesReady, PeopleContext, TaskRemindersReady } from './lib/people';
 import { markSeen } from './lib/news';
 
 const UNDO_WINDOW_MS = 5000;
@@ -61,6 +61,9 @@ const HEALTH_MODES: QuickMode[] = ['sintoma', 'medicao'];
 
 /** Gráficos de Cuidados → Saúde (o antigo Painel). */
 const HEALTH_CHART: Record<Exclude<HealthView, 'registros'>, DashboardView> = { sintomas: 'sintomas', corpo: 'corpo', resumo: 'geral' };
+
+/** O lembrete só vai quando o formulário pergunta (depois da migração 017); sem ele, o servidor mantém o que estava. */
+const reminderOf = (t: NewTask) => (t.remindOn === undefined ? {} : { remindOn: t.remindOn || null });
 
 const appointmentFields = (c: NewConsultation) => ({
   scheduledAt: c.scheduledAt,
@@ -241,7 +244,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   const createTask = (t: NewTask) =>
     run(() =>
-      api.mutate('createTask', { week: t.week ?? (t.dueDate ? weekOfDay(dumDate!, t.dueDate) : currentWeek), title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null }),
+      api.mutate('createTask', { week: t.week ?? (t.dueDate ? weekOfDay(dumDate!, t.dueDate) : currentWeek), title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null, ...reminderOf(t) }),
     );
 
   // Marcar e desmarcar aparece na hora; o servidor confirma em seguida.
@@ -375,7 +378,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const updateMetric = (id: string, { date, ...m }: NewMetric) => run(() => api.mutate('updateMetric', { id, week: weekOfDay(dumDate!, date), date, ...m }), 'Não foi possível salvar a medição.');
   const updateEntry = (id: string, e: NewEntry) => saveEntry(id, e);
   const updateTask = (id: string, t: NewTask) =>
-    run(() => api.mutate('updateTask', { id, title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null }));
+    run(() => api.mutate('updateTask', { id, title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null, ...reminderOf(t) }));
   const updateConsultation = (id: string, c: NewConsultation) =>
     run(() => api.mutate('updateConsultation', { id, ...appointmentFields(c) }), appointmentError(c));
   const deleteDetail = (d: Detail) => {
@@ -570,6 +573,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   return (
     <PeopleContext.Provider value={family.members}>
     <AttendeesReady.Provider value={data.attendeesAvailable ?? false}>
+    <TaskRemindersReady.Provider value={data.taskRemindersAvailable ?? false}>
     <div className="min-h-screen bg-canvas text-ink pb-32 md:pb-12">
       {header}
       {(activeTab === 'inicio' || activeTab === 'cuidados') && <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />}
@@ -782,21 +786,24 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         )}
         {activeTab === 'cuidados' && careView === 'saude' && !report && (
           <>
-            <Segmented
-              label="Parte da saúde"
-              size="sm"
-              value={healthView}
-              onChange={v => {
-                setHealthView(v);
-                window.scrollTo({ top: 0 });
-              }}
-              options={[
-                { value: 'registros', label: 'Registros' },
-                { value: 'sintomas', label: 'Sintomas' },
-                { value: 'corpo', label: 'Medidas' },
-                { value: 'resumo', label: 'Resumo' },
-              ]}
-            />
+            <div className="mb-4">
+              <Segmented
+                label="Parte da saúde"
+                full
+                size="sm"
+                value={healthView}
+                onChange={v => {
+                  setHealthView(v);
+                  window.scrollTo({ top: 0 });
+                }}
+                options={[
+                  { value: 'registros', label: 'Registros' },
+                  { value: 'sintomas', label: 'Sintomas' },
+                  { value: 'corpo', label: 'Medidas' },
+                  { value: 'resumo', label: 'Resumo' },
+                ]}
+              />
+            </div>
             {healthView === 'registros' ? (
               <HealthTab
                 symptoms={symptoms}
@@ -921,6 +928,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       <Toast toast={toast} onClose={() => setToast(null)} />
       {spaceSheet}
     </div>
+    </TaskRemindersReady.Provider>
     </AttendeesReady.Provider>
     </PeopleContext.Provider>
   );

@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { query } from './_lib/db.js';
 import { HttpError, endpoint, json } from './_lib/http.js';
 import { notify } from './_lib/push.js';
-import { TIME_ZONE, localDate, planReminders, type ConsultationRow, type EntryRow, type FamilyRow } from './_lib/reminders.js';
+import { TIME_ZONE, localDate, planReminders, type ConsultationRow, type EntryRow, type FamilyRow, type TaskRow } from './_lib/reminders.js';
 
 // Lembretes do dia. A Vercel chama este endereço toda manhã (ver "crons" no
 // vercel.json), com o CRON_SECRET no cabeçalho; ninguém mais consegue disparar.
@@ -25,7 +25,7 @@ export const GET = endpoint(async request => {
   const tomorrow = localDate(now, 1);
 
   // Só espaços com alguém que ativou as notificações.
-  const [families, consultations, entries] = await Promise.all([
+  const [families, consultations, entries, tasks] = await Promise.all([
     query<FamilyRow>(
       `SELECT f.id::text AS id, f.dum_date::text AS dum_date, f.blood_type,
               ARRAY(SELECT m.user_id FROM family_members m WHERE m.family_id = f.id) AS members,
@@ -47,9 +47,17 @@ export const GET = endpoint(async request => {
        FROM journal_entries e WHERE e.remind_on = $1::date`,
       [today],
     ),
+    // Tarefas abertas com lembrete hoje (migração 017), para quem cuida delas.
+    query<TaskRow>(
+      `SELECT t.id::text AS id, t.task_title AS title,
+              ARRAY(SELECT m.user_id FROM family_members m WHERE m.family_id = t.family_id
+                     AND (COALESCE(t.assigned_to, 'casal') = 'casal' OR m.role = t.assigned_to)) AS user_ids
+       FROM partner_tasks t WHERE t.remind_on = $1::date AND NOT t.is_completed`,
+      [today],
+    ).catch(() => [] as TaskRow[]),
   ]);
 
-  const notices = planReminders(today, families, consultations, entries);
+  const notices = planReminders(today, families, consultations, entries, tasks);
   let sent = 0;
   for (const n of notices) sent += await notify(n.userIds, n.kind, n.payload, n.key).catch(err => (console.error(err), 0));
   return json({ ok: true, today, notices: notices.length, sent });

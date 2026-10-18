@@ -28,17 +28,22 @@ export function SectionTitle({ icon, title, subtitle, action }: { icon?: ReactNo
   );
 }
 
-export function Segmented<T extends string>({ value, options, onChange, label, size = 'md' }: { value: T; options: Array<{ value: T; label: ReactNode }>; onChange: (v: T) => void; label: string; size?: 'sm' | 'md' }) {
-  const pad = size === 'sm' ? 'px-3.5 py-1.5 text-xs' : 'px-4 py-2 text-sm';
+export function Segmented<T extends string>({ value, options, onChange, label, size = 'md', full = false }: { value: T; options: Array<{ value: T; label: ReactNode }>; onChange: (v: T) => void; label: string; size?: 'sm' | 'md'; full?: boolean }) {
+  const pad = `${full ? 'px-1' : size === 'sm' ? 'px-3.5' : 'px-4'} ${size === 'sm' ? 'py-1.5 text-xs' : 'py-2 text-sm'}`;
   return (
-    <div className="inline-flex flex-wrap bg-surface-2 p-1 rounded-full gap-0.5" role="group" aria-label={label}>
+    <div
+      className={`bg-surface-2 p-1 rounded-full gap-0.5 ${full ? 'grid w-full' : 'inline-flex flex-wrap'}`}
+      style={full ? { gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` } : undefined}
+      role="group"
+      aria-label={label}
+    >
       {options.map(o => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
-          className={`${pad} rounded-full font-medium transition ${value === o.value ? 'bg-surface text-ink shadow-soft' : 'text-ink-mute hover:text-ink'}`}
+          className={`${pad} rounded-full font-medium whitespace-nowrap transition ${value === o.value ? 'bg-surface text-ink shadow-soft' : 'text-ink-mute hover:text-ink'}`}
         >
           {o.label}
         </button>
@@ -52,25 +57,35 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
  * embaixo da parte ativa. Bem diferente das abas de baixo (pílulas) e dos botões,
  * para não confundir os níveis. Todas cabem na largura da tela, sem cortar.
  */
+/**
+ * Partes de uma aba (ex.: Saúde · Resultados · Dúvidas · Jornada). Cada parte
+ * ocupa o espaço do próprio nome (as curtas não ficam largas nem as longas
+ * apertadas) e o sublinhado acompanha o nome. Em tela muito estreita, a
+ * fileira desliza para o lado em vez de espremer os nomes.
+ */
 export function SubTabs<T extends string>({ value, options, onChange, label }: { value: T; options: Array<{ value: T; label: string; badge?: number }>; onChange: (v: T) => void; label: string }) {
   return (
-    <div className="no-print mb-4 grid border-b border-line" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }} role="group" aria-label={label}>
-      {options.map(o => {
-        const on = value === o.value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => onChange(o.value)}
-            aria-pressed={on}
-            className={`relative flex items-center justify-center gap-1.5 px-0.5 pt-2 pb-2.5 leading-tight transition ${options.length > 3 ? 'text-[13px] sm:text-[14px]' : 'text-[14px]'} ${on ? 'text-brand-strong font-extrabold' : 'text-ink-mute font-semibold hover:text-ink'}`}
-          >
-            <span className="truncate">{o.label}</span>
-            {!!o.badge && <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-warm text-on-accent text-[11px] font-bold flex items-center justify-center tabular">{o.badge}</span>}
-            <span className={`absolute left-2 right-2 -bottom-px h-[3px] rounded-full transition ${on ? 'bg-brand' : 'bg-transparent'}`} aria-hidden />
-          </button>
-        );
-      })}
+    <div className="no-print -mx-4 px-1.5 md:mx-0 md:px-0 mb-4 border-b border-line overflow-x-auto no-scrollbar" role="group" aria-label={label}>
+      <div className="flex min-w-max sm:min-w-0">
+        {options.map(o => {
+          const on = value === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => onChange(o.value)}
+              aria-pressed={on}
+              className={`flex-1 flex justify-center px-2 pt-2 pb-2.5 ${options.length > 3 ? 'text-[13.5px]' : 'text-[14px]'} leading-tight whitespace-nowrap transition ${on ? 'text-brand-strong font-extrabold' : 'text-ink-mute font-semibold hover:text-ink'}`}
+            >
+              <span className="relative inline-flex items-center">
+                {o.label}
+                {!!o.badge && <span className="ml-1 min-w-[16px] h-4 px-1 rounded-full bg-warm text-on-accent text-[10px] font-bold flex items-center justify-center tabular">{o.badge}</span>}
+                <span className={`absolute -left-1 -right-1 -bottom-[11px] h-[3px] rounded-full transition ${on ? 'bg-brand' : 'bg-transparent'}`} aria-hidden />
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
