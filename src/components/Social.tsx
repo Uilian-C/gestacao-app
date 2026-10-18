@@ -23,7 +23,8 @@ export type OnReact = (targetType: SocialTarget, targetId: string, kind: Reactio
 export function ReactionBar({ targetType, targetId, reactions, kinds = ['abraco', 'forca', 'aqui'], onReact }: { targetType: SocialTarget; targetId: string; reactions: Reaction[]; kinds?: ReactionKind[]; onReact: OnReact }) {
   const mine = reactions.filter(r => r.target_type === targetType && r.target_id === targetId);
   return (
-    <div className="flex flex-wrap gap-2" role="group" aria-label="Reações">
+    // Numa linha só (desliza se a tela for estreita): os botões não quebram em duas linhas.
+    <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" role="group" aria-label="Reações">
       {kinds.map(kind => {
         const all = mine.filter(r => r.kind === kind);
         const on = all.some(r => r.mine);
@@ -36,7 +37,7 @@ export function ReactionBar({ targetType, targetId, reactions, kinds = ['abraco'
             onClick={() => onReact(targetType, targetId, kind, !on)}
             aria-pressed={on}
             title={others.length ? `Também: ${others.join(', ')}` : undefined}
-            className={`inline-flex items-center gap-1.5 min-h-10 rounded-full px-3.5 text-sm font-bold transition active:scale-95 ${on ? 'bg-rosa text-white shadow-soft' : 'bg-rosa-soft text-rosa-strong hover:brightness-[0.97]'}`}
+            className={`shrink-0 inline-flex items-center gap-1.5 min-h-10 rounded-full px-3 text-[13.5px] font-bold whitespace-nowrap transition active:scale-95 ${on ? 'bg-rosa text-white shadow-soft' : 'bg-rosa-soft text-rosa-strong hover:brightness-[0.97]'}`}
           >
             <Icon className={`w-4 h-4 ${on && kind === 'abraco' ? 'fill-white' : ''}`} />
             {label}

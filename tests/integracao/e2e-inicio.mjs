@@ -49,9 +49,11 @@ check((await mae.locator('section[aria-labelledby="hoje-titulo"]').getByText('Ul
 const week = mae.locator('section[aria-labelledby="semana-titulo"]');
 check(await week.getByText('Vacina dTpa').isVisible() && (await week.getByText(/Obstetra/).count()) === 0, 'próximos 7 dias: a vacina, e não a consulta daqui a 20 dias');
 
-const news = mae.getByRole('region', { name: 'Novidades no Mural' });
-check(await news.getByText('Caio postou 1 registro').isVisible(), 'novidades: o que o Caio postou');
-check(await news.getByText('marcou você').isVisible(), 'e que ele marcou a Ana');
+const juntos = mae.locator('section[aria-labelledby="checkin-titulo"]');
+const postCaio = juntos.getByRole('button', { name: /^Momento de Caio: abrir/ });
+check(await postCaio.isVisible() && (await postCaio.getByText(/Senti você mexer/).isVisible()), '"Vocês dois hoje" traz o post do Caio no Mural');
+check(await postCaio.getByText('marcou você').isVisible(), 'e mostra que ele marcou a Ana');
+check(await juntos.getByRole('button', { name: 'Ver o mural' }).isVisible(), 'com o atalho "Ver o mural"');
 
 const tasks = mae.locator('section[aria-labelledby="tarefas-casal"]');
 check(await tasks.getByText(/Caio · 1/).isVisible() && (await tasks.getByText(/Ana · 1/).isVisible()) && (await tasks.getByText(/Os dois · 1/).isVisible()), 'tarefas: quantas faltam para cada um');
@@ -67,8 +69,8 @@ check(await mae.getByText('Para o pai', { exact: true }).isVisible() && (await m
 const card = mae.locator('section[aria-labelledby="checkin-titulo"]');
 check(await card.getByRole('heading', { name: 'Vocês dois hoje' }).isVisible() && (await card.getByText('Ainda não contou').isVisible()), 'com o parceiro: os dois lado a lado (Caio ainda não respondeu)');
 await card.getByRole('button', { name: 'Cansada' }).click();
-await card.getByRole('status').getByText('Registrado.').waitFor({ timeout: 10000 });
-check(await card.getByText('Caio vai ver.').isVisible() && (await card.getByRole('button', { name: 'Cansada' }).count()) === 0, 'depois do toque: "Registrado. Caio vai ver." e as opções fecham');
+await card.getByRole('status').getByText('Registrado. Caio vai ver.').waitFor({ timeout: 10000 });
+check((await card.getByRole('button', { name: 'Cansada' }).count()) === 0, 'depois do toque: "Registrado. Caio vai ver." e as opções fecham');
 check(await card.getByText('Cansada', { exact: true }).isVisible(), 'o humor dela aparece no lado dela');
 const share = card.getByRole('form', { name: 'Contar no Mural' });
 check(await share.getByText('Quer contar no Mural para Caio?').isVisible(), 'depois do humor: pergunta se quer contar no Mural');
@@ -103,14 +105,17 @@ check(await card.getByText('Ótimo', { exact: true }).isVisible(), 'mãe recebe 
 check(await mae.getByText(/Caio já passou por aqui hoje/).isVisible(), 'mãe vê que o Caio passou por aqui hoje');
 
 // ---- Diário → Humor: a linha do humor, semana a semana (não é calendário) ----
-await card.getByRole('button', { name: 'Ver o histórico' }).click();
+await card.getByText('Registrado. Caio vai ver.').waitFor({ state: 'hidden', timeout: 10000 });
+check(true, 'a confirmação some sozinha (não fica parada no cartão)');
+await card.getByRole('button', { name: /ver o histórico/ }).click();
 const linha = mae.getByRole('region', { name: 'Linha do humor' });
 await linha.waitFor({ timeout: 10000 });
 const semana = linha.getByRole('button', { name: /^Semana \d+ \(esta semana\)/ });
 check((await semana.getAttribute('aria-expanded')) === 'true', '"Ver o histórico" abre o Diário → Humor, com esta semana aberta');
 const dias = linha.getByRole('list', { name: 'Dias da semana' });
 check(await dias.getByText('Ana: Cansada').isVisible() && (await dias.getByText('Caio: Ótimo').isVisible()), 'o dia de hoje mostra como cada um estava');
-check(await dias.getByText(/Dia a dia:.*Hoje estou cansada/).isVisible(), 'e o que guardaram no diário nesse dia');
+check(await dias.getByText('“Dormi pouco essa noite.”').isVisible(), 'e o recado que veio com o humor');
+check((await dias.getByText(/Senti você mexer/).count()) === 0, 'outros posts do diário não entram no Humor');
 const resumo = mae.getByRole('region', { name: 'Resumo das últimas 4 semanas' });
 check(await resumo.getByText('Cansada: 1').isVisible() && (await resumo.getByText('Ótimo: 1').isVisible()), 'resumo das últimas 4 semanas por pessoa');
 check((await mae.getByRole('grid').count()) === 0, 'o Diário não tem calendário (o calendário é o da Agenda)');
@@ -126,10 +131,10 @@ check(true, 'o calendário da Agenda mostra o humor dos dois no dia');
 check(await mae.getByLabel('Humor do dia').getByText(/Ana, cansada/).isVisible(), 'e o detalhe do dia diz como vocês estavam');
 await mae.screenshot({ path: `${OUT}agenda-humor.png`, fullPage: true });
 
-// Abrir o Diário conta como ver as novidades: voltando ao Início, aparece só o último registro dele.
-await mae.getByRole('button', { name: /^Diário/ }).first().click();
+// O post do humor da Ana também aparece no "Vocês dois hoje"; "Ver o mural" leva ao Mural.
 await mae.getByRole('button', { name: /^Início/ }).first().click();
-await mae.getByText(/Do diário · Caio/).waitFor({ timeout: 10000 });
-check((await mae.getByRole('region', { name: 'Novidades no Mural' }).count()) === 0, 'depois de abrir o Diário, as novidades saem do Início');
+check(await juntos.getByRole('button', { name: /^Dia a dia de Ana: abrir/ }).isVisible(), 'o post do humor aparece no "Vocês dois hoje"');
+await juntos.getByRole('button', { name: 'Ver o mural' }).click();
+check(await mae.getByRole('button', { name: /O que vocês querem guardar hoje/ }).isVisible(), '"Ver o mural" abre o Mural');
 await b.close();
 finish();

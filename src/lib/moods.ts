@@ -23,6 +23,14 @@ export const MOOD_COLOR: Record<Mood, { text: string; bg: string }> = {
   ansiosa: { text: 'text-lilas', bg: 'bg-lilas' },
 };
 
+const MOOD_POST = /^Hoje estou (ótima|ótimo|bem|cansada|cansado|enjoada|enjoado|ansiosa|ansioso)\.\s*/i;
+
+/** O post do Mural feito pelo "Quer contar no Mural?" do check-in. */
+export const isMoodPost = (body: string) => MOOD_POST.test(body);
+
+/** O recado que veio junto com o humor ("Dormi pouco"), sem o "Hoje estou…". */
+export const moodNote = (body: string) => body.replace(MOOD_POST, '').trim();
+
 /** Humores que pedem atenção (não "ótima" nem "bem"). */
 export const HARD_MOODS: Mood[] = ['cansada', 'enjoada', 'ansiosa'];
 

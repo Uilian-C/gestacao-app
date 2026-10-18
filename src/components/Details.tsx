@@ -9,12 +9,13 @@ import { INTENSITY } from '../lib/intensity';
 import { normalizeSymptomName, timeOfDayLabel } from '../lib/symptoms';
 import type { Detail } from '../lib/details';
 import type { Author, Consultation, PartnerComment, PartnerTask, SymptomItem } from '../types';
-import { photoUrl } from '../api';
+import { photoUrl, type FamilyMember } from '../api';
 import { FOLDER, TONE, weekOn } from '../lib/folders';
 import AuthorBadge from './AuthorBadge';
 import { MentionText } from './Mentions';
 import { WhoAvatars } from './WhoPicker';
-import { PeopleContext, whoName } from '../lib/people';
+import { PeopleContext, authorOf, firstName, whoName } from '../lib/people';
+import Avatar from './Avatar';
 import { reminderTime, timeLabel } from '../lib/reminders';
 import PhotoViewer from './PhotoViewer';
 import { EntryForm, type NewEntry } from './forms/EntryForm';
@@ -95,6 +96,12 @@ function Actions({ onEdit, onDelete, children }: { onEdit?: () => void; onDelete
       )}
     </div>
   );
+}
+
+/** Nome de quem escreveu (pelo espaço); sem a pessoa, "Mãe" ou "Pai". */
+function nameOfAuthor(people: FamilyMember[], mine: boolean, role: Author) {
+  const who = authorOf(people, mine, role);
+  return who ? firstName(who.name) : role === 'mae' ? 'Mãe' : 'Pai';
 }
 
 export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & { detail: Detail; onClose: () => void }) {
@@ -178,7 +185,7 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
       <Sheet
         icon={<f.Icon />}
         title={editing ? `Editar: ${f.singular.toLowerCase()}` : e.folder === 'barriga' ? `Barriguinha · semana ${week}` : letter ? 'Carta para o bebê' : f.singular}
-        subtitle={editing ? null : <span className="flex flex-wrap items-center gap-2">{formatBR(e.entry_date)} · semana {week} <AuthorBadge role={e.author_role} /></span>}
+        subtitle={editing ? null : <span className="flex flex-wrap items-center gap-1.5"><Avatar member={authorOf(people, e.mine, e.author_role)} role={e.author_role} className="w-5 h-5 text-[9px]" /> <strong className="font-bold text-ink-soft">{nameOfAuthor(people, e.mine, e.author_role)}</strong> · {formatBR(e.entry_date)} · semana {week}</span>}
         onClose={editing ? () => setEditing(false) : onClose}
       >
         {editing ? (
@@ -189,7 +196,8 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
               <div className={`grid gap-2 mb-4 ${e.photos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                 {e.photos.map((p, i) => (
                   <button key={p.id} type="button" onClick={() => setPhoto(i)} aria-label={`Ver foto ${i + 1} em tela cheia`} className="block overflow-hidden rounded-2xl bg-surface-2">
-                    <img src={photoUrl(p.id, p.thumb)} alt="" className={`w-full object-cover ${e.photos.length === 1 ? 'max-h-[50vh]' : 'aspect-square'}`} />
+                    {/* Uma foto: inteira e nítida (a foto mesmo, não a miniatura). Várias: quadradinhos. */}
+                    <img src={e.photos.length === 1 ? photoUrl(p.id) : photoUrl(p.id, p.thumb)} alt="" decoding="async" className={`w-full ${e.photos.length === 1 ? 'h-auto max-h-[55vh] object-contain' : 'aspect-square object-cover'}`} />
                   </button>
                 ))}
               </div>

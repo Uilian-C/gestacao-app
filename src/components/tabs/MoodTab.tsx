@@ -3,8 +3,7 @@ import { ChevronDown, HeartHandshake, TrendingUp } from 'lucide-react';
 import type { Checkin, JournalEntry } from '../../hooks/useGestationData';
 import { gestationalWeekDays, gestationalWeekOf } from '../../lib/calendar';
 import { parseLocalDate, toISODate } from '../../lib/dates';
-import { FOLDER } from '../../lib/folders';
-import { MOOD_COLOR, MOODS, moodCounts, moodLabel, moodOf, moodTrends, needsCare } from '../../lib/moods';
+import { MOOD_COLOR, MOODS, isMoodPost, moodCounts, moodLabel, moodNote, moodOf, moodTrends, needsCare } from '../../lib/moods';
 import { PeopleContext, firstName, memberWithRole } from '../../lib/people';
 import type { Author } from '../../types';
 import Avatar from '../Avatar';
@@ -174,7 +173,7 @@ export default function MoodTab({ checkins, journal, dumDate, onOpenEntry }: { c
   );
 }
 
-/** Os dias de uma semana aberta: o humor de cada um e o que foi para o diário. */
+/** Os dias de uma semana aberta: o humor de cada um e o recado que veio junto. */
 function WeekDays({ days, today, roles, nameOf, moodAt, journal, onOpenEntry }: {
   days: string[];
   today: string;
@@ -190,7 +189,8 @@ function WeekDays({ days, today, roles, nameOf, moodAt, journal, onOpenEntry }: 
         .filter(d => d <= today)
         .reverse()
         .map(d => {
-          const entries = journal.filter(e => e.entry_date.slice(0, 10) === d);
+          // Só o que é do humor: o recado que veio junto com o check-in.
+          const notes = journal.filter(e => e.entry_date.slice(0, 10) === d && isMoodPost(e.body) && moodNote(e.body));
           const any = roles.some(r => moodAt(d, r));
           return (
             <li key={d} className="rounded-xl bg-surface px-3 py-2 space-y-1">
@@ -210,9 +210,9 @@ function WeekDays({ days, today, roles, nameOf, moodAt, journal, onOpenEntry }: 
               ) : (
                 <p className="text-sm text-ink-mute">Ninguém marcou.</p>
               )}
-              {entries.map(e => (
-                <button key={e.id} type="button" onClick={() => onOpenEntry(e.id)} className="block w-full text-left text-[13px] text-ink-soft line-clamp-1">
-                  <strong>{FOLDER[e.folder].singular}:</strong> {e.body || 'foto'}
+              {notes.map(e => (
+                <button key={e.id} type="button" onClick={() => onOpenEntry(e.id)} className="block w-full text-left text-[13px] italic text-ink-soft line-clamp-2">
+                  <strong className="not-italic">{nameOf(e.author_role)}:</strong> “{moodNote(e.body)}”
                 </button>
               ))}
             </li>
