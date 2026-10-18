@@ -1,9 +1,13 @@
-import { useRef, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
 import { AlertTriangle, Bell, FileCheck2, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, Heart, ListPlus, NotebookPen, Stethoscope } from 'lucide-react';
 import { buildCalendar, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, monthGrid, toIcs, type CalendarEvent, type CalendarMoment, type CalendarResult, type DayRecords } from '../../lib/calendar';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, toISODate } from '../../lib/dates';
 import type { Consultation, HealthMetric, PartnerTask, SymptomItem, Tab } from '../../types';
 import AuthorBadge from '../AuthorBadge';
+import MoodFace from '../MoodFace';
+import type { Checkin } from '../../hooks/useGestationData';
+import { MOOD_COLOR, moodLabel, moodOf } from '../../lib/moods';
+import { PeopleContext, firstName, memberWithRole } from '../../lib/people';
 import IntensityDots from '../IntensityDots';
 import { Button, Card, Pill, Segmented } from '../ui';
 import type { DetailTarget } from '../../lib/details';
@@ -29,6 +33,8 @@ interface Props {
   onOpen: OpenTarget;
   /** Resultados guardados (exames e ultrassons), que entram no dia em que foram feitos. */
   results: CalendarResult[];
+  /** Humor de cada um (check-in do dia): bolinhas no rodapé do dia e linha no detalhe. */
+  checkins: Checkin[];
 }
 
 /** O que um evento abre: os detalhes (agendamento, tarefa, momento) ou o resultado guardado. */
@@ -115,9 +121,9 @@ export default function CalendarTab(props: Props) {
       <div className="space-y-5">
         <Card className="!p-3 md:!p-4">
           {view === 'mes' ? (
-            <MonthView year={cursor.year} month={cursor.month} dumDate={props.dumDate} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} />
+            <MonthView year={cursor.year} month={cursor.month} dumDate={props.dumDate} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} checkins={props.checkins} />
           ) : (
-            <WeekView days={weekDays} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} onOpen={props.onOpen} />
+            <WeekView days={weekDays} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} checkins={props.checkins} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} onOpen={props.onOpen} />
           )}
         </Card>
 
@@ -129,6 +135,7 @@ export default function CalendarTab(props: Props) {
           todayIso={todayIso}
           events={cal.events.get(selected) ?? []}
           records={cal.records.get(selected)}
+          checkins={props.checkins.filter(c => c.day === selected)}
           consultations={props.consultations}
           tasks={props.tasks}
           busy={props.busy}
@@ -177,6 +184,13 @@ function Legend() {
         <span className="w-3 h-3 rounded-full border-2" style={{ borderColor: 'var(--c-int-3)' }} />
         Dia com registro de saúde
       </span>
+      <span className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
+        <span className="inline-flex gap-0.5" aria-hidden>
+          <span className="w-2 h-1 rounded-full bg-ok" />
+          <span className="w-2 h-1 rounded-full bg-warn" />
+        </span>
+        Humor de cada um (no pé do dia)
+      </span>
     </div>
   );
 }
@@ -190,8 +204,33 @@ function dotClass(e: CalendarEvent) {
   return e.done ? 'bg-line' : 'bg-ink-mute';
 }
 
-function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events, records }: { year: number; month: number; dumDate: string; todayIso: string; selected: string; onSelect: (d: string) => void; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords> }) {
+/** Humor do dia em bolinhas (mãe à esquerda, pai à direita), discretas para não disputar com os compromissos. */
+function MoodDots({ list }: { list: Checkin[] }) {
+  if (list.length === 0) return null;
+  return (
+    <span className="mt-auto flex justify-center gap-0.5" aria-hidden>
+      {(['mae', 'pai'] as const).map(r => {
+        const c = list.find(x => x.author_role === r);
+        return c ? <span key={r} className={`w-2.5 md:w-3 h-1.5 rounded-full ${MOOD_COLOR[c.mood].bg}`} /> : null;
+      })}
+    </span>
+  );
+}
+
+const moodsText = (list: Checkin[], nameOf: (r: 'mae' | 'pai') => string) =>
+  list.length ? `, humor: ${list.map(c => `${nameOf(c.author_role)} ${moodLabel(c.mood, c.author_role).toLowerCase()}`).join(', ')}` : '';
+
+function useNameOf() {
+  const people = useContext(PeopleContext);
+  return (r: 'mae' | 'pai') => {
+    const m = memberWithRole(people, r);
+    return m ? firstName(m.name) : r === 'mae' ? 'Mãe' : 'Pai';
+  };
+}
+
+function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events, records, checkins }: { year: number; month: number; dumDate: string; todayIso: string; selected: string; onSelect: (d: string) => void; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; checkins: Checkin[] }) {
   const weeks = monthGrid(year, month);
+  const nameOf = useNameOf();
   return (
     <div role="grid" aria-label="Calendário do mês">
       <div className="grid grid-cols-[28px_repeat(7,minmax(0,1fr))] md:grid-cols-[36px_repeat(7,minmax(0,1fr))] gap-1 mb-1" role="row">
@@ -211,12 +250,13 @@ function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events,
               const isToday = iso === todayIso;
               const isSelected = iso === selected;
               const major = list.find(e => e.kind === 'marco' && e.major);
+              const moods = checkins.filter(c => c.day === iso);
               return (
                 <button
                   key={iso}
                   role="gridcell"
                   aria-selected={isSelected}
-                  aria-label={`${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}${list.length ? `, ${list.length} ${list.length === 1 ? 'evento' : 'eventos'}` : ''}${rec ? ', com registro de saúde' : ''}`}
+                  aria-label={`${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}${list.length ? `, ${list.length} ${list.length === 1 ? 'evento' : 'eventos'}` : ''}${rec ? ', com registro de saúde' : ''}${moodsText(moods, nameOf)}`}
                   onClick={() => onSelect(iso)}
                   className={`relative min-w-0 min-h-14 md:min-h-24 rounded-xl p-0.5 md:p-1.5 text-left flex flex-col gap-1 transition border ${isSelected ? 'border-brand bg-brand-soft/60' : 'border-transparent hover:bg-surface-2'} ${inMonth ? '' : 'opacity-45'}`}
                 >
@@ -244,6 +284,7 @@ function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events,
                     ))}
                     {list.filter(e => e !== major).length > 2 && <span className="text-[10px] text-ink-mute">+{list.filter(e => e !== major).length - 2}</span>}
                   </span>
+                  <MoodDots list={moods} />
                 </button>
               );
             })}
@@ -254,7 +295,7 @@ function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events,
   );
 }
 
-function WeekView({ days, todayIso, selected, onSelect, events, records, onToggleTask, onOpen }: { days: Date[]; todayIso: string; selected: string; onSelect: (d: string) => void; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; onToggleTask: (id: string) => void; onOpen: OpenTarget }) {
+function WeekView({ days, todayIso, selected, onSelect, events, records, checkins, onToggleTask, onOpen }: { days: Date[]; todayIso: string; selected: string; onSelect: (d: string) => void; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; checkins: Checkin[]; onToggleTask: (id: string) => void; onOpen: OpenTarget }) {
   return (
     <ol className="divide-y divide-line">
       {days.map(d => {
@@ -279,6 +320,7 @@ function WeekView({ days, todayIso, selected, onSelect, events, records, onToggl
                 {list.length === 0 && !rec && <p className="text-sm text-ink-mute">Nada marcado</p>}
                 {list.map(e => <EventLine key={e.id} event={e} onToggleTask={onToggleTask} onOpen={onOpen} />)}
                 {rec && <RecordLine records={rec} />}
+                <DayMoods list={checkins.filter(c => c.day === iso)} compact />
               </div>
             </div>
           </li>
@@ -353,12 +395,31 @@ function RecordLine({ records }: { records: DayRecords }) {
   );
 }
 
+/** "Como vocês estavam": o humor de cada um no dia. */
+function DayMoods({ list, compact = false }: { list: Checkin[]; compact?: boolean }) {
+  const nameOf = useNameOf();
+  if (list.length === 0) return null;
+  return (
+    <p className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${compact ? 'text-xs text-ink-soft' : 'text-sm text-ink'}`} aria-label="Humor do dia">
+      {!compact && <span className="font-semibold text-ink-soft">Como vocês estavam:</span>}
+      {list.map(c => (
+        <span key={c.author_role} className="inline-flex items-center gap-1">
+          <MoodFace path={moodOf(c.mood).face} className={`w-4 h-4 ${MOOD_COLOR[c.mood].text}`} />
+          {nameOf(c.author_role)}, {moodLabel(c.mood, c.author_role).toLowerCase()}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 function DayPanel(props: {
   day: string;
   dumDate: string;
   todayIso: string;
   events: CalendarEvent[];
   records: DayRecords | undefined;
+  /** Humor de cada um nesse dia. */
+  checkins: Checkin[];
   consultations: Consultation[];
   tasks: PartnerTask[];
   busy: boolean;
@@ -384,7 +445,8 @@ function DayPanel(props: {
         {gw >= 0 && gw <= 42 && <Pill tone="warm">semana {gw} da gestação</Pill>}
       </div>
 
-      {props.events.length === 0 && !props.records && <p className="text-sm text-ink-mute">Nada marcado neste dia.</p>}
+      {props.events.length === 0 && !props.records && props.checkins.length === 0 && <p className="text-sm text-ink-mute">Nada marcado neste dia.</p>}
+      <DayMoods list={props.checkins} />
 
       {props.events.length > 0 && (
         <ul className="space-y-3">

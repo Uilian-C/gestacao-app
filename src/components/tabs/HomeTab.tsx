@@ -24,7 +24,7 @@ import { lastSeen, partnerNews } from '../../lib/news';
 import { PeopleContext } from '../../lib/people';
 
 /** Para onde o Início leva (abas e partes delas). */
-export type HomeTarget = 'diario' | 'mural' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
+export type HomeTarget = 'diario' | 'mural' | 'humor' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
 
 interface Props {
   age: GestationalAge;
@@ -228,7 +228,7 @@ export default function HomeTab(props: Props) {
         {age.isPostTerm && <p className="mt-3 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
       </section>
 
-      {props.checkinAvailable && <CheckIn role={props.role} checkins={props.checkins} hugs={props.hugs} onCheckin={props.onCheckin} onHug={props.onHug} onShare={props.onShareMood} />}
+      {props.checkinAvailable && <CheckIn role={props.role} checkins={props.checkins} hugs={props.hugs} onCheckin={props.onCheckin} onHug={props.onHug} onShare={props.onShareMood} onMonth={() => onOpen('humor')} />}
 
       <NextAppointment consultations={props.consultations} onOpen={c => props.onOpenDetail({ kind: 'consultation', id: c.id })} onSchedule={() => onOpen('agenda')} />
 

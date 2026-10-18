@@ -523,8 +523,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     run(() => api.mutate('createEntry', { date: today, body, visibility: 'shared', remindOn: null, folder: 'dia' }), 'Não foi possível postar no Mural.');
   const openFromHome = (target: HomeTarget, planItem?: string) => {
     if (target === 'diario') return navigate('diario');
-    if (target === 'mural') {
-      setDiaryView('mural');
+    if (target === 'mural' || target === 'humor') {
+      setDiaryView(target);
       return navigate('diario');
     }
     if (target === 'saude') {
@@ -658,6 +658,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             threads={threads}
             members={family.members}
             role={author}
+            checkins={data.checkins ?? []}
             socialAvailable={socialAvailable}
             onReact={react}
             onComment={(id, body) => sendThread('entry', id, body)}
@@ -705,6 +706,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 metrics={metrics}
                 journal={journal}
                 results={exams}
+                checkins={data.checkins ?? []}
                 busy={busy}
                 migrationPending={data.migrationPending}
                 onCreateConsultation={createConsultation}
@@ -865,7 +867,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {recordModes.length > 0 && (
         <button
           type="button"
-          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' || diaryView === 'mural' ? 'momento' : diaryView) : (setEntryStart({ folder: 'momento' }), setRecording(recordModes)))}
+          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' || diaryView === 'mural' || diaryView === 'humor' ? 'momento' : diaryView) : (setEntryStart({ folder: 'momento' }), setRecording(recordModes)))}
           className="tt-registrar no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-8 h-11 pl-3 pr-4 rounded-full text-white text-[14px] font-extrabold flex items-center gap-1.5 transition active:scale-95 hover:brightness-110"
         >
           <Plus className="w-[18px] h-[18px]" strokeWidth={3} />
