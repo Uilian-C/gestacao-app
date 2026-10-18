@@ -367,6 +367,13 @@
   .tt-luz { opacity: 0; }
 }
 
+/* Confirmação que "salta" (check-in registrado). */
+@keyframes tt-pop {
+  0% { transform: scale(0.4); }
+  60% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
 /* ---- Anel da semana no Início: ondas saindo no ritmo do tum-tum ---- */
 .tt-onda {
   animation: tt-onda 1.5s ease-out infinite;

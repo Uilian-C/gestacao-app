@@ -82,4 +82,12 @@ check((await appt('avo')).status === 400, 'quem vai só aceita mãe, pai ou os d
 const old = await A.call('/api/data', { op: 'createConsultation', scheduledAt: at, specialty: 'obstetra', professional: null, location: null });
 check(old.status === 200 && (await A.call('/api/data')).data.consultations.some(c => c.attendees === null), 'app antigo (sem "quem vai") continua agendando');
 
+// ---- Abraço do "Vocês dois hoje" ----
+got = await novos('ma', () => B.call('/api/data', { op: 'hug', day: today }));
+check(got.length === 1 && got[0] === 'Bruno mandou um abraço', 'abraço chega como aviso: "Bruno mandou um abraço"');
+got = await novos('ma', () => B.call('/api/data', { op: 'hug', day: today }));
+check(got.length === 0, 'um abraço por dia: o segundo não avisa de novo');
+check((await A.call('/api/data')).data.hugs.some(h => h.day === today && h.toMe), 'Ana vê no Início que recebeu um abraço hoje');
+check((await B.call('/api/data')).data.hugs.some(h => h.day === today && !h.toMe), 'Bruno vê que já mandou');
+
 finish();

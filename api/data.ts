@@ -116,6 +116,8 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('deleteComment'), id: uuid }),
   // Check-in do dia (migração 014): o humor de cada um; null apaga.
   z.object({ op: z.literal('checkin'), day: isoDate, mood: z.enum(['otima', 'bem', 'cansada', 'enjoada', 'ansiosa']).nullable() }),
+  // Abraço para a outra pessoa (do cartão "Vocês dois hoje"): um por dia.
+  z.object({ op: z.literal('hug'), day: isoDate }),
   z.object({ op: z.literal('delete'), kind: z.enum(['task', 'symptom', 'question', 'comment', 'metric', 'consultation', 'kick', 'contraction']), id }),
 ]);
 
@@ -392,6 +394,14 @@ async function apply(m: Member, o: Op) {
          RETURNING (xmax = 0) AS inserted`,
         [fid, m.userId, who, o.day, o.mood],
       ).catch(checkinMissing);
+    case 'hug':
+      // Fica no registro de avisos de quem recebe ("abraco:dia:quem mandou"): o Início mostra, e não repete no mesmo dia.
+      return query(
+        `INSERT INTO notification_log (user_id, key)
+         SELECT user_id, $3 FROM family_members WHERE family_id = $1 AND user_id <> $2
+         ON CONFLICT DO NOTHING RETURNING user_id`,
+        [fid, m.userId, `abraco:${o.day}:${m.userId}`],
+      );
     case 'setCheck':
       if (!o.done) return query('DELETE FROM checklist WHERE family_id = $1 AND list = $2 AND item_id = $3', [fid, o.list, o.itemId]);
       return query(
@@ -435,6 +445,8 @@ function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } 
       return { action: 'criou uma tarefa', body: o.title.length > 80 ? `${o.title.slice(0, 79)}…` : o.title, url: '/?aba=agenda', tag: 'parceiro-tarefa' };
     case 'createEntry':
       return o.visibility === 'shared' ? { action: ENTRY_TEXT[o.folder ?? 'momento'], body: 'Toque para ver no diário.', url: '/?aba=diario', tag: 'parceiro-momento' } : null;
+    case 'hug':
+      return { action: 'mandou um abraço', body: 'Toque para ver como vocês estão hoje.', url: '/', tag: 'abraco' };
     case 'checkin':
       return o.mood ? { action: 'contou como está hoje', body: 'Toque para ver no Início.', url: '/', tag: 'checkin' } : null;
     case 'react':
@@ -544,6 +556,8 @@ export const POST = endpoint(async request => {
   const result = await apply(member, parsed.data);
   const repeated =
     (parsed.data.op === 'react' && parsed.data.on && Array.isArray(result) && result.length === 0) ||
+    // Um abraço por dia: o segundo não avisa de novo.
+    (parsed.data.op === 'hug' && Array.isArray(result) && result.length === 0) ||
     // Trocar a resposta do check-in no mesmo dia não avisa de novo.
     (parsed.data.op === 'checkin' && !(Array.isArray(result) && (result[0] as { inserted?: boolean } | undefined)?.inserted));
   // O registro novo do diário volta com o id, para o app enviar as fotos dele em seguida.

@@ -1,9 +1,15 @@
-import type { Checkin, Mood } from '../hooks/useGestationData';
+import { useContext, useState } from 'react';
+import { Check, Heart, Loader2 } from 'lucide-react';
+import type { FamilyMember } from '../api';
+import type { Checkin, Hug, Mood } from '../hooks/useGestationData';
 import { parseLocalDate, toISODate } from '../lib/dates';
+import { PeopleContext, firstName } from '../lib/people';
 import type { Author } from '../types';
+import Avatar from './Avatar';
 
-// "Como você está hoje?": um toque por dia. A outra pessoa vê a resposta, e a
-// fileira da semana mostra como foram os últimos dias.
+// "Vocês dois hoje": como cada um está (um toque por dia), lado a lado. Depois
+// de responder, o cartão confirma e fecha; se a outra pessoa não está bem, vem
+// uma ideia de cuidado e o botão de mandar um abraço (chega como aviso).
 
 const MOODS: Array<{ id: Mood; mae: string; pai: string; face: string }> = [
   { id: 'otima', mae: 'Ótima', pai: 'Ótimo', face: 'M8 14c1.2 1.6 2.4 2.2 4 2.2s2.8-.6 4-2.2M9 9.5h.01M15 9.5h.01' },
@@ -13,7 +19,15 @@ const MOODS: Array<{ id: Mood; mae: string; pai: string; face: string }> = [
   { id: 'ansiosa', mae: 'Ansiosa', pai: 'Ansioso', face: 'M9 15.5c.8-.6 1.8-.9 3-.9s2.2.3 3 .9M8 8.5l2 1M16 8.5l-2 1' },
 ];
 
-const moodLabel = (mood: Mood, role: Author) => MOODS.find(m => m.id === mood)![role === 'pai' ? 'pai' : 'mae'];
+const moodOf = (id: Mood) => MOODS.find(m => m.id === id)!;
+const moodLabel = (mood: Mood, role: Author) => moodOf(mood)[role === 'pai' ? 'pai' : 'mae'];
+
+/** Uma ideia de cuidado quando a outra pessoa não está bem (pelo papel dela). */
+const CARE: Partial<Record<Mood, Record<Author, string>>> = {
+  enjoada: { mae: 'Que tal cuidar do jantar hoje e deixar biscoito de água e sal por perto?', pai: 'Enjoo de solidariedade existe: um chá e um pouco de descanso ajudam.' },
+  cansada: { mae: 'Assuma uma tarefa da casa hoje e deixe ela descansar sem culpa.', pai: 'Ele também precisa de pausa: que tal um tempo juntos, sem telas?' },
+  ansiosa: { mae: 'Uma conversa sem pressa ajuda. Pergunte o que está pesando.', pai: 'Conversem sobre o que preocupa: dividir alivia os dois.' },
+};
 
 function Face({ path, className = 'w-7 h-7' }: { path: string; className?: string }) {
   return (
@@ -24,57 +38,135 @@ function Face({ path, className = 'w-7 h-7' }: { path: string; className?: strin
   );
 }
 
-export default function CheckIn({ role, partnerName, checkins, busy, onCheckin }: { role: Author; partnerName: string | null; checkins: Checkin[]; busy: boolean; onCheckin: (mood: Mood | null) => void }) {
+interface Props {
+  role: Author;
+  checkins: Checkin[];
+  hugs: Hug[];
+  onCheckin: (mood: Mood | null) => Promise<boolean>;
+  onHug: () => Promise<boolean>;
+}
+
+export default function CheckIn({ role, checkins, hugs, onCheckin, onHug }: Props) {
+  const members = useContext(PeopleContext);
   const today = toISODate(new Date());
+  const me = members.find(m => m.me);
+  const partner = members.find(m => !m.me);
   const mine = checkins.find(c => c.mine && c.day === today);
   const theirs = checkins.find(c => !c.mine && c.day === today);
+  const [changing, setChanging] = useState(false);
+  const [saving, setSaving] = useState<Mood | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
+  const [hugging, setHugging] = useState(false);
+  const picking = !mine || changing;
+  const hugSent = hugs.some(h => !h.toMe && h.day === today);
+  const hugGot = hugs.some(h => h.toMe && h.day === today);
+  const care = theirs && partner ? CARE[theirs.mood]?.[theirs.author_role] : undefined;
+  const partnerName = partner ? firstName(partner.name) : null;
+
+  const pick = async (mood: Mood) => {
+    setSaving(mood);
+    setChanging(false);
+    const ok = await onCheckin(mood);
+    setSaving(null);
+    if (ok) {
+      setJustSaved(true);
+      window.setTimeout(() => setJustSaved(false), 4000);
+    }
+  };
+
   const week = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
     const iso = toISODate(d);
     return { iso, letter: parseLocalDate(iso).toLocaleDateString('pt-BR', { weekday: 'narrow' }), mood: checkins.find(c => c.mine && c.day === iso)?.mood };
   });
-  const hasWeek = week.some(w => w.mood);
+  const hasWeek = week.filter(w => w.mood).length > 1;
 
   return (
-    <section aria-labelledby="checkin-titulo" className="rounded-[28px] bg-surface shadow-soft p-5 space-y-3">
-      <h2 id="checkin-titulo" className="text-[1.25rem] text-ink">Como você está hoje?</h2>
-      <div className="grid grid-cols-5 gap-1.5" role="group" aria-label="Como você está hoje">
-        {MOODS.map(m => {
-          const on = mine?.mood === m.id;
-          const label = role === 'pai' ? m.pai : m.mae;
-          return (
-            <button
-              key={m.id}
-              type="button"
-              disabled={busy}
-              aria-pressed={on}
-              onClick={() => onCheckin(on ? null : m.id)}
-              className={`flex flex-col items-center gap-1 rounded-2xl px-0.5 py-2.5 text-[12px] font-bold transition active:scale-95 ${on ? 'bg-rosa text-white shadow-soft' : 'bg-surface-2 text-ink-soft hover:text-ink'}`}
-            >
-              <Face path={m.face} />
-              {label}
-            </button>
-          );
-        })}
+    <section aria-labelledby="checkin-titulo" className="rounded-[28px] bg-surface shadow-soft p-5 space-y-4">
+      <h2 id="checkin-titulo" className="text-[1.25rem] text-ink">
+        {partner ? 'Vocês dois hoje' : 'Como você está hoje?'}
+      </h2>
+
+      <div className={`grid gap-3 ${partner ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <Person member={me} role={role} name="Você" mood={mine?.mood} empty={picking ? 'Toque abaixo' : ''} />
+        {partner && <Person member={partner} role={partner.role} name={partnerName!} mood={theirs?.mood} empty="Ainda não contou" />}
       </div>
-      {partnerName && (
-        <p className="text-sm text-ink-soft">
-          {theirs ? (
-            <>
-              <strong className="text-ink">{partnerName}</strong> hoje: {moodLabel(theirs.mood, theirs.author_role).toLowerCase()}.
-            </>
-          ) : (
-            <>{partnerName} ainda não contou como está hoje.</>
-          )}
+
+      {picking ? (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-ink-soft">{mine ? 'Trocar a resposta de hoje:' : 'Como você está hoje?'}</p>
+          <div className="grid grid-cols-5 gap-1.5" role="group" aria-label="Como você está hoje">
+            {MOODS.map(m => {
+              const on = mine?.mood === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  disabled={saving !== null}
+                  aria-pressed={on}
+                  onClick={() => (on ? setChanging(false) : pick(m.id))}
+                  className={`flex flex-col items-center gap-1 rounded-2xl px-0.5 py-2.5 text-[12px] font-bold transition active:scale-95 ${on ? 'bg-rosa text-white shadow-soft' : 'bg-surface-2 text-ink-soft hover:text-ink'} ${saving && saving !== m.id ? 'opacity-60' : ''}`}
+                >
+                  {saving === m.id ? <Loader2 className="w-7 h-7 animate-spin" /> : <Face path={m.face} />}
+                  {role === 'pai' ? m.pai : m.mae}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className={`flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition-colors ${justSaved ? 'bg-ok-soft' : 'bg-surface-2'}`} role="status">
+          <span className="flex items-center gap-2 text-sm text-ink">
+            <span className={`w-6 h-6 rounded-full bg-ok text-white flex items-center justify-center shrink-0 ${justSaved ? 'animate-[tt-pop_400ms_ease-out]' : ''}`}>
+              <Check className="w-4 h-4" strokeWidth={3} />
+            </span>
+            <span>
+              <strong>Registrado.</strong> {partnerName ? `${partnerName} vai ver.` : 'Fica na sua semana.'}
+            </span>
+          </span>
+          <button type="button" onClick={() => setChanging(true)} className="shrink-0 text-sm font-bold text-brand-strong">
+            Trocar
+          </button>
+        </div>
+      )}
+
+      {hugGot && partnerName && (
+        <p className="flex items-center gap-2 rounded-2xl bg-rosa-soft px-4 py-3 text-sm text-ink">
+          <Heart className="w-5 h-5 fill-rosa text-rosa shrink-0" /> {partnerName} mandou um abraço para você hoje.
         </p>
       )}
+
+      {partner && theirs && (
+        <div className="rounded-2xl border border-line px-4 py-3 space-y-2.5">
+          {care && <p className="text-sm text-ink">{care}</p>}
+          {hugSent ? (
+            <p className="flex items-center gap-2 text-sm font-bold text-rosa-strong">
+              <Heart className="w-4 h-4 fill-current" /> Abraço enviado para {partnerName}
+            </p>
+          ) : (
+            <button
+              type="button"
+              disabled={hugging}
+              onClick={async () => {
+                setHugging(true);
+                await onHug();
+                setHugging(false);
+              }}
+              className="inline-flex items-center gap-2 rounded-full bg-rosa text-white px-4 py-2 text-sm font-extrabold shadow-soft active:scale-95 disabled:opacity-60"
+            >
+              {hugging ? <Loader2 className="w-4 h-4 animate-spin" /> : <Heart className="w-4 h-4 fill-white" />} Mandar um abraço
+            </button>
+          )}
+        </div>
+      )}
+
       {hasWeek && (
-        <div className="flex items-center gap-2 pt-1" aria-label="Seus últimos 7 dias">
+        <div className="flex items-center gap-2" aria-label="Seus últimos 7 dias">
           <span className="text-xs font-bold text-ink-mute">Sua semana</span>
           <ol className="flex gap-1.5">
             {week.map(w => {
-              const mood = w.mood ? MOODS.find(m => m.id === w.mood)! : null;
+              const mood = w.mood ? moodOf(w.mood) : null;
               return (
                 <li key={w.iso} className="flex flex-col items-center gap-0.5" title={mood ? (role === 'pai' ? mood.pai : mood.mae) : 'sem resposta'}>
                   <span className={`w-7 h-7 rounded-full flex items-center justify-center ${mood ? 'bg-rosa-soft text-rosa-strong' : 'bg-surface-2 text-line'}`}>
@@ -88,5 +180,25 @@ export default function CheckIn({ role, partnerName, checkins, busy, onCheckin }
         </div>
       )}
     </section>
+  );
+}
+
+/** Uma pessoa no cartão: foto, nome e como está hoje. */
+function Person({ member, role, name, mood, empty }: { member?: FamilyMember; role: Author; name: string; mood?: Mood; empty: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl bg-surface-2/60 p-3 min-w-0">
+      <span className="relative shrink-0">
+        <Avatar member={member} role={role} className="w-11 h-11 text-base" />
+        {mood && (
+          <span className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-surface flex items-center justify-center shadow-soft ${role === 'pai' ? 'text-pai' : 'text-mae'}`}>
+            <Face path={moodOf(mood).face} className="w-5 h-5" />
+          </span>
+        )}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-xs font-bold text-ink-mute truncate">{name}</span>
+        <span className={`block leading-tight ${mood ? 'font-extrabold text-ink truncate' : 'text-ink-mute text-[13px] font-semibold'}`}>{mood ? moodLabel(mood, role) : empty}</span>
+      </span>
+    </div>
   );
 }
