@@ -34,6 +34,8 @@ await dlg.getByLabel('Peso (kg)').fill('65,2');
 await dlg.getByLabel('Pressão máxima').fill('118');
 await dlg.getByLabel('Pressão mínima').fill('76');
 const tenDaysAgo = await iso(-10);
+await dlg.getByRole('button', { name: 'Outro dia' }).click();
+check(await dlg.getByLabel('Escolher o dia').isVisible(), '"Outro dia" mostra o campo de data visível');
 await dlg.getByLabel('Escolher o dia').fill(tenDaysAgo);
 check(await dlg.getByRole('button', { name: new RegExp(tenDaysAgo.split('-').reverse().join('/')) }).or(dlg.getByText(tenDaysAgo.split('-').reverse().join('/'))).first().isVisible(), '"Outro dia" mostra a data escolhida');
 await p.screenshot({ path: `${OUT}form-medicao.png` });
