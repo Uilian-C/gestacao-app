@@ -16,3 +16,18 @@ export const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? '';
 
 /** As pessoas do espaço, para quem mostra autoria (conversas, mural) sem passar de tela em tela. */
 export const PeopleContext = createContext<FamilyMember[]>([]);
+
+/** A migração 016 já rodou: dá para dizer quem vai a cada agendamento. */
+export const AttendeesReady = createContext(false);
+
+/** A pessoa do espaço com esse papel (o pai, a mãe). */
+export const memberWithRole = (members: FamilyMember[], role: Author) => members.find(m => m.role === role);
+
+/** "Ana", "Caio" ou "Ana e Caio" para mãe, pai ou os dois. */
+export function whoName(members: FamilyMember[], who: Author | 'casal'): string {
+  const name = (role: Author) => {
+    const m = memberWithRole(members, role);
+    return m ? firstName(m.name) : role === 'mae' ? 'Mãe' : 'Pai';
+  };
+  return who === 'casal' ? `${name('mae')} e ${name('pai')}` : name(who);
+}

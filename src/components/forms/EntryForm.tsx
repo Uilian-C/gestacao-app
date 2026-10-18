@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Bell, ImagePlus, Loader2, Lock, Users, X } from 'lucide-react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { Bell, Camera, ImagePlus, Loader2, Lock, Users, X } from 'lucide-react';
 import { photoUrl } from '../../api';
 import { WORK_RIGHTS, WORK_RIGHTS_SOURCE, WORK_TERMS } from '../../content/workRights';
 import type { Folder, JournalEntry } from '../../hooks/useGestationData';
@@ -8,6 +8,9 @@ import { FileProblem, preparePhoto, type PreparedPhoto } from '../../lib/examFil
 import { FOLDER, FOLDERS, TONE, weekOn } from '../../lib/folders';
 import Guide from '../Guide';
 import DayPicker from './DayPicker';
+import { MentionBar } from '../Mentions';
+import { PeopleContext } from '../../lib/people';
+import { useMention } from '../../lib/useMention';
 import { inputClass } from '../styles';
 import { Button, Segmented } from '../ui';
 
@@ -55,7 +58,9 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
   const [removed, setRemoved] = useState<string[]>([]);
   const [preparing, setPreparing] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const { ref: bodyRef, track, suggestions, unmarked, insert } = useMention<HTMLTextAreaElement>(body, setBody, useContext(PeopleContext));
   const picker = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
   const strip = useRef<HTMLDivElement>(null);
   // A pasta escolhida aparece inteira na fileira (sem scrollIntoView, que mexe na página toda).
   useEffect(() => {
@@ -102,6 +107,12 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
     }
   };
 
+  const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = [...(e.target.files ?? [])];
+    e.target.value = '';
+    if (files.length) void addFiles(files);
+  };
+
   const photoStrip = (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2" aria-label="Fotos do registro">
@@ -111,31 +122,22 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
         {photos.map((p, i) => (
           <Thumb key={p.preview} src={p.preview} onRemove={() => setPhotos(list => list.filter((_, j) => j !== i))} />
         ))}
-        {room > 0 && (
-          <button
-            type="button"
-            onClick={() => picker.current?.click()}
-            disabled={preparing || busy}
-            className={`${belly && !hasPhoto ? 'w-full h-36 flex-col text-base' : 'w-20 h-20 flex-col text-[11px]'} rounded-2xl border-2 border-dashed border-line ${tone.text} font-bold inline-flex items-center justify-center gap-1 hover:bg-surface-2 transition disabled:opacity-60`}
-          >
-            {preparing ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className={belly && !hasPhoto ? 'w-8 h-8' : 'w-5 h-5'} />}
-            {belly && !hasPhoto ? 'Tirar ou escolher a foto' : 'Foto'}
-          </button>
+        {room > 0 && !(belly && !hasPhoto) && (
+          <>
+            <PickButton onClick={() => camera.current?.click()} disabled={preparing || busy} tone={tone.text} Icon={preparing ? Loader2 : Camera} spin={preparing} label="Câmera" />
+            <PickButton onClick={() => picker.current?.click()} disabled={preparing || busy} tone={tone.text} Icon={ImagePlus} label="Galeria" />
+          </>
         )}
       </div>
-      <input
-        ref={picker}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        aria-label="Escolher fotos"
-        onChange={e => {
-          const files = [...(e.target.files ?? [])];
-          e.target.value = '';
-          if (files.length) void addFiles(files);
-        }}
-      />
+      {room > 0 && belly && !hasPhoto && (
+        <div className="grid grid-cols-2 gap-2">
+          <PickButton big onClick={() => camera.current?.click()} disabled={preparing || busy} tone={tone.text} Icon={preparing ? Loader2 : Camera} spin={preparing} label="Tirar a foto" />
+          <PickButton big onClick={() => picker.current?.click()} disabled={preparing || busy} tone={tone.text} Icon={ImagePlus} label="Da galeria" />
+        </div>
+      )}
+      {/* A câmera abre direto (no celular); a galeria deixa escolher várias. */}
+      <input ref={camera} type="file" accept="image/*" capture="environment" hidden aria-label="Tirar foto" onChange={pick} />
+      <input ref={picker} type="file" accept="image/*" multiple hidden aria-label="Escolher fotos" onChange={pick} />
       {problem && <p className="text-sm font-semibold text-alert" role="alert">{problem}</p>}
     </div>
   );
@@ -175,14 +177,21 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
 
       <div className="space-y-2">
         <textarea
+          ref={bodyRef}
           aria-label={belly ? 'Legenda' : 'O que aconteceu?'}
           rows={belly ? 2 : folder === 'carta' ? 6 : 4}
           className={`${inputClass} resize-none ${folder === 'carta' ? 'font-display text-[1.05rem] leading-relaxed' : ''}`}
           placeholder={info.placeholder}
           value={body}
-          onChange={e => setBody(e.target.value)}
+          onChange={e => {
+            setBody(e.target.value);
+            track(e);
+          }}
+          onSelect={track}
           maxLength={4000}
         />
+        {/* Marcar a outra pessoa (só no que os dois veem). */}
+        {visibility === 'shared' && <MentionBar suggestions={suggestions} unmarked={unmarked} onPick={insert} always />}
         <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" aria-label="Ideias">
           {info.ideas.map(i => (
             <button key={i} type="button" onClick={() => setBody(b => (b.trim() ? b : i))} className="shrink-0 rounded-full px-3 py-1 text-[13px] bg-surface-2 text-ink-soft hover:text-ink">
@@ -243,6 +252,20 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
         {busy ? <Loader2 className="animate-spin" /> : <info.Icon />} {initial ? 'Salvar alterações' : info.save}
       </Button>
     </form>
+  );
+}
+
+function PickButton({ big = false, label, Icon, spin = false, tone, disabled, onClick }: { big?: boolean; label: string; Icon: typeof Camera; spin?: boolean; tone: string; disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`${big ? 'h-32 text-[15px]' : 'w-20 h-20 text-[11px]'} flex-col rounded-2xl border-2 border-dashed border-line ${tone} font-bold inline-flex items-center justify-center gap-1 hover:bg-surface-2 transition disabled:opacity-60`}
+    >
+      <Icon className={`${big ? 'w-8 h-8' : 'w-5 h-5'} ${spin ? 'animate-spin' : ''}`} />
+      {label}
+    </button>
   );
 }
 

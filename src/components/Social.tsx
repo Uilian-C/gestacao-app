@@ -3,6 +3,8 @@ import { BicepsFlexed, HandHeart, Heart, MessageCircle, PartyPopper, Send, Trash
 import type { Reaction, ReactionKind, SocialTarget, ThreadComment } from '../hooks/useGestationData';
 import { PeopleContext, authorOf, firstName } from '../lib/people';
 import Avatar from './Avatar';
+import { MentionBar, MentionText } from './Mentions';
+import { useMention } from '../lib/useMention';
 import { inputClass } from './styles';
 
 // Curtir e comentar entre o casal: reações (abraço, força, estou aqui, festa) e
@@ -69,6 +71,7 @@ export function SocialCount({ reactions, comments }: { reactions: number; commen
 export function Thread({ comments, busy, onSend, onDelete }: { comments: ThreadComment[]; busy: boolean; onSend: (body: string) => Promise<boolean>; onDelete: (c: ThreadComment) => void }) {
   const [draft, setDraft] = useState('');
   const members = useContext(PeopleContext);
+  const { ref: fieldRef, track, suggestions, unmarked, insert } = useMention<HTMLInputElement>(draft, setDraft, members);
   return (
     <section className="space-y-2" aria-label="Conversa">
       <h3 className="text-sm font-extrabold text-ink-soft flex items-center gap-1.5 font-sans">
@@ -81,7 +84,7 @@ export function Thread({ comments, busy, onSend, onDelete }: { comments: ThreadC
             <Avatar member={by} role={c.author_role} className="w-7 h-7 text-[11px] mt-1" />
             <span className={`flex-1 min-w-0 rounded-2xl px-3 py-2 text-[15px] text-ink break-words ${c.author_role === 'pai' ? 'bg-pai-soft' : 'bg-mae-soft'}`}>
               <strong className="block text-xs font-extrabold text-ink-soft">{by ? firstName(by.name) : c.author_role === 'mae' ? 'Mãe' : 'Pai'}</strong>
-              {c.body}
+              <MentionText text={c.body} />
             </span>
             {c.mine && (
               <button type="button" onClick={() => onDelete(c)} aria-label="Apagar comentário" className="p-1 mt-1 text-ink-mute hover:text-alert">
@@ -91,6 +94,7 @@ export function Thread({ comments, busy, onSend, onDelete }: { comments: ThreadC
           </div>
         );
       })}
+      <MentionBar suggestions={suggestions} unmarked={unmarked} onPick={insert} />
       <form
         onSubmit={async e => {
           e.preventDefault();
@@ -98,7 +102,19 @@ export function Thread({ comments, busy, onSend, onDelete }: { comments: ThreadC
         }}
         className="flex gap-2"
       >
-        <input aria-label="Escrever um comentário" className={`${inputClass} !py-2 text-sm`} placeholder="Escrever para a outra pessoa..." value={draft} onChange={e => setDraft(e.target.value)} maxLength={1000} />
+        <input
+          ref={fieldRef}
+          aria-label="Escrever um comentário"
+          className={`${inputClass} !py-2 text-sm`}
+          placeholder="Escrever... (@ para marcar)"
+          value={draft}
+          onChange={e => {
+            setDraft(e.target.value);
+            track(e);
+          }}
+          onSelect={track}
+          maxLength={1000}
+        />
         <button type="submit" disabled={busy || !draft.trim()} aria-label="Enviar comentário" className="w-10 h-10 shrink-0 rounded-full bg-brand text-on-accent flex items-center justify-center disabled:opacity-40">
           <Send className="w-4 h-4" />
         </button>

@@ -69,7 +69,7 @@ check(await p.getByRole('button', { name: /Enjoo, forte: ver detalhes/ }).isVisi
 await tab('Agenda');
 await p.getByRole('button', { name: /^Tarefas/ }).click();
 await p.getByRole('button', { name: 'Montar o berço: ver detalhes' }).click();
-check(await dlg.getByText('Comprar parafusos').isVisible() && await dlg.getByText('Pai', { exact: true }).isVisible(), 'tarefa abre com observação e responsável');
+check(await dlg.getByText('Comprar parafusos').isVisible() && await dlg.locator('span', { hasText: /\sPai$/ }).first().isVisible(), 'tarefa abre com observação e responsável');
 await dlg.getByRole('button', { name: 'Editar' }).click();
 await dlg.getByLabel('Tarefa').fill('Montar o berço e o trocador');
 await dlg.getByRole('button', { name: 'Salvar alterações' }).click();

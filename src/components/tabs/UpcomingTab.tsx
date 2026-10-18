@@ -6,6 +6,7 @@ import { buildUpcoming, dayChip, type UpcomingItem } from '../../lib/upcoming';
 import type { ExamItem, JournalEntry } from '../../hooks/useGestationData';
 import type { Consultation, PartnerTask } from '../../types';
 import { Card } from '../ui';
+import { WhoAvatars } from '../WhoPicker';
 import { ScheduleForm, type NewConsultation } from './ConsultationsTab';
 
 // Agenda → Próximos: tudo o que tem data, numa lista só. É aqui que se agenda
@@ -138,6 +139,7 @@ export function Row({ item: i, today = false, onOpen }: { item: UpcomingItem; to
         <span className="block font-bold text-ink truncate">{i.title}</span>
         {i.detail && <span className="block text-xs text-ink-mute truncate">{i.detail}</span>}
       </span>
+      {i.consultation?.attendees && <WhoAvatars who={i.consultation.attendees} />}
       <ChevronRight className="w-4 h-4 text-ink-mute shrink-0" />
     </button>
   );

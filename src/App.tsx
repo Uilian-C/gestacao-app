@@ -40,7 +40,7 @@ import { findPatterns, toEntries } from './lib/symptoms';
 import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, DiaryView, HealthView, PartnerTask, Tab } from './types';
 import { isConsultation, resultOf } from './lib/appointments';
 import { autoDone, visitsOf } from './lib/journey';
-import { PeopleContext } from './lib/people';
+import { AttendeesReady, PeopleContext } from './lib/people';
 
 const UNDO_WINDOW_MS = 5000;
 
@@ -69,6 +69,7 @@ const appointmentFields = (c: NewConsultation) => ({
   kind: c.kind,
   title: c.title,
   planItem: c.planItem,
+  attendees: c.attendees,
 });
 const appointmentError = (c: NewConsultation) =>
   c.kind === 'consulta' ? undefined : 'Não foi possível agendar. Se for o primeiro exame agendado, rode a migração db/migrations/013_agendamentos.sql no Neon.';
@@ -557,6 +558,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   return (
     <PeopleContext.Provider value={family.members}>
+    <AttendeesReady.Provider value={data.attendeesAvailable ?? false}>
     <div className="min-h-screen bg-canvas text-ink pb-32 md:pb-12">
       {header}
       {(activeTab === 'inicio' || activeTab === 'cuidados') && <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />}
@@ -903,6 +905,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       <Toast toast={toast} onClose={() => setToast(null)} />
       {spaceSheet}
     </div>
+    </AttendeesReady.Provider>
     </PeopleContext.Provider>
   );
 }

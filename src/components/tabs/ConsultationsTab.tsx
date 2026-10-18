@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import { ArrowLeft, ClipboardCopy, FileText, HelpCircle, Plus, Printer, ShieldCheck, Trash2 } from 'lucide-react';
 import { SPECIALTIES, questionSpecialty, specialtyOf, type SpecialtyId } from '../../data/specialties';
 import { daysBetween, formatBR, localDay, parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
@@ -11,9 +11,11 @@ import { FichaGrid } from '../FichaBar';
 import { BMI_LABEL, GAIN_STATUS_LABEL } from '../../lib/weightGain';
 import { PLAN_ITEMS } from '../../content/prenatalPlan';
 import { APPOINTMENT_KINDS, isConsultation, kindOf } from '../../lib/appointments';
-import type { AppointmentKind, BirthPlanRecord, Contraction, KickSession, Consultation, HealthMetric, PartnerComment, PregnancyProfile, QuestionItem, SymptomItem } from '../../types';
+import type { AppointmentKind, Assignee, BirthPlanRecord, Contraction, KickSession, Consultation, HealthMetric, PartnerComment, PregnancyProfile, QuestionItem, SymptomItem } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import AddressInput from '../AddressInput';
+import WhoPicker from '../WhoPicker';
+import { AttendeesReady, PeopleContext } from '../../lib/people';
 import { InsightList } from '../InsightList';
 import { inputClass } from '../styles';
 import { Button, Card, Chip, EmptyState, Field, LinkButton, Pill, SectionTitle } from '../ui';
@@ -33,6 +35,8 @@ export interface NewConsultation {
   /** Nome do exame, ultrassom ou vacina. */
   title: string | null;
   planItem: string | null;
+  /** Quem vai (migração 016); null quando o app ainda não pergunta. */
+  attendees: Assignee | null;
 }
 
 /** Sugestões de nome para cada tipo, tiradas da jornada do pré-natal. */
@@ -123,6 +127,12 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
   const [professional, setProfessional] = useState(initial?.professional_name ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
   const consulta = kind === 'consulta';
+  const attendeesReady = useContext(AttendeesReady);
+  const people = useContext(PeopleContext);
+  const askWho = attendeesReady && people.length > 1;
+  // Quem vai: em consulta e ultrassom, os dois; em exame e vacina, a mãe (dá para trocar).
+  const [whoPicked, setWho] = useState<Assignee | null>(initial?.attendees ?? null);
+  const who: Assignee = whoPicked ?? (kind === 'consulta' || kind === 'ultrassom' ? 'casal' : 'mae');
 
   if (!open) {
     return (
@@ -149,6 +159,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
           kind,
           title: consulta ? null : title.trim(),
           planItem: consulta ? null : planItem,
+          attendees: askWho ? who : (initial?.attendees ?? null),
         });
         if (ok) {
           setOpen(false);
@@ -157,6 +168,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
           setPlanItem(null);
           setProfessional('');
           setLocation('');
+          setWho(null);
         }
       }}
     >
@@ -224,6 +236,13 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
             <input id="hora-consulta" type="time" className={inputClass} value={time} onChange={e => setTime(e.target.value)} />
           </Field>
         </div>
+        {askWho && (
+          <div className="space-y-1.5">
+            <span className="text-sm font-semibold text-ink-soft block">Quem vai</span>
+            <WhoPicker label="Quem vai" value={who} onChange={setWho} />
+            <p className="text-xs text-ink-mute">Quem for chamado recebe um aviso no celular.</p>
+          </div>
+        )}
         <Field label={consulta ? 'Profissional (opcional)' : 'Laboratório ou clínica (opcional)'} htmlFor="prof">
           <input id="prof" className={inputClass} placeholder={consulta ? 'Ex.: Dra. Ana' : 'Ex.: Laboratório Vida'} value={professional} onChange={e => setProfessional(e.target.value)} />
         </Field>

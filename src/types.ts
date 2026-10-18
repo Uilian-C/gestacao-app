@@ -64,6 +64,8 @@ export interface Consultation {
   title?: string | null;
   /** Item da jornada do pré-natal ligado ao agendamento. */
   plan_item?: string | null;
+  /** Quem vai (migração 016): mãe, pai ou os dois. */
+  attendees?: Assignee | null;
 }
 
 export type AppointmentKind = 'consulta' | 'exame' | 'ultrassom' | 'vacina';
