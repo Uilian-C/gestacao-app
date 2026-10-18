@@ -49,7 +49,8 @@ export default function Mural(props: Props) {
   const list = props.entries.slice(0, shown);
 
   return (
-    <div className="space-y-4">
+    // Uma coluna de leitura: no tablet e no computador o post não estica até a borda.
+    <div className="space-y-4 max-w-[560px] mx-auto">
       <button
         type="button"
         disabled={!props.journalAvailable}
@@ -186,21 +187,44 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
 }
 
 /** Uma foto grande; com mais de uma, desliza para o lado. */
+/** Proporção (largura/altura) que a foto pode ter no Mural: de 4:5 (em pé) a 1,91:1 (deitada), como nas redes sociais. */
+const MIN_RATIO = 4 / 5;
+const MAX_RATIO = 1.91;
+
+/**
+ * As fotos do post, grandes. O quadro segue a proporção da primeira foto
+ * (dentro dos limites acima), igual em celular, tablet e computador; com mais
+ * de uma, desliza para o lado. Enquanto carrega, o quadro já tem o tamanho
+ * certo, sem a página "pular".
+ */
 function Photos({ entry: e, week, onOpen }: { entry: JournalEntry; week: number | null; onOpen: () => void }) {
   const [at, setAt] = useState(0);
+  const [ratio, setRatio] = useState(MIN_RATIO);
+  const [loaded, setLoaded] = useState<Set<string>>(() => new Set());
   const many = e.photos.length > 1;
   return (
-    <div className="relative bg-surface-2">
+    <div className="relative bg-surface-2 overflow-hidden" style={{ aspectRatio: String(ratio) }}>
       <div
-        className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar"
+        className="absolute inset-0 flex overflow-x-auto snap-x snap-mandatory no-scrollbar"
         onScroll={ev => {
           const el = ev.currentTarget;
           setAt(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
         }}
       >
         {e.photos.map((p, i) => (
-          <button key={p.id} type="button" onClick={onOpen} aria-label={`Foto ${i + 1} de ${e.photos.length}: abrir`} className="snap-center shrink-0 w-full">
-            <img src={photoUrl(p.id)} alt="" loading="lazy" className="w-full aspect-[4/5] max-h-[32rem] object-cover" />
+          <button key={p.id} type="button" onClick={onOpen} aria-label={`Foto ${i + 1} de ${e.photos.length}: abrir`} className="snap-center shrink-0 w-full h-full">
+            <img
+              src={photoUrl(p.id)}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              onLoad={ev => {
+                const img = ev.currentTarget;
+                if (i === 0 && img.naturalWidth && img.naturalHeight) setRatio(Math.min(MAX_RATIO, Math.max(MIN_RATIO, img.naturalWidth / img.naturalHeight)));
+                setLoaded(prev => new Set(prev).add(p.id));
+              }}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${loaded.has(p.id) ? 'opacity-100' : 'opacity-0'}`}
+            />
           </button>
         ))}
       </div>
