@@ -46,7 +46,7 @@ await p.keyboard.press('Escape');
 
 // ---- Momento: editar (Diário) ----
 await tab('Diário');
-await p.getByRole('button', { name: 'Momento: ver detalhes' }).click();
+await p.getByRole('button', { name: /^Momento de .*: ver detalhes/ }).first().click();
 await dlg.getByRole('button', { name: 'Editar' }).click();
 await dlg.getByLabel('O que aconteceu?').fill('Sentimos o bebê mexer pela primeira vez!');
 await dlg.getByRole('button', { name: /Salvar alterações/ }).click();

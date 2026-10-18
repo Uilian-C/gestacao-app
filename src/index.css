@@ -141,6 +141,23 @@
     --c-lilas-soft: color-mix(in oklab, #b9a0ef 16%, var(--c-surface));
   }
 }
+/*
+  O app do pai: o rosa (Início, Diário, Momentos, abraços...) vira um azul-anil,
+  diferente do azul da Agenda para as cores continuarem dizendo o que é o quê.
+  O símbolo e o botão "+ Registrar" seguem com as duas cores, a do casal.
+*/
+:root[data-papel='pai'] {
+  --c-rosa: #3f51c6;
+  --c-rosa-strong: #31409e;
+  --c-rosa-soft: #e7e9fb;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-papel='pai'] {
+    --c-rosa: #9aa6f3;
+    --c-rosa-strong: #b9c1f7;
+    --c-rosa-soft: color-mix(in oklab, #9aa6f3 16%, var(--c-surface));
+  }
+}
 :root,
 :root[data-aba='inicio'],
 :root[data-aba='diario'] {

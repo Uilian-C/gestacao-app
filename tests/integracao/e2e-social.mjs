@@ -22,22 +22,49 @@ await mae.waitForTimeout(1000);
 
 await pai.reload();
 await tab(pai, 'Diário');
-await pai.getByRole('button', { name: 'Momento: ver detalhes' }).click();
-const dlg = pai.getByRole('dialog');
-await dlg.getByRole('button', { name: /^Abraço/ }).click();
+// O Diário abre no Mural: o post da mãe, com abraço e comentário ali mesmo.
+const postMae = pai.getByRole('article', { name: /^Momento de Ana/ });
+check(await postMae.getByText('Sentimos o bebê mexer pela primeira vez!').isVisible(), 'pai vê o momento da mãe no Mural');
+await postMae.getByRole('button', { name: 'Mandar um abraço' }).click();
 await pai.waitForTimeout(600);
-check((await dlg.getByRole('button', { name: /^Abraço/ }).getAttribute('aria-pressed')) === 'true', 'pai manda um abraço (fica marcado)');
-await dlg.getByLabel('Escrever um comentário').fill('Que emoção! ❤️');
-await dlg.getByRole('button', { name: 'Enviar comentário' }).click();
-await dlg.getByText('Que emoção! ❤️').waitFor();
-check(true, 'comentário do pai aparece na conversa');
+check((await postMae.getByRole('button', { name: 'Tirar o abraço' }).getAttribute('aria-pressed')) === 'true', 'pai manda um abraço pelo Mural (fica marcado)');
+await postMae.getByLabel('Comentar').fill('Que emoção! ❤️');
+await postMae.getByRole('button', { name: 'Enviar comentário' }).click();
+await postMae.getByText('Que emoção! ❤️').waitFor();
+check((await postMae.getByLabel('Comentar').inputValue()) === '', 'comentário do pai aparece no post e o campo limpa');
+await pai.screenshot({ path: `${OUT}mural-pai.png`, fullPage: true });
+const cor = page => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--c-brand').trim().toLowerCase());
+check((await cor(pai)) === '#3f51c6', 'para o pai, o Diário fica azul');
+check((await cor(mae)) === '#c93d64', 'para a mãe, continua rosa');
+
+await postMae.getByRole('button', { name: /^Momento de Ana: ver detalhes/ }).click();
+const dlg = pai.getByRole('dialog');
+check((await dlg.getByRole('button', { name: /^Abraço/ }).getAttribute('aria-pressed')) === 'true', 'nos detalhes, o abraço do pai está marcado');
+check(await dlg.getByText('Que emoção! ❤️').isVisible(), 'e o comentário está na conversa');
 await pai.screenshot({ path: `${OUT}social-momento.png` });
 await pai.keyboard.press('Escape');
 
+// ---- Foto de perfil: a mãe põe, o pai vê no Mural ----
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+await mae.getByRole('button', { name: /Abrir nosso espaço/ }).click();
+await mae.getByLabel('Escolher foto de perfil').setInputFiles({ name: 'eu.png', mimeType: 'image/png', buffer: PNG });
+await mae.getByRole('button', { name: 'Trocar foto' }).waitFor();
+check(true, 'mãe põe a foto de perfil em "Nosso espaço"');
+await mae.keyboard.press('Escape');
+await pai.reload();
+await tab(pai, 'Diário');
+const avatar = pai.getByRole('article', { name: /^Momento de Ana/ }).locator('img[src*="perfil="]').first();
+await avatar.waitFor();
+check(await avatar.evaluate(img => img.complete && img.naturalWidth > 0), 'pai vê a foto da mãe no post do Mural');
+
 await mae.reload();
 await tab(mae, 'Diário');
+const postNoMural = mae.getByRole('article', { name: /^Momento de Ana/ });
+check(await postNoMural.getByText(/Abraço de pai/).isVisible(), 'no Mural da mãe: "Abraço de pai"');
+check(await postNoMural.getByText('Que emoção! ❤️').isVisible(), 'e o comentário do pai');
+await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Fichário/ }).click();
 const row = mae.getByRole('button', { name: 'Momento: ver detalhes' });
-check((await row.textContent()).includes('1'), 'na lista da mãe, o momento mostra a reação e o comentário');
+check((await row.textContent()).includes('1'), 'no Fichário, o momento mostra a reação e o comentário');
 await row.click();
 const dm = mae.getByRole('dialog');
 check(await dm.getByText('Que emoção! ❤️').isVisible(), 'mãe vê o comentário do pai');

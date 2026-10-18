@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, Download, Link2, Loader2, LogOut, MessageCircle, Trash2, UserMinus, X } from 'lucide-react';
+import { Camera, Check, Copy, Download, Link2, Loader2, LogOut, MessageCircle, Trash2, UserMinus, X } from 'lucide-react';
 import { api, ApiError, type FamilyState, type Me } from '../../api';
+import { FileProblem, prepareAvatar } from '../../lib/examFiles';
 import { formatInviteCode, inviteLink } from '../../lib/invite';
 import { formatBR } from '../../lib/dates';
 import type { Author } from '../../types';
 import { inputClass } from '../styles';
 import { Button, Segmented } from '../ui';
 import { LegalLinks } from './AuthScreen';
+import Avatar from '../Avatar';
 import NotificationSettings from '../NotificationSettings';
 
 interface Props {
@@ -79,6 +81,19 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
     });
 
   const others = family.members.filter(m => !m.me);
+  const self = family.members.find(m => m.me);
+  const photoPicker = useRef<HTMLInputElement>(null);
+
+  const setPhoto = (file: File | null) =>
+    act(async () => {
+      try {
+        const res = await api.avatar(file ? (await prepareAvatar(file)).data : null);
+        onFamilyChange(res.family);
+      } catch (err) {
+        if (err instanceof FileProblem) throw new ApiError(400, err.message);
+        throw err;
+      }
+    });
 
   const openDanger = (kind: 'account' | 'space') => {
     setDanger(kind);
@@ -116,9 +131,7 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
           <ul className="divide-y divide-line">
             {family.members.map(m => (
               <li key={m.userId} className="py-3 flex items-center gap-3">
-                <span className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-on-accent shrink-0 ${m.role === 'mae' ? 'bg-mae' : 'bg-pai'}`} aria-hidden>
-                  {m.name.trim().charAt(0).toUpperCase() || '?'}
-                </span>
+                <Avatar member={m} role={m.role} className="w-10 h-10 text-sm" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-ink truncate">
                     {m.name} {m.me && <span className="text-ink-mute font-normal">(você)</span>}
@@ -183,6 +196,32 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
 
         <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-4">
           <h3 className="text-base">Você</h3>
+          <div className="flex items-center gap-4">
+            <Avatar member={self} role={family.role} className="w-16 h-16 text-xl" />
+            <div className="flex flex-wrap gap-2">
+              <Button tone="soft" disabled={busy} onClick={() => photoPicker.current?.click()}>
+                {busy ? <Loader2 className="animate-spin" /> : <Camera />} {self?.photo ? 'Trocar foto' : 'Pôr foto de perfil'}
+              </Button>
+              {self?.photo && (
+                <Button tone="ghost" disabled={busy} onClick={() => setPhoto(null)}>
+                  Tirar foto
+                </Button>
+              )}
+            </div>
+            <input
+              ref={photoPicker}
+              type="file"
+              accept="image/*"
+              hidden
+              aria-label="Escolher foto de perfil"
+              onChange={e => {
+                const file = e.target.files?.[0] ?? null;
+                e.target.value = '';
+                if (file) void setPhoto(file);
+              }}
+            />
+          </div>
+          <p className="text-xs text-ink-mute -mt-2">Aparece no Mural do diário e nos comentários. Só quem é do espaço vê.</p>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-ink-soft">Seu papel nos registros</p>
             <Segmented label="Seu papel" size="sm" value={family.role} onChange={changeRole} options={[{ value: 'mae', label: 'Mãe' }, { value: 'pai', label: 'Pai' }]} />

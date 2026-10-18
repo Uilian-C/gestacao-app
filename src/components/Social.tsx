@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { BicepsFlexed, HandHeart, Heart, MessageCircle, PartyPopper, Send, Trash2 } from 'lucide-react';
 import type { Reaction, ReactionKind, SocialTarget, ThreadComment } from '../hooks/useGestationData';
-import AuthorBadge from './AuthorBadge';
+import { PeopleContext, authorOf, firstName } from '../lib/people';
+import Avatar from './Avatar';
 import { inputClass } from './styles';
 
 // Curtir e comentar entre o casal: reações (abraço, força, estou aqui, festa) e
@@ -67,23 +68,29 @@ export function SocialCount({ reactions, comments }: { reactions: number; commen
 /** Conversa do casal num momento ou exame. */
 export function Thread({ comments, busy, onSend, onDelete }: { comments: ThreadComment[]; busy: boolean; onSend: (body: string) => Promise<boolean>; onDelete: (c: ThreadComment) => void }) {
   const [draft, setDraft] = useState('');
+  const members = useContext(PeopleContext);
   return (
     <section className="space-y-2" aria-label="Conversa">
       <h3 className="text-sm font-extrabold text-ink-soft flex items-center gap-1.5 font-sans">
         <MessageCircle className="w-4 h-4 text-brand" /> Conversa
       </h3>
-      {comments.map(c => (
-        <div key={c.id} className={`flex items-start gap-2 rounded-2xl px-3 py-2 text-[15px] ${c.author_role === 'pai' ? 'bg-pai-soft' : 'bg-mae-soft'}`}>
-          <span className="flex-1 min-w-0 text-ink break-words">
-            {c.body} <AuthorBadge role={c.author_role} />
-          </span>
-          {c.mine && (
-            <button type="button" onClick={() => onDelete(c)} aria-label="Apagar comentário" className="p-1 text-ink-mute hover:text-alert">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      ))}
+      {comments.map(c => {
+        const by = authorOf(members, c.mine, c.author_role);
+        return (
+          <div key={c.id} className="flex items-start gap-2">
+            <Avatar member={by} role={c.author_role} className="w-7 h-7 text-[11px] mt-1" />
+            <span className={`flex-1 min-w-0 rounded-2xl px-3 py-2 text-[15px] text-ink break-words ${c.author_role === 'pai' ? 'bg-pai-soft' : 'bg-mae-soft'}`}>
+              <strong className="block text-xs font-extrabold text-ink-soft">{by ? firstName(by.name) : c.author_role === 'mae' ? 'Mãe' : 'Pai'}</strong>
+              {c.body}
+            </span>
+            {c.mine && (
+              <button type="button" onClick={() => onDelete(c)} aria-label="Apagar comentário" className="p-1 mt-1 text-ink-mute hover:text-alert">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        );
+      })}
       <form
         onSubmit={async e => {
           e.preventDefault();

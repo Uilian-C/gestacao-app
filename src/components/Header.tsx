@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react';
+import Avatar from './Avatar';
 import BrandMark from './BrandMark';
 import type { FamilyMember } from '../api';
 
@@ -45,9 +46,7 @@ export default function Header({ firstName, members, greeting, onOpenSpace, titl
         >
           <span className="flex -space-x-2">
             {members.slice(0, 3).map(m => (
-              <span key={m.userId} className={`w-7 h-7 rounded-full ring-2 ring-surface flex items-center justify-center text-[11px] font-extrabold text-on-accent ${m.role === 'mae' ? 'bg-mae' : 'bg-pai'}`}>
-                {m.name.trim().charAt(0).toUpperCase() || '?'}
-              </span>
+              <Avatar key={m.userId} member={m} role={m.role} className="w-7 h-7 ring-2 ring-surface text-[11px]" />
             ))}
             {members.length < 2 && (
               <span className="w-7 h-7 rounded-full ring-2 ring-surface bg-surface-2 text-ink-mute flex items-center justify-center">
