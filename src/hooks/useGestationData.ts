@@ -31,6 +31,7 @@ export interface GestationData {
   checkinAvailable?: boolean;
   /** A migração 016 já rodou: "quem vai" nos agendamentos. */
   attendeesAvailable?: boolean;
+  hugs?: Hug[];
   /** Exames e ultrassons: os compartilhados e os particulares de quem está logado. */
   exams: ExamItem[];
   /** A migração 010 já foi aplicada. */
@@ -124,6 +125,12 @@ export interface Checkin {
   mood: Mood;
   author_role: 'mae' | 'pai';
   mine: boolean;
+}
+
+/** Abraço do cartão "Vocês dois hoje": o dia e se veio para quem está logado. */
+export interface Hug {
+  day: string;
+  toMe: boolean;
 }
 
 export type Folder = 'momento' | 'dia' | 'ideia' | 'carta' | 'barriga';

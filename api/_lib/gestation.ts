@@ -12,9 +12,14 @@ export async function fetchAll(fid: string, userId: string) {
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
               f.abortions, f.cesareans, f.allergies, f.medications, f.conditions,
-              EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'consultations' AND column_name = 'attendees') AS attendees_ready
+              EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'consultations' AND column_name = 'attendees') AS attendees_ready,
+              -- Abraços dos últimos dias (enviados e recebidos), guardados junto com os avisos.
+              (SELECT COALESCE(json_agg(json_build_object('day', split_part(n.key, ':', 2), 'toMe', n.user_id = $2)), '[]')
+                 FROM notification_log n JOIN family_members fm ON fm.user_id = n.user_id AND fm.family_id = f.id
+                WHERE n.key LIKE 'abraco:%' AND n.sent_at > NOW() - INTERVAL '3 days'
+                  AND (n.user_id = $2 OR n.key LIKE '%:' || $2)) AS hugs
        FROM families f WHERE f.id = $1`,
-      [fid],
+      [fid, userId],
     ),
     query(
       `SELECT s.id, s.week_number, s.log_date::text AS log_date, s.symptom_name, s.intensity,
@@ -157,6 +162,7 @@ export async function fetchAll(fid: string, userId: string) {
     consultations,
     /** A migração 016 já rodou: "quem vai" nos agendamentos. */
     attendeesAvailable: f.attendees_ready === true,
+    hugs: (f.hugs as Array<{ day: string; toMe: boolean }> | undefined) ?? [],
     migrationPending: false,
     kickSessions: kicks,
     contractions,

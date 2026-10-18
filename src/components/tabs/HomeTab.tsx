@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Footprints, HandHeart, Heart, Pencil, Route, Siren, Sparkles } from 'lucide-react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { ArrowRight, Footprints, HandHeart, Pencil, Route, Siren } from 'lucide-react';
 import { weekInfo } from '../../content/weeks';
 import { WEEK_CARDS_SOURCE, weekCards } from '../../content/weekCards';
 import { ALERT_SIGNS } from '../../content/symptomCatalog';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, parseTimestamp, toISODate, type GestationalAge } from '../../lib/dates';
-import type { Checkin, ExamItem, JournalEntry, Mood } from '../../hooks/useGestationData';
+import type { Checkin, ExamItem, Hug, JournalEntry, Mood, ThreadComment } from '../../hooks/useGestationData';
 import type { DetailTarget } from '../../lib/details';
 import { nextSteps, phaseOf, planFor } from '../../lib/journey';
 import { gestationMonth } from '../../lib/ficha';
@@ -12,7 +12,6 @@ import { appointmentTitle } from '../../lib/appointments';
 import { buildUpcoming } from '../../lib/upcoming';
 import type { Insight } from '../../lib/symptoms';
 import type { Author, Consultation, PartnerTask } from '../../types';
-import { photoUrl } from '../../api';
 import BrandMark from '../BrandMark';
 import CheckIn from '../CheckIn';
 import { DumForm } from '../DumForm';
@@ -20,9 +19,12 @@ import PushPrompt from '../PushPrompt';
 import { Card, LinkButton, SectionTitle } from '../ui';
 import { InsightList } from '../InsightList';
 import { Row } from './UpcomingTab';
+import { MilestoneBar, NextAppointment, PartnerNews, SharedTasks } from '../home/CoupleCards';
+import { lastSeen, partnerNews } from '../../lib/news';
+import { PeopleContext } from '../../lib/people';
 
 /** Para onde o Início leva (abas e partes delas). */
-export type HomeTarget = 'diario' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
+export type HomeTarget = 'diario' | 'mural' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
 
 interface Props {
   age: GestationalAge;
@@ -41,8 +43,14 @@ interface Props {
   exams: ExamItem[];
   checkins: Checkin[];
   checkinAvailable: boolean;
+  hugs: Hug[];
+  threads: ThreadComment[];
+  /** Quem está logado (as novidades contam desde a última visita dele ao Diário). */
+  userId: string;
   busy: boolean;
-  onCheckin: (mood: Mood | null) => void;
+  onCheckin: (mood: Mood | null) => Promise<boolean>;
+  onHug: () => Promise<boolean>;
+  onToggleTask: (t: PartnerTask) => void;
   onOpen: (target: HomeTarget, planItem?: string) => void;
   /** Abre os detalhes de um agendamento, tarefa ou registro do diário. */
   onOpenDetail: (target: DetailTarget) => void;
@@ -135,6 +143,16 @@ export default function HomeTab(props: Props) {
   const lateSteps = nextSteps(planFor(props.bloodType, props.hiddenSteps), currentWeek, props.doneSteps, 20).filter(s => s.status === 'pendente');
   // O último registro compartilhado da outra pessoa no diário, se for recente.
   const partnerEntry = props.journal.find(e => !e.mine && e.visibility === 'shared' && daysBetween(parseLocalDate(e.entry_date), parseLocalDate(todayIso)) <= 14);
+  const members = useContext(PeopleContext);
+  // A última visita ao Diário, lida uma vez ao abrir o Início.
+  const [since] = useState(() => lastSeen(props.userId));
+  const news = partnerNews(props.journal, props.threads, members, since);
+  // O próximo agendamento já aparece em destaque: não se repete nas listas abaixo.
+  const nextId = props.consultations
+    .filter(c => parseTimestamp(c.scheduled_at) >= now)
+    .sort((a, b) => parseTimestamp(a.scheduled_at).getTime() - parseTimestamp(b.scheduled_at).getTime())[0]?.id;
+  const todayItems = up.today.filter(i => i.consultation?.id !== nextId);
+  const weekItems = up.week.filter(i => i.consultation?.id !== nextId);
   const partnerToday = props.checkins.some(c => !c.mine && c.day === todayIso) || props.journal.some(e => !e.mine && e.created_at && toISODate(parseTimestamp(e.created_at)) === todayIso);
   const pending = [
     lateSteps.length > 0 && { id: 'jornada', text: `${lateSteps.length} ${lateSteps.length === 1 ? 'item da jornada' : 'itens da jornada'} para conferir: ${lateSteps.slice(0, 2).map(s => s.item.short).join(', ')}`, go: () => onOpen('jornada') },
@@ -189,6 +207,11 @@ export default function HomeTab(props: Props) {
             </button>
           </span>
         </div>
+        {selectedWeek === currentWeek && age.daysToDpp >= 0 && (
+          <div className="mt-4">
+            <MilestoneBar dumDate={props.dumDate} todayIso={todayIso} />
+          </div>
+        )}
         {editingDum && (
           <div className="mt-3">
             <DumForm
@@ -203,37 +226,32 @@ export default function HomeTab(props: Props) {
         {age.isPostTerm && <p className="mt-3 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
       </section>
 
-      {props.checkinAvailable && <CheckIn role={props.role} partnerName={props.partnerName} checkins={props.checkins} busy={props.busy} onCheckin={props.onCheckin} />}
+      {props.checkinAvailable && <CheckIn role={props.role} checkins={props.checkins} hugs={props.hugs} onCheckin={props.onCheckin} onHug={props.onHug} />}
 
-      <section aria-labelledby="hoje-titulo" className="space-y-2.5">
-        <div className="flex items-baseline justify-between gap-3 px-1">
-          <h2 id="hoje-titulo" className="text-[1.3rem] text-ink">Hoje</h2>
-          {up.today.length > 0 && <span className="text-sm text-ink-mute">{up.today.length === 1 ? '1 compromisso' : `${up.today.length} compromissos`}</span>}
-        </div>
-        {up.today.length === 0 ? (
-          <div className="rounded-[24px] bg-rosa-soft px-5 py-4 space-y-2">
-            <p className="flex items-center gap-2 text-ink">
-              <Sparkles className="w-5 h-5 text-rosa-strong shrink-0" /> Dia livre por aqui. Que tal guardar um momento?
-            </p>
-            <button type="button" onClick={props.onWrite} className="inline-flex items-center gap-1.5 text-sm font-extrabold text-rosa-strong">
-              Escrever no diário <ArrowRight className="w-4 h-4" />
-            </button>
+      <NextAppointment consultations={props.consultations} onOpen={c => props.onOpenDetail({ kind: 'consultation', id: c.id })} onSchedule={() => onOpen('agenda')} />
+
+      {todayItems.length > 0 && (
+        <section aria-labelledby="hoje-titulo" className="space-y-2.5">
+          <div className="flex items-baseline justify-between gap-3 px-1">
+            <h2 id="hoje-titulo" className="text-[1.3rem] text-ink">Hoje</h2>
+            <span className="text-sm text-ink-mute">{todayItems.length === 1 ? '1 item' : `${todayItems.length} itens`}</span>
           </div>
-        ) : (
-          up.today.map(i => <Row key={i.id} item={i} today onOpen={() => props.onOpenDetail(i.consultation ? { kind: 'consultation', id: i.consultation.id } : i.task ? { kind: 'task', id: i.task.id } : { kind: 'entry', id: i.entry!.id })} />)
-        )}
-      </section>
+          {todayItems.map(i => (
+            <Row key={i.id} item={i} today onOpen={() => props.onOpenDetail(i.consultation ? { kind: 'consultation', id: i.consultation.id } : i.task ? { kind: 'task', id: i.task.id } : { kind: 'entry', id: i.entry!.id })} />
+          ))}
+        </section>
+      )}
 
       <PushPrompt />
 
-      {up.week.length > 0 && (
+      {weekItems.length > 0 && (
         <section aria-labelledby="semana-titulo" className="rounded-[28px] bg-surface shadow-soft p-5 space-y-3">
           <div className="flex items-baseline justify-between gap-3">
             <h2 id="semana-titulo" className="text-[1.2rem] text-ink">Nos próximos 7 dias</h2>
             <LinkButton onClick={() => onOpen('agenda')}>Ver a agenda</LinkButton>
           </div>
           <ul className="space-y-2.5">
-            {up.week.slice(0, 4).map(i => {
+            {weekItems.slice(0, 4).map(i => {
               const d = parseLocalDate(i.day);
               return (
                 <li key={i.id} className="flex items-center gap-3">
@@ -252,9 +270,14 @@ export default function HomeTab(props: Props) {
               );
             })}
           </ul>
-          {up.week.length > 4 && <p className="text-xs text-ink-mute">e mais {up.week.length - 4} na agenda.</p>}
+          {weekItems.length > 4 && <p className="text-xs text-ink-mute">e mais {weekItems.length - 4} na agenda.</p>}
         </section>
       )}
+
+
+      <PartnerNews {...news} fallback={partnerEntry} onMural={() => onOpen('mural')} onOpenEntry={id => props.onOpenDetail({ kind: 'entry', id })} />
+
+      <SharedTasks tasks={props.tasks} role={props.role} onToggle={props.onToggleTask} onOpenTask={t => props.onOpenDetail({ kind: 'task', id: t.id })} onAll={() => onOpen('tarefas')} />
 
       <section aria-labelledby="nesta-semana" className="space-y-2.5">
         <h2 id="nesta-semana" className="px-1 text-[1.3rem] text-ink">
@@ -267,17 +290,6 @@ export default function HomeTab(props: Props) {
         </ul>
         <p className="px-1 text-[11px] text-ink-mute">Referência: {WEEK_CARDS_SOURCE}. Cada gestação é única.</p>
       </section>
-
-      {partnerEntry && (
-        <button type="button" onClick={() => props.onOpenDetail({ kind: 'entry', id: partnerEntry.id })} className="w-full text-left rounded-[28px] bg-surface shadow-soft p-4 space-y-2.5">
-          <span className="flex items-center gap-1.5 text-[12px] font-extrabold uppercase tracking-wide text-rosa-strong">
-            <Heart className="w-4 h-4 fill-current" /> Do diário · {partnerEntry.author_role === 'mae' ? 'da mãe' : 'do pai'}
-          </span>
-          {partnerEntry.photos?.[0] && <img src={photoUrl(partnerEntry.photos[0].id, partnerEntry.photos[0].thumb)} alt="" loading="lazy" className="w-full max-h-56 rounded-2xl object-cover bg-surface-2" />}
-          {partnerEntry.body && <p className="font-display text-[1.1rem] leading-snug text-ink line-clamp-3">{partnerEntry.body}</p>}
-          <span className="block text-sm font-extrabold text-rosa-strong">Abrir e mandar um abraço</span>
-        </button>
-      )}
 
       {pending.length > 0 && (
         <section aria-label="Para não esquecer" className="rounded-[24px] bg-surface shadow-soft p-4 space-y-1">

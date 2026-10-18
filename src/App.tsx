@@ -41,6 +41,7 @@ import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, 
 import { isConsultation, resultOf } from './lib/appointments';
 import { autoDone, visitsOf } from './lib/journey';
 import { AttendeesReady, PeopleContext } from './lib/people';
+import { markSeen } from './lib/news';
 
 const UNDO_WINDOW_MS = 5000;
 
@@ -119,7 +120,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   // A cor principal segue a aba (index.css, data-aba); para o pai, o rosa vira azul (data-papel).
   useEffect(() => {
     document.documentElement.dataset.aba = activeTab;
-  }, [activeTab]);
+    // Abrir o Diário conta como ver as novidades do Mural (o Início deixa de mostrá-las).
+    if (activeTab === 'diario') markSeen(me.user.id);
+  }, [activeTab, me.user.id]);
   useEffect(() => {
     document.documentElement.dataset.papel = author;
     return () => {
@@ -504,8 +507,16 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     }));
     return run(() => api.mutate('checkin', { day: today, mood }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/014_checkin.sql no Neon.');
   };
+  const hug = () => {
+    patch(d => ({ ...d, hugs: [...(d.hugs ?? []), { day: today, toMe: false }] }));
+    return run(() => api.mutate('hug', { day: today }), 'Não foi possível mandar o abraço. Verifique a conexão.');
+  };
   const openFromHome = (target: HomeTarget, planItem?: string) => {
     if (target === 'diario') return navigate('diario');
+    if (target === 'mural') {
+      setDiaryView('mural');
+      return navigate('diario');
+    }
     if (target === 'saude') {
       openCare('saude');
       return setHealthView('registros');
@@ -602,8 +613,13 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             exams={exams}
             checkins={data.checkins ?? []}
             checkinAvailable={data.checkinAvailable ?? false}
+            hugs={data.hugs ?? []}
+            threads={threads}
+            userId={me.user.id}
             busy={busy}
             onCheckin={checkin}
+            onHug={hug}
+            onToggleTask={toggleTask}
             onOpen={openFromHome}
             onOpenDetail={setDetail}
             onResult={openResult}
