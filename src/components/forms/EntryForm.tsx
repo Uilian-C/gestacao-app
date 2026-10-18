@@ -8,8 +8,10 @@ import { FileProblem, preparePhoto, type PreparedPhoto } from '../../lib/examFil
 import { FOLDER, FOLDERS, TONE, weekOn } from '../../lib/folders';
 import Guide from '../Guide';
 import DayPicker from './DayPicker';
+import ReminderPicker from './ReminderPicker';
+import { reminderAt, reminderTime } from '../../lib/reminders';
 import { MentionBar } from '../Mentions';
-import { PeopleContext } from '../../lib/people';
+import { PeopleContext, TimedRemindersReady } from '../../lib/people';
 import { useMention } from '../../lib/useMention';
 import { inputClass } from '../styles';
 import { Button, Segmented } from '../ui';
@@ -22,6 +24,8 @@ export interface NewEntry {
   body: string;
   visibility: 'private' | 'shared';
   remindOn: string | null;
+  /** Dia e hora do lembrete (ISO); undefined quando o app ainda não pergunta a hora. */
+  remindAt?: string | null;
   folder: Folder;
   /** Fotos novas, já reduzidas no celular. */
   photos: PreparedPhoto[];
@@ -54,6 +58,8 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
   const [date, setDate] = useState(initial?.entry_date ?? today);
   const [visibility, setVisibility] = useState<'private' | 'shared'>(initial?.visibility ?? 'shared');
   const [remindOn, setRemindOn] = useState<string | null>(initial?.remind_on ?? null);
+  const withTime = useContext(TimedRemindersReady);
+  const [remindTime, setRemindTime] = useState(reminderTime(initial?.remind_at));
   const [photos, setPhotos] = useState<PreparedPhoto[]>([]);
   const [removed, setRemoved] = useState<string[]>([]);
   const [preparing, setPreparing] = useState(false);
@@ -99,7 +105,8 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSave) return;
-    const ok = await onSave({ date, body: body.trim(), visibility, remindOn, folder, photos, removePhotos: removed });
+    const remindAt = withTime ? (remindOn ? reminderAt(remindOn, remindTime) : null) : undefined;
+    const ok = await onSave({ date, body: body.trim(), visibility, remindOn, remindAt, folder, photos, removePhotos: removed });
     if (ok && !initial) {
       setBody('');
       setPhotos([]);
@@ -221,14 +228,18 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
         </button>
       </div>
       {remindOn && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {[7, 15, 30].map(n => (
-            <button key={n} type="button" onClick={() => setRemindOn(addDays(today, n))} className={`${chip} ${remindOn === addDays(today, n) ? 'bg-brand text-on-accent' : 'bg-surface-2 text-ink-soft'}`}>
-              em {n} dias
-            </button>
-          ))}
-          <input type="date" aria-label="Data do lembrete" min={today} className={`${inputClass} !py-1.5 !w-auto text-sm`} value={remindOn} onChange={e => setRemindOn(e.target.value || null)} />
-        </div>
+        <ReminderPicker
+          day={remindOn}
+          time={remindTime}
+          onDay={d => setRemindOn(d || null)}
+          onTime={setRemindTime}
+          withTime={withTime}
+          who={visibility === 'private' ? 'você' : 'vocês dois'}
+          choices={[
+            { iso: addDays(today, 1), text: 'Amanhã' },
+            ...[7, 15, 30].map(n => ({ iso: addDays(today, n), text: `Em ${n} dias` })),
+          ]}
+        />
       )}
       <p className="text-xs text-ink-mute -mt-1">
         {visibility === 'private' ? 'Só você vai ver, nem a outra pessoa do espaço.' : 'Vocês dois vão ver.'}

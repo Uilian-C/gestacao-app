@@ -43,6 +43,49 @@ export interface TaskRow {
   user_ids: string[];
 }
 
+/** Lembretes com hora (migração 018) que já chegaram: o instante entra na chave para não repetir. */
+export interface Timed {
+  entries: Array<EntryRow & { at: string }>;
+  tasks: Array<TaskRow & { at: string }>;
+  /** Agendamentos com aviso a mais antes do horário (minutos). */
+  early: Array<ConsultationRow & { before: number }>;
+}
+
+const BEFORE_TEXT: Record<number, string> = { 30: 'em 30 minutos', 60: 'em 1 hora', 120: 'em 2 horas', 1440: 'amanhã' };
+
+/** Os lembretes com hora: saem quando a hora chega (o /api/lembretes roda a cada 15 minutos). */
+export function planTimed(families: FamilyRow[], timed: Timed): Notice[] {
+  const membersOf = new Map(families.map(f => [f.id, f.members]));
+  const notices: Notice[] = [];
+  for (const e of timed.entries) {
+    notices.push({
+      userIds: e.visibility === 'private' ? (e.user_id ? [e.user_id] : []) : (membersOf.get(e.family_id) ?? []),
+      kind: 'momentos',
+      key: `momento:${e.id}:${e.at}`,
+      payload: { title: 'Lembrete', body: clip(e.body, 140) || 'Lembrete do diário', url: '/?aba=diario', tag: `momento-${e.id}` },
+    });
+  }
+  for (const t of timed.tasks) {
+    notices.push({ userIds: t.user_ids, kind: 'momentos', key: `tarefa:${t.id}:${t.at}`, payload: { title: 'Lembrete de tarefa', body: clip(t.title, 140), url: '/?aba=tarefas', tag: `tarefa-${t.id}` } });
+  }
+  for (const c of timed.early) {
+    const time = c.local.split(' ')[1];
+    const what = KIND_LABEL[c.kind ?? 'consulta'] ?? 'Consulta';
+    notices.push({
+      userIds: membersOf.get(c.family_id) ?? [],
+      kind: 'consultas',
+      key: `consulta:${c.id}:antes:${c.before}`,
+      payload: {
+        title: `${what} ${BEFORE_TEXT[c.before] ?? 'em breve'}, às ${time}`,
+        body: clip([c.kind && c.kind !== 'consulta' ? c.title : null, c.professional_name, c.location].filter(Boolean).join(' · '), 140) || 'Toque para ver o endereço.',
+        url: '/?aba=proximos',
+        tag: `consulta-${c.id}`,
+      },
+    });
+  }
+  return notices.filter(n => n.userIds.length > 0);
+}
+
 export interface Notice {
   userIds: string[];
   kind: NotifyKind;

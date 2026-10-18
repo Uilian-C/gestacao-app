@@ -87,6 +87,10 @@ check((await quem.getByRole('button', { name: /Os dois/ }).getAttribute('aria-pr
 check(await quem.getByRole('button', { name: /Ana/ }).isVisible() && (await quem.getByRole('button', { name: /Caio/ }).isVisible()), 'as opções têm o nome de cada um');
 await pai.getByRole('button', { name: /Exame/ }).first().click();
 check((await quem.getByRole('button', { name: /Ana/ }).getAttribute('aria-pressed')) === 'true', 'exame: começa na mãe (dá para trocar)');
+const aviso = pai.getByRole('group', { name: 'Aviso a mais' });
+check((await aviso.getByRole('button', { name: 'Só os de sempre' }).getAttribute('aria-pressed')) === 'true', 'agenda: lembrete a mais começa em "só os de sempre"');
+await aviso.getByRole('button', { name: '1 h antes' }).click();
+check(await pai.getByText(/e mais um 1 h antes/).isVisible(), 'escolher "1 h antes" explica os avisos');
 await pai.screenshot({ path: `${OUT}quem-vai.png` });
 
 // ---- Mala editável ----
@@ -130,5 +134,17 @@ await mae.waitForTimeout(800);
 check((await own.getByRole('button', { name: 'Desmarcar "Ecocardiograma fetal"' }).count()) === 1, 'item próprio marcado como feito');
 await mae.screenshot({ path: `${OUT}social-jornada.png`, fullPage: false });
 
+// ---- Nome ----
+await mae.getByRole('button', { name: /Abrir nosso espaço/ }).click();
+await mae.getByRole('button', { name: 'Editar', exact: true }).click();
+await mae.getByLabel('Seu nome').fill('Ana Clara');
+await mae.getByRole('button', { name: 'Salvar', exact: true }).click();
+await mae.getByText('Ana Clara', { exact: true }).first().waitFor({ timeout: 10000 });
+check(true, 'mãe edita o próprio nome');
+await mae.keyboard.press('Escape');
+await pai.reload();
+await pai.getByRole('button', { name: /Abrir nosso espaço/ }).click();
+check(await pai.getByText('Ana Clara', { exact: true }).first().isVisible(), 'o pai vê o nome novo');
+await pai.keyboard.press('Escape');
 await b.close();
 finish();

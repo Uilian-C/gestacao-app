@@ -42,6 +42,8 @@ export interface PartnerTask {
   created_by: Author;
   /** Dia do lembrete no celular (migração 017). */
   remind_on?: string | null;
+  /** Dia e hora do lembrete (migração 018). */
+  remind_at?: string | null;
 }
 
 export interface PartnerComment {
@@ -68,6 +70,8 @@ export interface Consultation {
   plan_item?: string | null;
   /** Quem vai (migração 016): mãe, pai ou os dois. */
   attendees?: Assignee | null;
+  /** Aviso a mais antes do horário, em minutos (migração 018). */
+  remind_before?: number | null;
 }
 
 export type AppointmentKind = 'consulta' | 'exame' | 'ultrassom' | 'vacina';

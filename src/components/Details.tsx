@@ -15,6 +15,7 @@ import AuthorBadge from './AuthorBadge';
 import { MentionText } from './Mentions';
 import { WhoAvatars } from './WhoPicker';
 import { PeopleContext, whoName } from '../lib/people';
+import { reminderTime, timeLabel } from '../lib/reminders';
 import PhotoViewer from './PhotoViewer';
 import { EntryForm, type NewEntry } from './forms/EntryForm';
 import { MetricForm, SymptomForm, type NewMetric, type NewSymptom } from './forms/RecordForms';
@@ -248,7 +249,7 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
                 ['Quem cuida', <span key="quem" className="inline-flex items-center gap-1.5"><WhoAvatars who={t.assigned_to} /> {whoName(people, t.assigned_to)}</span>],
                 ['Prioridade', t.priority],
                 ['Prazo', t.due_date ? formatBR(t.due_date) : 'sem prazo'],
-                ...(t.remind_on ? [['Lembrete', `${formatBR(t.remind_on)}, às 8h`] as [string, string]] : []),
+                ...(t.remind_on ? [['Lembrete', `${formatBR(t.remind_on)}, às ${timeLabel(reminderTime(t.remind_at))}`] as [string, string]] : []),
               ]}
             />
             {t.notes && <p className="text-[15px] text-ink mt-4 whitespace-pre-line">{t.notes}</p>}

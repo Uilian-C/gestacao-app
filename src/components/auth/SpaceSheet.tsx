@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Check, ImagePlus, Copy, Download, Link2, Loader2, LogOut, MessageCircle, Trash2, UserMinus, X } from 'lucide-react';
+import { Camera, Check, ImagePlus, Pencil, Copy, Download, Link2, Loader2, LogOut, MessageCircle, Trash2, UserMinus, X } from 'lucide-react';
 import { api, ApiError, type FamilyState, type Me } from '../../api';
 import { FileProblem, prepareAvatar } from '../../lib/examFiles';
 import { formatInviteCode, inviteLink } from '../../lib/invite';
@@ -83,6 +83,14 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
   const others = family.members.filter(m => !m.me);
   const self = family.members.find(m => m.me);
   const photoPicker = useRef<HTMLInputElement>(null);
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState(self?.name ?? me.user.name);
+  const saveName = () =>
+    act(async () => {
+      const res = await api.family('rename', { name: name.trim() });
+      onFamilyChange(res.family);
+      setNaming(false);
+    });
   const selfie = useRef<HTMLInputElement>(null);
 
   const pickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -224,6 +232,29 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
             <input ref={selfie} type="file" accept="image/*" capture="user" hidden aria-label="Tirar foto de perfil" onChange={pickPhoto} />
           </div>
           <p className="text-xs text-ink-mute -mt-2">Aparece no Mural do diário e nos comentários. Só quem é do espaço vê.</p>
+          {naming ? (
+            <form
+              className="flex gap-2"
+              onSubmit={e => {
+                e.preventDefault();
+                if (name.trim()) void saveName();
+              }}
+            >
+              <input aria-label="Seu nome" autoFocus className={`${inputClass} !py-2`} value={name} onChange={e => setName(e.target.value)} maxLength={60} placeholder="Como vocês se chamam no app" />
+              <Button type="submit" disabled={busy || !name.trim()} className="px-4">
+                Salvar
+              </Button>
+            </form>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-ink-soft min-w-0">
+                Seu nome: <strong className="text-ink">{self?.name ?? me.user.name}</strong>
+              </p>
+              <button type="button" onClick={() => setNaming(true)} className="shrink-0 inline-flex items-center gap-1 text-sm font-bold text-brand-strong">
+                <Pencil className="w-3.5 h-3.5" /> Editar
+              </button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-ink-soft">Seu papel nos registros</p>
             <Segmented label="Seu papel" size="sm" value={family.role} onChange={changeRole} options={[{ value: 'mae', label: 'Mãe' }, { value: 'pai', label: 'Pai' }]} />

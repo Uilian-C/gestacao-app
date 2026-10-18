@@ -14,6 +14,7 @@ export async function fetchAll(fid: string, userId: string) {
               f.abortions, f.cesareans, f.allergies, f.medications, f.conditions,
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'consultations' AND column_name = 'attendees') AS attendees_ready,
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'partner_tasks' AND column_name = 'remind_on') AS task_reminders_ready,
+              EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'journal_entries' AND column_name = 'remind_at') AS timed_reminders_ready,
               -- Abraços dos últimos dias (enviados e recebidos), guardados junto com os avisos.
               (SELECT COALESCE(json_agg(json_build_object('day', split_part(n.key, ':', 2), 'toMe', n.user_id = $2)), '[]')
                  FROM notification_log n JOIN family_members fm ON fm.user_id = n.user_id AND fm.family_id = f.id
@@ -41,7 +42,7 @@ export async function fetchAll(fid: string, userId: string) {
     query(
       `SELECT id, week_number, task_title, COALESCE(assigned_to, 'casal') AS assigned_to, is_completed, due_date::text AS due_date,
               COALESCE(priority, 'Média') AS priority, notes, COALESCE(created_by, 'mae') AS created_by,
-              to_jsonb(t) ->> 'remind_on' AS remind_on
+              to_jsonb(t) ->> 'remind_on' AS remind_on, to_jsonb(t) ->> 'remind_at' AS remind_at
        FROM partner_tasks t WHERE family_id = $1
        ORDER BY created_at DESC`,
       [fid],
@@ -63,7 +64,7 @@ export async function fetchAll(fid: string, userId: string) {
       // Tipo, nome e item da jornada pelo jsonb: antes da migração 013 as colunas não existem e tudo é consulta.
       `SELECT id, scheduled_at::text AS scheduled_at, specialty, professional_name, location, notes, COALESCE(created_by, 'mae') AS created_by,
               COALESCE(to_jsonb(c) ->> 'kind', 'consulta') AS kind, to_jsonb(c) ->> 'title' AS title, to_jsonb(c) ->> 'plan_item' AS plan_item,
-              to_jsonb(c) ->> 'attendees' AS attendees
+              to_jsonb(c) ->> 'attendees' AS attendees, (to_jsonb(c) ->> 'remind_before')::int AS remind_before
        FROM consultations c WHERE family_id = $1
        ORDER BY scheduled_at ASC`,
       [fid],
@@ -86,7 +87,8 @@ export async function fetchAll(fid: string, userId: string) {
     query(
       // A pasta vem pelo jsonb: antes da migração 012 a coluna não existe e tudo é "momento".
       `SELECT id, entry_date::text AS entry_date, body, visibility, remind_on::text AS remind_on, author_role,
-              (user_id = $2) AS mine, created_at::text AS created_at, COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS folder
+              (user_id = $2) AS mine, created_at::text AS created_at, COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS folder,
+              to_jsonb(j) ->> 'remind_at' AS remind_at
        FROM journal_entries j
        WHERE family_id = $1 AND (visibility = 'shared' OR user_id = $2)
        ORDER BY entry_date DESC, created_at DESC`,
@@ -166,6 +168,8 @@ export async function fetchAll(fid: string, userId: string) {
     attendeesAvailable: f.attendees_ready === true,
     /** A migração 017 já rodou: lembrete nas tarefas. */
     taskRemindersAvailable: f.task_reminders_ready === true,
+    /** A migração 018 já rodou: lembretes com hora (e aviso a mais nos agendamentos). */
+    timedRemindersAvailable: f.timed_reminders_ready === true,
     hugs: (f.hugs as Array<{ day: string; toMe: boolean }> | undefined) ?? [],
     migrationPending: false,
     kickSessions: kicks,

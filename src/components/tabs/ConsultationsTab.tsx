@@ -15,7 +15,7 @@ import type { AppointmentKind, Assignee, BirthPlanRecord, Contraction, KickSessi
 import AuthorBadge from '../AuthorBadge';
 import AddressInput from '../AddressInput';
 import WhoPicker from '../WhoPicker';
-import { AttendeesReady, PeopleContext } from '../../lib/people';
+import { AttendeesReady, PeopleContext, TimedRemindersReady } from '../../lib/people';
 import { InsightList } from '../InsightList';
 import { inputClass } from '../styles';
 import { Button, Card, Chip, EmptyState, Field, LinkButton, Pill, SectionTitle } from '../ui';
@@ -37,7 +37,18 @@ export interface NewConsultation {
   planItem: string | null;
   /** Quem vai (migração 016); null quando o app ainda não pergunta. */
   attendees: Assignee | null;
+  /** Aviso a mais antes do horário, em minutos (migração 018); undefined quando o app ainda não pergunta. */
+  remindBefore?: number | null;
 }
+
+/** Aviso a mais antes do horário do agendamento (minutos). */
+const BEFORE_OPTIONS: Array<{ minutes: number | null; text: string }> = [
+  { minutes: null, text: 'Só os de sempre' },
+  { minutes: 30, text: '30 min antes' },
+  { minutes: 60, text: '1 h antes' },
+  { minutes: 120, text: '2 h antes' },
+  { minutes: 1440, text: '1 dia antes' },
+];
 
 /** Sugestões de nome para cada tipo, tiradas da jornada do pré-natal. */
 function suggestionsFor(kind: AppointmentKind) {
@@ -128,6 +139,8 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
   const [location, setLocation] = useState(initial?.location ?? '');
   const consulta = kind === 'consulta';
   const attendeesReady = useContext(AttendeesReady);
+  const timedReady = useContext(TimedRemindersReady);
+  const [before, setBefore] = useState<number | null>(initial?.remind_before ?? null);
   const people = useContext(PeopleContext);
   const askWho = attendeesReady && people.length > 1;
   // Quem vai: em consulta e ultrassom, os dois; em exame e vacina, a mãe (dá para trocar).
@@ -160,6 +173,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
           title: consulta ? null : title.trim(),
           planItem: consulta ? null : planItem,
           attendees: askWho ? who : (initial?.attendees ?? null),
+          ...(timedReady ? { remindBefore: before } : {}),
         });
         if (ok) {
           setOpen(false);
@@ -169,6 +183,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
           setProfessional('');
           setLocation('');
           setWho(null);
+          setBefore(null);
         }
       }}
     >
@@ -241,6 +256,25 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
             <span className="text-sm font-semibold text-ink-soft block">Quem vai</span>
             <WhoPicker label="Quem vai" value={who} onChange={setWho} />
             <p className="text-xs text-ink-mute">Quem for chamado recebe um aviso no celular.</p>
+          </div>
+        )}
+        {timedReady && (
+          <div className="space-y-1.5">
+            <span className="text-sm font-semibold text-ink-soft block">Lembrete</span>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Aviso a mais">
+              {BEFORE_OPTIONS.map(o => (
+                <button
+                  key={o.text}
+                  type="button"
+                  aria-pressed={before === o.minutes}
+                  onClick={() => setBefore(o.minutes)}
+                  className={`rounded-full px-3 py-1.5 text-[13px] font-bold transition ${before === o.minutes ? 'bg-brand text-on-accent shadow-soft' : 'bg-surface text-ink-soft hover:text-ink'}`}
+                >
+                  {o.text}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-ink-mute">Vocês sempre recebem aviso na véspera e na manhã do dia{before ? `, e mais um ${BEFORE_OPTIONS.find(o => o.minutes === before)!.text.toLowerCase()}` : ''}.</p>
           </div>
         )}
         <Field label={consulta ? 'Profissional (opcional)' : 'Laboratório ou clínica (opcional)'} htmlFor="prof">

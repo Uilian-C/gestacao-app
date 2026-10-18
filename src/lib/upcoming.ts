@@ -64,7 +64,7 @@ export function buildUpcoming(input: { consultations: Consultation[]; tasks: Par
   }
   for (const e of input.journal) {
     if (!e.remind_on || daysBetween(today, parseLocalDate(e.remind_on)) < 0) continue;
-    items.push({ id: `lembrete-${e.id}`, day: e.remind_on.slice(0, 10), label: 'Lembrete', title: e.body || 'Lembrete do diário', detail: e.visibility === 'private' ? 'Só você vê' : undefined, tone: 'rosa', entry: e });
+    items.push({ id: `lembrete-${e.id}`, day: e.remind_on.slice(0, 10), time: e.remind_at ? hhmm(parseTimestamp(e.remind_at)) : undefined, label: 'Lembrete', title: e.body || 'Lembrete do diário', detail: e.visibility === 'private' ? 'Só você vê' : undefined, tone: 'rosa', entry: e });
   }
 
   items.sort((a, b) => a.day.localeCompare(b.day) || Number(!!b.overdue) - Number(!!a.overdue) || (a.time ?? '99').localeCompare(b.time ?? '99'));

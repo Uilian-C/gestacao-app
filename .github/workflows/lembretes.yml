@@ -1,0 +1,27 @@
+# Lembretes com hora: chama o /api/lembretes do app a cada 15 minutos.
+# (O plano da Vercel só deixa o cron de lá rodar uma vez por dia; ele continua
+# como reserva, às 8h.) O app só aceita a chamada com o CRON_SECRET, guardado
+# em Settings → Secrets and variables → Actions, com o mesmo valor da Vercel.
+name: Lembretes
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Chamar /api/lembretes
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::warning::Falta o segredo CRON_SECRET (Settings → Secrets and variables → Actions)."
+            exit 0
+          fi
+          curl -fsS --retry 2 --max-time 60 -H "Authorization: Bearer $CRON_SECRET" https://meutumtum.com.br/api/lembretes

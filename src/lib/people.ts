@@ -23,6 +23,9 @@ export const AttendeesReady = createContext(false);
 /** A migração 017 já rodou: dá para pôr lembrete nas tarefas. */
 export const TaskRemindersReady = createContext(false);
 
+/** A migração 018 já rodou: lembretes com hora e aviso a mais nos agendamentos. */
+export const TimedRemindersReady = createContext(false);
+
 /** A pessoa do espaço com esse papel (o pai, a mãe). */
 export const memberWithRole = (members: FamilyMember[], role: Author) => members.find(m => m.role === role);
 

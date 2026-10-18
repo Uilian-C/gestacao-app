@@ -99,6 +99,27 @@ check(!(await novos('mb', cron)).includes('Lembrete de tarefa'), 'tarefa conclu�
 await A.call('/api/data', { op: 'updateTask', id: lembrete.id, title: lembrete.task_title, assignee: 'pai', priority: 'Alta', dueDate: null, notes: null, remindOn: '' });
 check((await A.call('/api/data')).data.tasks.find(t => t.id === lembrete.id).remind_on === null, 'tirar o lembrete');
 
+// ---- Lembretes com hora (migração 018) ----
+check((await A.call('/api/data')).data.timedRemindersAvailable === true, 'com a migração 018, o app pergunta a hora do lembrete');
+const minutes = n => new Date(Date.now() + n * 60000).toISOString();
+await A.call('/api/data', { op: 'createEntry', date: today, body: 'Ligar para a doula', visibility: 'shared', remindOn: today, remindAt: minutes(-5), folder: 'ideia' });
+await A.call('/api/data', { op: 'createEntry', date: today, body: 'Ainda não é hora', visibility: 'shared', remindOn: today, remindAt: minutes(120), folder: 'ideia' });
+await A.call('/api/data', { op: 'createTask', week: 20, title: 'Lavar as roupinhas', assignee: 'pai', priority: 'Média', dueDate: null, notes: null, remindOn: today, remindAt: minutes(-1) });
+await A.call('/api/data', { op: 'createConsultation', scheduledAt: minutes(30), specialty: 'obstetra', professional: 'Dra. Lia', location: null, kind: 'consulta', title: null, planItem: null, attendees: 'casal', remindBefore: 60 });
+const guardado = (await A.call('/api/data')).data;
+check(guardado.journal.find(e => e.body === 'Ligar para a doula').remind_at !== null && guardado.consultations.some(c => c.remind_before === 60), 'dia, hora e aviso a mais ficam guardados');
+const got1 = await novos('mb', cron);
+check(got1.includes('Lembrete') && got1.includes('Lembrete de tarefa'), 'quando a hora chega: lembrete do diário e da tarefa');
+check(got1.some(t => /^Consulta em 1 hora, às \d\d:\d\d$/.test(t)), 'aviso a mais antes da consulta');
+check(got1.filter(t => t === 'Lembrete').length === 1, 'o lembrete de daqui a 2 horas ainda não sai');
+check((await novos('mb', cron)).filter(t => t.startsWith('Lembrete') || t.startsWith('Consulta em')).length === 0, 'chamar de novo não repete');
+check((await A.call('/api/data', { op: 'createConsultation', scheduledAt: minutes(300), specialty: 'obstetra', professional: null, location: null, remindBefore: 45 })).status === 400, 'aviso a mais só de 30 min, 1 h, 2 h ou 1 dia');
+
+// ---- Nome ----
+check((await B.call('/api/family', { op: 'rename', name: '  Bruno   Henrique ' })).status === 200, 'Bruno muda o nome');
+check((await A.call('/api/family')).data.family.members.some(m => m.name === 'Bruno Henrique'), 'Ana vê o nome novo');
+check((await B.call('/api/family', { op: 'rename', name: '   ' })).status === 400, 'nome vazio é recusado');
+
 // ---- Abraço do "Vocês dois hoje" ----
 got = await novos('ma', () => B.call('/api/data', { op: 'hug', day: today }));
 check(got.length === 1 && got[0] === 'Bruno mandou um abraço', 'abraço chega como aviso: "Bruno mandou um abraço"');

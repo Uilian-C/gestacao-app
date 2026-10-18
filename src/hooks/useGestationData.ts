@@ -34,6 +34,8 @@ export interface GestationData {
   hugs?: Hug[];
   /** A migração 017 já rodou: lembrete nas tarefas. */
   taskRemindersAvailable?: boolean;
+  /** A migração 018 já rodou: lembretes com hora. */
+  timedRemindersAvailable?: boolean;
   /** Exames e ultrassons: os compartilhados e os particulares de quem está logado. */
   exams: ExamItem[];
   /** A migração 010 já foi aplicada. */
@@ -110,6 +112,8 @@ export interface JournalEntry {
   body: string;
   visibility: 'private' | 'shared';
   remind_on: string | null;
+  /** Dia e hora do lembrete (migração 018). */
+  remind_at?: string | null;
   author_role: 'mae' | 'pai';
   /** Escrito por quem está logado (só esses podem ser apagados). */
   mine: boolean;
