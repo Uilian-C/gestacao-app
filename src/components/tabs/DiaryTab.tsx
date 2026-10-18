@@ -1,6 +1,6 @@
-import { Bell, BookHeart, ChevronRight, HeartPulse, Images, LayoutList, Lock, Plus } from 'lucide-react';
+import { Bell, BookHeart, ChevronRight, HeartPulse, Images, LayoutList, Lock, Plus, Smile } from 'lucide-react';
 import { photoUrl, type FamilyMember } from '../../api';
-import type { Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
+import type { Checkin, Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { formatBR, toISODate } from '../../lib/dates';
 import type { DetailTarget } from '../../lib/details';
 import { FOLDER, FOLDERS, TONE, bellyWeeks, byMonth, shortDate, weekOn } from '../../lib/folders';
@@ -9,6 +9,7 @@ import AuthorBadge from '../AuthorBadge';
 import { MentionText } from '../Mentions';
 import { SocialCount, type OnReact } from '../Social';
 import Mural from './Mural';
+import MoodTab from './MoodTab';
 import { Card } from '../ui';
 
 // O Diário é o fichário afetivo da gestação: momentos, dia a dia, ideias,
@@ -32,6 +33,8 @@ interface Props {
   socialAvailable: boolean;
   onReact: OnReact;
   onComment: (entryId: string, body: string) => Promise<boolean>;
+  /** Check-ins do dia (Diário → Humor). */
+  checkins: Checkin[];
   /** Abre os detalhes (com reações, conversa, editar e excluir). */
   onOpen: (target: DetailTarget) => void;
   /** Abre o formulário já na pasta (e com uma ideia para começar). */
@@ -51,7 +54,9 @@ export default function DiaryTab(props: Props) {
   return (
     <div className="space-y-5">
       <FolderStrip value={props.view} onChange={props.onView} count={count} total={entries.length} folders={props.photosAvailable} />
-      {props.view === 'mural' ? (
+      {props.view === 'humor' ? (
+        <MoodTab checkins={props.checkins} journal={entries} onOpenEntry={id => props.onOpen({ kind: 'entry', id })} />
+      ) : props.view === 'mural' ? (
         <Mural
           entries={entries}
           members={props.members}
@@ -85,6 +90,9 @@ function FolderStrip({ value, onChange, count, total, folders }: { value: DiaryV
       </button>
       <button type="button" onClick={() => onChange('tudo')} aria-current={value === 'tudo' ? 'page' : undefined} className={`${tab} ${value === 'tudo' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
         <BookHeart className="w-4 h-4" /> Fichário <span className="tabular opacity-70">{total}</span>
+      </button>
+      <button type="button" onClick={() => onChange('humor')} aria-current={value === 'humor' ? 'page' : undefined} className={`${tab} ${value === 'humor' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
+        <Smile className="w-4 h-4" /> Humor
       </button>
       {folders && FOLDERS.map(f => {
         const on = value === f.id;

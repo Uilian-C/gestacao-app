@@ -6,21 +6,12 @@ import { parseLocalDate, toISODate } from '../lib/dates';
 import { PeopleContext, firstName } from '../lib/people';
 import type { Author } from '../types';
 import Avatar from './Avatar';
+import MoodFace from './MoodFace';
+import { MOODS, moodLabel, moodOf } from '../lib/moods';
 
 // "Vocês dois hoje": como cada um está (um toque por dia), lado a lado. Depois
 // de responder, o cartão confirma e fecha; se a outra pessoa não está bem, vem
 // uma ideia de cuidado e o botão de mandar um abraço (chega como aviso).
-
-const MOODS: Array<{ id: Mood; mae: string; pai: string; face: string }> = [
-  { id: 'otima', mae: 'Ótima', pai: 'Ótimo', face: 'M8 14c1.2 1.6 2.4 2.2 4 2.2s2.8-.6 4-2.2M9 9.5h.01M15 9.5h.01' },
-  { id: 'bem', mae: 'Bem', pai: 'Bem', face: 'M9 15h6M9 9.5h.01M15 9.5h.01' },
-  { id: 'cansada', mae: 'Cansada', pai: 'Cansado', face: 'M9 15.5h6M8 10h2.5M13.5 10H16' },
-  { id: 'enjoada', mae: 'Enjoada', pai: 'Enjoado', face: 'M8.5 16c1-1.2 2.2-1.6 3.5-1.6s2.5.4 3.5 1.6M9 9.5h.01M15 9.5h.01' },
-  { id: 'ansiosa', mae: 'Ansiosa', pai: 'Ansioso', face: 'M9 15.5c.8-.6 1.8-.9 3-.9s2.2.3 3 .9M8 8.5l2 1M16 8.5l-2 1' },
-];
-
-const moodOf = (id: Mood) => MOODS.find(m => m.id === id)!;
-const moodLabel = (mood: Mood, role: Author) => moodOf(mood)[role === 'pai' ? 'pai' : 'mae'];
 
 /** Uma ideia de cuidado quando a outra pessoa não está bem (pelo papel dela). */
 const CARE: Partial<Record<Mood, Record<Author, string>>> = {
@@ -28,15 +19,6 @@ const CARE: Partial<Record<Mood, Record<Author, string>>> = {
   cansada: { mae: 'Assuma uma tarefa da casa hoje e deixe ela descansar sem culpa.', pai: 'Ele também precisa de pausa: que tal um tempo juntos, sem telas?' },
   ansiosa: { mae: 'Uma conversa sem pressa ajuda. Pergunte o que está pesando.', pai: 'Conversem sobre o que preocupa: dividir alivia os dois.' },
 };
-
-function Face({ path, className = 'w-7 h-7' }: { path: string; className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className={className} aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <path d={path} />
-    </svg>
-  );
-}
 
 interface Props {
   role: Author;
@@ -46,9 +28,11 @@ interface Props {
   onHug: () => Promise<boolean>;
   /** Contar no Mural (registro do dia a dia, para os dois). Sem ele, o cartão não oferece. */
   onShare?: (text: string) => Promise<boolean>;
+  /** Abre o mês no Diário → Humor. */
+  onMonth?: () => void;
 }
 
-export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShare }: Props) {
+export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShare, onMonth }: Props) {
   const members = useContext(PeopleContext);
   const today = toISODate(new Date());
   const me = members.find(m => m.me);
@@ -92,9 +76,16 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
 
   return (
     <section aria-labelledby="checkin-titulo" className="rounded-[28px] bg-surface shadow-soft p-5 space-y-4">
-      <h2 id="checkin-titulo" className="text-[1.25rem] text-ink">
-        {partner ? 'Vocês dois hoje' : 'Como você está hoje?'}
-      </h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="checkin-titulo" className="text-[1.25rem] text-ink">
+          {partner ? 'Vocês dois hoje' : 'Como você está hoje?'}
+        </h2>
+        {onMonth && checkins.length > 0 && (
+          <button type="button" onClick={onMonth} className="shrink-0 text-sm font-bold text-brand-strong">
+            Ver o mês
+          </button>
+        )}
+      </div>
 
       <div className={`grid gap-3 ${partner ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <Person member={me} role={role} name="Você" mood={mine?.mood} empty={picking ? 'Toque abaixo' : ''} />
@@ -116,7 +107,7 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
                   onClick={() => (on ? setChanging(false) : pick(m.id))}
                   className={`flex flex-col items-center gap-1 rounded-2xl px-0.5 py-2.5 text-[12px] font-bold transition active:scale-95 ${on ? 'bg-rosa text-white shadow-soft' : 'bg-surface-2 text-ink-soft hover:text-ink'} ${saving && saving !== m.id ? 'opacity-60' : ''}`}
                 >
-                  {saving === m.id ? <Loader2 className="w-7 h-7 animate-spin" /> : <Face path={m.face} />}
+                  {saving === m.id ? <Loader2 className="w-7 h-7 animate-spin" /> : <MoodFace path={m.face} />}
                   {role === 'pai' ? m.pai : m.mae}
                 </button>
               );
@@ -214,7 +205,7 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
               return (
                 <li key={w.iso} className="flex flex-col items-center gap-0.5" title={mood ? (role === 'pai' ? mood.pai : mood.mae) : 'sem resposta'}>
                   <span className={`w-7 h-7 rounded-full flex items-center justify-center ${mood ? 'bg-rosa-soft text-rosa-strong' : 'bg-surface-2 text-line'}`}>
-                    {mood ? <Face path={mood.face} className="w-5 h-5" /> : <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+                    {mood ? <MoodFace path={mood.face} className="w-5 h-5" /> : <span className="w-1.5 h-1.5 rounded-full bg-current" />}
                   </span>
                   <span className="text-[10px] font-bold uppercase text-ink-mute">{w.letter}</span>
                 </li>
@@ -235,7 +226,7 @@ function Person({ member, role, name, mood, empty }: { member?: FamilyMember; ro
         <Avatar member={member} role={role} className="w-11 h-11 text-base" />
         {mood && (
           <span className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-surface flex items-center justify-center shadow-soft ${role === 'pai' ? 'text-pai' : 'text-mae'}`}>
-            <Face path={moodOf(mood).face} className="w-5 h-5" />
+            <MoodFace path={moodOf(mood).face} className="w-5 h-5" />
           </span>
         )}
       </span>

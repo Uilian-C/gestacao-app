@@ -127,10 +127,10 @@ export async function fetchAll(fid: string, userId: string) {
        ORDER BY f.created_at`,
       [fid, userId],
     ).catch(() => null),
-    // Check-ins do dia (migração 014): os últimos 60 dias dos dois.
+    // Check-ins do dia (migração 014): a gestação inteira dos dois (Diário → Humor).
     query(
       `SELECT day::text AS day, mood, author_role, (user_id = $2) AS mine
-       FROM checkins WHERE family_id = $1 AND day >= CURRENT_DATE - 60 ORDER BY day DESC`,
+       FROM checkins WHERE family_id = $1 AND day >= CURRENT_DATE - 320 ORDER BY day DESC`,
       [fid, userId],
     ).catch(() => null),
   ]);

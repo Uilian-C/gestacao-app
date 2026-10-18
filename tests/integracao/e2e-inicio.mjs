@@ -102,6 +102,19 @@ await card.getByText('Caio mandou um abraço para você hoje.').waitFor({ timeou
 check(await card.getByText('Ótimo', { exact: true }).isVisible(), 'mãe recebe o abraço e vê "Caio: Ótimo"');
 check(await mae.getByText(/Caio já passou por aqui hoje/).isVisible(), 'mãe vê que o Caio passou por aqui hoje');
 
+// ---- Diário → Humor: o mês dos dois ----
+await card.getByRole('button', { name: 'Ver o mês' }).click();
+const grid = mae.getByRole('grid', { name: /^Humor em / });
+await grid.waitFor({ timeout: 10000 });
+const hoje = await mae.evaluate(() => new Date().toLocaleDateString('pt-BR'));
+check(await grid.getByRole('gridcell', { name: `${hoje}: Ana cansada, Caio ótimo` }).isVisible(), '"Ver o mês" abre o Diário → Humor, com os dois no dia de hoje');
+const dia = mae.getByRole('region', { name: 'Dia escolhido' });
+check(await dia.getByText('Cansada', { exact: true }).isVisible() && (await dia.getByText(/^Momento: Senti você mexer/).count()) === 0, 'o dia mostra como cada um estava');
+check(await dia.getByText(/Dia a dia: Hoje estou cansada/).isVisible(), 'e o que guardaram no diário nesse dia');
+const resumo = mae.getByRole('region', { name: 'Resumo do mês' });
+check(await resumo.getByText('Cansada: 1').isVisible() && (await resumo.getByText('Ótimo: 1').isVisible()), 'resumo do mês por pessoa');
+await mae.screenshot({ path: `${OUT}humor.png`, fullPage: true });
+
 // Abrir o Diário conta como ver as novidades: voltando ao Início, aparece só o último registro dele.
 await mae.getByRole('button', { name: /^Diário/ }).first().click();
 await mae.getByRole('button', { name: /^Início/ }).first().click();
