@@ -55,7 +55,7 @@ export default function DiaryTab(props: Props) {
     <div className="space-y-5">
       <FolderStrip value={props.view} onChange={props.onView} count={count} total={entries.length} folders={props.photosAvailable} />
       {props.view === 'humor' ? (
-        <MoodTab checkins={props.checkins} journal={entries} onOpenEntry={id => props.onOpen({ kind: 'entry', id })} />
+        <MoodTab checkins={props.checkins} journal={entries} dumDate={props.dumDate} onOpenEntry={id => props.onOpen({ kind: 'entry', id })} />
       ) : props.view === 'mural' ? (
         <Mural
           entries={entries}

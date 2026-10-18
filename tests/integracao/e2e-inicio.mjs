@@ -102,18 +102,29 @@ await card.getByText('Caio mandou um abraço para você hoje.').waitFor({ timeou
 check(await card.getByText('Ótimo', { exact: true }).isVisible(), 'mãe recebe o abraço e vê "Caio: Ótimo"');
 check(await mae.getByText(/Caio já passou por aqui hoje/).isVisible(), 'mãe vê que o Caio passou por aqui hoje');
 
-// ---- Diário → Humor: o mês dos dois ----
-await card.getByRole('button', { name: 'Ver o mês' }).click();
-const grid = mae.getByRole('grid', { name: /^Humor em / });
-await grid.waitFor({ timeout: 10000 });
-const hoje = await mae.evaluate(() => new Date().toLocaleDateString('pt-BR'));
-check(await grid.getByRole('gridcell', { name: `${hoje}: Ana cansada, Caio ótimo` }).isVisible(), '"Ver o mês" abre o Diário → Humor, com os dois no dia de hoje');
-const dia = mae.getByRole('region', { name: 'Dia escolhido' });
-check(await dia.getByText('Cansada', { exact: true }).isVisible() && (await dia.getByText(/^Momento: Senti você mexer/).count()) === 0, 'o dia mostra como cada um estava');
-check(await dia.getByText(/Dia a dia: Hoje estou cansada/).isVisible(), 'e o que guardaram no diário nesse dia');
-const resumo = mae.getByRole('region', { name: 'Resumo do mês' });
-check(await resumo.getByText('Cansada: 1').isVisible() && (await resumo.getByText('Ótimo: 1').isVisible()), 'resumo do mês por pessoa');
+// ---- Diário → Humor: a linha do humor, semana a semana (não é calendário) ----
+await card.getByRole('button', { name: 'Ver o histórico' }).click();
+const linha = mae.getByRole('region', { name: 'Linha do humor' });
+await linha.waitFor({ timeout: 10000 });
+const semana = linha.getByRole('button', { name: /^Semana \d+ \(esta semana\)/ });
+check((await semana.getAttribute('aria-expanded')) === 'true', '"Ver o histórico" abre o Diário → Humor, com esta semana aberta');
+const dias = linha.getByRole('list', { name: 'Dias da semana' });
+check(await dias.getByText('Ana: Cansada').isVisible() && (await dias.getByText('Caio: Ótimo').isVisible()), 'o dia de hoje mostra como cada um estava');
+check(await dias.getByText(/Dia a dia:.*Hoje estou cansada/).isVisible(), 'e o que guardaram no diário nesse dia');
+const resumo = mae.getByRole('region', { name: 'Resumo das últimas 4 semanas' });
+check(await resumo.getByText('Cansada: 1').isVisible() && (await resumo.getByText('Ótimo: 1').isVisible()), 'resumo das últimas 4 semanas por pessoa');
+check((await mae.getByRole('grid').count()) === 0, 'o Diário não tem calendário (o calendário é o da Agenda)');
 await mae.screenshot({ path: `${OUT}humor.png`, fullPage: true });
+
+// ---- Agenda → Calendário: o humor aparece no dia, discreto ----
+await mae.getByRole('button', { name: /^Agenda(\s|$)/ }).first().click();
+await mae.getByRole('button', { name: 'Calendário' }).click();
+const hojeCal = await mae.evaluate(() => new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }));
+const celula = mae.getByRole('gridcell', { name: new RegExp(`^${hojeCal}.*humor: Ana cansada, Caio ótimo`) });
+await celula.waitFor({ timeout: 10000 });
+check(true, 'o calendário da Agenda mostra o humor dos dois no dia');
+check(await mae.getByLabel('Humor do dia').getByText(/Ana, cansada/).isVisible(), 'e o detalhe do dia diz como vocês estavam');
+await mae.screenshot({ path: `${OUT}agenda-humor.png`, fullPage: true });
 
 // Abrir o Diário conta como ver as novidades: voltando ao Início, aparece só o último registro dele.
 await mae.getByRole('button', { name: /^Diário/ }).first().click();

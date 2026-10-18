@@ -28,7 +28,7 @@ interface Props {
   onHug: () => Promise<boolean>;
   /** Contar no Mural (registro do dia a dia, para os dois). Sem ele, o cartão não oferece. */
   onShare?: (text: string) => Promise<boolean>;
-  /** Abre o mês no Diário → Humor. */
+  /** Abre a linha do humor no Diário → Humor. */
   onMonth?: () => void;
 }
 
@@ -82,7 +82,7 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
         </h2>
         {onMonth && checkins.length > 0 && (
           <button type="button" onClick={onMonth} className="shrink-0 text-sm font-bold text-brand-strong">
-            Ver o mês
+            Ver o histórico
           </button>
         )}
       </div>

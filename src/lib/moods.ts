@@ -14,13 +14,22 @@ export const MOODS: Array<{ id: Mood; mae: string; pai: string; face: string }> 
 export const moodOf = (id: Mood) => MOODS.find(m => m.id === id)!;
 export const moodLabel = (mood: Mood, role: Author) => moodOf(mood)[role === 'pai' ? 'pai' : 'mae'];
 
+/** Uma cor por humor, igual no calendário da Agenda, no Diário → Humor e nas legendas. */
+export const MOOD_COLOR: Record<Mood, { text: string; bg: string }> = {
+  otima: { text: 'text-ok', bg: 'bg-ok' },
+  bem: { text: 'text-azul', bg: 'bg-azul' },
+  cansada: { text: 'text-warn', bg: 'bg-warn' },
+  enjoada: { text: 'text-coral', bg: 'bg-coral' },
+  ansiosa: { text: 'text-lilas', bg: 'bg-lilas' },
+};
+
 /** Humores que pedem atenção (não "ótima" nem "bem"). */
 export const HARD_MOODS: Mood[] = ['cansada', 'enjoada', 'ansiosa'];
 
-/** Quantos dias de cada humor uma pessoa teve no período (o mês "2026-10", por exemplo). */
-export function moodCounts(checkins: Checkin[], role: Author, prefix: string): Record<Mood, number> {
+/** Quantos dias de cada humor uma pessoa teve entre `start` e `end` (inclusive, "AAAA-MM-DD"). */
+export function moodCounts(checkins: Checkin[], role: Author, start: string, end: string): Record<Mood, number> {
   const counts = Object.fromEntries(MOODS.map(m => [m.id, 0])) as Record<Mood, number>;
-  for (const c of checkins) if (c.author_role === role && c.day.startsWith(prefix)) counts[c.mood] += 1;
+  for (const c of checkins) if (c.author_role === role && c.day >= start && c.day <= end) counts[c.mood] += 1;
   return counts;
 }
 

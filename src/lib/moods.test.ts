@@ -5,8 +5,8 @@ import { moodCounts, moodTrends, needsCare } from './moods';
 const c = (day: string, mood: Mood, author_role: 'mae' | 'pai' = 'mae'): Checkin => ({ day, mood, author_role, mine: author_role === 'mae' });
 
 describe('humor', () => {
-  it('conta os dias de cada humor no mês, por pessoa', () => {
-    const counts = moodCounts([c('2026-10-01', 'bem'), c('2026-10-02', 'bem'), c('2026-10-03', 'cansada'), c('2026-09-30', 'bem'), c('2026-10-01', 'otima', 'pai')], 'mae', '2026-10');
+  it('conta os dias de cada humor no período, por pessoa', () => {
+    const counts = moodCounts([c('2026-10-01', 'bem'), c('2026-10-02', 'bem'), c('2026-10-03', 'cansada'), c('2026-09-30', 'bem'), c('2026-10-01', 'otima', 'pai')], 'mae', '2026-10-01', '2026-10-31');
     expect(counts).toEqual({ otima: 0, bem: 2, cansada: 1, enjoada: 0, ansiosa: 0 });
   });
   it('aponta o que aumentou nas últimas 2 semanas', () => {

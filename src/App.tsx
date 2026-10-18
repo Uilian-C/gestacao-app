@@ -706,6 +706,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 metrics={metrics}
                 journal={journal}
                 results={exams}
+                checkins={data.checkins ?? []}
                 busy={busy}
                 migrationPending={data.migrationPending}
                 onCreateConsultation={createConsultation}
