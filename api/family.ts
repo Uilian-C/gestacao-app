@@ -29,6 +29,8 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('setRole'), role }),
   z.object({ op: z.literal('removeMember'), userId: z.string().min(1).max(64) }),
   z.object({ op: z.literal('consent'), version: z.string().max(20) }),
+  // O nome que aparece para a outra pessoa (Mural, conversas, "Vocês dois hoje").
+  z.object({ op: z.literal('rename'), name: z.string().trim().min(1).max(60) }),
 ]);
 
 /** Convite válido: existe, não foi usado e não venceu. */
@@ -114,6 +116,10 @@ export const POST = endpoint(async request => {
         [code, member.familyId, user.id, INVITE_DAYS],
       );
       return json({ code, expiresAt: rows[0].expires_at });
+    }
+    case 'rename': {
+      await query('UPDATE "user" SET name = $1, "updatedAt" = NOW() WHERE id = $2', [o.name.replace(/\s+/g, ' '), user.id]);
+      break;
     }
     case 'setRole': {
       if (!member) throw new HttpError(403, 'Você ainda não faz parte de um espaço.');

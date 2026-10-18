@@ -40,7 +40,7 @@ import { findPatterns, toEntries } from './lib/symptoms';
 import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, DiaryView, HealthView, PartnerTask, Tab } from './types';
 import { isConsultation, resultOf } from './lib/appointments';
 import { autoDone, visitsOf } from './lib/journey';
-import { AttendeesReady, PeopleContext, TaskRemindersReady } from './lib/people';
+import { AttendeesReady, PeopleContext, TaskRemindersReady, TimedRemindersReady } from './lib/people';
 import { markSeen } from './lib/news';
 
 const UNDO_WINDOW_MS = 5000;
@@ -63,7 +63,10 @@ const HEALTH_MODES: QuickMode[] = ['sintoma', 'medicao'];
 const HEALTH_CHART: Record<Exclude<HealthView, 'registros'>, DashboardView> = { sintomas: 'sintomas', corpo: 'corpo', resumo: 'geral' };
 
 /** O lembrete só vai quando o formulário pergunta (depois da migração 017); sem ele, o servidor mantém o que estava. */
-const reminderOf = (t: NewTask) => (t.remindOn === undefined ? {} : { remindOn: t.remindOn || null });
+const reminderOf = (t: NewTask) => ({
+  ...(t.remindOn === undefined ? {} : { remindOn: t.remindOn || null }),
+  ...(t.remindAt === undefined ? {} : { remindAt: t.remindAt }),
+});
 
 const appointmentFields = (c: NewConsultation) => ({
   scheduledAt: c.scheduledAt,
@@ -74,6 +77,7 @@ const appointmentFields = (c: NewConsultation) => ({
   title: c.title,
   planItem: c.planItem,
   attendees: c.attendees,
+  ...(c.remindBefore === undefined ? {} : { remindBefore: c.remindBefore }),
 });
 const appointmentError = (c: NewConsultation) =>
   c.kind === 'consulta' ? undefined : 'Não foi possível agendar. Se for o primeiro exame agendado, rode a migração db/migrations/013_agendamentos.sql no Neon.';
@@ -283,7 +287,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     setBusy(true);
     let entryId = id;
     try {
-      const fields = { body: e.body, visibility: e.visibility, remindOn: e.remindOn, folder: e.folder };
+      const fields = { body: e.body, visibility: e.visibility, remindOn: e.remindOn, folder: e.folder, ...(e.remindAt === undefined ? {} : { remindAt: e.remindAt }) };
       if (id) await api.mutate('updateEntry', { id, ...fields });
       else entryId = ((await api.mutate('createEntry', { date: e.date, ...fields })) as { id?: string }).id ?? null;
       if (entryId) {
@@ -414,7 +418,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   const header = (
     <Header
-      firstName={me.user.name.split(' ')[0]}
+      firstName={(family.members.find(m => m.me)?.name ?? me.user.name).split(' ')[0]}
       members={family.members}
       greeting={greetingFor(now.getHours())}
       onOpenSpace={() => setSpaceOpen(true)}
@@ -514,6 +518,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     patch(d => ({ ...d, hugs: [...(d.hugs ?? []), { day: today, toMe: false }] }));
     return run(() => api.mutate('hug', { day: today }), 'Não foi possível mandar o abraço. Verifique a conexão.');
   };
+  // "Quer contar no Mural?" depois do check-in: vira um registro do dia a dia, para os dois.
+  const shareMood = (body: string) =>
+    run(() => api.mutate('createEntry', { date: today, body, visibility: 'shared', remindOn: null, folder: 'dia' }), 'Não foi possível postar no Mural.');
   const openFromHome = (target: HomeTarget, planItem?: string) => {
     if (target === 'diario') return navigate('diario');
     if (target === 'mural') {
@@ -574,6 +581,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     <PeopleContext.Provider value={family.members}>
     <AttendeesReady.Provider value={data.attendeesAvailable ?? false}>
     <TaskRemindersReady.Provider value={data.taskRemindersAvailable ?? false}>
+    <TimedRemindersReady.Provider value={data.timedRemindersAvailable ?? false}>
     <div className="min-h-screen bg-canvas text-ink pb-32 md:pb-12">
       {header}
       {(activeTab === 'inicio' || activeTab === 'cuidados') && <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />}
@@ -623,6 +631,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             busy={busy}
             onCheckin={checkin}
             onHug={hug}
+            onShareMood={data.journalAvailable ? shareMood : undefined}
             onToggleTask={toggleTask}
             onOpen={openFromHome}
             onOpenDetail={setDetail}
@@ -928,6 +937,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       <Toast toast={toast} onClose={() => setToast(null)} />
       {spaceSheet}
     </div>
+    </TimedRemindersReady.Provider>
     </TaskRemindersReady.Provider>
     </AttendeesReady.Provider>
     </PeopleContext.Provider>

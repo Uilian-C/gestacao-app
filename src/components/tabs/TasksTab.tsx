@@ -4,7 +4,9 @@ import { suggestionsFor, type TaskSuggestion } from '../../content/taskSuggestio
 import { formatBR, isOverdue, parseLocalDate, toISODate, trimesterOf } from '../../lib/dates';
 import type { Assignee, PartnerTask, Priority } from '../../types';
 import WhoPicker, { WhoAvatars } from '../WhoPicker';
-import { PeopleContext, TaskRemindersReady, whoName } from '../../lib/people';
+import { PeopleContext, TaskRemindersReady, TimedRemindersReady, whoName } from '../../lib/people';
+import { reminderAt, reminderTime } from '../../lib/reminders';
+import ReminderPicker from '../forms/ReminderPicker';
 import { inputClass } from '../styles';
 import DayPicker from '../forms/DayPicker';
 import { Button, Card, Chip, EmptyState, Field, Pill, Segmented, SectionTitle } from '../ui';
@@ -22,6 +24,8 @@ export interface NewTask {
   week?: number;
   /** Dia do lembrete ('' sem lembrete); undefined quando o app ainda não pergunta. */
   remindOn?: string;
+  /** Dia e hora do lembrete (ISO); undefined quando o app ainda não pergunta a hora. */
+  remindAt?: string | null;
 }
 
 interface Props {
@@ -199,6 +203,8 @@ export function TaskForm({ selectedWeek: _selectedWeek, busy, onCreate, initialD
   const reminders = useContext(TaskRemindersReady);
   const people = useContext(PeopleContext);
   const [remindOn, setRemindOn] = useState(initial?.remind_on?.slice(0, 10) ?? '');
+  const withTime = useContext(TimedRemindersReady);
+  const [remindTime, setRemindTime] = useState(reminderTime(initial?.remind_at));
   const today = toISODate(new Date());
   const shift = (iso: string, n: number) => {
     const d = parseLocalDate(iso);
@@ -217,7 +223,7 @@ export function TaskForm({ selectedWeek: _selectedWeek, busy, onCreate, initialD
       className="rounded-2xl bg-surface-2/60 p-4 space-y-4 mb-5"
       onSubmit={async e => {
         e.preventDefault();
-        if (title.trim()) await onCreate({ title: title.trim(), assignee, priority, dueDate, notes: notes.trim(), remindOn: reminders ? remindOn : undefined });
+        if (title.trim()) await onCreate({ title: title.trim(), assignee, priority, dueDate, notes: notes.trim(), remindOn: reminders ? remindOn : undefined, remindAt: reminders && withTime ? (remindOn ? reminderAt(remindOn, remindTime) : null) : undefined });
       }}
     >
       <Field label="Tarefa" htmlFor="titulo-tarefa">
@@ -229,12 +235,7 @@ export function TaskForm({ selectedWeek: _selectedWeek, busy, onCreate, initialD
       </div>
       <DayPicker mode="due" label="Prazo" value={dueDate} onChange={setDueDate} />
       {reminders && (
-        <div className="space-y-1.5">
-          <DayPicker mode="due" label="Lembrete" fieldLabel="Dia do lembrete" value={remindOn} onChange={setRemindOn} choices={reminderChoices} />
-          <p className="flex items-center gap-1.5 text-xs text-ink-mute">
-            <Bell className="w-3.5 h-3.5" /> {remindOn ? `O celular de ${whoName(people, assignee)} avisa às 8h.` : 'Sem aviso no celular.'}
-          </p>
-        </div>
+        <ReminderPicker day={remindOn} time={remindTime} onDay={setRemindOn} onTime={setRemindTime} choices={reminderChoices} withTime={withTime} who={assignee === 'casal' ? 'vocês dois' : whoName(people, assignee)} />
       )}
       {more ? (
         <div className="grid sm:grid-cols-2 gap-4">

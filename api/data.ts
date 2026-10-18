@@ -29,6 +29,8 @@ const taskFields = {
   notes: optionalText(2000),
   // Lembrete (migração 017): o dia em que o celular avisa quem cuida. Sem o campo (app antigo), fica como está.
   remindOn: isoDate.nullish().or(z.literal('')).transform(v => (v === undefined ? undefined : v || null)),
+  // Hora do lembrete (migração 018). Sem ela, o aviso sai às 8h do dia.
+  remindAt: timestamp.nullish().transform(v => (v === undefined ? undefined : v || null)),
 };
 const symptomFields = {
   name: text(100),
@@ -49,6 +51,8 @@ const consultationFields = {
   planItem: z.string().regex(/^[a-z0-9-]{1,40}$/).nullish().transform(v => v || null),
   // Quem vai (migração 016): mãe, pai ou os dois. Sem a migração, fica de fora.
   attendees: z.enum(['mae', 'pai', 'casal']).nullish().transform(v => v ?? null),
+  // Aviso a mais antes do horário, em minutos (migração 018).
+  remindBefore: z.union([z.literal(30), z.literal(60), z.literal(120), z.literal(1440)]).nullish().transform(v => (v === undefined ? undefined : v ?? null)),
 };
 const FOLDERS = ['momento', 'dia', 'ideia', 'carta', 'barriga'] as const;
 const entryFields = {
@@ -58,6 +62,8 @@ const entryFields = {
   remindOn: isoDate.nullish().transform(v => v || null),
   // Pasta do fichário (migração 012). Ao criar sem pasta, vai para "momento"; ao editar sem pasta, fica onde está.
   folder: z.enum(FOLDERS).optional(),
+  // Hora do lembrete (migração 018). Sem ela, o aviso sai às 8h do dia.
+  remindAt: timestamp.nullish().transform(v => (v === undefined ? undefined : v || null)),
 };
 
 const listName = z.enum(['prenatal', 'mala']);
@@ -185,6 +191,24 @@ async function setTaskReminder(id: string, remindOn: string | null) {
   }
 }
 
+/** Hora do lembrete de um registro do diário ou de uma tarefa (migração 018). Antes dela, fica só o dia (aviso às 8h). */
+async function setReminderTime(table: 'journal_entries' | 'partner_tasks', id: string, at: string | null) {
+  try {
+    await query(`UPDATE ${table} SET remind_at = $1 WHERE id::text = $2`, [at, id]);
+  } catch (err) {
+    if ((err as { code?: string }).code !== '42703') throw err;
+  }
+}
+
+/** Aviso a mais antes do agendamento (migração 018). */
+async function setRemindBefore(id: string, minutes: number | null) {
+  try {
+    await query('UPDATE consultations SET remind_before = $1 WHERE id::text = $2', [minutes, id]);
+  } catch (err) {
+    if ((err as { code?: string }).code !== '42703') throw err;
+  }
+}
+
 /** Quem vai ao agendamento (migração 016). Antes dela, o app nem mostra a pergunta. */
 async function setAttendees(id: string, attendees: string | null) {
   try {
@@ -249,6 +273,7 @@ async function apply(m: Member, o: Op) {
         [fid, o.week, o.title, o.assignee, o.priority, o.dueDate, o.notes, who],
       );
       if (o.remindOn) await setTaskReminder(rows[0].id, o.remindOn);
+      if (o.remindAt !== undefined) await setReminderTime('partner_tasks', rows[0].id, o.remindOn ? o.remindAt : null);
       return rows;
     }
     case 'updateTask':
@@ -257,6 +282,7 @@ async function apply(m: Member, o: Op) {
         [o.title, o.assignee, o.priority, o.dueDate, o.notes, o.id, fid],
       );
       if (o.remindOn !== undefined) await setTaskReminder(o.id, o.remindOn);
+      if (o.remindAt !== undefined) await setReminderTime('partner_tasks', o.id, o.remindOn ? o.remindAt : null);
       return;
     case 'toggleTask':
       return query('UPDATE partner_tasks SET is_completed = $1 WHERE id::text = $2 AND family_id = $3', [o.done, o.id, fid]);
@@ -325,6 +351,7 @@ async function apply(m: Member, o: Op) {
       const rows = await withAppointment(o.kind, () => update(true), () => update(false));
       if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
       await setAttendees(rows[0].id, o.attendees);
+      if (o.remindBefore !== undefined) await setRemindBefore(rows[0].id, o.remindBefore);
       return rows;
     }
     case 'createConsultation': {
@@ -336,6 +363,7 @@ async function apply(m: Member, o: Op) {
         );
       const rows = await withAppointment(o.kind, () => insert(true), () => insert(false));
       await setAttendees(rows[0].id, o.attendees);
+      if (o.remindBefore !== undefined) await setRemindBefore(rows[0].id, o.remindBefore);
       return rows;
     }
     case 'createEntry': {
@@ -346,7 +374,9 @@ async function apply(m: Member, o: Op) {
            VALUES ($1, $2, $3, $4, $5, $6, $7${folder ? ', $8' : ''}) RETURNING id::text AS id`,
           [fid, m.userId, who, o.date, o.body, o.visibility, o.remindOn, ...(folder ? [o.folder ?? 'momento'] : [])],
         );
-      return withFolder(o.folder ?? 'momento', () => insert(true), () => insert(false));
+      const created = await withFolder(o.folder ?? 'momento', () => insert(true), () => insert(false));
+      if (o.remindAt !== undefined) await setReminderTime('journal_entries', created[0].id, o.remindOn ? o.remindAt : null);
+      return created;
     }
     case 'updateEntry': {
       // Cada um edita só os próprios registros.
@@ -359,6 +389,7 @@ async function apply(m: Member, o: Op) {
         );
       const rows = await withFolder(o.folder ?? 'momento', () => update(true), () => update(false));
       if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
+      if (o.remindAt !== undefined) await setReminderTime('journal_entries', rows[0].id, o.remindOn ? o.remindAt : null);
       return rows;
     }
     case 'deleteEntry': {

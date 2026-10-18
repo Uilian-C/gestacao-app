@@ -1,5 +1,5 @@
 import { useContext, useState } from 'react';
-import { Check, Heart, Loader2 } from 'lucide-react';
+import { Check, Heart, LayoutList, Loader2 } from 'lucide-react';
 import type { FamilyMember } from '../api';
 import type { Checkin, Hug, Mood } from '../hooks/useGestationData';
 import { parseLocalDate, toISODate } from '../lib/dates';
@@ -44,9 +44,11 @@ interface Props {
   hugs: Hug[];
   onCheckin: (mood: Mood | null) => Promise<boolean>;
   onHug: () => Promise<boolean>;
+  /** Contar no Mural (registro do dia a dia, para os dois). Sem ele, o cartão não oferece. */
+  onShare?: (text: string) => Promise<boolean>;
 }
 
-export default function CheckIn({ role, checkins, hugs, onCheckin, onHug }: Props) {
+export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShare }: Props) {
   const members = useContext(PeopleContext);
   const today = toISODate(new Date());
   const me = members.find(m => m.me);
@@ -57,6 +59,11 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug }: Prop
   const [saving, setSaving] = useState<Mood | null>(null);
   const [justSaved, setJustSaved] = useState(false);
   const [hugging, setHugging] = useState(false);
+  // Depois de responder: perguntar se quer contar no Mural.
+  const [offer, setOffer] = useState<Mood | null>(null);
+  const [note, setNote] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const [shared, setShared] = useState(false);
   const picking = !mine || changing;
   const hugSent = hugs.some(h => !h.toMe && h.day === today);
   const hugGot = hugs.some(h => h.toMe && h.day === today);
@@ -71,6 +78,7 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug }: Prop
     if (ok) {
       setJustSaved(true);
       window.setTimeout(() => setJustSaved(false), 4000);
+      if (onShare && !shared) setOffer(mood);
     }
   };
 
@@ -129,6 +137,42 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug }: Prop
             Trocar
           </button>
         </div>
+      )}
+
+      {offer && onShare && !shared && (
+        <form
+          className="rounded-2xl bg-rosa-soft px-4 py-3 space-y-2.5"
+          aria-label="Contar no Mural"
+          onSubmit={async e => {
+            e.preventDefault();
+            setSharing(true);
+            const label = moodLabel(offer, role).toLowerCase();
+            const ok = await onShare(`Hoje estou ${label}.${note.trim() ? ` ${note.trim()}` : ''}`);
+            setSharing(false);
+            if (ok) {
+              setShared(true);
+              setOffer(null);
+            }
+          }}
+        >
+          <p className="flex items-center gap-2 text-sm font-bold text-ink">
+            <LayoutList className="w-4 h-4 text-rosa-strong" /> Quer contar no Mural{partnerName ? ` para ${partnerName}` : ''}?
+          </p>
+          <input aria-label="Quer dizer mais alguma coisa?" placeholder="Quer dizer mais alguma coisa? (opcional)" value={note} onChange={e => setNote(e.target.value)} maxLength={500} className="w-full rounded-full bg-surface px-3.5 py-2 text-[15px] text-ink placeholder:text-ink-mute outline-none focus:ring-2 focus:ring-brand/40" />
+          <div className="flex items-center gap-2">
+            <button type="submit" disabled={sharing} className="inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-4 py-2 text-sm font-extrabold shadow-soft disabled:opacity-60">
+              {sharing && <Loader2 className="w-4 h-4 animate-spin" />} Postar no Mural
+            </button>
+            <button type="button" onClick={() => setOffer(null)} className="px-3 py-2 text-sm font-bold text-ink-soft">
+              Agora não
+            </button>
+          </div>
+        </form>
+      )}
+      {shared && (
+        <p className="flex items-center gap-2 text-sm font-bold text-ok" role="status">
+          <Check className="w-4 h-4" /> Postado no Mural.
+        </p>
       )}
 
       {hugGot && partnerName && (

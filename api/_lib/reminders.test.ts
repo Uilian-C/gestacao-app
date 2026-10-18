@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localDate, planReminders, type FamilyRow } from './reminders.js';
+import { localDate, planReminders, planTimed, type FamilyRow } from './reminders.js';
 
 const family = (over: Partial<FamilyRow> = {}): FamilyRow => ({ id: 'f1', dum_date: '2026-05-01', blood_type: 'O+', members: ['mae', 'pai'], done: [], ...over });
 
@@ -53,5 +53,20 @@ describe('planReminders', () => {
   it('fora da virada da semana, sem aviso de semana', () => {
     expect(planReminders('2026-10-17', [family()], [], [])).toEqual([]);
     expect(planReminders('2026-10-16', [family({ dum_date: null })], [], [])).toEqual([]);
+  });
+});
+
+describe('planTimed', () => {
+  it('lembretes com hora: diário (particular só para quem escreveu), tarefa para quem cuida e aviso antes da consulta', () => {
+    const notices = planTimed([family()], {
+      entries: [{ id: 'e1', family_id: 'f1', user_id: 'mae', visibility: 'private', body: 'Ligar para a doula', at: '2026-10-20 17:30:00+00' }],
+      tasks: [{ id: 't1', title: 'Montar o berço', user_ids: ['pai'], at: '2026-10-20 18:00:00+00' }],
+      early: [{ id: 'c1', family_id: 'f1', local: '2026-10-20 15:00', professional_name: 'Dra. Ana', location: null, kind: 'consulta', before: 60 }],
+    });
+    expect(notices.map(n => [n.key, n.userIds, n.payload.title])).toEqual([
+      ['momento:e1:2026-10-20 17:30:00+00', ['mae'], 'Lembrete'],
+      ['tarefa:t1:2026-10-20 18:00:00+00', ['pai'], 'Lembrete de tarefa'],
+      ['consulta:c1:antes:60', ['mae', 'pai'], 'Consulta em 1 hora, às 15:00'],
+    ]);
   });
 });

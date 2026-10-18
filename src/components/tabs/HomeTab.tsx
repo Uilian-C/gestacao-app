@@ -50,6 +50,8 @@ interface Props {
   busy: boolean;
   onCheckin: (mood: Mood | null) => Promise<boolean>;
   onHug: () => Promise<boolean>;
+  /** Contar o humor no Mural (registro do dia a dia). */
+  onShareMood?: (text: string) => Promise<boolean>;
   onToggleTask: (t: PartnerTask) => void;
   onOpen: (target: HomeTarget, planItem?: string) => void;
   /** Abre os detalhes de um agendamento, tarefa ou registro do diário. */
@@ -226,7 +228,7 @@ export default function HomeTab(props: Props) {
         {age.isPostTerm && <p className="mt-3 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
       </section>
 
-      {props.checkinAvailable && <CheckIn role={props.role} checkins={props.checkins} hugs={props.hugs} onCheckin={props.onCheckin} onHug={props.onHug} />}
+      {props.checkinAvailable && <CheckIn role={props.role} checkins={props.checkins} hugs={props.hugs} onCheckin={props.onCheckin} onHug={props.onHug} onShare={props.onShareMood} />}
 
       <NextAppointment consultations={props.consultations} onOpen={c => props.onOpenDetail({ kind: 'consultation', id: c.id })} onSchedule={() => onOpen('agenda')} />
 
