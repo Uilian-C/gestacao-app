@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { appointmentTitle, hasResult, kindInfo, kindOf, resultOf } from '../lib/appointments';
 import { AlertTriangle, Bell, CalendarHeart, Check, CheckCircle2, Clock, ExternalLink, FileText, HeartHandshake, Lock, NotebookPen, Pencil, RotateCcw, Scale, Trash2, Users } from 'lucide-react';
 import { isAlertSymptom } from '../content/symptomCatalog';
@@ -12,6 +12,9 @@ import type { Author, Consultation, PartnerComment, PartnerTask, SymptomItem } f
 import { photoUrl } from '../api';
 import { FOLDER, TONE, weekOn } from '../lib/folders';
 import AuthorBadge from './AuthorBadge';
+import { MentionText } from './Mentions';
+import { WhoAvatars } from './WhoPicker';
+import { PeopleContext, whoName } from '../lib/people';
 import PhotoViewer from './PhotoViewer';
 import { EntryForm, type NewEntry } from './forms/EntryForm';
 import { MetricForm, SymptomForm, type NewMetric, type NewSymptom } from './forms/RecordForms';
@@ -94,6 +97,7 @@ function Actions({ onEdit, onDelete, children }: { onEdit?: () => void; onDelete
 }
 
 export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & { detail: Detail; onClose: () => void }) {
+  const people = useContext(PeopleContext);
   const [editing, setEditing] = useState(false);
   const [photo, setPhoto] = useState<number | null>(null);
   const remove = () => {
@@ -191,7 +195,9 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
             )}
             {e.body && (
               <div className={letter ? `rounded-2xl p-4 border-l-4 border-azul ${t.soft}` : ''}>
-                <p className={`font-display text-[1.3rem] leading-snug text-ink whitespace-pre-line ${letter ? 'italic' : ''}`}>{e.body}</p>
+                <p className={`font-display text-[1.3rem] leading-snug text-ink whitespace-pre-line ${letter ? 'italic' : ''}`}>
+                  <MentionText text={e.body} />
+                </p>
                 {letter && <p className="font-display italic text-ink-soft text-right mt-3">— {e.author_role === 'mae' ? 'mãe' : 'pai'}</p>}
               </div>
             )}
@@ -239,7 +245,7 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
             {overdue && <p className="flex items-center gap-2 text-sm font-semibold text-alert mb-3"><Clock className="w-4 h-4" /> Atrasada desde {formatBR(t.due_date)}</p>}
             <Facts
               items={[
-                ['Quem cuida', WHO[t.assigned_to]],
+                ['Quem cuida', <span key="quem" className="inline-flex items-center gap-1.5"><WhoAvatars who={t.assigned_to} /> {whoName(people, t.assigned_to)}</span>],
                 ['Prioridade', t.priority],
                 ['Prazo', t.due_date ? formatBR(t.due_date) : 'sem prazo'],
               ]}
@@ -286,11 +292,14 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
       ) : (
         <>
           <Facts
-            items={
-              consulta
+            items={[
+              ...(consulta
                 ? [['Profissional', c.professional_name || '—'], ['Dúvidas anotadas', String(detail.pendingQuestions)]]
-                : [['Tipo', `${kindInfo(kind).emoji} ${kindInfo(kind).label}`], ['Laboratório ou clínica', c.professional_name || '—'], ...(hasResult(c) ? [['Resultado', result ? 'guardado' : 'ainda não'] as [string, string]] : [])]
-            }
+                : [['Tipo', `${kindInfo(kind).emoji} ${kindInfo(kind).label}`], ['Laboratório ou clínica', c.professional_name || '—'], ...(hasResult(c) ? [['Resultado', result ? 'guardado' : 'ainda não'] as [string, string]] : [])]) as Array<[string, React.ReactNode]>,
+              ...(c.attendees
+                ? [['Quem vai', <span key="quem" className="inline-flex items-center gap-1.5"><WhoAvatars who={c.attendees} /> {whoName(people, c.attendees)}</span>] as [string, React.ReactNode]]
+                : []),
+            ]}
           />
           {c.location && (
             <div className="mt-4 space-y-2">

@@ -6,6 +6,7 @@ import type { DetailTarget } from '../../lib/details';
 import { FOLDER, FOLDERS, TONE, bellyWeeks, byMonth, shortDate, weekOn } from '../../lib/folders';
 import type { Author, DiaryView } from '../../types';
 import AuthorBadge from '../AuthorBadge';
+import { MentionText } from '../Mentions';
 import { SocialCount, type OnReact } from '../Social';
 import Mural from './Mural';
 import { Card } from '../ui';
@@ -295,7 +296,11 @@ function EntryCard({ entry: e, dumDate, showFolder = false, social, onOpen }: { 
           {showFolder && `${f.label} · `}
           {shortDate(e.entry_date)} · semana {weekOn(dumDate, e.entry_date)}
         </p>
-        {e.body && <p className={`text-ink line-clamp-4 whitespace-pre-line ${serif ? 'font-display text-[1.05rem] leading-snug' : 'text-[15px]'} ${letter ? 'italic' : ''}`}>{e.body}</p>}
+        {e.body && (
+          <p className={`text-ink line-clamp-4 whitespace-pre-line ${serif ? 'font-display text-[1.05rem] leading-snug' : 'text-[15px]'} ${letter ? 'italic' : ''}`}>
+            <MentionText text={e.body} />
+          </p>
+        )}
         {e.photos.length > 0 && (
           <div className="flex gap-1.5">
             {e.photos.slice(0, 3).map(p => (

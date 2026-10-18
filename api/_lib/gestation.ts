@@ -11,7 +11,8 @@ export async function fetchAll(fid: string, userId: string) {
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
-              f.abortions, f.cesareans, f.allergies, f.medications, f.conditions
+              f.abortions, f.cesareans, f.allergies, f.medications, f.conditions,
+              EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'consultations' AND column_name = 'attendees') AS attendees_ready
        FROM families f WHERE f.id = $1`,
       [fid],
     ),
@@ -54,7 +55,8 @@ export async function fetchAll(fid: string, userId: string) {
     query(
       // Tipo, nome e item da jornada pelo jsonb: antes da migração 013 as colunas não existem e tudo é consulta.
       `SELECT id, scheduled_at::text AS scheduled_at, specialty, professional_name, location, notes, COALESCE(created_by, 'mae') AS created_by,
-              COALESCE(to_jsonb(c) ->> 'kind', 'consulta') AS kind, to_jsonb(c) ->> 'title' AS title, to_jsonb(c) ->> 'plan_item' AS plan_item
+              COALESCE(to_jsonb(c) ->> 'kind', 'consulta') AS kind, to_jsonb(c) ->> 'title' AS title, to_jsonb(c) ->> 'plan_item' AS plan_item,
+              to_jsonb(c) ->> 'attendees' AS attendees
        FROM consultations c WHERE family_id = $1
        ORDER BY scheduled_at ASC`,
       [fid],
@@ -153,6 +155,8 @@ export async function fetchAll(fid: string, userId: string) {
     comments,
     metrics,
     consultations,
+    /** A migração 016 já rodou: "quem vai" nos agendamentos. */
+    attendeesAvailable: f.attendees_ready === true,
     migrationPending: false,
     kickSessions: kicks,
     contractions,

@@ -86,6 +86,7 @@ const tests = [
   ['api-agendamentos.mjs', false],
   ['api-checkin.mjs', false],
   ['api-perfil.mjs', false],
+  ['api-marcar.mjs', false],
   ['e2e-fluxo.mjs', true],
   ['e2e-momentos.mjs', false],
   ['e2e-registro-rapido.mjs', false],

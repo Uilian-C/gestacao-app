@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Check, Copy, Download, Link2, Loader2, LogOut, MessageCircle, Trash2, UserMinus, X } from 'lucide-react';
+import { Camera, Check, ImagePlus, Copy, Download, Link2, Loader2, LogOut, MessageCircle, Trash2, UserMinus, X } from 'lucide-react';
 import { api, ApiError, type FamilyState, type Me } from '../../api';
 import { FileProblem, prepareAvatar } from '../../lib/examFiles';
 import { formatInviteCode, inviteLink } from '../../lib/invite';
@@ -83,7 +83,13 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
   const others = family.members.filter(m => !m.me);
   const self = family.members.find(m => m.me);
   const photoPicker = useRef<HTMLInputElement>(null);
+  const selfie = useRef<HTMLInputElement>(null);
 
+  const pickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    e.target.value = '';
+    if (file) void setPhoto(file);
+  };
   const setPhoto = (file: File | null) =>
     act(async () => {
       try {
@@ -198,28 +204,24 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
           <h3 className="text-base">Você</h3>
           <div className="flex items-center gap-4">
             <Avatar member={self} role={family.role} className="w-16 h-16 text-xl" />
-            <div className="flex flex-wrap gap-2">
-              <Button tone="soft" disabled={busy} onClick={() => photoPicker.current?.click()}>
-                {busy ? <Loader2 className="animate-spin" /> : <Camera />} {self?.photo ? 'Trocar foto' : 'Pôr foto de perfil'}
-              </Button>
-              {self?.photo && (
-                <Button tone="ghost" disabled={busy} onClick={() => setPhoto(null)}>
-                  Tirar foto
+            <div className="min-w-0 space-y-2">
+              <p className="text-sm font-semibold text-ink">{self?.photo ? 'Sua foto de perfil' : 'Pôr foto de perfil'}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button tone="soft" disabled={busy} onClick={() => selfie.current?.click()} className="px-3.5 py-2">
+                  {busy ? <Loader2 className="animate-spin" /> : <Camera />} Câmera
                 </Button>
-              )}
+                <Button tone="soft" disabled={busy} onClick={() => photoPicker.current?.click()} className="px-3.5 py-2">
+                  <ImagePlus /> Galeria
+                </Button>
+                {self?.photo && (
+                  <Button tone="ghost" disabled={busy} onClick={() => setPhoto(null)} className="px-3.5 py-2">
+                    Remover
+                  </Button>
+                )}
+              </div>
             </div>
-            <input
-              ref={photoPicker}
-              type="file"
-              accept="image/*"
-              hidden
-              aria-label="Escolher foto de perfil"
-              onChange={e => {
-                const file = e.target.files?.[0] ?? null;
-                e.target.value = '';
-                if (file) void setPhoto(file);
-              }}
-            />
+            <input ref={photoPicker} type="file" accept="image/*" hidden aria-label="Escolher foto de perfil" onChange={pickPhoto} />
+            <input ref={selfie} type="file" accept="image/*" capture="user" hidden aria-label="Tirar foto de perfil" onChange={pickPhoto} />
           </div>
           <p className="text-xs text-ink-mute -mt-2">Aparece no Mural do diário e nos comentários. Só quem é do espaço vê.</p>
           <div className="flex flex-wrap items-center justify-between gap-3">

@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { ChevronRight, Heart, Lock, MessageCircle, PenLine, Send } from 'lucide-react';
 import { photoUrl, type FamilyMember } from '../../api';
 import type { Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { daysBetween, parseLocalDate, toISODate } from '../../lib/dates';
 import { FOLDER, TONE, shortDate, weekOn } from '../../lib/folders';
-import { authorOf, firstName } from '../../lib/people';
+import { mentionsMe } from '../../lib/mentions';
+import { PeopleContext, authorOf, firstName } from '../../lib/people';
+import { useMention } from '../../lib/useMention';
 import type { Author } from '../../types';
 import Avatar from '../Avatar';
+import { MentionBar, MentionText } from '../Mentions';
 import type { OnReact } from '../Social';
 
 // O Mural do diário: tudo o que vocês guardam, do mais novo ao mais antigo, como
@@ -104,6 +107,7 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
         <div className="min-w-0 flex-1 leading-tight">
           <p className="font-extrabold text-ink truncate">
             {name} <span className="font-semibold text-ink-mute text-sm">· {e.author_role === 'mae' ? 'mãe' : 'pai'}</span>
+            {!e.mine && mentionsMe(members, e.body) && <span className="ml-1.5 align-middle whitespace-nowrap rounded-full bg-brand-soft text-brand-strong px-2 py-0.5 text-[11px] font-extrabold">marcou você</span>}
           </p>
           <p className="text-xs text-ink-mute flex items-center gap-1.5 mt-0.5">
             <span className={`inline-flex items-center gap-1 font-bold ${t.text}`}>
@@ -126,7 +130,9 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
 
       {e.body && (
         <button type="button" onClick={open} className={`block w-full text-left px-4 ${e.photos.length ? 'pt-3' : 'pt-0'} ${letter ? 'pb-1' : ''}`}>
-          <p className={`text-ink whitespace-pre-line line-clamp-6 ${serif ? 'font-display text-[1.12rem] leading-snug' : 'text-[15.5px]'} ${letter ? `italic rounded-2xl ${t.soft} px-4 py-3` : ''}`}>{e.body}</p>
+          <p className={`text-ink whitespace-pre-line line-clamp-6 ${serif ? 'font-display text-[1.12rem] leading-snug' : 'text-[15.5px]'} ${letter ? `italic rounded-2xl ${t.soft} px-4 py-3` : ''}`}>
+            <MentionText text={e.body} />
+          </p>
         </button>
       )}
 
@@ -166,7 +172,7 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
               <p key={c.id} className="flex items-start gap-2 text-[14.5px] text-ink">
                 <Avatar member={by} role={c.author_role} className="w-6 h-6 text-[10px] mt-0.5" />
                 <span className="min-w-0 break-words">
-                  <strong className="font-extrabold">{by ? firstName(by.name) : c.author_role === 'mae' ? 'Mãe' : 'Pai'}</strong> {c.body}
+                  <strong className="font-extrabold">{by ? firstName(by.name) : c.author_role === 'mae' ? 'Mãe' : 'Pai'}</strong> <MentionText text={c.body} />
                 </span>
               </p>
             );
@@ -219,9 +225,10 @@ function Photos({ entry: e, week, onOpen }: { entry: JournalEntry; week: number 
 function Reply({ entryId, me, role, onComment }: { entryId: string; me?: FamilyMember; role: Author; onComment: Props['onComment'] }) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const { ref: fieldRef, track, suggestions, unmarked, insert } = useMention<HTMLInputElement>(draft, setDraft, useContext(PeopleContext));
   return (
     <form
-      className="flex items-center gap-2 px-4 pt-2.5 pb-3.5"
+      className="px-4 pt-2.5 pb-3.5 space-y-2"
       onSubmit={async ev => {
         ev.preventDefault();
         const body = draft.trim();
@@ -231,20 +238,28 @@ function Reply({ entryId, me, role, onComment }: { entryId: string; me?: FamilyM
         setSending(false);
       }}
     >
-      <Avatar member={me} role={role} className="w-7 h-7 text-[11px]" />
-      <input
-        aria-label="Comentar"
-        placeholder="Comentar..."
-        value={draft}
-        onChange={ev => setDraft(ev.target.value)}
-        maxLength={1000}
-        className="flex-1 min-w-0 rounded-full bg-surface-2 px-3.5 py-2 text-[15px] text-ink placeholder:text-ink-mute outline-none focus:ring-2 focus:ring-brand/40"
-      />
-      {draft.trim() && (
-        <button type="submit" disabled={sending} aria-label="Enviar comentário" className="w-9 h-9 shrink-0 rounded-full bg-brand text-on-accent flex items-center justify-center disabled:opacity-50">
-          <Send className="w-4 h-4" />
-        </button>
-      )}
+      <div className="flex items-center gap-2">
+        <Avatar member={me} role={role} className="w-7 h-7 text-[11px]" />
+        <input
+          ref={fieldRef}
+          aria-label="Comentar"
+          placeholder="Comentar... (@ para marcar)"
+          value={draft}
+          onChange={ev => {
+            setDraft(ev.target.value);
+            track(ev);
+          }}
+          onSelect={track}
+          maxLength={1000}
+          className="flex-1 min-w-0 rounded-full bg-surface-2 px-3.5 py-2 text-[15px] text-ink placeholder:text-ink-mute outline-none focus:ring-2 focus:ring-brand/40"
+        />
+        {draft.trim() && (
+          <button type="submit" disabled={sending} aria-label="Enviar comentário" className="w-9 h-9 shrink-0 rounded-full bg-brand text-on-accent flex items-center justify-center disabled:opacity-50">
+            <Send className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      <MentionBar suggestions={suggestions} unmarked={unmarked} onPick={insert} />
     </form>
   );
 }

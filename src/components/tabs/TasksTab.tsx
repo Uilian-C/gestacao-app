@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { CheckCircle2, ChevronRight, Clock, ListChecks, Plus, Sparkles } from 'lucide-react';
 import { suggestionsFor, type TaskSuggestion } from '../../content/taskSuggestions';
 import { formatBR, isOverdue, trimesterOf } from '../../lib/dates';
 import type { Assignee, PartnerTask, Priority } from '../../types';
-import AuthorBadge from '../AuthorBadge';
+import WhoPicker, { WhoAvatars } from '../WhoPicker';
+import { PeopleContext, whoName } from '../../lib/people';
 import { inputClass } from '../styles';
 import DayPicker from '../forms/DayPicker';
 import { Button, Card, Chip, EmptyState, Field, Pill, Segmented, SectionTitle } from '../ui';
@@ -35,6 +36,7 @@ interface Props {
 const PRIORITY_TONE: Record<Priority, 'neutral' | 'warn' | 'alert'> = { Baixa: 'neutral', Média: 'warn', Alta: 'alert' };
 
 export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCreate, onToggle, onOpen }: Props) {
+  const people = useContext(PeopleContext);
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('todos');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todas');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pendentes');
@@ -75,9 +77,9 @@ export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCre
               onChange={setAssigneeFilter}
               options={[
                 { value: 'todos', label: 'Todos' },
-                { value: 'mae', label: 'Mãe' },
-                { value: 'pai', label: 'Pai' },
-                { value: 'casal', label: 'Casal' },
+                { value: 'mae', label: whoName(people, 'mae') },
+                { value: 'pai', label: whoName(people, 'pai') },
+                { value: 'casal', label: 'Os dois' },
               ]}
             />
           }
@@ -155,7 +157,9 @@ export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCre
                   <button type="button" onClick={() => onOpen(t)} className="flex-1 min-w-0 space-y-1.5 text-left" aria-label={`${t.task_title}: ver detalhes`}>
                     <p className={`font-semibold ${t.is_completed ? 'line-through text-ink-mute' : 'text-ink'}`}>{t.task_title}</p>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-ink-mute">
-                      <AuthorBadge role={t.assigned_to} />
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-ink-soft">
+                        <WhoAvatars who={t.assigned_to} className="w-5 h-5 text-[9px]" /> {whoName(people, t.assigned_to)}
+                      </span>
                       <Pill tone={PRIORITY_TONE[t.priority] ?? 'neutral'}>{t.priority}</Pill>
                       {t.due_date && (
                         <span className={`flex items-center gap-1 font-semibold ${late ? 'text-alert' : ''}`}>
@@ -197,7 +201,7 @@ export function TaskForm({ selectedWeek: _selectedWeek, busy, onCreate, initialD
       </Field>
       <div className="space-y-1.5">
         <span className="text-sm font-semibold text-ink-soft block">Quem cuida</span>
-        <Segmented label="Responsável" size="sm" value={assignee} onChange={setAssignee} options={[{ value: 'mae', label: 'Mãe' }, { value: 'pai', label: 'Pai' }, { value: 'casal', label: 'Casal' }]} />
+        <WhoPicker label="Responsável" value={assignee} onChange={setAssignee} />
       </div>
       <DayPicker mode="due" label="Prazo" value={dueDate} onChange={setDueDate} />
       {more ? (

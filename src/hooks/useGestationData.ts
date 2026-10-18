@@ -29,6 +29,8 @@ export interface GestationData {
   /** Check-ins do dia dos dois, últimos 60 dias (migração 014). */
   checkins?: Checkin[];
   checkinAvailable?: boolean;
+  /** A migração 016 já rodou: "quem vai" nos agendamentos. */
+  attendeesAvailable?: boolean;
   /** Exames e ultrassons: os compartilhados e os particulares de quem está logado. */
   exams: ExamItem[];
   /** A migração 010 já foi aplicada. */

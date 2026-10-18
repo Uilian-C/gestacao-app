@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { query, transaction } from './_lib/db.js';
 import { fetchAll } from './_lib/gestation.js';
 import { HttpError, endpoint, json, readJson, requireMember, type Member } from './_lib/http.js';
+import { mentioned } from './_lib/mentions.js';
 import { notify, type PushPayload } from './_lib/push.js';
 import { VISIBLE_TARGET } from './_lib/social.js';
 import { deleteFiles } from './_lib/storage.js';
@@ -44,6 +45,8 @@ const consultationFields = {
   kind: z.enum(['consulta', 'exame', 'ultrassom', 'vacina']).optional(),
   title: optionalText(120),
   planItem: z.string().regex(/^[a-z0-9-]{1,40}$/).nullish().transform(v => v || null),
+  // Quem vai (migração 016): mãe, pai ou os dois. Sem a migração, fica de fora.
+  attendees: z.enum(['mae', 'pai', 'casal']).nullish().transform(v => v ?? null),
 };
 const FOLDERS = ['momento', 'dia', 'ideia', 'carta', 'barriga'] as const;
 const entryFields = {
@@ -166,6 +169,15 @@ async function withAppointment(kind: string | undefined, write: () => Promise<Ar
     if ((err as { code?: string }).code !== '42703') throw err;
     if (kind && kind !== 'consulta') throw new HttpError(503, 'Os agendamentos de exames ainda não estão ligados no servidor. Rode a migração db/migrations/013_agendamentos.sql no Neon.');
     return legacy();
+  }
+}
+
+/** Quem vai ao agendamento (migração 016). Antes dela, o app nem mostra a pergunta. */
+async function setAttendees(id: string, attendees: string | null) {
+  try {
+    await query('UPDATE consultations SET attendees = $1 WHERE id::text = $2', [attendees, id]);
+  } catch (err) {
+    if ((err as { code?: string }).code !== '42703') throw err;
   }
 }
 
@@ -294,6 +306,7 @@ async function apply(m: Member, o: Op) {
         );
       const rows = await withAppointment(o.kind, () => update(true), () => update(false));
       if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
+      await setAttendees(rows[0].id, o.attendees);
       return rows;
     }
     case 'createConsultation': {
@@ -303,7 +316,9 @@ async function apply(m: Member, o: Op) {
            VALUES ($1, $2, $3, $4, $5, $6${full ? ', $7, $8, $9' : ''}) RETURNING id::text AS id`,
           [fid, o.scheduledAt, o.specialty, o.professional, o.location, who, ...(full ? [o.kind ?? 'consulta', o.title, o.planItem] : [])],
         );
-      return withAppointment(o.kind, () => insert(true), () => insert(false));
+      const rows = await withAppointment(o.kind, () => insert(true), () => insert(false));
+      await setAttendees(rows[0].id, o.attendees);
+      return rows;
     }
     case 'createEntry': {
       if (!o.body && o.folder !== 'barriga') throw new HttpError(400, 'Escreva alguma coisa para guardar.');
@@ -445,18 +460,75 @@ const ENTRY_TEXT = {
 
 const REACTION_TEXT = { abraco: 'mandou um abraço', forca: 'mandou força', aqui: 'disse: estou aqui', festa: 'comemorou com você' } as const;
 
-async function notifyPartners(m: Member, o: Op) {
-  const message = partnerMessage(o);
-  if (!message) return;
-  const rows = await query<{ user_id: string; name: string | null }>(
-    `SELECT m.user_id, (SELECT split_part(u.name, ' ', 1) FROM "user" u WHERE u.id = $2) AS name
-     FROM family_members m WHERE m.family_id = $1 AND m.user_id <> $2`,
+/** O que o registro era antes da edição: para avisar só o que mudou (marcação nova, tarefa passada, chamado para a consulta). */
+type Before = { body?: string; assignee?: string; attendees?: string | null } | null;
+
+async function before(m: Member, o: Op): Promise<Before> {
+  if (o.op === 'updateEntry') {
+    const rows = await query<{ body: string }>('SELECT body FROM journal_entries WHERE id::text = $1 AND family_id = $2', [o.id, m.familyId]);
+    return rows[0] ? { body: rows[0].body } : null;
+  }
+  if (o.op === 'updateTask') {
+    const rows = await query<{ assignee: string }>('SELECT assigned_to AS assignee FROM partner_tasks WHERE id::text = $1 AND family_id = $2', [o.id, m.familyId]);
+    return rows[0] ? { assignee: rows[0].assignee } : null;
+  }
+  if (o.op === 'updateConsultation') {
+    const rows = await query<{ attendees: string | null }>("SELECT to_jsonb(c)->>'attendees' AS attendees FROM consultations c WHERE id::text = $1 AND family_id = $2", [o.id, m.familyId]);
+    return rows[0] ? { attendees: rows[0].attendees } : null;
+  }
+  return null;
+}
+
+interface Partner {
+  user_id: string;
+  role: string;
+  first: string;
+}
+
+const goes = (attendees: string | null | undefined, role: string) => attendees === 'casal' || attendees === role;
+
+/** Quem foi marcado (ou chamado) nesta gravação, e o que o aviso diz para essa pessoa. */
+function tagged(o: Op, partners: Partner[], prev: Before): { people: Partner[]; action: string; url: string } | null {
+  switch (o.op) {
+    case 'createEntry':
+      return o.visibility === 'shared' ? { people: mentioned(partners, o.body), action: 'marcou você no diário', url: '/?aba=diario' } : null;
+    case 'updateEntry':
+      return o.visibility === 'shared' && prev ? { people: mentioned(partners, o.body, prev.body), action: 'marcou você no diário', url: '/?aba=diario' } : null;
+    case 'comment':
+      return { people: mentioned(partners, o.body), action: o.targetType === 'exam' ? 'marcou você num exame' : 'marcou você num comentário', url: o.targetType === 'exam' ? '/?aba=exames' : '/?aba=diario' };
+    case 'createTask':
+      return { people: partners.filter(p => p.role === o.assignee), action: 'passou uma tarefa para você', url: '/?aba=tarefas' };
+    case 'updateTask':
+      return prev && prev.assignee !== o.assignee ? { people: partners.filter(p => p.role === o.assignee), action: 'passou uma tarefa para você', url: '/?aba=tarefas' } : null;
+    case 'createConsultation':
+      return { people: partners.filter(p => goes(o.attendees, p.role)), action: `${APPOINTMENT_TEXT[o.kind ?? 'consulta']} e quer você junto`, url: '/?aba=proximos' };
+    case 'updateConsultation':
+      return prev ? { people: partners.filter(p => goes(o.attendees, p.role) && !goes(prev.attendees, p.role)), action: 'chamou você para ir junto', url: '/?aba=proximos' } : null;
+    default:
+      return null;
+  }
+}
+
+async function notifyPartners(m: Member, o: Op, prev: Before) {
+  const rows = await query<Partner & { me: boolean }>(
+    `SELECT m.user_id, m.role, split_part(u.name, ' ', 1) AS first, m.user_id = $2 AS me
+     FROM family_members m JOIN "user" u ON u.id = m.user_id WHERE m.family_id = $1`,
     [m.familyId, m.userId],
   );
-  if (rows.length === 0) return;
-  const who = rows[0].name || (m.role === 'mae' ? 'A mãe' : 'O pai');
-  const { action, ...payload } = message;
-  await notify(rows.map(r => r.user_id), 'parceiro', { ...payload, title: `${who} ${action}` });
+  const partners = rows.filter(r => !r.me);
+  if (partners.length === 0) return;
+  const who = rows.find(r => r.me)?.first || (m.role === 'mae' ? 'A mãe' : 'O pai');
+  const tag = tagged(o, partners, prev);
+  const marked = new Set((tag?.people ?? []).map(p => p.user_id));
+  const message = partnerMessage(o);
+  const rest = partners.filter(p => !marked.has(p.user_id)).map(p => p.user_id);
+  await Promise.all([
+    // Quem foi marcado recebe um aviso só, o da marcação.
+    marked.size && tag
+      ? notify([...marked], 'parceiro', { title: `${who} ${tag.action}`, body: 'Toque para ver.', url: tag.url, tag: `marcado-${o.op}-${Date.now()}` })
+      : undefined,
+    message && rest.length ? notify(rest, 'parceiro', { body: message.body, url: message.url, tag: message.tag, title: `${who} ${message.action}` }) : undefined,
+  ]);
 }
 
 export const GET = endpoint(async request => {
@@ -468,6 +540,7 @@ export const POST = endpoint(async request => {
   const member = await requireMember(request);
   const parsed = ops.safeParse(await readJson(request));
   if (!parsed.success) throw new HttpError(400, 'Dados inválidos.');
+  const prev = await before(member, parsed.data);
   const result = await apply(member, parsed.data);
   const repeated =
     (parsed.data.op === 'react' && parsed.data.on && Array.isArray(result) && result.length === 0) ||
@@ -479,7 +552,7 @@ export const POST = endpoint(async request => {
   // O aviso para a outra pessoa sai ao mesmo tempo; se falhar, o registro continua salvo.
   const [data] = await Promise.all([
     fetchAll(member.familyId, member.userId),
-    repeated ? undefined : notifyPartners(member, parsed.data).catch(err => console.error('Aviso ao parceiro não enviado', err)),
+    repeated ? undefined : notifyPartners(member, parsed.data, prev).catch(err => console.error('Aviso ao parceiro não enviado', err)),
   ]);
   return json({ ok: true, data, ...(createdId ? { id: createdId } : {}) });
 });
