@@ -13,6 +13,7 @@ export async function fetchAll(fid: string, userId: string) {
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
               f.abortions, f.cesareans, f.allergies, f.medications, f.conditions,
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'consultations' AND column_name = 'attendees') AS attendees_ready,
+              EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'partner_tasks' AND column_name = 'remind_on') AS task_reminders_ready,
               -- Abraços dos últimos dias (enviados e recebidos), guardados junto com os avisos.
               (SELECT COALESCE(json_agg(json_build_object('day', split_part(n.key, ':', 2), 'toMe', n.user_id = $2)), '[]')
                  FROM notification_log n JOIN family_members fm ON fm.user_id = n.user_id AND fm.family_id = f.id
@@ -39,8 +40,9 @@ export async function fetchAll(fid: string, userId: string) {
     ),
     query(
       `SELECT id, week_number, task_title, COALESCE(assigned_to, 'casal') AS assigned_to, is_completed, due_date::text AS due_date,
-              COALESCE(priority, 'Média') AS priority, notes, COALESCE(created_by, 'mae') AS created_by
-       FROM partner_tasks WHERE family_id = $1
+              COALESCE(priority, 'Média') AS priority, notes, COALESCE(created_by, 'mae') AS created_by,
+              to_jsonb(t) ->> 'remind_on' AS remind_on
+       FROM partner_tasks t WHERE family_id = $1
        ORDER BY created_at DESC`,
       [fid],
     ),
@@ -162,6 +164,8 @@ export async function fetchAll(fid: string, userId: string) {
     consultations,
     /** A migração 016 já rodou: "quem vai" nos agendamentos. */
     attendeesAvailable: f.attendees_ready === true,
+    /** A migração 017 já rodou: lembrete nas tarefas. */
+    taskRemindersAvailable: f.task_reminders_ready === true,
     hugs: (f.hugs as Array<{ day: string; toMe: boolean }> | undefined) ?? [],
     migrationPending: false,
     kickSessions: kicks,

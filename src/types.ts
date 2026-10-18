@@ -40,6 +40,8 @@ export interface PartnerTask {
   priority: Priority;
   notes?: string | null;
   created_by: Author;
+  /** Dia do lembrete no celular (migração 017). */
+  remind_on?: string | null;
 }
 
 export interface PartnerComment {

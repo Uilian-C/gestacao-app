@@ -31,6 +31,11 @@ describe('planReminders', () => {
     expect(notices.find(n => n.key === 'momento:e2')?.userIds).toEqual(['mae', 'pai']);
   });
 
+  it('lembrete de tarefa vai só para quem cuida dela', () => {
+    const notices = planReminders('2026-10-17', [family()], [], [], [{ id: 't1', title: 'Montar o berço', user_ids: ['pai'] }]);
+    expect(notices).toEqual([{ userIds: ['pai'], kind: 'momentos', key: 'tarefa:t1:2026-10-17', payload: { title: 'Lembrete de tarefa', body: 'Montar o berço', url: '/?aba=tarefas', tag: 'tarefa-t1' } }]);
+  });
+
   it('na virada da semana conta o que abre na jornada e ignora o que já foi feito', () => {
     // DUM 2026-05-01 + 24 semanas = 2026-10-16: abre a curva glicêmica.
     const [semana] = planReminders('2026-10-16', [family()], [], []);

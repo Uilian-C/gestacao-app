@@ -1,10 +1,10 @@
 import { useContext, useState } from 'react';
-import { CheckCircle2, ChevronRight, Clock, ListChecks, Plus, Sparkles } from 'lucide-react';
+import { Bell, CheckCircle2, ChevronRight, Clock, ListChecks, Plus, Sparkles } from 'lucide-react';
 import { suggestionsFor, type TaskSuggestion } from '../../content/taskSuggestions';
-import { formatBR, isOverdue, trimesterOf } from '../../lib/dates';
+import { formatBR, isOverdue, parseLocalDate, toISODate, trimesterOf } from '../../lib/dates';
 import type { Assignee, PartnerTask, Priority } from '../../types';
 import WhoPicker, { WhoAvatars } from '../WhoPicker';
-import { PeopleContext, whoName } from '../../lib/people';
+import { PeopleContext, TaskRemindersReady, whoName } from '../../lib/people';
 import { inputClass } from '../styles';
 import DayPicker from '../forms/DayPicker';
 import { Button, Card, Chip, EmptyState, Field, Pill, Segmented, SectionTitle } from '../ui';
@@ -20,6 +20,8 @@ export interface NewTask {
   dueDate: string;
   notes: string;
   week?: number;
+  /** Dia do lembrete ('' sem lembrete); undefined quando o app ainda não pergunta. */
+  remindOn?: string;
 }
 
 interface Props {
@@ -166,6 +168,11 @@ export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCre
                           <Clock className="w-3.5 h-3.5" /> {late ? 'atrasada desde' : 'até'} {formatBR(t.due_date)}
                         </span>
                       )}
+                      {t.remind_on && !t.is_completed && t.remind_on.slice(0, 10) >= toISODate(new Date()) && (
+                        <span className="flex items-center gap-1">
+                          <Bell className="w-3.5 h-3.5" /> lembrar em {formatBR(t.remind_on)}
+                        </span>
+                      )}
                     </div>
                     {t.notes && <p className="text-sm text-ink-soft line-clamp-1">{t.notes}</p>}
                   </button>
@@ -188,12 +195,29 @@ export function TaskForm({ selectedWeek: _selectedWeek, busy, onCreate, initialD
   const [dueDate, setDueDate] = useState(initial?.due_date?.slice(0, 10) ?? initialDueDate ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [more, setMore] = useState(!!initial?.notes || initial?.priority === 'Alta');
+  // Lembrete (migração 017): o celular avisa quem cuida, às 8h do dia escolhido.
+  const reminders = useContext(TaskRemindersReady);
+  const people = useContext(PeopleContext);
+  const [remindOn, setRemindOn] = useState(initial?.remind_on?.slice(0, 10) ?? '');
+  const today = toISODate(new Date());
+  const shift = (iso: string, n: number) => {
+    const d = parseLocalDate(iso);
+    return toISODate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n));
+  };
+  const dayBefore = (iso: string) => shift(iso, -1);
+  const tomorrow = shift(today, 1);
+  const reminderChoices = [
+    { iso: '', text: 'Sem lembrete' },
+    ...(dueDate && dayBefore(dueDate) >= today ? [{ iso: dayBefore(dueDate), text: 'Na véspera' }] : []),
+    ...(dueDate && dueDate >= today ? [{ iso: dueDate, text: 'No dia do prazo' }] : []),
+  ];
+  if (!reminderChoices.some(c => c.iso === tomorrow)) reminderChoices.push({ iso: tomorrow, text: 'Amanhã' });
   return (
     <form
       className="rounded-2xl bg-surface-2/60 p-4 space-y-4 mb-5"
       onSubmit={async e => {
         e.preventDefault();
-        if (title.trim()) await onCreate({ title: title.trim(), assignee, priority, dueDate, notes: notes.trim() });
+        if (title.trim()) await onCreate({ title: title.trim(), assignee, priority, dueDate, notes: notes.trim(), remindOn: reminders ? remindOn : undefined });
       }}
     >
       <Field label="Tarefa" htmlFor="titulo-tarefa">
@@ -204,6 +228,14 @@ export function TaskForm({ selectedWeek: _selectedWeek, busy, onCreate, initialD
         <WhoPicker label="Responsável" value={assignee} onChange={setAssignee} />
       </div>
       <DayPicker mode="due" label="Prazo" value={dueDate} onChange={setDueDate} />
+      {reminders && (
+        <div className="space-y-1.5">
+          <DayPicker mode="due" label="Lembrete" fieldLabel="Dia do lembrete" value={remindOn} onChange={setRemindOn} choices={reminderChoices} />
+          <p className="flex items-center gap-1.5 text-xs text-ink-mute">
+            <Bell className="w-3.5 h-3.5" /> {remindOn ? `O celular de ${whoName(people, assignee)} avisa às 8h.` : 'Sem aviso no celular.'}
+          </p>
+        </div>
+      )}
       {more ? (
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">

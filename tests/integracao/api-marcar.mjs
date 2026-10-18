@@ -82,6 +82,23 @@ check((await appt('avo')).status === 400, 'quem vai só aceita mãe, pai ou os d
 const old = await A.call('/api/data', { op: 'createConsultation', scheduledAt: at, specialty: 'obstetra', professional: null, location: null });
 check(old.status === 200 && (await A.call('/api/data')).data.consultations.some(c => c.attendees === null), 'app antigo (sem "quem vai") continua agendando');
 
+// ---- Lembrete de tarefa (migração 017) ----
+check((await A.call('/api/data')).data.taskRemindersAvailable === true, 'com a migração 017, o app oferece lembrete nas tarefas');
+await A.call('/api/data', { op: 'createTask', week: 20, title: 'Comprar a cadeirinha do carro', assignee: 'pai', priority: 'Média', dueDate: null, notes: null, remindOn: today });
+let lembrete = (await A.call('/api/data')).data.tasks.find(t => t.task_title === 'Comprar a cadeirinha do carro');
+check(lembrete.remind_on === today, 'o lembrete fica guardado na tarefa');
+await A.call('/api/data', { op: 'updateTask', id: lembrete.id, title: lembrete.task_title, assignee: 'pai', priority: 'Alta', dueDate: null, notes: null });
+lembrete = (await A.call('/api/data')).data.tasks.find(t => t.id === lembrete.id);
+check(lembrete.remind_on === today, 'editar pelo app antigo (sem o campo) mantém o lembrete');
+const cron = () => A.call('/api/lembretes', undefined, { authorization: 'Bearer segredo-de-teste' });
+const lemB = await novos('mb', cron);
+const lemA = (await titles('ma')).filter(t => t === 'Lembrete de tarefa');
+check(lemB.includes('Lembrete de tarefa') && lemA.length === 0, 'às 8h, o lembrete chega só para quem cuida (o pai)');
+await A.call('/api/data', { op: 'toggleTask', id: lembrete.id, done: true });
+check(!(await novos('mb', cron)).includes('Lembrete de tarefa'), 'tarefa concluída não avisa (nem repete no mesmo dia)');
+await A.call('/api/data', { op: 'updateTask', id: lembrete.id, title: lembrete.task_title, assignee: 'pai', priority: 'Alta', dueDate: null, notes: null, remindOn: '' });
+check((await A.call('/api/data')).data.tasks.find(t => t.id === lembrete.id).remind_on === null, 'tirar o lembrete');
+
 // ---- Abraço do "Vocês dois hoje" ----
 got = await novos('ma', () => B.call('/api/data', { op: 'hug', day: today }));
 check(got.length === 1 && got[0] === 'Bruno mandou um abraço', 'abraço chega como aviso: "Bruno mandou um abraço"');

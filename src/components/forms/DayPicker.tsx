@@ -17,9 +17,9 @@ const shift = (iso: string, n: number) => {
  * past: registros que já aconteceram (sintoma, medição, diário) — hoje, ontem, anteontem ou outro dia, nunca no futuro.
  * due: prazo de tarefa — sem prazo, hoje, amanhã, em uma semana ou outro dia.
  */
-export default function DayPicker({ value, onChange, mode = 'past', dumDate, label = 'Quando' }: { value: string; onChange: (iso: string) => void; mode?: 'past' | 'due'; dumDate?: string; label?: string }) {
+export default function DayPicker({ value, onChange, mode = 'past', dumDate, label = 'Quando', choices, fieldLabel }: { value: string; onChange: (iso: string) => void; mode?: 'past' | 'due'; dumDate?: string; label?: string; choices?: Array<{ iso: string; text: string }>; fieldLabel?: string }) {
   const today = toISODate(new Date());
-  const shortcuts: Array<{ iso: string; text: string }> =
+  const shortcuts: Array<{ iso: string; text: string }> = choices ?? (
     mode === 'past'
       ? [
           { iso: today, text: 'Hoje' },
@@ -31,7 +31,7 @@ export default function DayPicker({ value, onChange, mode = 'past', dumDate, lab
           { iso: today, text: 'Hoje' },
           { iso: shift(today, 1), text: 'Amanhã' },
           { iso: shift(today, 7), text: 'Em 1 semana' },
-        ];
+        ]);
   const custom = !shortcuts.some(s => s.iso === value);
   const [open, setOpen] = useState(false);
   const showField = open || (custom && value !== '');
@@ -83,7 +83,7 @@ export default function DayPicker({ value, onChange, mode = 'past', dumDate, lab
         <input
           ref={field}
           type="date"
-          aria-label={mode === 'past' ? 'Escolher o dia' : 'Escolher o prazo'}
+          aria-label={fieldLabel ?? (mode === 'past' ? 'Escolher o dia' : 'Escolher o prazo')}
           className={`${inputClass} min-h-12 appearance-none text-base`}
           value={value}
           max={mode === 'past' ? today : undefined}

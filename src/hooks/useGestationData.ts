@@ -32,6 +32,8 @@ export interface GestationData {
   /** A migração 016 já rodou: "quem vai" nos agendamentos. */
   attendeesAvailable?: boolean;
   hugs?: Hug[];
+  /** A migração 017 já rodou: lembrete nas tarefas. */
+  taskRemindersAvailable?: boolean;
   /** Exames e ultrassons: os compartilhados e os particulares de quem está logado. */
   exams: ExamItem[];
   /** A migração 010 já foi aplicada. */

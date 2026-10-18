@@ -36,6 +36,13 @@ export interface EntryRow {
   body: string;
 }
 
+export interface TaskRow {
+  id: string;
+  title: string;
+  /** Quem cuida da tarefa (a mãe, o pai ou os dois), já como pessoas do espaço. */
+  user_ids: string[];
+}
+
 export interface Notice {
   userIds: string[];
   kind: NotifyKind;
@@ -52,7 +59,7 @@ export function localDate(now: Date, offsetDays = 0): string {
 const dayNumber = (iso: string) => Math.round(Date.parse(`${iso}T00:00:00Z`) / 86_400_000);
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
 
-export function planReminders(today: string, families: FamilyRow[], consultations: ConsultationRow[], entries: EntryRow[]): Notice[] {
+export function planReminders(today: string, families: FamilyRow[], consultations: ConsultationRow[], entries: EntryRow[], tasks: TaskRow[] = []): Notice[] {
   const notices: Notice[] = [];
   const membersOf = new Map(families.map(f => [f.id, f.members]));
 
@@ -82,6 +89,16 @@ export function planReminders(today: string, families: FamilyRow[], consultation
       kind: 'momentos',
       key: `momento:${e.id}`,
       payload: { title: 'Lembrete de hoje', body: clip(e.body, 140), url: '/?aba=diario', tag: `momento-${e.id}` },
+    });
+  }
+
+  // Tarefas com lembrete para hoje: só para quem cuida delas.
+  for (const t of tasks) {
+    notices.push({
+      userIds: t.user_ids,
+      kind: 'momentos',
+      key: `tarefa:${t.id}:${today}`,
+      payload: { title: 'Lembrete de tarefa', body: clip(t.title, 140), url: '/?aba=tarefas', tag: `tarefa-${t.id}` },
     });
   }
 

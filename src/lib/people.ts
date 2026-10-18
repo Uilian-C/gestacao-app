@@ -20,6 +20,9 @@ export const PeopleContext = createContext<FamilyMember[]>([]);
 /** A migração 016 já rodou: dá para dizer quem vai a cada agendamento. */
 export const AttendeesReady = createContext(false);
 
+/** A migração 017 já rodou: dá para pôr lembrete nas tarefas. */
+export const TaskRemindersReady = createContext(false);
+
 /** A pessoa do espaço com esse papel (o pai, a mãe). */
 export const memberWithRole = (members: FamilyMember[], role: Author) => members.find(m => m.role === role);
 
