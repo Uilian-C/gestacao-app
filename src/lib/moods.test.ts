@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Checkin, Mood } from '../hooks/useGestationData';
-import { moodCounts, moodTrends, needsCare } from './moods';
+import { isMoodPost, moodCounts, moodNote, moodTrends, needsCare } from './moods';
 
 const c = (day: string, mood: Mood, author_role: 'mae' | 'pai' = 'mae'): Checkin => ({ day, mood, author_role, mine: author_role === 'mae' });
 
@@ -14,6 +14,12 @@ describe('humor', () => {
     const prev = [c('2026-10-01', 'cansada')];
     expect(moodTrends([...now, ...prev], 'mae', '2026-10-18')).toEqual([{ mood: 'cansada', now: 5, prev: 1 }]);
     expect(moodTrends(prev, 'mae', '2026-10-18')).toEqual([]);
+  });
+  it('reconhece o post do humor e separa o recado', () => {
+    expect(isMoodPost('Hoje estou cansada. Dormi pouco.')).toBe(true);
+    expect(isMoodPost('Hoje estou feliz com o ultrassom')).toBe(false);
+    expect(moodNote('Hoje estou ótimo. Dia bom no trabalho.')).toBe('Dia bom no trabalho.');
+    expect(moodNote('Hoje estou bem.')).toBe('');
   });
   it('ansiedade em 5 dos últimos 7 dias pede cuidado', () => {
     const days = ['2026-10-18', '2026-10-17', '2026-10-16', '2026-10-14', '2026-10-12'];

@@ -1,18 +1,16 @@
 import { useContext } from 'react';
-import { ArrowRight, AtSign, CalendarPlus, Check, CheckCircle2, ChevronRight, Clock, Flag, Heart, MessageCircle } from 'lucide-react';
-import { photoUrl } from '../../api';
-import type { JournalEntry, ThreadComment } from '../../hooks/useGestationData';
+import { ArrowRight, CalendarPlus, Check, CheckCircle2, ChevronRight, Clock, Flag } from 'lucide-react';
 import { appointmentTitle, kindInfo, kindOf } from '../../lib/appointments';
 import { daysBetween, formatBR, isOverdue, parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
 import { inDays, nextMilestone } from '../../lib/milestones';
-import { PeopleContext, firstName, whoName } from '../../lib/people';
+import { PeopleContext, whoName } from '../../lib/people';
 import type { Author, Consultation, PartnerTask } from '../../types';
-import Avatar from '../Avatar';
 import LocationLinks from '../LocationLinks';
 import { WhoAvatars } from '../WhoPicker';
 
 // Os cartões do Início que fazem dele o painel do casal: o próximo compromisso,
-// as novidades da outra pessoa, as tarefas de cada um e os marcos da gestação.
+// as tarefas de cada um e os marcos da gestação (as novidades do Mural ficam
+// no "Vocês dois hoje").
 
 /** "Hoje, 14:00", "Amanhã, 09:30" ou "Em 3 dias · ter, 21 out · 14:00". */
 function whenText(at: Date, now: Date) {
@@ -67,79 +65,6 @@ export function NextAppointment({ consultations, onOpen, onSchedule }: { consult
         </p>
       )}
       {next.location && <LocationLinks address={next.location} />}
-    </section>
-  );
-}
-
-/** Novidades da outra pessoa no Mural desde a última visita (ou o último registro dela, se não houver nada novo). */
-export function PartnerNews({ entries, comments, mentions, photos, fallback, onMural, onOpenEntry }: {
-  entries: JournalEntry[];
-  comments: ThreadComment[];
-  mentions: number;
-  photos: Array<{ id: string; thumb: boolean; entryId: string }>;
-  fallback?: JournalEntry;
-  onMural: () => void;
-  onOpenEntry: (id: string) => void;
-}) {
-  const people = useContext(PeopleContext);
-  const partner = people.find(m => !m.me);
-  const name = partner ? firstName(partner.name) : null;
-
-  if (entries.length + comments.length === 0) {
-    if (!fallback) return null;
-    return (
-      <button type="button" onClick={() => onOpenEntry(fallback.id)} className="w-full text-left rounded-[28px] bg-surface shadow-soft p-4 space-y-2.5">
-        <span className="flex items-center gap-1.5 text-[12px] font-extrabold uppercase tracking-wide text-rosa-strong">
-          <Heart className="w-4 h-4 fill-current" /> Do diário · {name ?? (fallback.author_role === 'mae' ? 'da mãe' : 'do pai')}
-        </span>
-        {fallback.photos?.[0] && <img src={photoUrl(fallback.photos[0].id, fallback.photos[0].thumb)} alt="" loading="lazy" className="w-full max-h-56 rounded-2xl object-cover bg-surface-2" />}
-        {fallback.body && <p className="font-display text-[1.1rem] leading-snug text-ink line-clamp-3">{fallback.body}</p>}
-        <span className="block text-sm font-extrabold text-rosa-strong">Abrir e mandar um abraço</span>
-      </button>
-    );
-  }
-
-  const latest = entries[0];
-  return (
-    <section aria-label="Novidades no Mural" className="rounded-[28px] bg-surface shadow-soft p-4 space-y-3">
-      <div className="flex items-center gap-3">
-        <Avatar member={partner} role={partner?.role ?? 'pai'} className="w-10 h-10 text-sm" />
-        <div className="min-w-0 flex-1">
-          <h2 className="text-[1.1rem] text-ink leading-tight">Novidades no Mural</h2>
-          <p className="text-xs text-ink-mute">desde a sua última visita</p>
-        </div>
-      </div>
-      <ul className="flex flex-wrap gap-1.5 text-[13px] font-bold">
-        {entries.length > 0 && (
-          <li className="inline-flex items-center gap-1 rounded-full bg-rosa-soft text-rosa-strong px-3 py-1">
-            <Heart className="w-3.5 h-3.5" /> {name ?? 'A outra pessoa'} postou {entries.length === 1 ? '1 registro' : `${entries.length} registros`}
-          </li>
-        )}
-        {comments.length > 0 && (
-          <li className="inline-flex items-center gap-1 rounded-full bg-surface-2 text-ink-soft px-3 py-1">
-            <MessageCircle className="w-3.5 h-3.5" /> {comments.length === 1 ? '1 comentário' : `${comments.length} comentários`}
-          </li>
-        )}
-        {mentions > 0 && (
-          <li className="inline-flex items-center gap-1 rounded-full bg-brand text-on-accent px-3 py-1">
-            <AtSign className="w-3.5 h-3.5" /> marcou você{mentions > 1 ? ` ${mentions} vezes` : ''}
-          </li>
-        )}
-      </ul>
-      {photos.length > 0 ? (
-        <div className="grid grid-cols-4 gap-1.5">
-          {photos.map(p => (
-            <button key={p.id} type="button" onClick={() => onOpenEntry(p.entryId)} aria-label="Abrir o registro da foto" className="aspect-square overflow-hidden rounded-xl bg-surface-2">
-              <img src={photoUrl(p.id, p.thumb)} alt="" loading="lazy" className="w-full h-full object-cover" />
-            </button>
-          ))}
-        </div>
-      ) : (
-        latest?.body && <p className="font-display text-[1.05rem] leading-snug text-ink line-clamp-2">{latest.body}</p>
-      )}
-      <button type="button" onClick={onMural} className="inline-flex items-center gap-1.5 text-sm font-extrabold text-rosa-strong">
-        Ver no Mural <ArrowRight className="w-4 h-4" />
-      </button>
     </section>
   );
 }

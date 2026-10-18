@@ -102,7 +102,14 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
   const hugText = !others.length ? 'Você reagiu' : `${hugs.length === 1 ? 'Abraço' : 'Reações'} de ${others.join(' e ')}${fromMe ? ' e sua' : ''}`;
 
   return (
-    <article className="rounded-[26px] bg-surface shadow-soft overflow-hidden" aria-label={`${f.singular} de ${name}`}>
+    <article
+      className="rounded-[26px] bg-surface shadow-soft overflow-hidden cursor-pointer"
+      aria-label={`${f.singular} de ${name}`}
+      // O post inteiro abre os detalhes; abraço, comentário e marcação continuam com o próprio toque.
+      onClick={ev => {
+        if (!(ev.target as HTMLElement).closest('button, a, input, textarea, form')) open();
+      }}
+    >
       <header className="flex items-center gap-3 px-4 pt-3.5 pb-3">
         <Avatar member={who} role={e.author_role} className="w-10 h-10 text-sm" />
         <div className="min-w-0 flex-1 leading-tight">

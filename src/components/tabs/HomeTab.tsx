@@ -19,8 +19,9 @@ import PushPrompt from '../PushPrompt';
 import { Card, LinkButton, SectionTitle } from '../ui';
 import { InsightList } from '../InsightList';
 import { Row } from './UpcomingTab';
-import { MilestoneBar, NextAppointment, PartnerNews, SharedTasks } from '../home/CoupleCards';
+import { MilestoneBar, NextAppointment, SharedTasks } from '../home/CoupleCards';
 import { lastSeen, partnerNews } from '../../lib/news';
+import { mentionsMe } from '../../lib/mentions';
 import { PeopleContext } from '../../lib/people';
 
 /** Para onde o Início leva (abas e partes delas). */
@@ -143,12 +144,16 @@ export default function HomeTab(props: Props) {
 
   const up = buildUpcoming({ consultations: props.consultations, tasks: props.tasks, journal: props.journal, exams: props.exams, today: now });
   const lateSteps = nextSteps(planFor(props.bloodType, props.hiddenSteps), currentWeek, props.doneSteps, 20).filter(s => s.status === 'pendente');
-  // O último registro compartilhado da outra pessoa no diário, se for recente.
-  const partnerEntry = props.journal.find(e => !e.mine && e.visibility === 'shared' && daysBetween(parseLocalDate(e.entry_date), parseLocalDate(todayIso)) <= 14);
   const members = useContext(PeopleContext);
   // A última visita ao Diário, lida uma vez ao abrir o Início.
   const [since] = useState(() => lastSeen(props.userId));
   const news = partnerNews(props.journal, props.threads, members, since);
+  // Os 2 últimos posts do Mural (dos dois, da última semana) entram no "Vocês dois hoje".
+  const newIds = new Set(news.entries.map(e => e.id));
+  const posts = props.journal
+    .filter(e => e.visibility === 'shared' && daysBetween(parseLocalDate(e.entry_date), parseLocalDate(todayIso)) <= 7)
+    .slice(0, 2)
+    .map(entry => ({ entry, isNew: newIds.has(entry.id), mentionsMe: !entry.mine && mentionsMe(members, entry.body) }));
   // O próximo agendamento já aparece em destaque: não se repete nas listas abaixo.
   const nextId = props.consultations
     .filter(c => parseTimestamp(c.scheduled_at) >= now)
@@ -228,7 +233,7 @@ export default function HomeTab(props: Props) {
         {age.isPostTerm && <p className="mt-3 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
       </section>
 
-      {props.checkinAvailable && <CheckIn role={props.role} checkins={props.checkins} hugs={props.hugs} onCheckin={props.onCheckin} onHug={props.onHug} onShare={props.onShareMood} onMonth={() => onOpen('humor')} />}
+      {props.checkinAvailable && <CheckIn role={props.role} checkins={props.checkins} hugs={props.hugs} onCheckin={props.onCheckin} onHug={props.onHug} onShare={props.onShareMood} onMonth={() => onOpen('humor')} posts={posts} onOpenEntry={id => props.onOpenDetail({ kind: 'entry', id })} onMural={() => onOpen('mural')} />}
 
       <NextAppointment consultations={props.consultations} onOpen={c => props.onOpenDetail({ kind: 'consultation', id: c.id })} onSchedule={() => onOpen('agenda')} />
 
@@ -277,7 +282,6 @@ export default function HomeTab(props: Props) {
       )}
 
 
-      <PartnerNews {...news} fallback={partnerEntry} onMural={() => onOpen('mural')} onOpenEntry={id => props.onOpenDetail({ kind: 'entry', id })} />
 
       <SharedTasks tasks={props.tasks} role={props.role} onToggle={props.onToggleTask} onOpenTask={t => props.onOpenDetail({ kind: 'task', id: t.id })} onAll={() => onOpen('tarefas')} />
 
