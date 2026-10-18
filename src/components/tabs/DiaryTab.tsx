@@ -1,16 +1,18 @@
-import { Bell, BookHeart, ChevronRight, HeartPulse, Images, Lock, Plus } from 'lucide-react';
-import { photoUrl } from '../../api';
+import { Bell, BookHeart, ChevronRight, HeartPulse, Images, LayoutList, Lock, Plus } from 'lucide-react';
+import { photoUrl, type FamilyMember } from '../../api';
 import type { Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { formatBR, toISODate } from '../../lib/dates';
 import type { DetailTarget } from '../../lib/details';
 import { FOLDER, FOLDERS, TONE, bellyWeeks, byMonth, shortDate, weekOn } from '../../lib/folders';
-import type { DiaryView } from '../../types';
+import type { Author, DiaryView } from '../../types';
 import AuthorBadge from '../AuthorBadge';
-import { SocialCount } from '../Social';
+import { SocialCount, type OnReact } from '../Social';
+import Mural from './Mural';
 import { Card } from '../ui';
 
 // O Diário é o fichário afetivo da gestação: momentos, dia a dia, ideias,
-// cartas para o bebê e a barriga semana a semana. Sintomas, peso e pressão
+// cartas para o bebê e a barriga semana a semana. Abre no Mural (tudo junto,
+// como uma rede social de vocês dois); o Fichário guarda por pasta. Sintomas, peso e pressão
 // ficam em Cuidados → Saúde, junto do que a equipe médica acompanha.
 
 interface Props {
@@ -23,6 +25,12 @@ interface Props {
   dumDate: string;
   reactions: Reaction[];
   threads: ThreadComment[];
+  members: FamilyMember[];
+  role: Author;
+  /** A migração 011 já rodou: abraços e conversa. */
+  socialAvailable: boolean;
+  onReact: OnReact;
+  onComment: (entryId: string, body: string) => Promise<boolean>;
   /** Abre os detalhes (com reações, conversa, editar e excluir). */
   onOpen: (target: DetailTarget) => void;
   /** Abre o formulário já na pasta (e com uma ideia para começar). */
@@ -42,7 +50,22 @@ export default function DiaryTab(props: Props) {
   return (
     <div className="space-y-5">
       <FolderStrip value={props.view} onChange={props.onView} count={count} total={entries.length} folders={props.photosAvailable} />
-      {props.view === 'tudo' ? (
+      {props.view === 'mural' ? (
+        <Mural
+          entries={entries}
+          members={props.members}
+          role={props.role}
+          dumDate={props.dumDate}
+          reactions={props.reactions}
+          threads={props.threads}
+          social={props.socialAvailable}
+          journalAvailable={props.journalAvailable}
+          onReact={props.onReact}
+          onComment={props.onComment}
+          onOpen={id => props.onOpen({ kind: 'entry', id })}
+          onWrite={props.onWrite}
+        />
+      ) : props.view === 'tudo' ? (
         <Cover {...props} count={count} social={social} />
       ) : (
         <FolderPage {...props} folder={props.view} entries={entries.filter(e => e.folder === props.view)} social={social} />
@@ -51,16 +74,18 @@ export default function DiaryTab(props: Props) {
   );
 }
 
-/** As abas do fichário: "Tudo" e uma por pasta, deslizando para o lado no celular. */
+/** As abas do diário: o Mural, o Fichário e uma por pasta, deslizando para o lado no celular. */
 function FolderStrip({ value, onChange, count, total, folders }: { value: DiaryView; onChange: (v: DiaryView) => void; count: (f: Folder) => number; total: number; folders: boolean }) {
-  if (!folders) return null;
   const tab = 'shrink-0 inline-flex items-center gap-1.5 rounded-full pl-3 pr-3.5 py-2 text-[13px] font-bold transition';
   return (
     <nav className="-mx-4 px-4 flex gap-2 overflow-x-auto no-scrollbar" aria-label="Pastas do diário">
+      <button type="button" onClick={() => onChange('mural')} aria-current={value === 'mural' ? 'page' : undefined} className={`${tab} ${value === 'mural' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
+        <LayoutList className="w-4 h-4" /> Mural
+      </button>
       <button type="button" onClick={() => onChange('tudo')} aria-current={value === 'tudo' ? 'page' : undefined} className={`${tab} ${value === 'tudo' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
         <BookHeart className="w-4 h-4" /> Fichário <span className="tabular opacity-70">{total}</span>
       </button>
-      {FOLDERS.map(f => {
+      {folders && FOLDERS.map(f => {
         const on = value === f.id;
         const t = TONE[f.tone];
         return (

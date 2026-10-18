@@ -40,6 +40,7 @@ import { findPatterns, toEntries } from './lib/symptoms';
 import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, DiaryView, HealthView, PartnerTask, Tab } from './types';
 import { isConsultation, resultOf } from './lib/appointments';
 import { autoDone, visitsOf } from './lib/journey';
+import { PeopleContext } from './lib/people';
 
 const UNDO_WINDOW_MS = 5000;
 
@@ -95,7 +96,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [activeTab, setActiveTab] = useState<Tab>(() => takeTabFromUrl() ?? 'inicio');
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
-  const [diaryView, setDiaryView] = useState<DiaryView>('tudo');
+  const [diaryView, setDiaryView] = useState<DiaryView>('mural');
   const [healthView, setHealthView] = useState<HealthView>('registros');
   const [agendaView, setAgendaView] = useState<AgendaView>(() => {
     const v = takeViewFromUrl();
@@ -114,10 +115,16 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [entryStart, setEntryStart] = useState<{ folder: Folder; idea?: string }>({ folder: 'momento' });
   const [detail, setDetail] = useState<DetailTarget | null>(null);
 
-  // A cor principal segue a aba (index.css, data-aba).
+  // A cor principal segue a aba (index.css, data-aba); para o pai, o rosa vira azul (data-papel).
   useEffect(() => {
     document.documentElement.dataset.aba = activeTab;
   }, [activeTab]);
+  useEffect(() => {
+    document.documentElement.dataset.papel = author;
+    return () => {
+      delete document.documentElement.dataset.papel;
+    };
+  }, [author]);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
@@ -549,6 +556,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   );
 
   return (
+    <PeopleContext.Provider value={family.members}>
     <div className="min-h-screen bg-canvas text-ink pb-32 md:pb-12">
       {header}
       {(activeTab === 'inicio' || activeTab === 'cuidados') && <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />}
@@ -617,6 +625,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             dumDate={dumDate}
             reactions={socialAvailable ? reactions : []}
             threads={threads}
+            members={family.members}
+            role={author}
+            socialAvailable={socialAvailable}
+            onReact={react}
+            onComment={(id, body) => sendThread('entry', id, body)}
             onOpen={setDetail}
             onWrite={writeEntry}
             onOpenHealth={() => openCare('saude')}
@@ -818,7 +831,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {recordModes.length > 0 && (
         <button
           type="button"
-          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' ? 'momento' : diaryView) : (setEntryStart({ folder: 'momento' }), setRecording(recordModes)))}
+          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' || diaryView === 'mural' ? 'momento' : diaryView) : (setEntryStart({ folder: 'momento' }), setRecording(recordModes)))}
           className="tt-registrar no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-8 h-11 pl-3 pr-4 rounded-full text-white text-[14px] font-extrabold flex items-center gap-1.5 transition active:scale-95 hover:brightness-110"
         >
           <Plus className="w-[18px] h-[18px]" strokeWidth={3} />
@@ -890,6 +903,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       <Toast toast={toast} onClose={() => setToast(null)} />
       {spaceSheet}
     </div>
+    </PeopleContext.Provider>
   );
 }
 

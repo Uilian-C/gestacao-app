@@ -2,8 +2,10 @@ import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { CONSENT_VERSION, hasConsent } from './_lib/consent.js';
 import { query, transaction } from './_lib/db.js';
+import { familyState } from './_lib/family.js';
+import { deleteFiles } from './_lib/storage.js';
 import { fetchAll } from './_lib/gestation.js';
-import { HttpError, accessOf, endpoint, findMembership, json, readJson, requireUser, type Member } from './_lib/http.js';
+import { HttpError, accessOf, endpoint, findMembership, json, readJson, requireUser } from './_lib/http.js';
 
 // Espaço da gestação: quem faz parte, convites e papel (mãe ou pai) de cada um.
 // Todos os membros têm os mesmos poderes.
@@ -28,21 +30,6 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('removeMember'), userId: z.string().min(1).max(64) }),
   z.object({ op: z.literal('consent'), version: z.string().max(20) }),
 ]);
-
-async function familyState(userId: string, known?: Member | null) {
-  const member = known === undefined ? await findMembership(userId) : known;
-  if (!member) return null;
-  const members = await query<{ user_id: string; name: string; email: string; role: string; joined_at: string }>(
-    `SELECT m.user_id, u.name, u.email, m.role, m.joined_at::text AS joined_at
-     FROM family_members m JOIN "user" u ON u.id = m.user_id
-     WHERE m.family_id = $1 ORDER BY m.joined_at`,
-    [member.familyId],
-  );
-  return {
-    role: member.role,
-    members: members.map(m => ({ userId: m.user_id, name: m.name, email: m.email, role: m.role, me: m.user_id === userId })),
-  };
-}
 
 /** Convite válido: existe, não foi usado e não venceu. */
 async function findInvite(code: string) {
@@ -139,10 +126,15 @@ export const POST = endpoint(async request => {
         const { rows } = await client.query('SELECT user_id FROM family_members WHERE family_id = $1 FOR UPDATE', [member.familyId]);
         if (!rows.some(r => r.user_id === o.userId)) throw new HttpError(404, 'Pessoa não encontrada neste espaço.');
         if (rows.length <= 1) throw new HttpError(409, 'Você é a única pessoa no espaço. Convide alguém antes de sair.');
-        await client.query('DELETE FROM family_members WHERE family_id = $1 AND user_id = $2', [member.familyId, o.userId]);
-        return o.userId;
+        const { rows: gone } = await client.query(
+          "DELETE FROM family_members m WHERE family_id = $1 AND user_id = $2 RETURNING to_jsonb(m)->>'avatar_path' AS avatar",
+          [member.familyId, o.userId],
+        );
+        return { userId: o.userId as string, avatar: gone[0]?.avatar as string | null };
       });
-      if (removed === user.id) return json({ ok: true, family: null });
+      // A foto de perfil sai junto com a pessoa.
+      if (removed.avatar) await deleteFiles([removed.avatar]).catch(err => console.error('Foto de perfil não apagada', err));
+      if (removed.userId === user.id) return json({ ok: true, family: null });
       break;
     }
   }

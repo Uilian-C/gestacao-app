@@ -111,3 +111,36 @@ export async function preparePhoto(file: File): Promise<PreparedPhoto> {
   const thumb = await shrinkPhoto(file, THUMB_SIDE, THUMB_BYTES);
   return { data: await toBase64(photo), thumb: await toBase64(thumb), preview: URL.createObjectURL(thumb), name: file.name };
 }
+
+// ---- Foto de perfil ----
+// Quadrada (o centro da foto), 512 px: aparece pequena, num círculo.
+
+const AVATAR_SIDE = 512;
+const AVATAR_BYTES = 280 * 1024;
+
+export async function prepareAvatar(file: File): Promise<{ data: string; preview: string }> {
+  if (!file.type.startsWith('image/') && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)) {
+    throw new FileProblem(`"${file.name}" não é uma foto.`);
+  }
+  let image: ImageBitmap | HTMLImageElement;
+  try {
+    image = await decode(file);
+  } catch {
+    throw new FileProblem('Não foi possível abrir a foto. Tente outra ou envie como JPG.');
+  }
+  const crop = Math.min(image.width, image.height);
+  const side = Math.min(AVATAR_SIDE, crop);
+  const canvas = document.createElement('canvas');
+  canvas.width = side;
+  canvas.height = side;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, side, side);
+  ctx.drawImage(image, (image.width - crop) / 2, (image.height - crop) / 2, crop, crop, 0, 0, side, side);
+  if ('close' in image) image.close();
+  for (const quality of [0.85, 0.72, 0.6]) {
+    const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', quality));
+    if (blob && blob.size <= AVATAR_BYTES) return { data: await toBase64(blob), preview: URL.createObjectURL(blob) };
+  }
+  throw new FileProblem('A foto ficou grande demais mesmo reduzida. Tente outra.');
+}

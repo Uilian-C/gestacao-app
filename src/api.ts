@@ -29,6 +29,8 @@ export interface FamilyMember {
   email: string;
   role: Author;
   me: boolean;
+  /** Quando a foto de perfil mudou (migração 015); null sem foto. */
+  photo?: string | null;
 }
 
 export interface FamilyState {
@@ -57,6 +59,8 @@ export const api = {
   exams: <T = { ok: true; id?: string; data?: unknown }>(op: string, payload: Record<string, unknown> = {}) => request<T>('/api/exames', { op, ...payload }),
   /** Fotos do diário: add, delete. Ver api/fotos.ts. */
   photos: (op: 'add' | 'delete', payload: Record<string, unknown>) => request<{ ok: true; data?: unknown }>('/api/fotos', { op, ...payload }),
+  /** Foto de perfil de quem está logado: trocar (data) ou tirar (null). */
+  avatar: (data: string | null) => request<{ ok: true; family: FamilyState }>('/api/fotos', data ? { op: 'avatar', data } : { op: 'removeAvatar' }),
 };
 
 /** Endereço de uma foto ou PDF de exame (só abre para quem é do espaço). */
@@ -64,3 +68,6 @@ export const examFileUrl = (fileId: string) => `/api/exames?arquivo=${encodeURIC
 
 /** Endereço de uma foto do diário; `mini` pede a miniatura (listas). */
 export const photoUrl = (photoId: string, mini = false) => `/api/fotos?id=${encodeURIComponent(photoId)}${mini ? '&mini=1' : ''}`;
+
+/** Foto de perfil de alguém do espaço; `version` muda a cada troca, para não mostrar a antiga. */
+export const avatarUrl = (userId: string, version: string) => `/api/fotos?perfil=${encodeURIComponent(userId)}&v=${encodeURIComponent(version)}`;

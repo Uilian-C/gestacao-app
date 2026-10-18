@@ -165,6 +165,9 @@ export const POST = endpoint(async request => {
         removePaths.push(...files.map((f: { path: string }) => f.path));
         await client.query("DELETE FROM exams WHERE user_id = $1 AND visibility = 'private'", [user.id]);
       }
+      // A foto de perfil também (migração 015).
+      const { rows: avatar } = await client.query(`SELECT to_jsonb(m)->>'avatar_path' AS path FROM family_members m WHERE user_id = $1`, [user.id]);
+      removePaths.push(...avatar.filter((a: { path: string | null }) => a.path).map((a: { path: string }) => a.path));
       // Sessões, contas de login, consentimentos e vínculo com o espaço vão junto.
       await client.query('DELETE FROM "user" WHERE id = $1', [user.id]);
     }

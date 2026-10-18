@@ -30,7 +30,9 @@ const photo = Buffer.from(
 );
 
 await p.getByRole('button', { name: /^Diário/ }).first().click();
-check(await p.getByText('O que vocês querem lembrar').isVisible(), 'Diário abre na capa do fichário');
+check(await p.getByRole('button', { name: /O que vocês querem guardar hoje/ }).isVisible(), 'Diário abre no Mural');
+await folders.getByRole('button', { name: /^Fichário/ }).click();
+check(await p.getByText('O que vocês querem lembrar').isVisible(), 'o Fichário mostra a capa com as pastas');
 check(await p.getByRole('button', { name: /Sintomas, peso e pressão/ }).isVisible(), 'capa aponta para onde foi a saúde');
 await p.screenshot({ path: `${OUT}fichario-capa.png`, fullPage: true });
 
@@ -70,6 +72,13 @@ await dlg.getByRole('button', { name: 'Guardar carta' }).click();
 await dlg.waitFor({ state: 'hidden', timeout: 10000 });
 check(await p.getByRole('button', { name: 'Carta: ver detalhes' }).isVisible(), 'carta aparece na pasta Cartas');
 check((await folders.getByRole('button', { name: /^Cartas/ }).textContent()).includes('1'), 'aba da pasta mostra a contagem');
+
+// ---- Mural: tudo junto, a foto grande ----
+await folders.getByRole('button', { name: /^Mural/ }).click();
+const bellyPost = p.getByRole('article', { name: /^Barriguinha de / });
+check(await bellyPost.locator('span', { hasText: /^Semana 22$/ }).first().isVisible(), 'no Mural, a foto da barriga aparece grande, com a semana');
+check(await p.getByRole('article', { name: /^Carta de / }).getByText(/papai sentiu/).isVisible(), 'a carta também está no Mural');
+await p.screenshot({ path: `${OUT}mural.png`, fullPage: true });
 
 // ---- Capa e Início ----
 await folders.getByRole('button', { name: /^Fichário/ }).click();
