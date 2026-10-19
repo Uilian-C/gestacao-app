@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CalendarCheck2, CalendarClock, CalendarPlus, Check, ChevronDown, ChevronRight, ClipboardCopy, EyeOff, FileImage, HelpCircle, ListChecks, NotebookPen, Pencil, Route, Share2, Stethoscope, Undo2, UsersRound } from 'lucide-react';
 import { KIND_LABEL, KIND_WHERE, PHASES, PLAN_SOURCE } from '../../content/prenatalPlan';
-import { phaseOf, plannedVisitWeeks, visitsOf } from '../../lib/journey';
-import { appointmentKindFor, journeySummary, phaseCount, planToText, statusText, todoNow, weeksText, windowDates, windowDatesText, type JourneyRow, type JourneyStatus } from '../../lib/journeyPlan';
+import { dateOfWeek, phaseOf, plannedVisitWeeks, visitsOf } from '../../lib/journey';
+import { appointmentKindFor, journeySummary, phaseCount, planToText, statusText, todoNow, visitSlots, weeksText, windowDates, windowDatesText, type JourneyRow, type JourneyStatus, type VisitStatus } from '../../lib/journeyPlan';
 import { hasResult } from '../../lib/appointments';
-import { parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
+import { parseLocalDate, parseTimestamp, toISODate, weekOfDay } from '../../lib/dates';
 import type { ListItem } from '../../hooks/useGestationData';
 import type { Consultation } from '../../types';
 import { AddItem, HiddenItems, RowMenu } from '../EditableList';
 import { KIND_ICON } from '../journey/kindIcon';
 import { PhaseGuide } from '../journey/Journey';
+import { GestationStrip, PlanVsDoneChart } from '../charts/JourneyProgress';
 import Sheet from '../Sheet';
 import { inputClass } from '../styles';
 import { Button } from '../ui';
@@ -73,8 +74,7 @@ export default function JourneyTab(props: Props) {
   const now = new Date();
   const summary = journeySummary(rows, currentWeek);
   const consultas = props.consultations.filter(c => (c.kind ?? 'consulta') === 'consulta');
-  const visits = visitsOf(consultas, dumDate, now);
-  const planned = plannedVisitWeeks(visits.find(v => v.specialty === 'obstetra')?.week ?? 8);
+  const { visits, slots } = visitPlan(consultas, dumDate, now, currentWeek);
   const nextVisit = visits.find(v => v.future);
   const todo = todoNow(rows);
   const timed = rows.filter(r => !r.item.anytime);
@@ -90,7 +90,6 @@ export default function JourneyTab(props: Props) {
       return next;
     });
   const current = open?.kind === 'item' ? rows.find(r => r.item.id === open.id) : undefined;
-  const pct = summary.dueByNow ? Math.round((summary.done / summary.dueByNow) * 100) : 0;
   const nextUp = timed.find(r => r.status === 'depois' || r.status === 'em-breve');
 
   return (
@@ -107,6 +106,8 @@ export default function JourneyTab(props: Props) {
           </div>
         </div>
 
+        <GestationStrip week={currentWeek} />
+
         <div className="rounded-2xl bg-surface-2/70 p-3.5 space-y-2">
           <p className="flex items-baseline gap-2">
             <span className="font-display text-[1.9rem] leading-none text-ink tabular">
@@ -115,15 +116,15 @@ export default function JourneyTab(props: Props) {
             </span>
             <span className="text-[13px] text-ink-soft leading-snug">{summary.dueByNow ? 'do que já era para ter começado está feito' : 'nada previsto até esta semana'}</span>
           </p>
-          <div className="h-2 rounded-full bg-surface overflow-hidden" role="progressbar" aria-label="Feito do previsto até agora" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-            <div className="h-full rounded-full bg-ok transition-all" style={{ width: `${pct}%` }} />
-          </div>
           <p className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] font-semibold">
             <span className="text-ok">✓ {summary.doneTotal} {summary.doneTotal === 1 ? 'feito' : 'feitos'}</span>
             <span className="text-brand-strong">{summary.scheduled} {summary.scheduled === 1 ? 'agendado' : 'agendados'}</span>
             {summary.late > 0 && <span className="text-warn">{summary.late} {summary.late === 1 ? 'atrasado' : 'atrasados'}</span>}
             <span className="text-ink-mute">de {summary.total} na gestação</span>
           </p>
+          <div className="pt-1">
+            <PlanVsDoneChart rows={rows} dumDate={dumDate} week={currentWeek} />
+          </div>
         </div>
 
         <button type="button" onClick={() => setOpen({ kind: 'consultas' })} className="w-full flex items-center gap-3 rounded-2xl bg-surface-2/70 px-3.5 py-3 text-left">
@@ -131,7 +132,7 @@ export default function JourneyTab(props: Props) {
           <span className="flex-1 min-w-0">
             <span className="block text-sm font-bold text-ink">Consultas de pré-natal</span>
             <span className="block text-xs text-ink-soft">
-              {visits.filter(v => !v.future).length} de {planned.filter(w => w <= currentWeek).length} previstas até agora · {nextVisit ? `próxima ${ddmm(nextVisit.date)}` : 'nenhuma marcada'}
+              {slots.filter(sl => sl.status === 'feita').length} de {slots.filter(sl => sl.week <= currentWeek).length} previstas até agora · {nextVisit ? `próxima ${ddmm(nextVisit.date)}` : 'nenhuma marcada'}
             </span>
           </span>
           <ChevronRight className="w-4 h-4 text-ink-mute shrink-0" />
@@ -590,51 +591,110 @@ function suggestedDate(row: JourneyRow, dumDate: string): string {
   return start > today ? start : today;
 }
 
-/** As consultas: o ritmo recomendado em cada fase e as do casal. */
+/** O calendário de consultas do casal: começa na semana da 1ª consulta já feita (ou na 8ª). */
+function visitPlan(consultas: Consultation[], dumDate: string, now: Date, week: number) {
+  const visits = visitsOf(consultas, dumDate, now);
+  const first = visits.find(v => !v.future && v.specialty === 'obstetra')?.week;
+  return { visits, slots: visitSlots(plannedVisitWeeks(first ?? 8), visits, week) };
+}
+
+const VISIT: Record<VisitStatus, { label: string; dot: string }> = {
+  feita: { label: 'feita', dot: 'bg-ok text-on-accent' },
+  agendada: { label: 'agendada', dot: 'bg-brand-soft text-brand-strong' },
+  atrasada: { label: 'não marcada', dot: 'bg-warn-soft text-warn' },
+  agora: { label: 'esta é a hora', dot: 'bg-brand text-on-accent' },
+  prevista: { label: 'prevista', dot: 'bg-surface-2 text-ink-mute' },
+};
+
+/**
+ * As consultas: o calendário recomendado semana a semana, com a consulta do
+ * casal em cada vaga. Dá para agendar qualquer uma, inclusive as do futuro,
+ * para deixar tudo planejado.
+ */
 function VisitsSheet({ consultas, onClose, ...props }: Props & { consultas: Consultation[]; onClose: () => void }) {
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+  // Abre (e volta do formulário) já mostrando a próxima consulta a fazer.
+  const firstRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (!adding) firstRef.current?.scrollIntoView({ block: 'center' });
+  }, [adding]);
   const now = new Date();
-  const visits = visitsOf(consultas, props.dumDate, now);
-  const planned = plannedVisitWeeks(visits.find(v => v.specialty === 'obstetra')?.week ?? 8);
-  const phase = phaseOf(props.currentWeek);
+  const today = toISODate(now);
+  const { slots } = visitPlan(consultas, props.dumDate, now, props.currentWeek);
+  const firstOpen = slots.find(sl => sl.status !== 'feita')?.week;
+  const startOf = (w: number) => toISODate(dateOfWeek(props.dumDate, w));
+  const done = slots.filter(sl => sl.status === 'feita').length;
+  const due = slots.filter(sl => sl.week <= props.currentWeek).length;
+
   return (
-    <Sheet icon={<Stethoscope />} title="Consultas de pré-natal" subtitle={`${visits.filter(v => !v.future).length} feitas · ${planned.filter(w => w <= props.currentWeek).length} previstas até a semana ${props.currentWeek}`} onClose={onClose}>
+    <Sheet icon={<Stethoscope />} title="Consultas de pré-natal" subtitle={`${done} feitas · ${due} previstas até a semana ${props.currentWeek}`} onClose={onClose}>
       {adding ? (
-        <ScheduleForm busy={props.busy} preset={{ kind: 'consulta', title: '', date: toISODate(now) }} onCreate={async c => { const ok = await props.onSchedule(c); if (ok) setAdding(false); return ok; }} onClose={() => setAdding(false)} />
+        <div className="space-y-2">
+          <p className="text-sm text-ink-soft">Consulta da semana {weekOfDay(props.dumDate, adding)}. A data e a hora podem ser trocadas.</p>
+          <ScheduleForm
+            busy={props.busy}
+            preset={{ kind: 'consulta', title: '', date: adding }}
+            onCreate={async c => {
+              const ok = await props.onSchedule(c);
+              if (ok) setAdding(null);
+              return ok;
+            }}
+            onClose={() => setAdding(null)}
+          />
+        </div>
       ) : (
         <div className="space-y-4">
-          <p className="text-sm text-ink-soft">O Ministério da Saúde recomenda pelo menos 6 consultas, começando o quanto antes. O ritmo aumenta perto do parto:</p>
-          <ul className="space-y-1.5">
-            {PHASES.map(p => (
-              <li key={p.id} className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm ${p.id === phase.id ? 'bg-brand-soft text-ink font-semibold' : 'bg-surface-2/70 text-ink-soft'}`}>
-                <span>{p.label} <span className="text-ink-mute font-normal">· sem. {p.from}–{p.to}</span></span>
-                <span>{p.visits}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="space-y-1.5">
-            <h3 className="text-xs font-extrabold uppercase tracking-wide text-ink-mute font-sans">As de vocês</h3>
-            {visits.length === 0 && <p className="text-sm text-ink-soft">Nenhuma consulta na Agenda ainda.</p>}
-            <ul className="space-y-1.5">
-              {visits.map(v => {
-                const c = consultas.find(x => x.id === v.id)!;
-                return (
-                  <li key={v.id}>
-                    <button type="button" onClick={() => props.onOpenAppointment(c)} className="w-full flex items-center gap-2.5 rounded-xl bg-surface-2/70 px-3 py-2 text-left text-sm">
-                      <CalendarCheck2 className={`w-4 h-4 shrink-0 ${v.future ? 'text-brand' : 'text-ok'}`} />
-                      <span className="flex-1 min-w-0 text-ink">
-                        {v.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} · semana {v.week}
-                        <span className="text-ink-mute"> · {v.future ? 'agendada' : 'feita'}</span>
-                      </span>
-                      <ChevronRight className="w-4 h-4 text-ink-mute" />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-          <Button onClick={() => setAdding(true)} className="w-full">
-            <CalendarPlus /> Agendar consulta
+          <p className="text-sm text-ink-soft">O calendário recomendado pelo Ministério da Saúde: mensal até 28 semanas, a cada 15 dias até 36 e semanal até o parto. Vocês podem agendar qualquer uma agora, para deixar tudo planejado.</p>
+          {PHASES.map(p => {
+            const list = slots.filter(sl => sl.week >= p.from && sl.week <= p.to);
+            if (!list.length) return null;
+            const isNow = phaseOf(props.currentWeek).id === p.id;
+            return (
+              <section key={p.id} aria-label={`Consultas do ${p.label}`} className="space-y-1.5">
+                <h3 className="flex items-baseline justify-between gap-2 text-xs font-extrabold uppercase tracking-wide font-sans">
+                  <span className={isNow ? 'text-brand-strong' : 'text-ink-mute'}>{p.label} · {p.title}</span>
+                  <span className="normal-case tracking-normal font-semibold text-ink-mute">{p.visits.toLowerCase()}</span>
+                </h3>
+                <ul className="space-y-1.5">
+                  {list.map(sl => {
+                    const st = VISIT[sl.status];
+                    const date = startOf(sl.week);
+                    return (
+                      <li
+                        key={sl.week}
+                        ref={sl.week === firstOpen ? firstRef : undefined}
+                        className={`flex items-center gap-3 rounded-xl px-3 py-2 ${sl.status === 'agora' ? 'bg-brand-soft' : 'bg-surface-2/70'}`}
+                      >
+                        <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[11px] font-extrabold ${st.dot}`}>{sl.status === 'feita' ? <Check className="w-4 h-4" strokeWidth={2.75} /> : sl.week}</span>
+                        <span className="flex-1 min-w-0 text-sm">
+                          <span className="block font-bold text-ink">Semana {sl.week}</span>
+                          <span className={`block text-xs ${sl.status === 'atrasada' ? 'text-warn' : 'text-ink-mute'}`}>
+                            {sl.visit ? `${sl.visit.future ? 'Agendada' : 'Feita'}: ${ddmm(sl.visit.date)}` : `a partir de ${ddmm(parseLocalDate(date))} · ${st.label}`}
+                          </span>
+                        </span>
+                        {sl.visit ? (
+                          <button type="button" onClick={() => props.onOpenAppointment(consultas.find(c => c.id === sl.visit!.id)!)} aria-label={`Ver a consulta da semana ${sl.week}`} className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-ink-mute hover:text-ink">
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setAdding(date > today ? date : today)}
+                            aria-label={`Agendar a consulta da semana ${sl.week}`}
+                            className={`shrink-0 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${sl.status === 'prevista' ? 'bg-surface text-brand-strong' : 'bg-brand text-on-accent shadow-soft'}`}
+                          >
+                            <CalendarPlus className="w-3.5 h-3.5" /> Agendar
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })}
+          <Button tone="soft" onClick={() => setAdding(today)} className="w-full">
+            <CalendarPlus /> Agendar em outra data
           </Button>
         </div>
       )}

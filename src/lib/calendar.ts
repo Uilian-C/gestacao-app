@@ -1,5 +1,5 @@
 import { PRENATAL_MILESTONES } from '../content/prenatalMilestones';
-import { appointmentEmoji, appointmentTitle, kindInfo, kindOf } from './appointments';
+import { appointmentTitle, kindInfo, kindOf } from './appointments';
 import type { AppointmentKind, Author, Consultation, HealthMetric, PartnerTask, SymptomItem } from '../types';
 import { daysBetween, isOverdue, localDay, parseLocalDate, parseTimestamp, toISODate } from './dates';
 import { isHighBloodPressure } from './health';
@@ -13,7 +13,6 @@ export interface CalendarEvent {
   time?: string; // HH:MM
   title: string;
   detail?: string;
-  emoji?: string;
   done?: boolean;
   overdue?: boolean;
   major?: boolean;
@@ -75,7 +74,6 @@ export function buildCalendar(input: { dumDate: string; consultations: Consultat
       time: hhmm(when),
       title: appointmentTitle(c),
       detail: [result ? 'resultado guardado' : null, c.professional_name, c.location].filter(Boolean).join(' · ') || undefined,
-      emoji: appointmentEmoji(c),
       author: c.created_by,
       sourceId: c.id,
     });
@@ -86,7 +84,7 @@ export function buildCalendar(input: { dumDate: string; consultations: Consultat
   for (const r of input.results ?? []) {
     const from = r.appointment_id ? byId.get(r.appointment_id) : undefined;
     if (from && toISODate(localDay(from.scheduled_at)) === r.exam_date.slice(0, 10)) continue;
-    push({ id: `exame-${r.id}`, kind: 'exame', date: r.exam_date.slice(0, 10), title: r.title, detail: 'Resultado guardado', emoji: r.kind === 'ultrassom' ? '🖥️' : '🧪', sourceId: r.id });
+    push({ id: `exame-${r.id}`, kind: 'exame', date: r.exam_date.slice(0, 10), title: r.title, detail: 'Resultado guardado', sourceId: r.id });
   }
 
   for (const t of input.tasks) {
@@ -178,7 +176,7 @@ export function googleCalendarUrl(c: Consultation): string {
   const kind = kindOf(c);
   const params = new URLSearchParams({
     action: 'TEMPLATE',
-    text: `${appointmentEmoji(c)} ${kindInfo(kind).label}: ${appointmentTitle(c)}`,
+    text: `${kindInfo(kind).label}: ${appointmentTitle(c)}`,
     dates: `${utcStamp(start)}/${utcStamp(end)}`,
     details: [c.professional_name && `Profissional: ${c.professional_name}`, 'Levar o resumo gerado no app Tumtum.'].filter(Boolean).join('\n'),
   });

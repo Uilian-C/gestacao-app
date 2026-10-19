@@ -12,6 +12,7 @@ import IntensityDots from '../IntensityDots';
 import { Button, Card, Pill, Segmented } from '../ui';
 import type { DetailTarget } from '../../lib/details';
 import { ScheduleForm, type NewConsultation } from './ConsultationsTab';
+import AppointmentIcon from '../AppointmentIcon';
 import { TaskForm, type NewTask } from './TasksTab';
 
 interface Props {
@@ -335,7 +336,7 @@ const OPENS: Partial<Record<CalendarEvent['kind'], DetailTarget['kind'] | 'exam'
 function EventLine({ event: e, onToggleTask, onOpen }: { event: CalendarEvent; onToggleTask?: (id: string) => void; onOpen?: OpenTarget }) {
   const opens = onOpen && e.sourceId ? OPENS[e.kind] : undefined;
   const icon =
-    e.kind === 'consulta' ? (e.appointment && e.appointment !== 'consulta' ? <span className="text-[13px] leading-4" aria-hidden>{e.emoji}</span> : <Stethoscope className="w-4 h-4 text-brand" />) : e.kind === 'exame' ? <FileCheck2 className="w-4 h-4 text-verde" /> : e.kind === 'marco' ? <Flag className="w-4 h-4 text-warm" /> : e.kind === 'momento' ? (e.reminder ? <Bell className="w-4 h-4 text-casal" /> : <Heart className="w-4 h-4 text-casal" />) : e.overdue ? <AlertTriangle className="w-4 h-4 text-alert" /> : <CheckCircle2 className={`w-4 h-4 ${e.done ? 'text-ok' : 'text-ink-mute'}`} />;
+    e.kind === 'consulta' ? (e.appointment && e.appointment !== 'consulta' ? <AppointmentIcon kind={e.appointment} className="w-4 h-4 text-brand" /> : <Stethoscope className="w-4 h-4 text-brand" />) : e.kind === 'exame' ? <FileCheck2 className="w-4 h-4 text-verde" /> : e.kind === 'marco' ? <Flag className="w-4 h-4 text-warm" /> : e.kind === 'momento' ? (e.reminder ? <Bell className="w-4 h-4 text-casal" /> : <Heart className="w-4 h-4 text-casal" />) : e.overdue ? <AlertTriangle className="w-4 h-4 text-alert" /> : <CheckCircle2 className={`w-4 h-4 ${e.done ? 'text-ok' : 'text-ink-mute'}`} />;
   return (
     <div className="flex items-start gap-2 text-sm">
       {e.kind === 'tarefa' && onToggleTask && e.sourceId ? (

@@ -28,6 +28,7 @@ import { ScheduleForm, type NewConsultation } from './tabs/ConsultationsTab';
 import { TaskForm, type NewTask } from './tabs/TasksTab';
 import { Button, Pill } from './ui';
 import { ReactionBar, Thread, type OnReact } from './Social';
+import AppointmentIcon from './AppointmentIcon';
 import type { ExamItem, Reaction, ThreadComment } from '../hooks/useGestationData';
 
 // Detalhes de um registro numa janela: tudo o que foi anotado, e Editar e Excluir.
@@ -309,7 +310,7 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
             items={[
               ...(consulta
                 ? [['Profissional', c.professional_name || '—'], ['Dúvidas anotadas', String(detail.pendingQuestions)]]
-                : [['Tipo', `${kindInfo(kind).emoji} ${kindInfo(kind).label}`], ['Laboratório ou clínica', c.professional_name || '—'], ...(hasResult(c) ? [['Resultado', result ? 'guardado' : 'ainda não'] as [string, string]] : [])]) as Array<[string, React.ReactNode]>,
+                : [['Tipo', <span key="tipo" className="inline-flex items-center gap-1.5"><AppointmentIcon kind={kind} className="w-4 h-4 text-brand" /> {kindInfo(kind).label}</span>], ['Laboratório ou clínica', c.professional_name || '—'], ...(hasResult(c) ? [['Resultado', result ? 'guardado' : 'ainda não'] as [string, string]] : [])]) as Array<[string, React.ReactNode]>,
               ...(c.attendees
                 ? [['Quem vai', <span key="quem" className="inline-flex items-center gap-1.5"><WhoAvatars who={c.attendees} /> {whoName(people, c.attendees)}</span>] as [string, React.ReactNode]]
                 : []),

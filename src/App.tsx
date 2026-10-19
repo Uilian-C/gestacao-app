@@ -162,7 +162,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     setResultFrom(null);
     setFocusExam(null);
     setJourneyFocus(null);
-    window.scrollTo({ top: 0 });
+    // Depois de fechar uma janela aberta (que trava a tela e devolve a rolagem ao sair).
+    requestAnimationFrame(() => window.scrollTo({ top: 0 }));
   };
 
   /**

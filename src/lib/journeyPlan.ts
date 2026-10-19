@@ -270,3 +270,33 @@ export function planToText(rows: JourneyRow[], dumDate: string, week: number, gr
   lines.push(`Total: ${rows.filter(r => r.status === 'feito').length} feitos de ${rows.length}.`);
   return lines.join('\n');
 }
+
+export type VisitStatus = 'feita' | 'agendada' | 'atrasada' | 'agora' | 'prevista';
+
+export interface VisitSlot {
+  /** Semana recomendada para a consulta. */
+  week: number;
+  /** Até antes desta semana ainda conta como esta consulta (começo da próxima). */
+  until: number;
+  status: VisitStatus;
+  /** A consulta do casal que cumpre esta (a feita, ou a agendada). */
+  visit: { id: string; date: Date; future: boolean } | null;
+}
+
+/**
+ * O calendário de consultas recomendado (mensal até 28 semanas, quinzenal até
+ * 36, semanal até o parto), cada uma com a consulta do casal que a cumpre.
+ * Cada consulta do casal conta para uma vaga só, a da semana em que cai.
+ */
+export function visitSlots(planned: number[], visits: Array<{ id: string; week: number; date: Date; future: boolean }>, week: number): VisitSlot[] {
+  const used = new Set<string>();
+  return planned.map((w, i) => {
+    const until = planned[i + 1] ?? 43;
+    const start = i === 0 ? 0 : w;
+    const inSlot = visits.filter(v => !used.has(v.id) && v.week >= start && v.week < until);
+    const visit = inSlot.find(v => !v.future) ?? inSlot.find(v => v.future) ?? null;
+    if (visit) used.add(visit.id);
+    const status: VisitStatus = visit ? (visit.future ? 'agendada' : 'feita') : week >= until ? 'atrasada' : week >= w ? 'agora' : 'prevista';
+    return { week: w, until, status, visit };
+  });
+}

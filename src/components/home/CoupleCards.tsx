@@ -1,11 +1,12 @@
 import { useContext } from 'react';
 import { ArrowRight, CalendarPlus, Check, CheckCircle2, ChevronRight, Clock, Flag } from 'lucide-react';
-import { appointmentTitle, kindInfo, kindOf } from '../../lib/appointments';
+import { appointmentTitle, kindOf } from '../../lib/appointments';
 import { daysBetween, formatBR, isOverdue, parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
 import { inDays, nextMilestone } from '../../lib/milestones';
 import { PeopleContext, whoName } from '../../lib/people';
 import type { Author, Consultation, PartnerTask } from '../../types';
 import LocationLinks from '../LocationLinks';
+import AppointmentIcon from '../AppointmentIcon';
 import { WhoAvatars } from '../WhoPicker';
 
 // Os cartões do Início que fazem dele o painel do casal: o próximo compromisso,
@@ -43,7 +44,6 @@ export function NextAppointment({ consultations, onOpen, onSchedule }: { consult
     );
   }
 
-  const kind = kindInfo(kindOf(next));
   const at = parseTimestamp(next.scheduled_at);
   return (
     <section aria-label="Próximo compromisso" className="rounded-[28px] bg-verde-soft p-5 space-y-3">
@@ -54,7 +54,8 @@ export function NextAppointment({ consultations, onOpen, onSchedule }: { consult
         </span>
         <span className="block font-display text-[1.45rem] leading-tight text-ink">{whenText(at, now)}</span>
         <span className="block text-[15px] font-bold text-ink">
-          {kind.emoji} {appointmentTitle(next)}
+          <AppointmentIcon kind={kindOf(next)} className="inline w-4 h-4 mr-1 -mt-0.5 text-verde-strong" />
+          {appointmentTitle(next)}
         </span>
         {next.professional_name && <span className="block text-sm text-ink-soft">{next.professional_name}</span>}
       </button>

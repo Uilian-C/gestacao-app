@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CheckItem, ExamItem, ListItem } from '../hooks/useGestationData';
 import type { Consultation } from '../types';
 import { planFor } from './journey';
-import { appointmentKindFor, journeyRows, journeySummary, plannedItems, planToText, statusText, suggestPlanItem, todoNow, windowDatesText } from './journeyPlan';
+import { appointmentKindFor, journeyRows, journeySummary, plannedItems, planToText, statusText, suggestPlanItem, todoNow, visitSlots, windowDatesText } from './journeyPlan';
 
 // DUM 15/05/2026: semana 24 começa em 30/10/2026.
 const dum = '2026-05-15';
@@ -124,5 +124,23 @@ describe('jornada para leigos', () => {
     expect(text).toContain('[x] 1ª consulta de pré-natal');
     expect(text).toContain('Curva glicêmica (TOTG 75 g) · semanas 22 a 23');
     expect(text).toContain('Combinado: pedido da Dra. Ana');
+  });
+});
+
+describe('calendário de consultas', () => {
+  const planned = [8, 12, 16, 20, 24, 28, 30];
+  const v = (id: string, week: number, future = false) => ({ id, week, future, date: new Date() });
+  it('cada consulta do casal ocupa a vaga da semana em que cai', () => {
+    const slots = visitSlots(planned, [v('a', 9), v('b', 17), v('c', 25, true)], 22);
+    expect(slots.map(s => s.status)).toEqual(['feita', 'atrasada', 'feita', 'agora', 'agendada', 'prevista', 'prevista']);
+    expect(slots[0].visit?.id).toBe('a');
+    expect(slots[4].visit?.id).toBe('c');
+  });
+  it('consulta antes da primeira semana recomendada conta como a primeira', () => {
+    expect(visitSlots(planned, [v('a', 6)], 7)[0]).toMatchObject({ status: 'feita' });
+  });
+  it('duas consultas na mesma vaga: vale a feita', () => {
+    const slots = visitSlots(planned, [v('a', 13), v('b', 14, true)], 14);
+    expect(slots[1]).toMatchObject({ status: 'feita', visit: { id: 'a' } });
   });
 });
