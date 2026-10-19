@@ -128,7 +128,8 @@ export default function ConsultationsTab(props: Props) {
 export interface SchedulePreset {
   kind: AppointmentKind;
   title: string;
-  planItem: string;
+  /** Item da jornada; sem ele (ex.: consulta de rotina), o app encaixa sozinho. */
+  planItem?: string;
   date: string;
 }
 

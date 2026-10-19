@@ -53,6 +53,8 @@ export interface GestationData {
   /** Semanas da jornada ajustadas pelo casal (migração 019). */
   planWeeks?: PlanWeeks[];
   planWeeksAvailable?: boolean;
+  /** A migração 020 já rodou: o combinado com a equipe em cada item. */
+  planNotesAvailable?: boolean;
 }
 
 export interface ListItem {

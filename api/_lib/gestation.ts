@@ -15,6 +15,7 @@ export async function fetchAll(fid: string, userId: string) {
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'consultations' AND column_name = 'attendees') AS attendees_ready,
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'partner_tasks' AND column_name = 'remind_on') AS task_reminders_ready,
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'journal_entries' AND column_name = 'remind_at') AS timed_reminders_ready,
+              EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'plan_weeks' AND column_name = 'note') AS plan_notes_ready,
               -- Abraços dos últimos dias (enviados e recebidos), guardados junto com os avisos.
               (SELECT COALESCE(json_agg(json_build_object('day', split_part(n.key, ':', 2), 'toMe', n.user_id = $2)), '[]')
                  FROM notification_log n JOIN family_members fm ON fm.user_id = n.user_id AND fm.family_id = f.id
@@ -128,7 +129,10 @@ export async function fetchAll(fid: string, userId: string) {
       [fid, userId],
     ).catch(() => null),
     // Semanas da jornada ajustadas pelo casal (migração 019).
-    query<{ item_id: string; from: number; to: number }>('SELECT item_id, week_from AS "from", week_to AS "to" FROM plan_weeks WHERE family_id = $1', [fid]).catch(() => null),
+    query<{ item_id: string; from: number | null; to: number | null; note: string | null }>(
+      `SELECT item_id, week_from AS "from", week_to AS "to", to_jsonb(p) ->> 'note' AS note FROM plan_weeks p WHERE family_id = $1`,
+      [fid],
+    ).catch(() => null),
     // Check-ins do dia (migração 014): a gestação inteira dos dois (Diário → Humor).
     query(
       `SELECT day::text AS day, mood, author_role, (user_id = $2) AS mine
@@ -194,6 +198,8 @@ export async function fetchAll(fid: string, userId: string) {
     socialAvailable: social !== null,
     planWeeks: planWeeks ?? [],
     planWeeksAvailable: planWeeks !== null,
+    /** A migração 020 já rodou: anotação do combinado com a equipe. */
+    planNotesAvailable: f.plan_notes_ready === true,
   };
 }
 

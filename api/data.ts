@@ -109,7 +109,7 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('updateMetric'), id, week: week.optional(), date: isoDate.optional(), ...metricFields }),
   z.object({ op: z.literal('createConsultation'), ...consultationFields }),
   z.object({ op: z.literal('updateConsultation'), id, ...consultationFields }),
-  z.object({ op: z.literal('setCheck'), list: z.enum(['prenatal', 'mala']), itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), done: z.boolean() }),
+  z.object({ op: z.literal('setCheck'), list: z.enum(['prenatal', 'mala']), itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), done: z.boolean(), doneOn: isoDate.optional() }),
   z.object({ op: z.literal('createEntry'), date: isoDate, ...entryFields }),
   z.object({ op: z.literal('updateEntry'), id, ...entryFields }),
   z.object({ op: z.literal('deleteEntry'), id }),
@@ -119,7 +119,14 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('deleteItem'), id: uuid }),
   z.object({ op: z.literal('hideItem'), list: listName, itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), hidden: z.boolean() }),
   // Jornada (migração 019): semanas planejadas de um item; null volta à janela de referência.
-  z.object({ op: z.literal('setPlanWeeks'), itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), from: z.number().int().min(1).max(42).nullable(), to: z.number().int().min(1).max(42).nullable() }),
+  z.object({
+    op: z.literal('setPlanWeeks'),
+    itemId: z.string().regex(/^[a-z0-9-]{1,40}$/),
+    from: z.number().int().min(1).max(42).nullable(),
+    to: z.number().int().min(1).max(42).nullable(),
+    // O combinado com a equipe (migração 020); sem o campo, a anotação fica como estava.
+    note: z.string().trim().max(500).nullish().transform(v => (v === undefined ? undefined : v || null)),
+  }),
   // Reações e conversa.
   z.object({ op: z.literal('react'), targetType, targetId: uuid, kind: z.enum(['abraco', 'forca', 'aqui', 'festa']), on: z.boolean() }),
   z.object({ op: z.literal('comment'), targetType: z.enum(['entry', 'exam']), targetId: uuid, body: text(1000) }),
@@ -226,7 +233,10 @@ function checkinMissing(err: unknown): never {
 }
 
 function planWeeksMissing(err: unknown): never {
-  if ((err as { code?: string }).code === '42P01') throw new HttpError(503, 'Ajustar as semanas da jornada ainda não está ligado no servidor. Rode a migração db/migrations/019_jornada_planejada.sql no Neon.');
+  const code = (err as { code?: string }).code;
+  if (code === '42P01') throw new HttpError(503, 'Ajustar a jornada ainda não está ligado no servidor. Rode a migração db/migrations/019_jornada_planejada.sql no Neon.');
+  // Sem a 020: não há a coluna da anotação, e as semanas ainda são obrigatórias.
+  if (code === '42703' || code === '23502') throw new HttpError(503, 'Guardar o combinado com a equipe ainda não está ligado no servidor. Rode a migração db/migrations/020_jornada_combinado.sql no Neon.');
   throw err;
 }
 
@@ -424,11 +434,20 @@ async function apply(m: Member, o: Op) {
       return query('INSERT INTO checklist_hidden (family_id, list, item_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [fid, o.list, o.itemId]);
     case 'setPlanWeeks':
       if ((o.from === null) !== (o.to === null) || (o.from !== null && o.to! < o.from)) throw new HttpError(400, 'A semana final precisa vir depois da inicial.');
-      if (o.from === null) return query('DELETE FROM plan_weeks WHERE family_id = $1 AND item_id = $2', [fid, o.itemId]).catch(planWeeksMissing);
+      if (o.note === undefined) {
+        if (o.from === null) return query('DELETE FROM plan_weeks WHERE family_id = $1 AND item_id = $2', [fid, o.itemId]).catch(planWeeksMissing);
+        return query(
+          `INSERT INTO plan_weeks (family_id, item_id, week_from, week_to, updated_by) VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (family_id, item_id) DO UPDATE SET week_from = EXCLUDED.week_from, week_to = EXCLUDED.week_to, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
+          [fid, o.itemId, o.from, o.to, who],
+        ).catch(planWeeksMissing);
+      }
+      // Semanas e anotação juntas: sem nenhuma das duas, volta tudo ao padrão.
+      if (o.from === null && o.note === null) return query('DELETE FROM plan_weeks WHERE family_id = $1 AND item_id = $2', [fid, o.itemId]).catch(planWeeksMissing);
       return query(
-        `INSERT INTO plan_weeks (family_id, item_id, week_from, week_to, updated_by) VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (family_id, item_id) DO UPDATE SET week_from = EXCLUDED.week_from, week_to = EXCLUDED.week_to, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
-        [fid, o.itemId, o.from, o.to, who],
+        `INSERT INTO plan_weeks (family_id, item_id, week_from, week_to, note, updated_by) VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (family_id, item_id) DO UPDATE SET week_from = EXCLUDED.week_from, week_to = EXCLUDED.week_to, note = EXCLUDED.note, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
+        [fid, o.itemId, o.from, o.to, o.note, who],
       ).catch(planWeeksMissing);
     case 'react': {
       await requireVisible(m, o.targetType, o.targetId);
@@ -466,10 +485,12 @@ async function apply(m: Member, o: Op) {
       );
     case 'setCheck':
       if (!o.done) return query('DELETE FROM checklist WHERE family_id = $1 AND list = $2 AND item_id = $3', [fid, o.list, o.itemId]);
+      // Com o dia (feito fora do app, em outra data), a marcação guarda esse dia.
+      if (o.doneOn) notInFuture(o.doneOn);
       return query(
-        `INSERT INTO checklist (family_id, list, item_id, updated_by) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (family_id, list, item_id) DO NOTHING`,
-        [fid, o.list, o.itemId, who],
+        `INSERT INTO checklist (family_id, list, item_id, updated_by, done_at) VALUES ($1, $2, $3, $4, COALESCE($5::date, CURRENT_DATE))
+         ON CONFLICT (family_id, list, item_id) DO ${o.doneOn ? 'UPDATE SET done_at = EXCLUDED.done_at, updated_by = EXCLUDED.updated_by' : 'NOTHING'}`,
+        [fid, o.list, o.itemId, who, o.doneOn ?? null],
       );
     case 'delete': {
       if (o.kind === 'symptom') {

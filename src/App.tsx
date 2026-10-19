@@ -123,6 +123,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   /** Resultados: abrir o formulário a partir de um agendamento, ou levar até um resultado. */
   const [resultFrom, setResultFrom] = useState<Consultation | null>(null);
   const [focusExam, setFocusExam] = useState<string | null>(null);
+  const [journeyFocus, setJourneyFocus] = useState<string | null>(null);
   const [recording, setRecording] = useState<QuickMode[] | null>(null);
   /** Pasta (e ideia) com que o diário abre no registro. */
   const [entryStart, setEntryStart] = useState<{ folder: Folder; idea?: string }>({ folder: 'momento' });
@@ -160,6 +161,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     setExamPreset(null);
     setResultFrom(null);
     setFocusExam(null);
+    setJourneyFocus(null);
     window.scrollTo({ top: 0 });
   };
 
@@ -275,12 +277,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   const createMetric = ({ date, ...m }: NewMetric) => run(() => api.mutate('createMetric', { week: weekOfDay(dumDate!, date), date, ...m }), 'Não foi possível salvar a medição.');
 
-  const setCheck = (list: 'prenatal' | 'mala', itemId: string, done: boolean) => {
+  const setCheck = (list: 'prenatal' | 'mala', itemId: string, done: boolean, doneOn?: string) => {
     patch(d => ({
       ...d,
-      checks: done ? [...d.checks.filter(c => !(c.list === list && c.item_id === itemId)), { list, item_id: itemId, done_at: today }] : d.checks.filter(c => !(c.list === list && c.item_id === itemId)),
+      checks: done ? [...d.checks.filter(c => !(c.list === list && c.item_id === itemId)), { list, item_id: itemId, done_at: doneOn ?? today }] : d.checks.filter(c => !(c.list === list && c.item_id === itemId)),
     }));
-    return run(() => api.mutate('setCheck', { list, itemId, done }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/007_checklists.sql no Neon.');
+    return run(() => api.mutate('setCheck', { list, itemId, done, ...(doneOn ? { doneOn } : {}) }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/007_checklists.sql no Neon.');
   };
 
   /**
@@ -361,9 +363,15 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     run(() => api.mutate('addItem', { list, title, bagGroup, week }), 'Não foi possível adicionar. Se for a primeira vez, rode a migração 011 no Neon.');
   const renameItem = (item: ListItem, title: string) => run(() => api.mutate('updateItem', { id: item.id, title, bagGroup: item.bag_group, week: item.week }));
   const deleteListItem = (item: ListItem) => scheduleDelete('item', item.id, `"${item.title}"`);
-  const setPlanWeeks = (itemId: string, from: number | null, to: number | null) => {
-    patch(d => ({ ...d, planWeeks: [...(d.planWeeks ?? []).filter(w => w.item_id !== itemId), ...(from !== null && to !== null ? [{ item_id: itemId, from, to }] : [])] }));
-    return run(() => api.mutate('setPlanWeeks', { itemId, from, to }), 'Não foi possível ajustar as semanas. Se for a primeira vez, rode a migração db/migrations/019_jornada_planejada.sql no Neon.');
+  /** Planejado de um item: semanas (null volta à referência) e, com a migração 020, o combinado com a equipe. */
+  const setPlan = (itemId: string, from: number | null, to: number | null, note?: string | null) => {
+    patch(d => {
+      const old = (d.planWeeks ?? []).find(w => w.item_id === itemId);
+      const keepNote = note === undefined ? (old?.note ?? null) : note;
+      const row = from !== null || keepNote ? [{ item_id: itemId, from, to, note: keepNote }] : [];
+      return { ...d, planWeeks: [...(d.planWeeks ?? []).filter(w => w.item_id !== itemId), ...row] };
+    });
+    return run(() => api.mutate('setPlanWeeks', { itemId, from, to, ...(note === undefined ? {} : { note }) }), 'Não foi possível salvar o planejado. Se for a primeira vez, rode as migrações 019 e 020 no Neon.');
   };
   const hideItem = (list: 'prenatal' | 'mala', itemId: string, hidden: boolean) => {
     patch(d => ({ ...d, hiddenItems: hidden ? [...d.hiddenItems, { list, item_id: itemId }] : d.hiddenItems.filter(h => !(h.list === list && h.item_id === itemId)) }));
@@ -495,9 +503,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     setCareView(view);
   };
   // Os gráficos e a jornada levam um ao outro, mesmo estando em abas diferentes.
-  const openJourney = () => {
+  /** Agenda → Jornada; com um item, já abre o pop-up dele (vindo de um agendamento ou resultado). */
+  const openJourney = (itemId?: string) => {
     navigate('agenda');
     setAgendaView('jornada');
+    setJourneyFocus(itemId ?? null);
   };
   const openDashboardView = (v: DashboardView) => {
     if (v === 'jornada') return openJourney();
@@ -686,6 +696,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
               value={agendaView}
               onChange={v => {
                 setAgendaView(v);
+                setJourneyFocus(null);
                 window.scrollTo({ top: 0 });
               }}
               options={[
@@ -731,21 +742,24 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             )}
             {agendaView === 'jornada' && (
               <JourneyTab
+                key={journeyFocus ?? 'jornada'}
                 rows={journey}
                 dumDate={dumDate}
                 currentWeek={currentWeek}
-                consultations={consultsOnly}
+                consultations={consultations}
                 hidden={PLAN_ITEMS.filter(i => hiddenSteps.has(i.id)).map(i => ({ id: i.id, label: i.title }))}
                 busy={busy}
                 checksAvailable={data.checksAvailable}
                 listsAvailable={socialAvailable}
                 weeksAvailable={data.planWeeksAvailable ?? false}
-                onToggle={(id, done) => setCheck('prenatal', id, done)}
+                notesAvailable={data.planNotesAvailable ?? false}
+                focus={journeyFocus}
+                onToggle={(id, done, doneOn) => setCheck('prenatal', id, done, doneOn)}
                 onSchedule={createConsultation}
                 onOpenAppointment={c => setDetail({ kind: 'consultation', id: c.id })}
                 onOpenExam={openExam}
                 onResult={openResult}
-                onSetWeeks={setPlanWeeks}
+                onSetPlan={setPlan}
                 onHide={(id, hidden) => hideItem('prenatal', id, hidden)}
                 onAddStep={(title, week) => addItem('prenatal', title, null, week)}
                 onRenameItem={renameItem}
@@ -826,6 +840,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             initialPlanItem={examPreset}
             fromAppointment={resultFrom}
             focusExam={focusExam}
+            onOpenJourney={id => openJourney(id)}
             social={{ available: socialAvailable, reactions, threads, onReact: react, onThread: sendThread, onDeleteThread: deleteThread }}
           />
         )}
@@ -960,6 +975,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onPrepare={prepareReport}
           onResult={openResult}
           exams={exams}
+          onOpenJourney={id => openJourney(id)}
+          journeyTitle={id => journeyItems.find(i => i.id === id)?.title ?? null}
           socialAvailable={socialAvailable}
           reactions={reactions}
           threads={threads}
