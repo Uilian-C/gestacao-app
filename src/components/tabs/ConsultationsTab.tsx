@@ -1,7 +1,7 @@
 import { useContext, useMemo, useState } from 'react';
 import { ArrowLeft, ClipboardCopy, FileText, HelpCircle, Plus, Printer, Route, ShieldCheck, Trash2 } from 'lucide-react';
 import { SPECIALTIES, questionSpecialty, specialtyOf, type SpecialtyId } from '../../data/specialties';
-import { daysBetween, formatBR, localDay, parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
+import { daysBetween, formatBR, localDay, parseLocalDate, parseTimestamp, toISODate, weekOfDay } from '../../lib/dates';
 import { TREND_LABEL, buildReport, defaultReportPeriod, reportToText, type ConsultationReport } from '../../lib/report';
 import { timeOfDayLabel } from '../../lib/symptoms';
 import { buildFicha, fichaToText, type FichaItem } from '../../lib/ficha';
@@ -15,6 +15,7 @@ import type { AppointmentKind, Assignee, BirthPlanRecord, Contraction, KickSessi
 import AuthorBadge from '../AuthorBadge';
 import AddressInput from '../AddressInput';
 import WhoPicker from '../WhoPicker';
+import AppointmentIcon from '../AppointmentIcon';
 import { AttendeesReady, PeopleContext, TimedRemindersReady } from '../../lib/people';
 import { JourneyContext } from '../../lib/journeyContext';
 import { linkableItems, suggestPlanItem, type JourneyItem } from '../../lib/journeyPlan';
@@ -174,7 +175,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
 
   return (
     <form
-      className="rounded-2xl bg-surface-2 p-4 space-y-4"
+      className="rounded-[22px] bg-surface border border-line p-4 space-y-5 shadow-soft"
       onSubmit={async e => {
         e.preventDefault();
         if (!date || (!consulta && !title.trim())) return;
@@ -204,25 +205,25 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
         }
       }}
     >
-      <div role="group" aria-label="Tipo de agendamento" className="grid grid-cols-4 gap-1.5">
-        {APPOINTMENT_KINDS.map(k => (
-          <button
-            key={k.id}
-            type="button"
-            aria-pressed={kind === k.id}
-            onClick={() => {
-              setKind(k.id);
-              setTitle('');
-              setPlanItem(undefined);
-            }}
-            className={`flex flex-col items-center gap-0.5 rounded-2xl px-1 py-2 text-[12px] font-bold transition ${kind === k.id ? 'bg-brand text-on-accent shadow-soft' : 'bg-surface text-ink-soft hover:text-ink'}`}
-          >
-            <span className="text-base leading-none" aria-hidden>{k.emoji}</span>
-            {k.label}
-          </button>
-        ))}
-      </div>
-      <div className="grid sm:grid-cols-2 gap-4">
+      <FormPart title="O que é">
+        <div role="group" aria-label="Tipo de agendamento" className="grid grid-cols-4 gap-1.5">
+          {APPOINTMENT_KINDS.map(k => (
+            <button
+              key={k.id}
+              type="button"
+              aria-pressed={kind === k.id}
+              onClick={() => {
+                setKind(k.id);
+                setTitle('');
+                setPlanItem(undefined);
+              }}
+              className={`flex flex-col items-center gap-1 rounded-2xl px-1 py-2.5 text-[12px] font-bold transition ${kind === k.id ? 'bg-brand text-on-accent shadow-soft' : 'bg-surface-2 text-ink-soft hover:text-ink'}`}
+            >
+              <AppointmentIcon kind={k.id} className="w-5 h-5" />
+              {k.label}
+            </button>
+          ))}
+        </div>
         {consulta ? (
           <Field label="Especialidade" htmlFor="esp">
             <select id="esp" className={inputClass} value={specialty} onChange={e => setSpecialty(e.target.value as SpecialtyId)}>
@@ -230,21 +231,11 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
             </select>
           </Field>
         ) : (
-          <div className="space-y-2 sm:col-span-2">
-            <Field label={kind === 'vacina' ? 'Qual vacina?' : kind === 'ultrassom' ? 'Qual ultrassom?' : 'Qual exame?'} htmlFor="nome-agendamento">
-              <input
-                id="nome-agendamento"
-                className={inputClass}
-                placeholder={kind === 'vacina' ? 'Ex.: Vacina dTpa' : kind === 'ultrassom' ? 'Ex.: Ultrassom obstétrico' : 'Ex.: Exames de sangue'}
-                value={title}
-                maxLength={120}
-                onChange={e => {
-                  setTitle(e.target.value);
-                  setPlanItem(undefined);
-                }}
-              />
-            </Field>
-            <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" aria-label="Sugestões da jornada">
+          <div className="space-y-2">
+            <label htmlFor="nome-agendamento" className="block text-sm font-semibold text-ink-soft">
+              {kind === 'vacina' ? 'Qual vacina?' : kind === 'ultrassom' ? 'Qual ultrassom?' : 'Qual exame?'}
+            </label>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Sugestões da jornada">
               {suggestionsFor(kind).map(i => (
                 <Chip
                   key={i.id}
@@ -258,8 +249,22 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
                 </Chip>
               ))}
             </div>
+            <input
+              id="nome-agendamento"
+              className={inputClass}
+              placeholder="Toque numa sugestão acima ou escreva o nome"
+              value={title}
+              maxLength={120}
+              onChange={e => {
+                setTitle(e.target.value);
+                setPlanItem(undefined);
+              }}
+            />
           </div>
         )}
+      </FormPart>
+
+      <FormPart title="Quando">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Data" htmlFor="data-consulta">
             <input id="data-consulta" type="date" required className={inputClass} value={date} onChange={e => setDate(e.target.value)} />
@@ -268,6 +273,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
             <input id="hora-consulta" type="time" className={inputClass} value={time} onChange={e => setTime(e.target.value)} />
           </Field>
         </div>
+        {journey && date && <p className="text-xs font-semibold text-brand-strong">Semana {weekOfDay(journey.dumDate, date)} da gestação</p>}
         {fitsJourney && journey && (
           <JourneyLink
             value={linked}
@@ -276,40 +282,47 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
             onChange={setPlanItem}
           />
         )}
-        {askWho && (
-          <div className="space-y-1.5">
-            <span className="text-sm font-semibold text-ink-soft block">Quem vai</span>
-            <WhoPicker label="Quem vai" value={who} onChange={setWho} />
-            <p className="text-xs text-ink-mute">Quem for chamado recebe um aviso no celular.</p>
-          </div>
-        )}
-        {timedReady && (
-          <div className="space-y-1.5">
-            <span className="text-sm font-semibold text-ink-soft block">Lembrete</span>
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Aviso a mais">
-              {BEFORE_OPTIONS.map(o => (
-                <button
-                  key={o.text}
-                  type="button"
-                  aria-pressed={before === o.minutes}
-                  onClick={() => setBefore(o.minutes)}
-                  className={`rounded-full px-3 py-1.5 text-[13px] font-bold transition ${before === o.minutes ? 'bg-brand text-on-accent shadow-soft' : 'bg-surface text-ink-soft hover:text-ink'}`}
-                >
-                  {o.text}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-ink-mute">Vocês sempre recebem aviso na véspera e na manhã do dia{before ? `, e mais um ${BEFORE_OPTIONS.find(o => o.minutes === before)!.text.toLowerCase()}` : ''}.</p>
-          </div>
-        )}
+      </FormPart>
+
+      <FormPart title="Onde (opcional)">
         <Field label={consulta ? 'Profissional (opcional)' : 'Laboratório ou clínica (opcional)'} htmlFor="prof">
           <input id="prof" className={inputClass} placeholder={consulta ? 'Ex.: Dra. Ana' : 'Ex.: Laboratório Vida'} value={professional} onChange={e => setProfessional(e.target.value)} />
         </Field>
-        <Field label="Endereço (opcional)" htmlFor="local" hint="Escolha uma sugestão para ter atalhos de Maps, Waze e Uber.">
-          <AddressInput id="local" placeholder="Digite o nome da clínica ou o endereço" value={location} onChange={setLocation} />
+        <Field label="Endereço (opcional)" htmlFor="local" hint="Escolham um dos resultados da busca para abrir o caminho no Maps, Waze ou Uber.">
+          <AddressInput id="local" placeholder="Busque pelo nome do lugar ou pela rua" value={location} onChange={setLocation} />
         </Field>
-      </div>
-      <div className="flex gap-2 justify-end">
+      </FormPart>
+
+      {(askWho || timedReady) && (
+        <FormPart title={askWho && timedReady ? 'Quem vai e lembrete' : askWho ? 'Quem vai' : 'Lembrete'}>
+          {askWho && (
+            <div className="space-y-1.5">
+              <WhoPicker label="Quem vai" value={who} onChange={setWho} />
+              <p className="text-xs text-ink-mute">Quem for chamado recebe um aviso no celular.</p>
+            </div>
+          )}
+          {timedReady && (
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Aviso a mais">
+                {BEFORE_OPTIONS.map(o => (
+                  <button
+                    key={o.text}
+                    type="button"
+                    aria-pressed={before === o.minutes}
+                    onClick={() => setBefore(o.minutes)}
+                    className={`rounded-full px-3 py-1.5 text-[13px] font-bold transition ${before === o.minutes ? 'bg-brand text-on-accent shadow-soft' : 'bg-surface-2 text-ink-soft hover:text-ink'}`}
+                  >
+                    {o.text}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-ink-mute">Vocês sempre recebem aviso na véspera e na manhã do dia{before ? `, e mais um ${BEFORE_OPTIONS.find(o => o.minutes === before)!.text.toLowerCase()}` : ''}.</p>
+            </div>
+          )}
+        </FormPart>
+      )}
+
+      <div className="flex gap-2 justify-end pt-1">
         <Button tone="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
         <Button type="submit" disabled={busy || !date || (!consulta && !title.trim())}>{initial ? 'Salvar alterações' : 'Agendar'}</Button>
       </div>
@@ -317,11 +330,21 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
   );
 }
 
+/** Uma parte do formulário de agendamento, com um título curto em cima. */
+function FormPart({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <fieldset className="space-y-3 border-t border-line pt-4 first:border-t-0 first:pt-0">
+      <legend className="float-left w-full mb-3 text-[11px] font-extrabold uppercase tracking-wide text-ink-mute">{title}</legend>
+      <div className="clear-left space-y-3">{children}</div>
+    </fieldset>
+  );
+}
+
 /** "Na jornada": o item que este agendamento cumpre, encaixado sozinho ou escolhido. */
 function JourneyLink({ value, auto, options, onChange }: { value: string | null; auto: boolean; options: JourneyItem[]; onChange: (id: string | null) => void }) {
   const current = options.find(i => i.id === value);
   return (
-    <div className="space-y-1.5 sm:col-span-2">
+    <div className="space-y-1.5 rounded-2xl border border-brand/25 bg-brand-soft/40 p-3">
       <label htmlFor="item-jornada" className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
         <Route className="w-4 h-4 text-brand" aria-hidden /> Na jornada do pré-natal
       </label>

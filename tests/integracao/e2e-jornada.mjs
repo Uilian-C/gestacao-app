@@ -37,6 +37,8 @@ check(await now.getByRole('button', { name: 'Ultrassom morfológico do 1º trime
 check(await now.getByRole('button', { name: 'Ultrassom morfológico do 2º trimestre: fazer agora' }).isVisible(), 'e o que tem a janela aberta');
 check(await now.getByRole('button', { name: 'Agendar Ultrassom morfológico do 2º trimestre' }).isVisible(), 'com o botão de agendar ao lado');
 check((await row('Vacina dTpa', 'feito').textContent()).includes('Feito em'), 'agendamento que passou deixa o item como feito, com a data');
+check(await summary.getByRole('img', { name: /^Semana 22 de 40/ }).isVisible(), 'a gestação nas quatro fases, com a semana de hoje');
+check(await summary.getByRole('img', { name: /^Planejado e realizado por semana/ }).isVisible(), 'gráfico do planejado × realizado semana a semana');
 
 // ---- Trimestres recolhíveis ----
 const tri1 = p.getByRole('button', { name: /^1º trimestre · Formação/ });
@@ -52,6 +54,7 @@ await p.screenshot({ path: `${OUT}jornada-agenda.png`, fullPage: true });
 // ---- Pop-up do item ----
 await row(TOTG, 'em breve').click();
 await dlg.waitFor();
+check((await p.evaluate(() => document.body.style.position)) === 'fixed', 'com o pop-up aberto, a tela de fundo fica travada');
 check(await dlg.getByText('Por que fazer').isVisible() && (await dlg.getByText(/Jejum de 8 horas/).isVisible()), 'pop-up explica por que fazer e como se preparar');
 const planned = dlg.getByRole('region', { name: 'Planejado' });
 check((await planned.textContent()).includes('Semanas 24 a 28'), 'planejado em semanas e datas reais');
@@ -115,8 +118,17 @@ check((await row('Ultrassom morfológico do 2º trimestre').textContent()).inclu
 
 // ---- Consultas e revisar com a equipe ----
 await summary.getByRole('button', { name: /Consultas de pré-natal/ }).click();
-check(await dlg.getByText('Consulta mensal').first().isVisible(), 'consultas: o ritmo de cada fase');
+check(await dlg.getByRole('region', { name: 'Consultas do 3º trimestre' }).isVisible(), 'consultas: o calendário recomendado de cada fase');
+// Planejar adiantado: a consulta da semana 32, ainda longe.
+await dlg.getByRole('button', { name: 'Agendar a consulta da semana 32' }).click();
+check((await dlg.getByLabel('Data', { exact: true }).inputValue()) > (await iso(60)), 'agendar uma consulta futura já traz a data daquela semana');
+check(await dlg.getByText(/Semana 32 da gestação/).isVisible(), 'o formulário mostra a semana da gestação da data');
+await dlg.locator('form').getByRole('button', { name: 'Agendar', exact: true }).click();
+await dlg.getByRole('button', { name: 'Ver a consulta da semana 32' }).waitFor({ timeout: 10000 });
+check(true, 'a consulta da semana 32 fica agendada no calendário');
+await p.screenshot({ path: `${OUT}jornada-consultas.png`, fullPage: false });
 await dlg.getByRole('button', { name: 'Fechar' }).click();
+check((await p.evaluate(() => document.body.style.position)) === '', 'ao fechar, a tela de fundo volta ao normal');
 await summary.getByRole('button', { name: 'Revisar com a equipe' }).click();
 const plan = await dlg.locator('pre').textContent();
 check(plan.includes('Plano do pré-natal · semana 22') && plan.includes('[x] Ultrassom morfológico do 1º trimestre'), '"Revisar com a equipe" monta o plano para levar à consulta');

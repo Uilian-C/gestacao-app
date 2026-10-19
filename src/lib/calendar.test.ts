@@ -99,11 +99,10 @@ describe('agendamentos e resultados no calendário', () => {
   const base = { dumDate: '2026-05-15', tasks: [], symptoms: [], metrics: [] };
   const ultrassom = { id: 'u1', scheduled_at: '2026-10-13T17:00:00.000Z', specialty: 'ultrassom', created_by: 'mae' as const, kind: 'ultrassom' as const, title: 'Ultrassom morfológico do 2º trimestre', plan_item: 'morfo-2' };
 
-  it('exame agendado aparece com o nome e o emoji do tipo', () => {
+  it('exame agendado aparece com o nome e o tipo', () => {
     const cal = buildCalendar({ ...base, consultations: [ultrassom] });
     const e = cal.events.get('2026-10-13')!.find(x => x.kind === 'consulta')!;
     expect(e.title).toBe('Ultrassom morfológico do 2º trimestre');
-    expect(e.emoji).toBe('🖥️');
     expect(e.appointment).toBe('ultrassom');
   });
 

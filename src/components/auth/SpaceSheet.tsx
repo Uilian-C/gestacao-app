@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useScrollLock } from '../../hooks/useScrollLock';
 import { Camera, Check, ImagePlus, Pencil, Copy, Download, Link2, Loader2, LogOut, MessageCircle, Trash2, UserMinus, X } from 'lucide-react';
 import { api, ApiError, type FamilyState, type Me } from '../../api';
 import { FileProblem, prepareAvatar } from '../../lib/examFiles';
@@ -32,6 +33,7 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
   const [danger, setDanger] = useState<'account' | 'space' | null>(null);
   const [confirmText, setConfirmText] = useState('');
   const closeRef = useRef<HTMLButtonElement>(null);
+  useScrollLock();
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -128,8 +130,8 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="space-title">
-      <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full sm:max-w-lg max-h-[92vh] overflow-y-auto bg-canvas rounded-t-[28px] sm:rounded-[28px] shadow-lift p-5 sm:p-7 space-y-5 pb-[calc(env(safe-area-inset-bottom)+20px)]">
+      <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px] touch-none" onClick={onClose} />
+      <div className="relative w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto overscroll-contain bg-canvas rounded-t-[28px] sm:rounded-[28px] shadow-lift p-5 sm:p-7 space-y-5 pb-[calc(env(safe-area-inset-bottom)+20px)]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 id="space-title" className="text-[1.35rem]">Nosso espaço</h2>
