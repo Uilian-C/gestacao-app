@@ -17,6 +17,7 @@ import BrandMark from '../BrandMark';
 import CheckIn from '../CheckIn';
 import { DumForm } from '../DumForm';
 import PushPrompt from '../PushPrompt';
+import BellyCard from '../home/BellyCard';
 import { Card, LinkButton, SectionTitle } from '../ui';
 import { InsightList } from '../InsightList';
 import { Row } from './UpcomingTab';
@@ -26,7 +27,7 @@ import { mentionsMe } from '../../lib/mentions';
 import { PeopleContext } from '../../lib/people';
 
 /** Para onde o Início leva (abas e partes delas). */
-export type HomeTarget = 'diario' | 'mural' | 'humor' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
+export type HomeTarget = 'diario' | 'mural' | 'humor' | 'barriga' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
 
 interface Props {
   age: GestationalAge;
@@ -64,6 +65,9 @@ interface Props {
   onWrite: () => void;
   /** Itens da jornada com a janela já fechada, sem data e sem marcação (Agenda → Jornada). */
   lateSteps: PlanItem[];
+  /** Diário com fotos (migrações 008 e 012): o cartão da barriguinha da semana. */
+  bellyAvailable: boolean;
+  onBellyPhoto: () => void;
 }
 
 /** Anel da gestação (40 semanas) com o coração batendo no centro e ondas saindo dele. */
@@ -231,10 +235,6 @@ export default function HomeTab(props: Props) {
         {age.isPostTerm && <p className="mt-3 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
       </section>
 
-      {props.checkinAvailable && <CheckIn role={props.role} checkins={props.checkins} hugs={props.hugs} onCheckin={props.onCheckin} onHug={props.onHug} onShare={props.onShareMood} onMonth={() => onOpen('humor')} posts={posts} onOpenEntry={id => props.onOpenDetail({ kind: 'entry', id })} onMural={() => onOpen('mural')} />}
-
-      <NextAppointment consultations={props.consultations} onOpen={c => props.onOpenDetail({ kind: 'consultation', id: c.id })} onSchedule={() => onOpen('agenda')} />
-
       {todayItems.length > 0 && (
         <section aria-labelledby="hoje-titulo" className="space-y-2.5">
           <div className="flex items-baseline justify-between gap-3 px-1">
@@ -247,7 +247,23 @@ export default function HomeTab(props: Props) {
         </section>
       )}
 
-      <PushPrompt />
+      {pending.length > 0 && (
+        <section aria-label="Para não esquecer" className="rounded-[24px] bg-surface shadow-soft p-4 space-y-1">
+          <h2 className="text-sm font-extrabold text-ink font-sans">Para não esquecer</h2>
+          {pending.map(p => (
+            <button key={p.id} type="button" onClick={p.go} className="w-full flex items-center justify-between gap-3 py-2 text-left text-sm text-ink-soft hover:text-ink">
+              <span className="min-w-0">{p.text}</span>
+              <ArrowRight className="w-4 h-4 shrink-0 text-ink-mute" />
+            </button>
+          ))}
+        </section>
+      )}
+
+      {props.checkinAvailable && <CheckIn role={props.role} checkins={props.checkins} hugs={props.hugs} onCheckin={props.onCheckin} onHug={props.onHug} onShare={props.onShareMood} onMonth={() => onOpen('humor')} posts={posts} onOpenEntry={id => props.onOpenDetail({ kind: 'entry', id })} onMural={() => onOpen('mural')} />}
+
+      {props.bellyAvailable && <BellyCard journal={props.journal} dumDate={props.dumDate} currentWeek={currentWeek} onPhoto={props.onBellyPhoto} onOpenEntry={id => props.onOpenDetail({ kind: 'entry', id })} onAll={() => onOpen('barriga')} />}
+
+      <NextAppointment consultations={props.consultations} onOpen={c => props.onOpenDetail({ kind: 'consultation', id: c.id })} onSchedule={() => onOpen('agenda')} />
 
       {weekItems.length > 0 && (
         <section aria-labelledby="semana-titulo" className="rounded-[28px] bg-surface shadow-soft p-5 space-y-3">
@@ -279,9 +295,9 @@ export default function HomeTab(props: Props) {
         </section>
       )}
 
-
-
       <SharedTasks tasks={props.tasks} role={props.role} onToggle={props.onToggleTask} onOpenTask={t => props.onOpenDetail({ kind: 'task', id: t.id })} onAll={() => onOpen('tarefas')} />
+
+      <PushPrompt />
 
       <section aria-labelledby="nesta-semana" className="space-y-2.5">
         <h2 id="nesta-semana" className="px-1 text-[1.3rem] text-ink">
@@ -294,18 +310,6 @@ export default function HomeTab(props: Props) {
         </ul>
         <p className="px-1 text-[11px] text-ink-mute">Referência: {WEEK_CARDS_SOURCE}. Cada gestação é única.</p>
       </section>
-
-      {pending.length > 0 && (
-        <section aria-label="Para não esquecer" className="rounded-[24px] bg-surface shadow-soft p-4 space-y-1">
-          <h2 className="text-sm font-extrabold text-ink font-sans">Para não esquecer</h2>
-          {pending.map(p => (
-            <button key={p.id} type="button" onClick={p.go} className="w-full flex items-center justify-between gap-3 py-2 text-left text-sm text-ink-soft hover:text-ink">
-              <span className="min-w-0">{p.text}</span>
-              <ArrowRight className="w-4 h-4 shrink-0 text-ink-mute" />
-            </button>
-          ))}
-        </section>
-      )}
 
       <details className="rounded-[28px] bg-surface shadow-soft p-5 md:p-6 group">
         <summary className="cursor-pointer font-semibold text-ink flex items-center gap-2 list-none">
