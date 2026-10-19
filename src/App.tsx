@@ -540,7 +540,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     run(() => api.mutate('createEntry', { date: today, body, visibility: 'shared', remindOn: null, folder: 'dia' }), 'Não foi possível postar no Mural.');
   const openFromHome = (target: HomeTarget, planItem?: string) => {
     if (target === 'diario') return navigate('diario');
-    if (target === 'mural' || target === 'humor') {
+    if (target === 'mural' || target === 'humor' || target === 'barriga') {
       setDiaryView(target);
       return navigate('diario');
     }
@@ -649,6 +649,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onResult={openResult}
             onWrite={() => writeEntry('dia')}
             lateSteps={lateSteps}
+            bellyAvailable={!!data.journalAvailable && (data.photosAvailable ?? false)}
+            onBellyPhoto={() => writeEntry('barriga')}
           />
         )}
 
