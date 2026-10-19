@@ -127,14 +127,18 @@ await own.getByRole('button', { name: 'Adicionar item' }).click();
 await own.getByLabel('Novo item').fill('Ecocardiograma fetal');
 await own.getByLabel('Semana (opcional)').fill('24');
 await own.getByRole('button', { name: 'Adicionar', exact: true }).click();
-const eco = mae.getByRole('button', { name: /^Ecocardiograma fetal:/ });
+const tri2 = mae.getByRole('group', { name: '2º trimestre · Crescimento' });
+const eco = tri2.getByRole('button', { name: /^Ecocardiograma fetal:/ });
 await eco.waitFor();
-check((await mae.getByRole('region', { name: '2º trimestre: Crescimento' }).getByText('Ecocardiograma fetal').count()) === 1, 'item próprio entra na fase da semana escolhida');
-check((await eco.textContent()).includes('sem. 24'), 'item próprio com a semana planejada');
+check((await eco.textContent()).includes('A partir de'), 'item próprio entra na fase da semana escolhida, com a data');
 await eco.click();
-await mae.getByRole('button', { name: 'Já fizemos' }).click();
+const sheet = mae.getByRole('dialog');
+check((await sheet.getByRole('region', { name: 'Planejado' }).textContent()).includes('Semana 24'), 'item próprio com a semana planejada');
+await sheet.getByRole('button', { name: 'Já fizemos' }).click();
+await sheet.getByRole('button', { name: 'Confirmar' }).click();
 await mae.waitForTimeout(800);
-check((await mae.getByRole('button', { name: 'Ecocardiograma fetal: feito' }).count()) === 1, 'item próprio marcado como feito');
+await sheet.getByRole('button', { name: 'Fechar' }).click();
+check((await tri2.getByRole('button', { name: 'Ecocardiograma fetal: feito' }).count()) === 1, 'item próprio marcado como feito');
 await mae.screenshot({ path: `${OUT}social-jornada.png`, fullPage: false });
 
 // ---- Nome ----
