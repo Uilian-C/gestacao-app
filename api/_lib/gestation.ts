@@ -7,7 +7,7 @@ import { visibleTargetSql } from './social.js';
 const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
 
 export async function fetchAll(fid: string, userId: string) {
-  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams, social, photos, checkins] = await Promise.all([
+  const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams, social, photos, planWeeks, checkins] = await Promise.all([
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
@@ -127,6 +127,8 @@ export async function fetchAll(fid: string, userId: string) {
        ORDER BY f.created_at`,
       [fid, userId],
     ).catch(() => null),
+    // Semanas da jornada ajustadas pelo casal (migração 019).
+    query<{ item_id: string; from: number; to: number }>('SELECT item_id, week_from AS "from", week_to AS "to" FROM plan_weeks WHERE family_id = $1', [fid]).catch(() => null),
     // Check-ins do dia (migração 014): a gestação inteira dos dois (Diário → Humor).
     query(
       `SELECT day::text AS day, mood, author_role, (user_id = $2) AS mine
@@ -190,6 +192,8 @@ export async function fetchAll(fid: string, userId: string) {
     reactions: social?.[0].reactions ?? [],
     threads: social?.[0].threads ?? [],
     socialAvailable: social !== null,
+    planWeeks: planWeeks ?? [],
+    planWeeksAvailable: planWeeks !== null,
   };
 }
 

@@ -31,6 +31,7 @@ const DashboardTab = lazy(() => import('./components/tabs/DashboardTab'));
 const ConsultationsTab = lazy(() => import('./components/tabs/ConsultationsTab'));
 const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
 const LaborTab = lazy(() => import('./components/tabs/LaborTab'));
+const JourneyTab = lazy(() => import('./components/tabs/JourneyTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
 import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, toISODate, weekOfDay } from './lib/dates';
@@ -39,9 +40,12 @@ import type { NewMetric } from './components/forms/RecordForms';
 import { findPatterns, toEntries } from './lib/symptoms';
 import type { AgendaView, CareView, Consultation, DashboardView, DeletableKind, DiaryView, HealthView, PartnerTask, Tab } from './types';
 import { isConsultation, resultOf } from './lib/appointments';
-import { autoDone, visitsOf } from './lib/journey';
+import { autoDone, planFor, visitsOf } from './lib/journey';
+import { doneByAppointments, journeyRows, plannedItems } from './lib/journeyPlan';
+import { JourneyContext } from './lib/journeyContext';
 import { AttendeesReady, PeopleContext, TaskRemindersReady, TimedRemindersReady } from './lib/people';
 import { markSeen } from './lib/news';
+import { PLAN_ITEMS } from './content/prenatalPlan';
 
 const UNDO_WINDOW_MS = 5000;
 
@@ -60,7 +64,7 @@ const RECORD_MODES: Record<Tab, QuickMode[]> = {
 const HEALTH_MODES: QuickMode[] = ['sintoma', 'medicao'];
 
 /** Gráficos de Cuidados → Saúde (o antigo Painel). */
-const HEALTH_CHART: Record<Exclude<HealthView, 'registros'>, DashboardView> = { sintomas: 'sintomas', corpo: 'corpo', resumo: 'geral' };
+const HEALTH_CHART: Record<Exclude<HealthView, 'registros'>, Exclude<DashboardView, 'jornada'>> = { sintomas: 'sintomas', corpo: 'corpo', resumo: 'geral' };
 
 /** O lembrete só vai quando o formulário pergunta (depois da migração 017); sem ele, o servidor mantém o que estava. */
 const reminderOf = (t: NewTask) => ({
@@ -109,11 +113,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [healthView, setHealthView] = useState<HealthView>('registros');
   const [agendaView, setAgendaView] = useState<AgendaView>(() => {
     const v = takeViewFromUrl();
-    return v === 'calendario' || v === 'tarefas' ? v : 'proximos';
+    return v === 'calendario' || v === 'tarefas' || v === 'jornada' ? v : 'proximos';
   });
   const [careView, setCareView] = useState<CareView>(() => {
     const v = takeViewFromUrl();
-    return v === 'exames' || v === 'jornada' || v === 'duvidas' ? v : 'saude';
+    return v === 'exames' || v === 'duvidas' ? v : 'saude';
   });
   const [examPreset, setExamPreset] = useState<string | null>(null);
   /** Resultados: abrir o formulário a partir de um agendamento, ou levar até um resultado. */
@@ -357,6 +361,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     run(() => api.mutate('addItem', { list, title, bagGroup, week }), 'Não foi possível adicionar. Se for a primeira vez, rode a migração 011 no Neon.');
   const renameItem = (item: ListItem, title: string) => run(() => api.mutate('updateItem', { id: item.id, title, bagGroup: item.bag_group, week: item.week }));
   const deleteListItem = (item: ListItem) => scheduleDelete('item', item.id, `"${item.title}"`);
+  const setPlanWeeks = (itemId: string, from: number | null, to: number | null) => {
+    patch(d => ({ ...d, planWeeks: [...(d.planWeeks ?? []).filter(w => w.item_id !== itemId), ...(from !== null && to !== null ? [{ item_id: itemId, from, to }] : [])] }));
+    return run(() => api.mutate('setPlanWeeks', { itemId, from, to }), 'Não foi possível ajustar as semanas. Se for a primeira vez, rode a migração db/migrations/019_jornada_planejada.sql no Neon.');
+  };
   const hideItem = (list: 'prenatal' | 'mala', itemId: string, hidden: boolean) => {
     patch(d => ({ ...d, hiddenItems: hidden ? [...d.hiddenItems, { list, item_id: itemId }] : d.hiddenItems.filter(h => !(h.list === list && h.item_id === itemId)) }));
     if (hidden) showToast({ text: 'Item oculto. Ele fica em "Itens ocultos", no fim da lista.', tone: 'info' });
@@ -455,8 +463,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   ];
   const tasks = visible('task', data.tasks);
   const journal = visible('entry', data.journal);
-  // Feito = marcado pelo casal ou comprovado pelo uso (ex.: consulta de obstetra realizada).
-  const doneSteps = new Set([...data.checks.filter(c => c.list === 'prenatal').map(c => c.item_id), ...autoDone(visitsOf(data.consultations.filter(isConsultation), dumDate, now))]);
+  // Feito = marcado pelo casal ou comprovado pelo uso (consulta de obstetra realizada, agendamento da jornada que já passou).
+  const autoSteps = new Set([...autoDone(visitsOf(data.consultations.filter(isConsultation), dumDate, now)), ...doneByAppointments(data.consultations, now)]);
+  const doneSteps = new Set([...data.checks.filter(c => c.list === 'prenatal').map(c => c.item_id), ...autoSteps, ...(data.exams ?? []).flatMap(e => (e.plan_item ? [e.plan_item] : []))]);
   const packed = new Set(data.checks.filter(c => c.list === 'mala').map(c => c.item_id));
   const listItems = visible('item', data.listItems ?? []);
   const reactions = data.reactions ?? [];
@@ -464,6 +473,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const socialAvailable = data.socialAvailable ?? false;
   const hiddenOf = (list: 'prenatal' | 'mala') => new Set((data.hiddenItems ?? []).filter(h => h.list === list).map(h => h.item_id));
   const hiddenSteps = hiddenOf('prenatal');
+  // Jornada: o planejado (com as semanas ajustadas e os itens do casal) × o realizado.
+  const journeyItems = plannedItems(planFor(data.profile.bloodType, hiddenSteps), data.planWeeks ?? [], listItems.filter(i => i.list === 'prenatal'));
+  const journey = journeyRows(journeyItems, { week: currentWeek, dumDate, now, checks: data.checks, consultations: visible('consultation', data.consultations), exams: data.exams ?? [], autoDone: autoSteps });
+  const lateSteps = journey.filter(r => r.status === 'atrasado').map(r => r.item);
   const exams = visible('exam', data.exams ?? []).map(e => ({ ...e, files: e.files.filter(f => !pendingDeletes.has(`examFile:${f.id}`)) }));
   const overdueTasks = tasks.filter(t => !t.is_completed && isOverdue(t.due_date)).length;
   const questions = visible('question', data.questions);
@@ -482,8 +495,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     setCareView(view);
   };
   // Os gráficos e a jornada levam um ao outro, mesmo estando em abas diferentes.
+  const openJourney = () => {
+    navigate('agenda');
+    setAgendaView('jornada');
+  };
   const openDashboardView = (v: DashboardView) => {
-    if (v === 'jornada') return openCare('jornada');
+    if (v === 'jornada') return openJourney();
     openCare('saude');
     setHealthView(v === 'geral' ? 'resumo' : v);
   };
@@ -532,6 +549,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       return setHealthView('registros');
     }
     if (target === 'graficos') return openDashboardView('sintomas');
+    if (target === 'jornada') return openJourney();
     if (target === 'tarefas' || target === 'agenda') {
       navigate('agenda');
       return setAgendaView(target === 'tarefas' ? 'tarefas' : 'proximos');
@@ -550,7 +568,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     consultations,
     pendingQuestions: specialty => questions.filter(q => !q.doctor_answer && questionSpecialty(q.specialty) === specialty).length,
   });
-  const dashboard = (view: DashboardView) => (
+  const dashboard = (view: Exclude<DashboardView, 'jornada'>) => (
     <DashboardTab
       age={age}
       profile={profile}
@@ -561,24 +579,17 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       busy={busy}
       onSaveProfile={saveProfile}
       currentWeek={currentWeek}
-      checks={data.checks}
-      checksAvailable={data.checksAvailable}
-      onToggleStep={(id, done) => setCheck('prenatal', id, done)}
       view={view}
       onViewChange={openDashboardView}
       consultations={consultsOnly}
-      ownSteps={listItems.filter(i => i.list === 'prenatal')}
-      hiddenSteps={hiddenSteps}
-      listsAvailable={data.socialAvailable ?? false}
-      onAddStep={(title, week) => addItem('prenatal', title, null, week)}
-      onRenameItem={renameItem}
-      onDeleteItem={deleteListItem}
-      onHideStep={(id, hidden) => hideItem('prenatal', id, hidden)}
+      planItems={journeyItems.filter(i => !i.own)}
+      doneSteps={doneSteps}
     />
   );
 
   return (
     <PeopleContext.Provider value={family.members}>
+    <JourneyContext.Provider value={{ items: journeyItems, done: doneSteps, consultations, dumDate }}>
     <AttendeesReady.Provider value={data.attendeesAvailable ?? false}>
     <TaskRemindersReady.Provider value={data.taskRemindersAvailable ?? false}>
     <TimedRemindersReady.Provider value={data.timedRemindersAvailable ?? false}>
@@ -637,9 +648,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onOpenDetail={setDetail}
             onResult={openResult}
             onWrite={() => writeEntry('dia')}
-            bloodType={data.profile.bloodType}
-            doneSteps={doneSteps}
-            hiddenSteps={hiddenSteps}
+            lateSteps={lateSteps}
           />
         )}
 
@@ -680,6 +689,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
               options={[
                 { value: 'proximos', label: 'Próximos' },
                 { value: 'calendario', label: 'Calendário' },
+                { value: 'jornada', label: 'Jornada', badge: lateSteps.length },
                 { value: 'tarefas', label: 'Tarefas', badge: overdueTasks },
               ]}
             />
@@ -717,6 +727,29 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
                 onOpen={t => (t.kind === 'exam' ? openExam(t.id) : setDetail(t))}
               />
             )}
+            {agendaView === 'jornada' && (
+              <JourneyTab
+                rows={journey}
+                dumDate={dumDate}
+                currentWeek={currentWeek}
+                consultations={consultsOnly}
+                hidden={PLAN_ITEMS.filter(i => hiddenSteps.has(i.id)).map(i => ({ id: i.id, label: i.title }))}
+                busy={busy}
+                checksAvailable={data.checksAvailable}
+                listsAvailable={socialAvailable}
+                weeksAvailable={data.planWeeksAvailable ?? false}
+                onToggle={(id, done) => setCheck('prenatal', id, done)}
+                onSchedule={createConsultation}
+                onOpenAppointment={c => setDetail({ kind: 'consultation', id: c.id })}
+                onOpenExam={openExam}
+                onResult={openResult}
+                onSetWeeks={setPlanWeeks}
+                onHide={(id, hidden) => hideItem('prenatal', id, hidden)}
+                onAddStep={(title, week) => addItem('prenatal', title, null, week)}
+                onRenameItem={renameItem}
+                onDeleteItem={deleteListItem}
+              />
+            )}
             {agendaView === 'tarefas' && (
               <TasksTab
                 tasks={tasks}
@@ -744,7 +777,6 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
               { value: 'saude', label: 'Saúde' },
               { value: 'exames', label: 'Resultados' },
               { value: 'duvidas', label: 'Dúvidas', badge: questions.filter(q => !q.doctor_answer).length },
-              { value: 'jornada', label: 'Jornada' },
             ]}
           />
         )}
@@ -830,7 +862,6 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             )}
           </>
         )}
-        {activeTab === 'cuidados' && careView === 'jornada' && !report && dashboard('jornada')}
 
         {activeTab === 'parto' && (
           <LaborTab
@@ -942,6 +973,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     </TimedRemindersReady.Provider>
     </TaskRemindersReady.Provider>
     </AttendeesReady.Provider>
+    </JourneyContext.Provider>
     </PeopleContext.Provider>
   );
 }

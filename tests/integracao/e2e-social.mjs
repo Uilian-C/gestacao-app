@@ -118,20 +118,23 @@ await mae.getByRole('button', { name: 'Salvar', exact: true }).click();
 await mae.getByText('Travesseiro e almofada').waitFor();
 check(true, 'item próprio renomeado');
 
-// ---- Jornada: item próprio ----
-await tab(mae, 'Cuidados');
-await mae.getByRole('button', { name: 'Jornada', exact: true }).click();
-await mae.getByText('Itens de vocês').scrollIntoViewIfNeeded();
-const own = mae.locator('section', { hasText: 'Itens de vocês' });
+// ---- Jornada: item próprio (Agenda → Jornada) ----
+await tab(mae, 'Agenda');
+await mae.getByRole('button', { name: /^Jornada/ }).click();
+const own = mae.getByRole('region', { name: 'Itens de vocês' });
+await own.scrollIntoViewIfNeeded();
 await own.getByRole('button', { name: 'Adicionar item' }).click();
 await own.getByLabel('Novo item').fill('Ecocardiograma fetal');
 await own.getByLabel('Semana (opcional)').fill('24');
 await own.getByRole('button', { name: 'Adicionar', exact: true }).click();
-await own.getByText('Ecocardiograma fetal').waitFor();
-check(await own.getByText('semana 24').isVisible(), 'item próprio na jornada, com a semana');
-await own.getByRole('button', { name: 'Marcar "Ecocardiograma fetal" como feito' }).click();
+const eco = mae.getByRole('button', { name: /^Ecocardiograma fetal:/ });
+await eco.waitFor();
+check((await mae.getByRole('region', { name: '2º trimestre: Crescimento' }).getByText('Ecocardiograma fetal').count()) === 1, 'item próprio entra na fase da semana escolhida');
+check((await eco.textContent()).includes('sem. 24'), 'item próprio com a semana planejada');
+await eco.click();
+await mae.getByRole('button', { name: 'Já fizemos' }).click();
 await mae.waitForTimeout(800);
-check((await own.getByRole('button', { name: 'Desmarcar "Ecocardiograma fetal"' }).count()) === 1, 'item próprio marcado como feito');
+check((await mae.getByRole('button', { name: 'Ecocardiograma fetal: feito' }).count()) === 1, 'item próprio marcado como feito');
 await mae.screenshot({ path: `${OUT}social-jornada.png`, fullPage: false });
 
 // ---- Nome ----

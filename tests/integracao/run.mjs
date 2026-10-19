@@ -104,6 +104,7 @@ const tests = [
   ['e2e-arquivo.mjs', false],
   ['e2e-inicio.mjs', false],
   ['e2e-formularios.mjs', false],
+  ['e2e-jornada.mjs', false],
 ];
 const only = process.argv.slice(2);
 

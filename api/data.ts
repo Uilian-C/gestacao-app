@@ -118,6 +118,8 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('updateItem'), id: uuid, ...itemFields }),
   z.object({ op: z.literal('deleteItem'), id: uuid }),
   z.object({ op: z.literal('hideItem'), list: listName, itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), hidden: z.boolean() }),
+  // Jornada (migração 019): semanas planejadas de um item; null volta à janela de referência.
+  z.object({ op: z.literal('setPlanWeeks'), itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), from: z.number().int().min(1).max(42).nullable(), to: z.number().int().min(1).max(42).nullable() }),
   // Reações e conversa.
   z.object({ op: z.literal('react'), targetType, targetId: uuid, kind: z.enum(['abraco', 'forca', 'aqui', 'festa']), on: z.boolean() }),
   z.object({ op: z.literal('comment'), targetType: z.enum(['entry', 'exam']), targetId: uuid, body: text(1000) }),
@@ -220,6 +222,11 @@ async function setAttendees(id: string, attendees: string | null) {
 
 function checkinMissing(err: unknown): never {
   if ((err as { code?: string }).code === '42P01') throw new HttpError(503, 'O check-in do dia ainda não está ligado no servidor. Rode a migração db/migrations/014_checkin.sql no Neon.');
+  throw err;
+}
+
+function planWeeksMissing(err: unknown): never {
+  if ((err as { code?: string }).code === '42P01') throw new HttpError(503, 'Ajustar as semanas da jornada ainda não está ligado no servidor. Rode a migração db/migrations/019_jornada_planejada.sql no Neon.');
   throw err;
 }
 
@@ -415,6 +422,14 @@ async function apply(m: Member, o: Op) {
     case 'hideItem':
       if (!o.hidden) return query('DELETE FROM checklist_hidden WHERE family_id = $1 AND list = $2 AND item_id = $3', [fid, o.list, o.itemId]);
       return query('INSERT INTO checklist_hidden (family_id, list, item_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [fid, o.list, o.itemId]);
+    case 'setPlanWeeks':
+      if ((o.from === null) !== (o.to === null) || (o.from !== null && o.to! < o.from)) throw new HttpError(400, 'A semana final precisa vir depois da inicial.');
+      if (o.from === null) return query('DELETE FROM plan_weeks WHERE family_id = $1 AND item_id = $2', [fid, o.itemId]).catch(planWeeksMissing);
+      return query(
+        `INSERT INTO plan_weeks (family_id, item_id, week_from, week_to, updated_by) VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (family_id, item_id) DO UPDATE SET week_from = EXCLUDED.week_from, week_to = EXCLUDED.week_to, updated_by = EXCLUDED.updated_by, updated_at = NOW()`,
+        [fid, o.itemId, o.from, o.to, who],
+      ).catch(planWeeksMissing);
     case 'react': {
       await requireVisible(m, o.targetType, o.targetId);
       if (!o.on) return query('DELETE FROM reactions WHERE target_type = $1 AND target_id = $2 AND user_id = $3 AND kind = $4', [o.targetType, o.targetId, m.userId, o.kind]);
