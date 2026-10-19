@@ -47,6 +47,8 @@ interface Props {
   /** Leva até este resultado na lista. */
   focusExam?: string | null;
   social: ExamSocial;
+  /** Abre o item ligado a este resultado em Agenda → Jornada. */
+  onOpenJourney?: (itemId: string) => void;
 }
 
 /** Reações e conversa nos exames (migração 011). */
@@ -229,6 +231,7 @@ export default function ExamsTab(props: Props) {
             busy={props.busy}
             social={props.social}
             onSave={props.onSave}
+            onOpenJourney={props.onOpenJourney}
             onOpen={index => setViewer({ exam: opened, index })}
             onDelete={() => {
               setOpenId(null);
@@ -481,7 +484,7 @@ function ExamRow({ exam: e, dumDate, social, onOpen }: { exam: ExamItem; dumDate
   );
 }
 
-function ExamCard({ exam: e, dumDate, busy, social, onSave, onOpen, onDelete }: { exam: ExamItem; dumDate: string; busy: boolean; social: ExamSocial; onSave: SaveExam; onOpen: (imageIndex: number) => void; onDelete: () => void }) {
+function ExamCard({ exam: e, dumDate, busy, social, onSave, onOpen, onDelete, onOpenJourney }: { exam: ExamItem; dumDate: string; busy: boolean; social: ExamSocial; onSave: SaveExam; onOpen: (imageIndex: number) => void; onDelete: () => void; onOpenJourney?: (itemId: string) => void }) {
   const [talking, setTalking] = useState(false);
   const talk = social.threads.filter(c => c.target_type === 'exam' && c.target_id === e.id);
   const Icon = KIND_ICON[e.kind];
@@ -525,8 +528,13 @@ function ExamCard({ exam: e, dumDate, busy, social, onSave, onOpen, onDelete }: 
             )}
           </p>
           {plan && (
-            <div className="mt-1.5">
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <Pill tone="ok">Jornada: {plan.short}</Pill>
+              {onOpenJourney && (
+                <button type="button" onClick={() => onOpenJourney(plan.id)} className="text-xs font-bold text-brand-strong underline underline-offset-4">
+                  Ver na jornada
+                </button>
+              )}
             </div>
           )}
         </div>

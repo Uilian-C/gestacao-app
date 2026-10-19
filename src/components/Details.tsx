@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react';
 import { appointmentTitle, hasResult, kindInfo, kindOf, resultOf } from '../lib/appointments';
-import { AlertTriangle, Bell, CalendarHeart, Check, CheckCircle2, Clock, ExternalLink, FileText, HeartHandshake, Lock, NotebookPen, Pencil, RotateCcw, Scale, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarHeart, Check, CheckCircle2, ChevronRight, Clock, ExternalLink, FileText, HeartHandshake, Lock, NotebookPen, Pencil, RotateCcw, Route, Scale, Trash2, Users } from 'lucide-react';
 import { isAlertSymptom } from '../content/symptomCatalog';
 import { googleCalendarUrl } from '../lib/calendar';
 import { formatBR, isOverdue, localDay, parseLocalDate, parseTimestamp, toISODate } from '../lib/dates';
@@ -63,6 +63,10 @@ export interface DetailHandlers {
   onReact: OnReact;
   onThread: (targetType: 'entry' | 'exam', targetId: string, body: string) => Promise<boolean>;
   onDeleteThread: (c: ThreadComment) => void;
+  /** Agendamento ligado a um item da jornada: abre o item em Agenda → Jornada. */
+  onOpenJourney: (itemId: string) => void;
+  /** Nome do item da jornada (inclui os itens do casal). */
+  journeyTitle: (itemId: string) => string | null;
 }
 
 const WHO: Record<string, string> = { mae: 'Mãe', pai: 'Pai', casal: 'Casal' };
@@ -311,6 +315,23 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
                 : []),
             ]}
           />
+          {c.plan_item && h.journeyTitle(c.plan_item) && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                h.onOpenJourney(c.plan_item!);
+              }}
+              className="mt-4 w-full flex items-center gap-3 rounded-2xl bg-brand-soft px-3.5 py-2.5 text-left"
+            >
+              <Route className="w-4 h-4 text-brand-strong shrink-0" />
+              <span className="flex-1 min-w-0 text-sm">
+                <span className="block text-xs font-bold text-brand-strong">Faz parte da jornada do pré-natal</span>
+                <span className="block font-semibold text-ink truncate">{h.journeyTitle(c.plan_item)}</span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-brand-strong shrink-0" />
+            </button>
+          )}
           {c.location && (
             <div className="mt-4 space-y-2">
               <p className="text-sm text-ink">{c.location}</p>

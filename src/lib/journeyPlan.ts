@@ -11,8 +11,11 @@ import { normalize } from './examArchive';
 
 export interface PlanWeeks {
   item_id: string;
-  from: number;
-  to: number;
+  /** Semanas ajustadas; vazias quando só há a anotação (migração 020). */
+  from: number | null;
+  to: number | null;
+  /** O combinado com a equipe ("a Dra. Ana pediu com 22 semanas"). */
+  note?: string | null;
 }
 
 export interface JourneyItem extends PlanItem {
@@ -20,6 +23,8 @@ export interface JourneyItem extends PlanItem {
   base?: { from: number; to: number };
   /** Item criado pelo casal (checklist_items). */
   own?: ListItem;
+  /** O combinado com a equipe, anotado pelo casal. */
+  note?: string | null;
 }
 
 export type JourneyStatus = 'feito' | 'agendado' | 'atrasado' | 'agora' | 'em-breve' | 'depois';
@@ -44,20 +49,23 @@ export function plannedItems(items: PlanItem[], weeks: PlanWeeks[], own: ListIte
   const byId = new Map(weeks.map(w => [w.item_id, w]));
   const base: JourneyItem[] = items.map(i => {
     const w = byId.get(i.id);
-    return w && !i.anytime ? { ...i, from: w.from, to: w.to, base: { from: i.from, to: i.to } } : i;
+    const note = w?.note || null;
+    return w && w.from !== null && w.to !== null && !i.anytime ? { ...i, from: w.from, to: w.to, base: { from: i.from, to: i.to }, note } : { ...i, note };
   });
   const mine: JourneyItem[] = own.map(o => {
     const w = byId.get(o.id);
+    const weeks = w && w.from !== null && w.to !== null ? { from: w.from, to: w.to } : null;
     return {
       id: o.id,
       kind: 'preparo' as PlanKind,
       title: o.title,
       short: o.title,
       why: 'Item que vocês puseram na jornada.',
-      from: w?.from ?? o.week ?? 4,
-      to: w?.to ?? o.week ?? 40,
-      anytime: !w && !o.week,
+      from: weeks?.from ?? o.week ?? 4,
+      to: weeks?.to ?? o.week ?? 40,
+      anytime: !weeks && !o.week,
       own: o,
+      note: w?.note || null,
     };
   });
   return [...base, ...mine];
@@ -188,4 +196,77 @@ export function appointmentKindFor(item: PlanItem): AppointmentKind {
 /** Os itens que um agendamento que já passou dá como feitos. */
 export function doneByAppointments(consultations: Consultation[], now: Date): Set<string> {
   return new Set(consultations.filter(c => c.plan_item && parseTimestamp(c.scheduled_at) <= now).map(c => c.plan_item!));
+}
+
+/** Primeiro e último dia da janela planejada. */
+export function windowDates(item: PlanItem, dumDate: string): { start: Date; end: Date } {
+  const dum = parseLocalDate(dumDate);
+  const day = (n: number) => new Date(dum.getFullYear(), dum.getMonth(), dum.getDate() + n);
+  return { start: day(item.from * 7), end: day((item.to + 1) * 7 - 1) };
+}
+
+const ddmm = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+
+/** "de 31/10 a 04/12" */
+export function windowDatesText(item: PlanItem, dumDate: string): string {
+  if (item.anytime) return 'em qualquer fase';
+  const { start, end } = windowDates(item, dumDate);
+  return `de ${ddmm(start)} a ${ddmm(end)}`;
+}
+
+/** "semanas 24 a 28" */
+export const weeksText = (item: PlanItem) => (item.anytime ? 'qualquer semana' : item.from === item.to ? `semana ${item.from}` : `semanas ${item.from} a ${item.to}`);
+
+/** A situação de um item em uma linha, sem jargão ("Fazer até 04/12", "Agendado: sex, 20/11, 09:00"). */
+export function statusText(row: JourneyRow, dumDate: string): string {
+  const { item } = row;
+  const { start, end } = windowDates(item, dumDate);
+  switch (row.status) {
+    case 'feito':
+      return row.doneOn ? `Feito em ${ddmm(parseLocalDate(row.doneOn))}` : 'Feito';
+    case 'agendado': {
+      const at = parseTimestamp(row.appointment!.scheduled_at);
+      const day = at.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }).replace('.', '');
+      return `Agendado: ${day}, ${at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+    case 'atrasado':
+      return `Passou da janela, que ia até ${ddmm(end)}`;
+    case 'agora':
+      return item.anytime ? 'Quando puderem' : `Fazer até ${ddmm(end)}`;
+    default:
+      return `A partir de ${ddmm(start)}`;
+  }
+}
+
+/** O que pede ação agora: atrasados, janela aberta sem data e o que abre nas próximas 4 semanas. */
+export function todoNow(rows: JourneyRow[]): JourneyRow[] {
+  const rank: Partial<Record<JourneyStatus, number>> = { atrasado: 0, agora: 1, 'em-breve': 2 };
+  return rows.filter(r => !r.item.anytime && rank[r.status] !== undefined).sort((a, b) => rank[a.status]! - rank[b.status]! || a.item.to - b.item.to);
+}
+
+/** Quantos de uma fase estão feitos (e quantos pedem atenção). */
+export function phaseCount(rows: JourneyRow[]) {
+  return { done: rows.filter(r => r.status === 'feito').length, total: rows.length, late: rows.filter(r => r.status === 'atrasado').length };
+}
+
+/**
+ * O plano em texto, para levar à consulta e combinar com a equipe: cada item com
+ * a janela planejada, como está e o que já foi anotado.
+ */
+export function planToText(rows: JourneyRow[], dumDate: string, week: number, groups: Array<{ title: string; rows: JourneyRow[] }>): string {
+  const mark: Record<JourneyStatus, string> = { feito: '[x]', agendado: '[agendado]', atrasado: '[ ] (atrasado)', agora: '[ ]', 'em-breve': '[ ]', depois: '[ ]' };
+  const lines = [`Plano do pré-natal · semana ${week}`, `DUM: ${ddmm(parseLocalDate(dumDate))}/${dumDate.slice(0, 4)}`, ''];
+  for (const g of groups) {
+    if (!g.rows.length) continue;
+    lines.push(g.title.toUpperCase());
+    for (const r of g.rows) {
+      const when = r.item.anytime ? 'qualquer fase' : `${weeksText(r.item)} (${windowDatesText(r.item, dumDate)})`;
+      lines.push(`${mark[r.status]} ${r.item.title} · ${when}${r.status === 'feito' || r.status === 'agendado' ? ` · ${statusText(r, dumDate)}` : ''}`);
+      if (r.item.note) lines.push(`    Combinado: ${r.item.note}`);
+    }
+    lines.push('');
+  }
+  lines.push('Perguntas para a equipe: algum exame a mais, a menos ou em outra semana para nós?');
+  lines.push(`Total: ${rows.filter(r => r.status === 'feito').length} feitos de ${rows.length}.`);
+  return lines.join('\n');
 }

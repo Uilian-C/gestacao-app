@@ -1,11 +1,13 @@
-// Agenda → Jornada no celular: planejado × realizado, agendar a partir da
-// jornada, encaixe automático de um agendamento feito em Próximos, item feito
-// quando a data passa e semanas ajustadas pelo casal.
+// Agenda → Jornada no celular, pensada para quem nunca fez pré-natal: o que
+// fazer agora, trimestres recolhíveis, pop-up de cada item (por que, como se
+// preparar, planejado editável com o combinado da equipe, realizado com
+// agendar e "já fizemos"), encaixe automático, links com a Agenda e "revisar
+// com a equipe".
 import { check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
 
 const b = await launch();
 const p = await phone(b);
-// DUM 22 semanas atrás: hoje é a semana 22 (morfológico 2º tri com a janela aberta).
+// DUM 22 semanas atrás: hoje é a semana 22 (morfológico do 2º tri com a janela aberta).
 const dum = new Date();
 dum.setDate(dum.getDate() - 22 * 7 - 2);
 await quickAccount(p, { dum: dum.toLocaleDateString('en-CA') });
@@ -13,7 +15,9 @@ const tab = name => p.getByRole('button', { name: new RegExp(`^${name}(\\s|$)`) 
 const iso = n => p.evaluate(n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); }, n);
 const api = path => p.evaluate(async path => (await fetch(path)).json(), path);
 const post = body => p.evaluate(async body => (await fetch('/api/data', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).status, body);
-const row = name => p.getByRole('button', { name: new RegExp(`^${name}:`) });
+const row = (name, status) => p.getByRole('button', { name: status ? `${name}: ${status}` : new RegExp(`^${name.replace(/[()]/g, '\\$&')}:`) }).first();
+const dlg = p.getByRole('dialog');
+const TOTG = 'Curva glicêmica (TOTG 75 g)';
 
 // A vacina dTpa foi tomada ontem (agendamento ligado à jornada).
 const yesterday = new Date(`${await iso(-1)}T10:00`).toISOString();
@@ -22,30 +26,73 @@ await p.reload();
 
 // ---- A jornada mora na Agenda ----
 await tab('Cuidados');
-check((await p.getByRole('button', { name: /^Jornada/ }).count()) === 0, 'Cuidados não tem mais a Jornada');
+check((await p.getByRole('button', { name: /^Jornada/ }).count()) === 0, 'Cuidados não tem a Jornada');
 await tab('Agenda');
 await p.getByRole('button', { name: /^Jornada/ }).click();
-const summary = p.getByRole('region', { name: 'Planejado e realizado' });
+const summary = p.getByRole('region', { name: 'Resumo da jornada' });
 await summary.waitFor();
-check(await summary.getByText('Jornada do pré-natal').isVisible(), 'Agenda → Jornada abre com o resumo');
-check((await row('Ultrassom morfológico do 1º trimestre').textContent()).includes('A janela passou sem data'), 'item com a janela passada aparece como atrasado');
-check((await row('Ultrassom morfológico do 2º trimestre').textContent()).includes('Janela aberta · sem data'), 'item com a janela aberta e sem data');
-const dtpa = await row('Vacina dTpa').textContent();
-check(dtpa.includes('feito') && dtpa.includes('Feito em'), 'agendamento que já passou deixa o item como feito, com a data');
-check((await row('Curva glicêmica \\(TOTG 75 g\\)').textContent()).includes('sem. 24–28'), 'planejado mostra a janela de semanas e as datas');
+check(await summary.getByText(/do que já era para ter começado está feito/).isVisible(), 'resumo com um número simples: feito do previsto');
+const now = p.getByRole('region', { name: 'Para fazer agora' });
+check(await now.getByRole('button', { name: 'Ultrassom morfológico do 1º trimestre: atrasado' }).isVisible(), '"Para fazer agora" traz o atrasado');
+check(await now.getByRole('button', { name: 'Ultrassom morfológico do 2º trimestre: fazer agora' }).isVisible(), 'e o que tem a janela aberta');
+check(await now.getByRole('button', { name: 'Agendar Ultrassom morfológico do 2º trimestre' }).isVisible(), 'com o botão de agendar ao lado');
+check((await row('Vacina dTpa', 'feito').textContent()).includes('Feito em'), 'agendamento que passou deixa o item como feito, com a data');
+
+// ---- Trimestres recolhíveis ----
+const tri1 = p.getByRole('button', { name: /^1º trimestre · Formação/ });
+check((await tri1.getAttribute('aria-expanded')) === 'false', 'trimestres que não são o atual começam recolhidos');
+check((await p.getByRole('button', { name: /^2º trimestre · Crescimento/ }).getAttribute('aria-expanded')) === 'true', 'o trimestre atual começa aberto');
+const group1 = p.getByRole('group', { name: '1º trimestre · Formação' });
+await tri1.click();
+check(await group1.getByRole('button', { name: /^1ª consulta de pré-natal:/ }).isVisible(), 'tocar abre o trimestre');
+await tri1.click();
+check((await group1.getByRole('button', { name: /^1ª consulta de pré-natal:/ }).count()) === 0, 'e tocar de novo recolhe');
 await p.screenshot({ path: `${OUT}jornada-agenda.png`, fullPage: true });
 
-// ---- Agendar a partir da jornada ----
-await row('Curva glicêmica \\(TOTG 75 g\\)').click();
-await p.getByRole('button', { name: 'Agendar', exact: true }).click();
-check((await p.getByLabel('Qual exame?').inputValue()) === 'Curva glicêmica (TOTG 75 g)', 'agendar da jornada já traz o nome');
-check((await p.getByLabel('Na jornada do pré-natal').inputValue()) === 'totg', 'e o item da jornada');
-check((await p.getByLabel('Data', { exact: true }).inputValue()) !== '', 'e uma data dentro da janela');
-await p.locator('form').getByRole('button', { name: 'Agendar', exact: true }).click();
-await p.waitForTimeout(1200);
-const totg = await row('Curva glicêmica \\(TOTG 75 g\\)').textContent();
-check(totg.includes('agendado') && totg.includes('Agendado:'), 'o item passa a agendado, com a data');
+// ---- Pop-up do item ----
+await row(TOTG, 'em breve').click();
+await dlg.waitFor();
+check(await dlg.getByText('Por que fazer').isVisible() && (await dlg.getByText(/Jejum de 8 horas/).isVisible()), 'pop-up explica por que fazer e como se preparar');
+const planned = dlg.getByRole('region', { name: 'Planejado' });
+check((await planned.textContent()).includes('Semanas 24 a 28'), 'planejado em semanas e datas reais');
+await p.screenshot({ path: `${OUT}jornada-item.png`, fullPage: false });
+
+// Agendar pelo pop-up
+await dlg.getByRole('region', { name: 'Realizado' }).getByRole('button', { name: 'Agendar', exact: true }).click();
+check((await dlg.getByLabel('Qual exame?').inputValue()) === TOTG, 'agendar já traz o nome');
+check((await dlg.getByLabel('Na jornada do pré-natal').inputValue()) === 'totg', 'e o item da jornada');
+await dlg.locator('form').getByRole('button', { name: 'Agendar', exact: true }).click();
+await dlg.getByRole('region', { name: 'Realizado' }).getByText(/· agendado/).waitFor({ timeout: 10000 });
+check(true, 'depois de agendar, o realizado mostra o agendamento');
 check((await api('/api/data')).consultations.some(c => c.plan_item === 'totg' && c.kind === 'exame'), 'agendamento gravado ligado ao item');
+
+// Editar o planejado com o combinado da equipe
+await planned.getByRole('button', { name: 'Editar' }).click();
+await dlg.getByLabel('Da semana').selectOption('22');
+await dlg.getByLabel('Até a semana').selectOption('23');
+await dlg.getByLabel('Combinado com a equipe').fill('A Dra. Ana pediu antes, com 22 semanas.');
+await dlg.getByRole('button', { name: 'Salvar', exact: true }).click();
+await planned.getByText('Combinado com a equipe').waitFor({ timeout: 10000 });
+check((await planned.textContent()).includes('Semanas 22 a 23') && (await planned.textContent()).includes('Referência: semanas 24 a 28'), 'planejado ajustado, com a referência ao lado');
+const saved = (await api('/api/data')).planWeeks.find(w => w.item_id === 'totg');
+check(saved?.from === 22 && saved?.to === 23 && saved?.note === 'A Dra. Ana pediu antes, com 22 semanas.', 'semanas e combinado gravados (migrações 019 e 020)');
+await p.screenshot({ path: `${OUT}jornada-editado.png`, fullPage: false });
+await planned.getByRole('button', { name: 'Editar' }).click();
+await dlg.getByRole('button', { name: 'Voltar à referência' }).click();
+await p.waitForTimeout(1000);
+check((await planned.textContent()).includes('Semanas 24 a 28') && !(await planned.textContent()).includes('Combinado'), '"Voltar à referência" desfaz o ajuste e a anotação');
+await dlg.getByRole('button', { name: 'Fechar' }).click();
+
+// "Já fizemos", com o dia em que foi feito
+await now.getByRole('button', { name: 'Ultrassom morfológico do 1º trimestre: atrasado' }).click();
+await dlg.getByRole('button', { name: 'Já fizemos' }).click();
+const doneDay = await iso(-60);
+await dlg.getByLabel('Dia em que fizeram').fill(doneDay);
+await dlg.getByRole('button', { name: 'Confirmar' }).click();
+await p.waitForTimeout(1000);
+check((await api('/api/data')).checks.some(c => c.item_id === 'morfo-1' && c.done_at.slice(0, 10) === doneDay), '"Já fizemos" guarda o dia escolhido');
+check((await dlg.getByText(/^Feito em /).count()) === 1, 'o pop-up passa a feito, com a data');
+await dlg.getByRole('button', { name: 'Fechar' }).click();
 
 // ---- Encaixe automático em Próximos ----
 await p.getByRole('button', { name: /^Próximos/ }).click();
@@ -54,39 +101,27 @@ await p.getByRole('group', { name: 'Tipo de agendamento' }).getByRole('button', 
 await p.getByLabel('Qual ultrassom?').fill('Ultrassom');
 await p.getByLabel('Data', { exact: true }).fill(await iso(3));
 check((await p.getByLabel('Na jornada do pré-natal').inputValue()) === 'morfo-2', 'ultrassom na semana 22 encaixa sozinho no morfológico do 2º tri');
-check(await p.getByText(/Encaixado pelo nome e pela data/).isVisible(), 'o formulário diz que encaixou');
-await p.screenshot({ path: `${OUT}jornada-encaixe.png`, fullPage: true });
 await p.locator('form').getByRole('button', { name: 'Agendar', exact: true }).click();
 await p.waitForTimeout(1200);
 check((await api('/api/data')).consultations.some(c => c.plan_item === 'morfo-2'), 'ultrassom gravado com o item da jornada');
-await p.getByRole('button', { name: /^Jornada/ }).click();
-check((await row('Ultrassom morfológico do 2º trimestre').textContent()).includes('agendado'), 'a jornada mostra o morfológico como agendado');
 
-// ---- Um nome que não é da jornada não encaixa ----
-await p.getByRole('button', { name: /^Próximos/ }).click();
-await p.getByRole('button', { name: 'Agendar', exact: true }).first().click();
-await p.getByRole('group', { name: 'Tipo de agendamento' }).getByRole('button', { name: 'Exame' }).click();
-await p.getByLabel('Qual exame?').fill('Ecocardiograma fetal');
-await p.getByLabel('Data', { exact: true }).fill(await iso(3));
-check((await p.getByLabel('Na jornada do pré-natal').inputValue()) === '', 'exame fora da lista fica fora da jornada');
-await p.getByRole('button', { name: 'Cancelar' }).click();
+// ---- Do agendamento para a jornada ----
+await p.getByRole('button', { name: /Curva glicêmica/ }).first().click();
+await dlg.getByRole('button', { name: /Faz parte da jornada do pré-natal/ }).click();
+await dlg.getByRole('region', { name: 'Planejado' }).waitFor();
+check((await dlg.getByRole('heading').first().textContent()) === TOTG, 'o agendamento leva ao item na jornada');
+await dlg.getByRole('button', { name: 'Fechar' }).click();
+check((await row('Ultrassom morfológico do 2º trimestre').textContent()).includes('Agendado:'), 'a jornada mostra o morfológico como agendado');
 
-// ---- Ajustar as semanas planejadas ----
-await p.getByRole('button', { name: /^Jornada/ }).click();
-await row('Vacina contra o VSR').click();
-await p.getByRole('button', { name: 'Ajustar semanas' }).click();
-await p.getByLabel('Da semana').selectOption('22');
-await p.getByLabel('Até a semana').selectOption('30');
-await p.getByRole('button', { name: 'Salvar', exact: true }).click();
-await p.waitForTimeout(1000);
-const vsr = await row('Vacina contra o VSR').textContent();
-check(vsr.includes('ajustado') && vsr.includes('sem. 22–30') && vsr.includes('Janela aberta'), 'semanas ajustadas mudam o planejado (e a janela abre)');
-check((await api('/api/data')).planWeeks.some(w => w.item_id === 'vsr' && w.from === 22 && w.to === 30), 'ajuste gravado (migração 019)');
-await row('Vacina contra o VSR').click();
-await p.getByRole('button', { name: 'Ajustar semanas' }).click();
-await p.getByRole('button', { name: 'Voltar ao padrão' }).click();
-await p.waitForTimeout(1000);
-check((await row('Vacina contra o VSR').textContent()).includes('sem. 28–36'), '"Voltar ao padrão" devolve a janela de referência');
+// ---- Consultas e revisar com a equipe ----
+await summary.getByRole('button', { name: /Consultas de pré-natal/ }).click();
+check(await dlg.getByText('Consulta mensal').first().isVisible(), 'consultas: o ritmo de cada fase');
+await dlg.getByRole('button', { name: 'Fechar' }).click();
+await summary.getByRole('button', { name: 'Revisar com a equipe' }).click();
+const plan = await dlg.locator('pre').textContent();
+check(plan.includes('Plano do pré-natal · semana 22') && plan.includes('[x] Ultrassom morfológico do 1º trimestre'), '"Revisar com a equipe" monta o plano para levar à consulta');
+await p.screenshot({ path: `${OUT}jornada-equipe.png`, fullPage: false });
+await dlg.getByRole('button', { name: 'Fechar' }).click();
 
 // ---- Início leva à jornada ----
 await tab('Início');

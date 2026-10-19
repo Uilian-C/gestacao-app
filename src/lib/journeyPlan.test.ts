@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CheckItem, ExamItem, ListItem } from '../hooks/useGestationData';
 import type { Consultation } from '../types';
 import { planFor } from './journey';
-import { appointmentKindFor, journeyRows, journeySummary, plannedItems, suggestPlanItem } from './journeyPlan';
+import { appointmentKindFor, journeyRows, journeySummary, plannedItems, planToText, statusText, suggestPlanItem, todoNow, windowDatesText } from './journeyPlan';
 
 // DUM 15/05/2026: semana 24 começa em 30/10/2026.
 const dum = '2026-05-15';
@@ -83,5 +83,46 @@ describe('encaixe automático ao agendar', () => {
     expect(appointmentKindFor(items.find(i => i.id === 'morfo-2')!)).toBe('ultrassom');
     expect(appointmentKindFor(items.find(i => i.id === 'totg')!)).toBe('exame');
     expect(appointmentKindFor(items.find(i => i.id === 'vsr')!)).toBe('vacina');
+  });
+});
+
+describe('jornada para leigos', () => {
+  const ctx = { week: 25, dumDate: dum, now, exams: [] as ExamItem[] };
+  it('anotação do combinado sem mudar as semanas', () => {
+    const all = plannedItems(planFor('O+'), [{ item_id: 'totg', from: null, to: null, note: 'Dra. Ana pediu em jejum de 10 h' }]);
+    expect(all.find(i => i.id === 'totg')).toMatchObject({ from: 24, to: 28, note: 'Dra. Ana pediu em jejum de 10 h' });
+    expect(all.find(i => i.id === 'totg')!.base).toBeUndefined();
+  });
+
+  it('situação em uma linha, sem jargão', () => {
+    const rows = journeyRows(items, { ...ctx, checks: [], consultations: [appt({ plan_item: 'totg', scheduled_at: '2026-11-20T12:00:00.000Z' })] });
+    expect(statusText(row(rows, 'morfo-1'), dum)).toMatch(/^Passou da janela, que ia até \d\d\/\d\d$/);
+    expect(statusText(row(rows, 'dtpa'), dum)).toMatch(/^Fazer até \d\d\/\d\d$/);
+    expect(statusText(row(rows, 'vsr'), dum)).toMatch(/^A partir de \d\d\/\d\d$/);
+    expect(statusText(row(rows, 'totg'), dum)).toMatch(/^Agendado: .*20\/11, 09:00$/);
+  });
+
+  it('janela em datas reais', () => {
+    expect(windowDatesText(items.find(i => i.id === 'totg')!, dum)).toBe('de 30/10 a 03/12');
+  });
+
+  it('para fazer agora: atrasados primeiro, depois a janela aberta, depois o que abre em breve', () => {
+    const rows = journeyRows(items, { ...ctx, checks: [{ list: 'prenatal', item_id: 'primeira-consulta', done_at: '2026-06-20' }], consultations: [] });
+    const ids = todoNow(rows).map(r => r.item.id);
+    expect(ids.slice(0, 3)).toEqual(['exames-iniciais', 'morfo-1', 'morfo-2']);
+    expect(ids).toContain('totg');
+    expect(ids.indexOf('totg')).toBeLessThan(ids.indexOf('vsr'));
+    expect(ids).not.toContain('primeira-consulta');
+    expect(ids).not.toContain('gripe');
+  });
+
+  it('plano em texto para levar à consulta, com o combinado', () => {
+    const noted = plannedItems(planFor('O+'), [{ item_id: 'totg', from: 22, to: 23, note: 'pedido da Dra. Ana' }]);
+    const rows = journeyRows(noted, { ...ctx, checks: [{ list: 'prenatal', item_id: 'primeira-consulta', done_at: '2026-06-20' }], consultations: [] });
+    const text = planToText(rows, dum, 25, [{ title: 'Toda a jornada', rows }]);
+    expect(text).toContain('Plano do pré-natal · semana 25');
+    expect(text).toContain('[x] 1ª consulta de pré-natal');
+    expect(text).toContain('Curva glicêmica (TOTG 75 g) · semanas 22 a 23');
+    expect(text).toContain('Combinado: pedido da Dra. Ana');
   });
 });
