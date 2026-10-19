@@ -6,7 +6,8 @@ import { ALERT_SIGNS } from '../../content/symptomCatalog';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, parseTimestamp, toISODate, type GestationalAge } from '../../lib/dates';
 import type { Checkin, ExamItem, Hug, JournalEntry, Mood, ThreadComment } from '../../hooks/useGestationData';
 import type { DetailTarget } from '../../lib/details';
-import { nextSteps, phaseOf, planFor } from '../../lib/journey';
+import { phaseOf } from '../../lib/journey';
+import type { PlanItem } from '../../content/prenatalPlan';
 import { gestationMonth } from '../../lib/ficha';
 import { appointmentTitle } from '../../lib/appointments';
 import { buildUpcoming } from '../../lib/upcoming';
@@ -61,11 +62,8 @@ interface Props {
   onResult: (c: Consultation) => void;
   /** Escrever no diário (dia sem compromisso). */
   onWrite: () => void;
-  bloodType: string | null;
-  /** IDs da jornada do pré-natal já marcados como feitos. */
-  doneSteps: Set<string>;
-  /** Itens da jornada que o casal ocultou. */
-  hiddenSteps: Set<string>;
+  /** Itens da jornada com a janela já fechada, sem data e sem marcação (Agenda → Jornada). */
+  lateSteps: PlanItem[];
 }
 
 /** Anel da gestação (40 semanas) com o coração batendo no centro e ondas saindo dele. */
@@ -143,7 +141,7 @@ export default function HomeTab(props: Props) {
   const dayOfPregnancy = daysBetween(parseLocalDate(props.dumDate), parseLocalDate(todayIso)) + 1;
 
   const up = buildUpcoming({ consultations: props.consultations, tasks: props.tasks, journal: props.journal, exams: props.exams, today: now });
-  const lateSteps = nextSteps(planFor(props.bloodType, props.hiddenSteps), currentWeek, props.doneSteps, 20).filter(s => s.status === 'pendente');
+  const lateSteps = props.lateSteps;
   const members = useContext(PeopleContext);
   // A última visita ao Diário, lida uma vez ao abrir o Início.
   const [since] = useState(() => lastSeen(props.userId));
@@ -162,7 +160,7 @@ export default function HomeTab(props: Props) {
   const weekItems = up.week.filter(i => i.consultation?.id !== nextId);
   const partnerToday = props.checkins.some(c => !c.mine && c.day === todayIso) || props.journal.some(e => !e.mine && e.created_at && toISODate(parseTimestamp(e.created_at)) === todayIso);
   const pending = [
-    lateSteps.length > 0 && { id: 'jornada', text: `${lateSteps.length} ${lateSteps.length === 1 ? 'item da jornada' : 'itens da jornada'} para conferir: ${lateSteps.slice(0, 2).map(s => s.item.short).join(', ')}`, go: () => onOpen('jornada') },
+    lateSteps.length > 0 && { id: 'jornada', text: `${lateSteps.length} ${lateSteps.length === 1 ? 'item da jornada' : 'itens da jornada'} para conferir: ${lateSteps.slice(0, 2).map(s => s.short).join(', ')}`, go: () => onOpen('jornada') },
     up.missingResults.length > 0 && { id: 'resultados', text: `${up.missingResults.length === 1 ? 'Falta guardar 1 resultado' : `Faltam guardar ${up.missingResults.length} resultados`}: ${appointmentTitle(up.missingResults[0])}`, go: () => props.onResult(up.missingResults[0]) },
   ].filter(Boolean) as Array<{ id: string; text: string; go: () => void }>;
 

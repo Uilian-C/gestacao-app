@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api';
 import type { BirthPlanRecord, Consultation, Contraction, HealthMetric, KickSession, PartnerComment, PartnerTask, PregnancyProfile, QuestionItem, SymptomItem } from '../types';
+import type { PlanWeeks } from '../lib/journeyPlan';
 
 export interface GestationData {
   profile: PregnancyProfile;
@@ -49,6 +50,9 @@ export interface GestationData {
   threads: ThreadComment[];
   /** A migração 011 já foi aplicada. */
   socialAvailable: boolean;
+  /** Semanas da jornada ajustadas pelo casal (migração 019). */
+  planWeeks?: PlanWeeks[];
+  planWeeksAvailable?: boolean;
 }
 
 export interface ListItem {

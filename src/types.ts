@@ -133,8 +133,8 @@ export type Tab = 'inicio' | 'diario' | 'agenda' | 'cuidados' | 'parto';
 /** Partes de cada aba (os chips logo abaixo do título). */
 /** Diário: a capa do fichário ou uma das pastas. */
 export type DiaryView = 'mural' | 'tudo' | 'humor' | 'momento' | 'dia' | 'ideia' | 'carta' | 'barriga';
-export type AgendaView = 'proximos' | 'calendario' | 'tarefas';
-export type CareView = 'saude' | 'exames' | 'duvidas' | 'jornada';
+export type AgendaView = 'proximos' | 'calendario' | 'jornada' | 'tarefas';
+export type CareView = 'saude' | 'exames' | 'duvidas';
 /** Cuidados → Saúde: os registros, os gráficos e o resumo. */
 export type HealthView = 'registros' | 'sintomas' | 'corpo' | 'resumo';
 

@@ -64,9 +64,10 @@ export const GET = endpoint(async request => {
       [fid, user.id],
     ).catch(() => []);
     // Listas do casal, reações e conversas (só as de registros que o titular vê).
-    const [listItems, hidden, reactions, threads] = await Promise.all([
+    const [listItems, hidden, planWeeks, reactions, threads] = await Promise.all([
       query('SELECT list, title, bag_group, week, created_by, created_at FROM checklist_items WHERE family_id = $1 ORDER BY created_at', [fid]).catch(() => []),
       query('SELECT list, item_id FROM checklist_hidden WHERE family_id = $1', [fid]).catch(() => []),
+      query('SELECT item_id, week_from, week_to, updated_by, updated_at FROM plan_weeks WHERE family_id = $1', [fid]).catch(() => []),
       query(`SELECT r.target_type, r.kind, r.author_role, r.created_at FROM reactions r WHERE r.family_id = $1 AND ${visibleTargetSql('r')} ORDER BY r.created_at`, [fid, user.id]).catch(() => []),
       query(`SELECT c.target_type, c.body, c.author_role, c.created_at FROM comments c WHERE c.family_id = $1 AND ${visibleTargetSql('c')} ORDER BY c.created_at`, [fid, user.id]).catch(() => []),
     ]);
@@ -78,6 +79,7 @@ export const GET = endpoint(async request => {
       exams,
       checklist_items: listItems,
       checklist_hidden: hidden,
+      plan_weeks: planWeeks,
       reactions,
       comments: threads,
     };

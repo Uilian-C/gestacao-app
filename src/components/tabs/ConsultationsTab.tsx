@@ -1,5 +1,5 @@
 import { useContext, useMemo, useState } from 'react';
-import { ArrowLeft, ClipboardCopy, FileText, HelpCircle, Plus, Printer, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, ClipboardCopy, FileText, HelpCircle, Plus, Printer, Route, ShieldCheck, Trash2 } from 'lucide-react';
 import { SPECIALTIES, questionSpecialty, specialtyOf, type SpecialtyId } from '../../data/specialties';
 import { daysBetween, formatBR, localDay, parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
 import { TREND_LABEL, buildReport, defaultReportPeriod, reportToText, type ConsultationReport } from '../../lib/report';
@@ -16,6 +16,8 @@ import AuthorBadge from '../AuthorBadge';
 import AddressInput from '../AddressInput';
 import WhoPicker from '../WhoPicker';
 import { AttendeesReady, PeopleContext, TimedRemindersReady } from '../../lib/people';
+import { JourneyContext } from '../../lib/journeyContext';
+import { linkableItems, suggestPlanItem, type JourneyItem } from '../../lib/journeyPlan';
 import { InsightList } from '../InsightList';
 import { inputClass } from '../styles';
 import { Button, Card, Chip, EmptyState, Field, LinkButton, Pill, SectionTitle } from '../ui';
@@ -122,17 +124,26 @@ export default function ConsultationsTab(props: Props) {
   );
 }
 
-export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, onClose, initial }: { busy: boolean; onCreate: (c: NewConsultation) => Promise<boolean>; initialDate?: string; startOpen?: boolean; onClose?: () => void; initial?: Consultation }) {
-  const [open, setOpenState] = useState(startOpen || !!initial);
+/** Agendar a partir da jornada: tipo, nome, item e uma data dentro da janela já vêm preenchidos. */
+export interface SchedulePreset {
+  kind: AppointmentKind;
+  title: string;
+  planItem: string;
+  date: string;
+}
+
+export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, onClose, initial, preset }: { busy: boolean; onCreate: (c: NewConsultation) => Promise<boolean>; initialDate?: string; startOpen?: boolean; onClose?: () => void; initial?: Consultation; preset?: SchedulePreset }) {
+  const [open, setOpenState] = useState(startOpen || !!initial || !!preset);
   const setOpen = (value: boolean) => {
     setOpenState(value);
     if (!value) onClose?.();
   };
   const at = initial ? parseTimestamp(initial.scheduled_at) : null;
-  const [kind, setKind] = useState<AppointmentKind>(initial ? kindOf(initial) : 'consulta');
-  const [title, setTitle] = useState(initial?.title ?? '');
-  const [planItem, setPlanItem] = useState<string | null>(initial?.plan_item ?? null);
-  const [date, setDate] = useState(at ? toISODate(at) : (initialDate ?? ''));
+  const [kind, setKind] = useState<AppointmentKind>(initial ? kindOf(initial) : (preset?.kind ?? 'consulta'));
+  const [title, setTitle] = useState(initial?.title ?? (preset && preset.kind !== 'consulta' ? preset.title : ''));
+  // Item da jornada: undefined = o app encaixa sozinho (pelo nome e pela data); null = fora da jornada.
+  const [planItem, setPlanItem] = useState<string | null | undefined>(initial ? (initial.plan_item ?? null) : preset?.planItem);
+  const [date, setDate] = useState(at ? toISODate(at) : (preset?.date ?? initialDate ?? ''));
   const [time, setTime] = useState(at ? at.toTimeString().slice(0, 5) : '09:00');
   const [specialty, setSpecialty] = useState<SpecialtyId>(initial && kindOf(initial) === 'consulta' ? questionSpecialty(initial.specialty) : 'obstetra');
   const [professional, setProfessional] = useState(initial?.professional_name ?? '');
@@ -146,6 +157,11 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
   // Quem vai: em consulta e ultrassom, os dois; em exame e vacina, a mãe (dá para trocar).
   const [whoPicked, setWho] = useState<Assignee | null>(initial?.attendees ?? null);
   const who: Assignee = whoPicked ?? (kind === 'consulta' || kind === 'ultrassom' ? 'casal' : 'mae');
+  const journey = useContext(JourneyContext);
+  // Consultas só encaixam na jornada quando são do pré-natal (obstetra).
+  const fitsJourney = !!journey && (!consulta || specialty === 'obstetra');
+  const suggested = fitsJourney && planItem === undefined ? suggestPlanItem({ kind, title, date, id: initial?.id }, { ...journey, now: new Date() }) : null;
+  const linked = planItem === undefined ? (suggested?.id ?? null) : planItem;
 
   if (!open) {
     return (
@@ -171,7 +187,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
           location: location.trim(),
           kind,
           title: consulta ? null : title.trim(),
-          planItem: consulta ? null : planItem,
+          planItem: fitsJourney ? linked : consulta ? null : (planItem ?? null),
           attendees: askWho ? who : (initial?.attendees ?? null),
           ...(timedReady ? { remindBefore: before } : {}),
         });
@@ -179,7 +195,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
           setOpen(false);
           setDate('');
           setTitle('');
-          setPlanItem(null);
+          setPlanItem(undefined);
           setProfessional('');
           setLocation('');
           setWho(null);
@@ -196,7 +212,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
             onClick={() => {
               setKind(k.id);
               setTitle('');
-              setPlanItem(null);
+              setPlanItem(undefined);
             }}
             className={`flex flex-col items-center gap-0.5 rounded-2xl px-1 py-2 text-[12px] font-bold transition ${kind === k.id ? 'bg-brand text-on-accent shadow-soft' : 'bg-surface text-ink-soft hover:text-ink'}`}
           >
@@ -223,7 +239,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
                 maxLength={120}
                 onChange={e => {
                   setTitle(e.target.value);
-                  setPlanItem(null);
+                  setPlanItem(undefined);
                 }}
               />
             </Field>
@@ -231,7 +247,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
               {suggestionsFor(kind).map(i => (
                 <Chip
                   key={i.id}
-                  active={planItem === i.id}
+                  active={linked === i.id}
                   onClick={() => {
                     setTitle(i.title);
                     setPlanItem(i.id);
@@ -251,6 +267,14 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
             <input id="hora-consulta" type="time" className={inputClass} value={time} onChange={e => setTime(e.target.value)} />
           </Field>
         </div>
+        {fitsJourney && journey && (
+          <JourneyLink
+            value={linked}
+            auto={planItem === undefined}
+            options={linkableItems(journey.items, kind).filter(i => i.id === linked || !journey.done.has(i.id))}
+            onChange={setPlanItem}
+          />
+        )}
         {askWho && (
           <div className="space-y-1.5">
             <span className="text-sm font-semibold text-ink-soft block">Quem vai</span>
@@ -289,6 +313,32 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
         <Button type="submit" disabled={busy || !date || (!consulta && !title.trim())}>{initial ? 'Salvar alterações' : 'Agendar'}</Button>
       </div>
     </form>
+  );
+}
+
+/** "Na jornada": o item que este agendamento cumpre, encaixado sozinho ou escolhido. */
+function JourneyLink({ value, auto, options, onChange }: { value: string | null; auto: boolean; options: JourneyItem[]; onChange: (id: string | null) => void }) {
+  const current = options.find(i => i.id === value);
+  return (
+    <div className="space-y-1.5 sm:col-span-2">
+      <label htmlFor="item-jornada" className="flex items-center gap-1.5 text-sm font-semibold text-ink-soft">
+        <Route className="w-4 h-4 text-brand" aria-hidden /> Na jornada do pré-natal
+      </label>
+      <select id="item-jornada" className={inputClass} value={value ?? ''} onChange={e => onChange(e.target.value || null)}>
+        <option value="">Não faz parte da jornada</option>
+        {options.map(i => (
+          <option key={i.id} value={i.id}>
+            {i.title}
+            {i.anytime ? '' : ` · sem. ${i.from === i.to ? i.from : `${i.from}–${i.to}`}`}
+          </option>
+        ))}
+      </select>
+      <p className="text-xs text-ink-mute" role="status">
+        {current
+          ? `${auto ? 'Encaixado pelo nome e pela data. ' : ''}Fica como agendado na jornada e, quando a data passar, como feito.`
+          : 'Se for um exame, ultrassom ou vacina da jornada, escolha aqui para acompanhar o planejado e o realizado.'}
+      </p>
+    </div>
   );
 }
 

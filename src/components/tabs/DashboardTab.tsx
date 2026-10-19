@@ -1,14 +1,9 @@
 import { useState } from 'react';
-import { Activity, ListPlus, ArrowDownRight, ArrowRight, ArrowUpRight, BookOpen, CalendarHeart, ChevronDown, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Route, Scale, Sparkles, TrendingUp, X } from 'lucide-react';
-import { PHASES, PLAN_ITEMS, PLAN_SOURCE } from '../../content/prenatalPlan';
-import type { CheckItem, ListItem } from '../../hooks/useGestationData';
-import { AddItem, HiddenItems, MenuButton, RowMenu } from '../EditableList';
-import { useRowMenu } from '../../hooks/useRowMenu';
-import { autoDone, itemStatus, phaseOf, planFor, planProgress, plannedVisitWeeks, visitsOf, type Visit } from '../../lib/journey';
+import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, CalendarHeart, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Route, Scale, Sparkles, TrendingUp, X } from 'lucide-react';
+import type { PlanItem } from '../../content/prenatalPlan';
+import { phaseOf, planProgress, plannedVisitWeeks, visitsOf, type Visit } from '../../lib/journey';
 import { gestationMonth } from '../../lib/ficha';
 import Guide from '../Guide';
-import { JourneyTimeline, PlanProgressChart } from '../charts/journeyCharts';
-import { DoneToggle, PhaseStrip, StepList } from '../journey/Journey';
 import { SYMPTOM_CATEGORIES } from '../../content/symptomCatalog';
 import { daysBetween, formatBR, parseLocalDate, toISODate, type GestationalAge } from '../../lib/dates';
 import { isHighBloodPressure } from '../../lib/health';
@@ -33,19 +28,11 @@ interface Props {
   busy: boolean;
   onSaveProfile: (preWeightKg: number, heightCm: number) => Promise<boolean>;
   currentWeek: number;
-  checks: CheckItem[];
-  checksAvailable: boolean;
-  onToggleStep: (itemId: string, done: boolean) => void;
-  view: DashboardView;
-  /** Itens da jornada: os que o casal pôs e os da lista padrão que ocultou. */
-  ownSteps: ListItem[];
-  hiddenSteps: Set<string>;
-  listsAvailable: boolean;
-  onAddStep: (title: string, week: number | null) => Promise<boolean>;
-  onRenameItem: (item: ListItem, title: string) => Promise<boolean>;
-  onDeleteItem: (item: ListItem) => void;
-  onHideStep: (itemId: string, hidden: boolean) => void;
-  /** Leva a outra visão (que pode estar em outra aba: a jornada fica em Cuidados). */
+  view: Exclude<DashboardView, 'jornada'>;
+  /** Jornada (Agenda → Jornada): os itens planejados e os já feitos, para o "Plano em dia". */
+  planItems: PlanItem[];
+  doneSteps: Set<string>;
+  /** Leva a outra visão (que pode estar em outra aba: a jornada fica na Agenda). */
   onViewChange: (view: DashboardView) => void;
   consultations: Consultation[];
 }
@@ -61,7 +48,7 @@ const TREND: Record<Trend, { label: string; tone: 'alert' | 'ok' | 'neutral' | '
 };
 
 export default function DashboardTab(props: Props) {
-  const { age, profile, symptoms, comments, metrics, migrationPending, busy, onSaveProfile, currentWeek, checks, checksAvailable, onToggleStep, view, consultations } = props;
+  const { age, profile, symptoms, comments, metrics, migrationPending, busy, onSaveProfile, currentWeek, view, consultations } = props;
   const [periodId, setPeriodId] = useState<PeriodId>('4sem');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
@@ -103,16 +90,8 @@ export default function DashboardTab(props: Props) {
 
   // ----- Jornada (plano de referência + o que o casal já fez) -----
   const now = new Date();
-  const items = planFor(profile.bloodType, props.hiddenSteps);
   const visits = visitsOf(consultations, profile.dumDate, now);
-  const auto = autoDone(visits);
-  const prenatal = checks.filter(c => c.list === 'prenatal');
-  const done = new Set([...prenatal.map(c => c.item_id), ...auto]);
-  const doneWeeks = new Map<string, number>([
-    ...prenatal.map(c => [c.item_id, Math.floor(daysBetween(dum, parseLocalDate(c.done_at)) / 7)] as [string, number]),
-    ...[...auto].filter(id => !prenatal.some(c => c.item_id === id)).map(id => [id, visits.find(v => !v.future)?.week ?? currentWeek] as [string, number]),
-  ]);
-  const progress = planProgress(items, currentWeek, done);
+  const progress = planProgress(props.planItems, currentWeek, props.doneSteps);
   const firstVisit = visits.find(v => v.specialty === 'obstetra')?.week;
   const plannedVisits = plannedVisitWeeks(firstVisit ?? 8);
   const phase = phaseOf(currentWeek);
@@ -131,51 +110,6 @@ export default function DashboardTab(props: Props) {
           phaseTitle={`${phase.label} · ${phase.title}`}
           today={today}
         />
-      )}
-
-      {view === 'jornada' && (
-        <>
-          <Card>
-            <SectionTitle icon={<TrendingUp className="w-5 h-5" />} title="Progresso" subtitle={`${phase.label} · ${phase.title} · ${gestationMonth(currentWeek)}º mês`} />
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              <MiniStat label="Gestação" value={`${Math.min(100, Math.round((currentWeek / 40) * 100))}%`} hint={`sem. ${currentWeek} de 40`} />
-              <MiniStat label="Plano em dia" value={`${progress.doneByNow}/${progress.dueByNow}`} hint={progress.dueByNow === progress.doneByNow ? 'em dia' : `${progress.dueByNow - progress.doneByNow} pendente(s)`} />
-              <MiniStat label="Consultas" value={`${visits.filter(v => !v.future).length}/${plannedVisits.filter(w => w <= currentWeek).length}`} hint="feitas / previstas" />
-            </div>
-            <PhaseStrip week={currentWeek} />
-            <div className="mt-5">
-              <PlanProgressChart items={items} doneWeeks={doneWeeks} currentWeek={currentWeek} />
-            </div>
-          </Card>
-
-          <Card>
-            <SectionTitle icon={<Route className="w-5 h-5" />} title="Jornada do pré-natal" subtitle="Toque numa linha para ver por que importa e marcar como feito." />
-            {!checksAvailable && <p className="text-xs text-warn bg-warn-soft rounded-2xl px-3 py-2 mb-3">Para marcar itens como feitos, rode a migração 007 no Neon.</p>}
-            <JourneyTimeline
-              items={items}
-              currentWeek={currentWeek}
-              done={done}
-              dumDate={profile.dumDate}
-              busy={busy || !checksAvailable}
-              onToggle={(item, value) => onToggleStep(item.id, value)}
-              visits={visits}
-              plannedVisits={plannedVisits}
-              autoDoneIds={auto}
-              onHide={props.listsAvailable ? item => props.onHideStep(item.id, true) : undefined}
-            />
-            <h3 className="text-sm font-semibold text-ink mt-6 mb-2">Vacinas a qualquer momento</h3>
-            <StepList
-              steps={items.filter(i => i.anytime).map(item => ({ item, status: itemStatus(item, currentWeek, done.has(item.id)) }))}
-              dumDate={profile.dumDate}
-              busy={busy || !checksAvailable}
-              onToggle={(item, value) => onToggleStep(item.id, value)}
-            />
-          </Card>
-
-          <OwnSteps {...props} done={done} />
-
-          <PhaseGuide currentWeek={currentWeek} />
-        </>
       )}
 
       {view === 'sintomas' && (
@@ -237,16 +171,6 @@ export default function DashboardTab(props: Props) {
           <PressureSection metrics={metrics} />
         </>
       )}
-    </div>
-  );
-}
-
-function MiniStat({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="rounded-2xl bg-surface-2/60 px-3 py-2.5 min-w-0">
-      <p className="text-[11px] text-ink-mute truncate">{label}</p>
-      <p className="font-display text-xl text-ink tabular leading-tight">{value}</p>
-      <p className="text-[11px] text-ink-mute truncate">{hint}</p>
     </div>
   );
 }
@@ -316,53 +240,6 @@ function Tile({ icon, label, value, hint, tone, onClick }: { icon: React.ReactNo
   );
 }
 
-/** Conteúdo de referência: o que importa em cada fase (visual de guia). */
-function PhaseGuide({ currentWeek }: { currentWeek: number }) {
-  const phase = phaseOf(currentWeek);
-  const [openPhase, setOpenPhase] = useState<string | null>(phase.id);
-  return (
-    <section className="rounded-[28px] bg-surface-2/70 p-5 md:p-7">
-      <p className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-mute mb-1">
-        <BookOpen className="w-3.5 h-3.5" /> Guia
-      </p>
-      <h2 className="text-[1.2rem] text-ink mb-2">O que importa em cada fase</h2>
-      <ul className="divide-y divide-line">
-        {PHASES.map(p => {
-          const isOpen = openPhase === p.id;
-          const isNow = p.id === phase.id;
-          return (
-            <li key={p.id}>
-              <button type="button" onClick={() => setOpenPhase(isOpen ? null : p.id)} aria-expanded={isOpen} className="w-full flex items-center gap-3 py-3 text-left">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${isNow ? 'bg-brand' : currentWeek > p.to ? 'bg-ok' : 'bg-line'}`} />
-                <span className="flex-1 min-w-0">
-                  <span className="font-semibold text-ink">{p.title}</span>
-                  <span className="text-xs text-ink-mute"> · {p.label}, sem. {p.from}–{p.to}</span>
-                </span>
-                {isNow && <Pill tone="brand">agora</Pill>}
-                <ChevronDown className={`w-4 h-4 text-ink-mute transition ${isOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {isOpen && (
-                <div className="pb-4 pl-5 space-y-2">
-                  <p className="text-sm text-ink-soft">{p.focus}</p>
-                  <p className="text-xs font-semibold text-ink">{p.visits}</p>
-                  <ul className="space-y-1.5">
-                    {p.care.map(c => (
-                      <li key={c} className="text-sm text-ink flex gap-2">
-                        <span className="text-brand">•</span>
-                        {c}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      <p className="text-[11px] text-ink-mute mt-3">{PLAN_SOURCE}</p>
-    </section>
-  );
-}
 
 function SymptomTable({ stats, selectedKey, onSelect }: { stats: SymptomStats[]; selectedKey: string | null; onSelect: (k: string | null) => void }) {
   return (
@@ -609,40 +486,6 @@ function PressureSection({ metrics }: { metrics: HealthMetric[] }) {
           </details>
         </>
       )}
-    </Card>
-  );
-}
-
-/** Itens que o casal pôs na jornada (ex.: um exame que a médica pediu) e os ocultados. */
-function OwnSteps({ ownSteps, hiddenSteps, listsAvailable, busy, checksAvailable, onToggleStep, onAddStep, onRenameItem, onDeleteItem, onHideStep, done }: Props & { done: Set<string> }) {
-  const menu = useRowMenu();
-  if (!listsAvailable) return null;
-  const hidden = PLAN_ITEMS.filter(i => hiddenSteps.has(i.id)).map(i => ({ id: i.id, label: i.title }));
-  const sorted = [...ownSteps].sort((a, b) => (a.week ?? 99) - (b.week ?? 99));
-  return (
-    <Card>
-      <SectionTitle icon={<ListPlus className="w-5 h-5" />} title="Itens de vocês" subtitle="O que a equipe pediu e não está na lista padrão: um exame a mais, uma vacina, uma visita." />
-      {sorted.length === 0 && <p className="text-sm text-ink-soft mb-1">Nenhum item próprio ainda.</p>}
-      <ul className="divide-y divide-line">
-        {sorted.map(i => {
-          const isDone = done.has(i.id);
-          return (
-            <li key={i.id} className="py-2">
-              <div className="flex items-center gap-3">
-                <DoneToggle done={isDone} label={i.title} busy={busy || !checksAvailable} onToggle={() => onToggleStep(i.id, !isDone)} />
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold ${isDone ? 'text-ink-mute line-through' : 'text-ink'}`}>{i.title}</p>
-                  {i.week && <p className="text-xs text-ink-mute">semana {i.week}</p>}
-                </div>
-                <MenuButton open={menu.open === i.id} label={i.title} onClick={() => menu.toggle(i.id)} />
-              </div>
-              {menu.open === i.id && <RowMenu onDone={menu.close} actions={{ custom: { title: i.title, onRename: t => onRenameItem(i, t), onDelete: () => onDeleteItem(i) } }} />}
-            </li>
-          );
-        })}
-      </ul>
-      <AddItem placeholder="Ex.: Ecocardiograma fetal" withWeek disabled={busy} onAdd={onAddStep} />
-      <HiddenItems items={hidden} onShow={id => onHideStep(id, false)} />
     </Card>
   );
 }
