@@ -41,8 +41,6 @@ const serverEnv = {
   FILES_DIR,
   // Os avisos do dia saem a partir das 8h; nos testes, a qualquer hora.
   LEMBRETES_QUALQUER_HORA: '1',
-  // Contas de teste que administram o conteúdo (/api/conteudo).
-  ADMIN_EMAILS: 'admin@exemplo.com',
 };
 // O servidor local não lê o .env.local aqui: os testes nunca usam as credenciais de verdade.
 for (const k of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'RESEND_API_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'BLOB_READ_WRITE_TOKEN', 'BLOB_STORE_ID']) delete serverEnv[k];
@@ -107,7 +105,6 @@ const tests = [
   ['e2e-inicio.mjs', false],
   ['e2e-formularios.mjs', false],
   ['e2e-jornada.mjs', false],
-  ['e2e-conteudo.mjs', false],
   ['e2e-barriga.mjs', false],
   ['e2e-saude-resumo.mjs', false],
 ];

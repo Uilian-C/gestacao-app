@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useScrollLock } from '../../hooks/useScrollLock';
-import { BookOpen, Camera, Check, Copy, Download, ImagePlus, Link2, Loader2, LogOut, MessageCircle, Pencil, Trash2, UserMinus, X } from 'lucide-react';
+import { Camera, Check, Copy, Download, ImagePlus, Link2, Loader2, LogOut, MessageCircle, Pencil, Trash2, UserMinus, X } from 'lucide-react';
 import { api, ApiError, type FamilyState, type Me } from '../../api';
 import { FileProblem, prepareAvatar } from '../../lib/examFiles';
 import { formatInviteCode, inviteLink } from '../../lib/invite';
@@ -19,14 +19,12 @@ interface Props {
   onFamilyChange: (family: FamilyState | null) => void;
   onSignOut: () => void;
   onAccountDeleted: () => void;
-  /** Só para quem administra o conteúdo do app (ADMIN_EMAILS). */
-  onOpenContent?: () => void;
 }
 
 const ROLE_LABEL: Record<Author, string> = { mae: 'Mãe', pai: 'Pai' };
 
 /** "Nosso espaço": quem participa, convite para o(a) parceiro(a) e conta. */
-export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSignOut, onAccountDeleted, onOpenContent }: Props) {
+export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSignOut, onAccountDeleted }: Props) {
   const [invite, setInvite] = useState<{ code: string; expiresAt: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -143,16 +141,6 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        {onOpenContent && (
-          <button type="button" onClick={onOpenContent} className="w-full flex items-center gap-3 rounded-[24px] bg-brand-soft px-5 py-4 text-left">
-            <BookOpen className="w-5 h-5 text-brand-strong shrink-0" />
-            <span className="flex-1 min-w-0">
-              <span className="block font-bold text-ink">Conteúdo do app</span>
-              <span className="block text-xs text-ink-soft">Administração: mensagem do dia e leituras da semana</span>
-            </span>
-          </button>
-        )}
 
         <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-3">
           <h3 className="text-base">Quem participa</h3>
