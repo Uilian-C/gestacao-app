@@ -73,7 +73,9 @@ export interface Reaction {
   target_type: SocialTarget;
   target_id: string;
   kind: ReactionKind;
-  author_role: 'mae' | 'pai';
+  /** 'familia': um familiar (migração 023), achado por `author_id`. */
+  author_role: 'mae' | 'pai' | 'familia';
+  author_id?: string | null;
   mine: boolean;
 }
 
@@ -82,7 +84,9 @@ export interface ThreadComment {
   target_type: 'entry' | 'exam';
   target_id: string;
   body: string;
-  author_role: 'mae' | 'pai';
+  /** 'familia': um familiar (migração 023), achado por `author_id`. */
+  author_role: 'mae' | 'pai' | 'familia';
+  author_id?: string | null;
   mine: boolean;
   created_at: string;
 }
@@ -116,7 +120,7 @@ export interface JournalEntry {
   id: string;
   entry_date: string;
   body: string;
-  visibility: 'private' | 'shared';
+  visibility: Visibility;
   remind_on: string | null;
   /** Dia e hora do lembrete (migração 018). */
   remind_at?: string | null;
@@ -129,6 +133,9 @@ export interface JournalEntry {
   /** Fotos do registro; `thumb` diz se há miniatura para as listas. */
   photos: EntryPhoto[];
 }
+
+/** Só eu, nós dois, ou nós dois e a família (migração 023). */
+export type Visibility = 'private' | 'shared' | 'family';
 
 export type Mood = 'otima' | 'bem' | 'cansada' | 'enjoada' | 'ansiosa';
 

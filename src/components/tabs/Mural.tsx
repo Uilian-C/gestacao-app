@@ -1,13 +1,12 @@
 import { useContext, useState } from 'react';
-import { ChevronRight, Heart, Lock, MessageCircle, PenLine, Send } from 'lucide-react';
-import { photoUrl, type FamilyMember } from '../../api';
+import { ChevronRight, Heart, Lock, MessageCircle, PenLine, Send, Users } from 'lucide-react';
+import { photoUrl, type FamilyMember, type Relative, type SpaceRole } from '../../api';
 import type { Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { daysBetween, parseLocalDate, toISODate } from '../../lib/dates';
 import { FOLDER, TONE, shortDate, weekOn } from '../../lib/folders';
 import { mentionsMe } from '../../lib/mentions';
-import { PeopleContext, authorOf, firstName } from '../../lib/people';
+import { PeopleContext, RelativesContext, authorOf, firstName, speakerOf } from '../../lib/people';
 import { useMention } from '../../lib/useMention';
-import type { Author } from '../../types';
 import Avatar from '../Avatar';
 import { MentionBar, MentionText } from '../Mentions';
 import type { OnReact } from '../Social';
@@ -15,13 +14,15 @@ import type { OnReact } from '../Social';
 // O Mural do diário: tudo o que vocês guardam, do mais novo ao mais antigo, como
 // uma rede social só de vocês dois. Foto grande, quem postou, abraço e conversa
 // ali mesmo. As pastas continuam no Fichário, para guardar e procurar.
+// Os familiares (migração 023) veem aqui só os posts para a família, e só
+// abraçam e comentam.
 
 const PAGE = 12;
 
 interface Props {
   entries: JournalEntry[];
   members: FamilyMember[];
-  role: Author;
+  role: SpaceRole;
   dumDate: string;
   reactions: Reaction[];
   threads: ThreadComment[];
@@ -31,7 +32,8 @@ interface Props {
   onReact: OnReact;
   onComment: (entryId: string, body: string) => Promise<boolean>;
   onOpen: (entryId: string) => void;
-  onWrite: (folder: Folder) => void;
+  /** Sem ele (familiar), não há o campo de escrever. */
+  onWrite?: (folder: Folder) => void;
 }
 
 /** "hoje", "ontem", "há 3 dias" ou a data. */
@@ -45,27 +47,38 @@ function when(iso: string) {
 
 export default function Mural(props: Props) {
   const [shown, setShown] = useState(PAGE);
-  const me = props.members.find(m => m.me);
+  const relatives = useContext(RelativesContext);
+  const me: FamilyMember | Relative | undefined = props.members.find(m => m.me) ?? relatives.find(r => r.me);
   const list = props.entries.slice(0, shown);
+  const { onWrite } = props;
 
   return (
     // Uma coluna de leitura: no tablet e no computador o post não estica até a borda.
     <div className="space-y-4 max-w-[560px] mx-auto">
-      <button
+      {onWrite && <button
         type="button"
         disabled={!props.journalAvailable}
-        onClick={() => props.onWrite('momento')}
+        onClick={() => onWrite('momento')}
         className="w-full flex items-center gap-3 rounded-[26px] bg-surface shadow-soft p-3 pr-4 text-left transition hover:brightness-[0.99] disabled:opacity-60"
       >
         <Avatar member={me} role={props.role} className="w-11 h-11 text-base" />
         <span className="flex-1 min-w-0 rounded-full bg-surface-2 px-4 py-2.5 text-[15px] text-ink-mute truncate">O que vocês querem guardar hoje?</span>
         <PenLine className="w-5 h-5 text-brand shrink-0" aria-hidden />
-      </button>
+      </button>}
 
       {props.entries.length === 0 ? (
         <div className="rounded-[26px] bg-surface shadow-soft p-6 text-center space-y-1">
-          <p className="font-display text-[1.25rem] text-ink">O mural de vocês começa aqui</p>
-          <p className="text-sm text-ink-soft">Uma foto da barriga, uma notícia, uma carta para o bebê: tudo aparece aqui, com abraço e conversa.</p>
+          {onWrite ? (
+            <>
+              <p className="font-display text-[1.25rem] text-ink">O mural de vocês começa aqui</p>
+              <p className="text-sm text-ink-soft">Uma foto da barriga, uma notícia, uma carta para o bebê: tudo aparece aqui, com abraço e conversa.</p>
+            </>
+          ) : (
+            <>
+              <p className="font-display text-[1.25rem] text-ink">Ainda não há posts para a família</p>
+              <p className="text-sm text-ink-soft">Quando o casal guardar um momento para a família, ele aparece aqui, e você recebe um aviso.</p>
+            </>
+          )}
         </div>
       ) : (
         <ol className="space-y-4" aria-label="Mural">
@@ -86,7 +99,8 @@ export default function Mural(props: Props) {
   );
 }
 
-function Post({ entry: e, me, members, role, dumDate, reactions, threads, social, onReact, onComment, onOpen }: Props & { entry: JournalEntry; me?: FamilyMember }) {
+function Post({ entry: e, me, members, role, dumDate, reactions, threads, social, onReact, onComment, onOpen }: Props & { entry: JournalEntry; me?: FamilyMember | Relative }) {
+  const relatives = useContext(RelativesContext);
   const f = FOLDER[e.folder];
   const t = TONE[f.tone];
   const who = authorOf(members, e.mine, e.author_role);
@@ -97,7 +111,7 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
   const letter = e.folder === 'carta';
   const serif = e.folder === 'momento' || letter;
   const open = () => onOpen(e.id);
-  const others = [...new Set(hugs.filter(r => !r.mine).map(r => (r.author_role === 'mae' ? 'mãe' : 'pai')))];
+  const others = [...new Set(hugs.filter(r => !r.mine).map(r => speakerOf(members, relatives, r).label))];
   const fromMe = hugs.some(r => r.mine);
   const hugText = !others.length ? 'Você reagiu' : `${hugs.length === 1 ? 'Abraço' : 'Reações'} de ${others.join(' e ')}${fromMe ? ' e sua' : ''}`;
 
@@ -122,6 +136,11 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
               <f.Icon className="w-3 h-3" /> {f.singular}
             </span>
             · {when(e.entry_date)} · semana {weekOn(dumDate, e.entry_date)}
+            {e.visibility === 'family' && role !== 'familia' && (
+              <span className="inline-flex items-center gap-0.5">
+                · <Users className="w-3 h-3" /> família
+              </span>
+            )}
             {e.visibility === 'private' && (
               <span className="inline-flex items-center gap-0.5">
                 · <Lock className="w-3 h-3" /> só você
@@ -175,12 +194,12 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
             </button>
           )}
           {comments.slice(-2).map(c => {
-            const by = authorOf(members, c.mine, c.author_role);
+            const by = speakerOf(members, relatives, c);
             return (
               <p key={c.id} className="flex items-start gap-2 text-[14.5px] text-ink">
-                <Avatar member={by} role={c.author_role} className="w-6 h-6 text-[10px] mt-0.5" />
+                <Avatar member={by.person} role={c.author_role} className="w-6 h-6 text-[10px] mt-0.5" />
                 <span className="min-w-0 break-words">
-                  <strong className="font-extrabold">{by ? firstName(by.name) : c.author_role === 'mae' ? 'Mãe' : 'Pai'}</strong> <MentionText text={c.body} />
+                  <strong className="font-extrabold">{by.name}</strong> <MentionText text={c.body} />
                 </span>
               </p>
             );
@@ -253,7 +272,7 @@ function Photos({ entry: e, week, onOpen }: { entry: JournalEntry; week: number 
 }
 
 /** Comentar ali mesmo, sem abrir o registro. */
-function Reply({ entryId, me, role, onComment }: { entryId: string; me?: FamilyMember; role: Author; onComment: Props['onComment'] }) {
+function Reply({ entryId, me, role, onComment }: { entryId: string; me?: FamilyMember | Relative; role: SpaceRole; onComment: Props['onComment'] }) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const { ref: fieldRef, track, suggestions, unmarked, insert } = useMention<HTMLInputElement>(draft, setDraft, useContext(PeopleContext));

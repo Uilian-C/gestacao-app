@@ -1,8 +1,8 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { Bell, Camera, ImagePlus, Loader2, Lock, Users, X } from 'lucide-react';
+import { Bell, Camera, HeartHandshake, ImagePlus, Loader2, Lock, Users, X } from 'lucide-react';
 import { photoUrl } from '../../api';
 import { WORK_RIGHTS, WORK_RIGHTS_SOURCE, WORK_TERMS } from '../../content/workRights';
-import type { Folder, JournalEntry } from '../../hooks/useGestationData';
+import type { Folder, JournalEntry, Visibility } from '../../hooks/useGestationData';
 import { formatBR, parseLocalDate, toISODate } from '../../lib/dates';
 import { FileProblem, preparePhoto, type PreparedPhoto } from '../../lib/examFiles';
 import { FOLDER, FOLDERS, TONE, weekOn } from '../../lib/folders';
@@ -11,7 +11,7 @@ import DayPicker from './DayPicker';
 import ReminderPicker from './ReminderPicker';
 import { reminderAt, reminderTime } from '../../lib/reminders';
 import { MentionBar } from '../Mentions';
-import { PeopleContext, TimedRemindersReady } from '../../lib/people';
+import { PeopleContext, RelativesContext, TimedRemindersReady, firstName } from '../../lib/people';
 import { useMention } from '../../lib/useMention';
 import { inputClass } from '../styles';
 import { Button, Segmented } from '../ui';
@@ -22,7 +22,7 @@ import { Button, Segmented } from '../ui';
 export interface NewEntry {
   date: string;
   body: string;
-  visibility: 'private' | 'shared';
+  visibility: Visibility;
   remindOn: string | null;
   /** Dia e hora do lembrete (ISO); undefined quando o app ainda não pergunta a hora. */
   remindAt?: string | null;
@@ -56,7 +56,10 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
   const [folder, setFolder] = useState<Folder>(initial?.folder ?? (photosAvailable ? startFolder : 'momento'));
   const [body, setBody] = useState(initial?.body ?? idea ?? '');
   const [date, setDate] = useState(initial?.entry_date ?? today);
-  const [visibility, setVisibility] = useState<'private' | 'shared'>(initial?.visibility ?? 'shared');
+  const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? 'shared');
+  // "Família" aparece quando há familiares no espaço (ou o post já era para eles).
+  const relatives = useContext(RelativesContext);
+  const withFamily = relatives.length > 0 || initial?.visibility === 'family';
   const [remindOn, setRemindOn] = useState<string | null>(initial?.remind_on ?? null);
   const withTime = useContext(TimedRemindersReady);
   const [remindTime, setRemindTime] = useState(reminderTime(initial?.remind_at));
@@ -198,7 +201,7 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
           maxLength={4000}
         />
         {/* Marcar a outra pessoa (só no que os dois veem). */}
-        {visibility === 'shared' && <MentionBar suggestions={suggestions} unmarked={unmarked} onPick={insert} always />}
+        {visibility !== 'private' && <MentionBar suggestions={suggestions} unmarked={unmarked} onPick={insert} always />}
         <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" aria-label="Ideias">
           {info.ideas.map(i => (
             <button key={i} type="button" onClick={() => setBody(b => (b.trim() ? b : i))} className="shrink-0 rounded-full px-3 py-1 text-[13px] bg-surface-2 text-ink-soft hover:text-ink">
@@ -220,6 +223,7 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
           onChange={setVisibility}
           options={[
             { value: 'shared', label: <span className="flex items-center gap-1"><Users className="w-3 h-3" />Nós dois</span> },
+            ...(withFamily ? [{ value: 'family' as const, label: <span className="flex items-center gap-1"><HeartHandshake className="w-3 h-3" />Família</span> }] : []),
             { value: 'private', label: <span className="flex items-center gap-1"><Lock className="w-3 h-3" />Só eu</span> },
           ]}
         />
@@ -242,7 +246,11 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
         />
       )}
       <p className="text-xs text-ink-mute -mt-1">
-        {visibility === 'private' ? 'Só você vai ver, nem a outra pessoa do espaço.' : 'Vocês dois vão ver.'}
+        {visibility === 'private'
+          ? 'Só você vai ver, nem a outra pessoa do espaço.'
+          : visibility === 'family'
+            ? `Vocês dois e a família (${relatives.length === 1 ? firstName(relatives[0].name) : `${relatives.length} pessoas`}) vão ver, abraçar e comentar.`
+            : 'Vocês dois vão ver.'}
         {remindOn && ' O lembrete aparece no Início e na Agenda.'}
       </p>
 

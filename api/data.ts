@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { query, transaction } from './_lib/db.js';
-import { fetchAll } from './_lib/gestation.js';
-import { HttpError, endpoint, json, readJson, requireMember, type Member } from './_lib/http.js';
+import { fetchAll, fetchFamilyView } from './_lib/gestation.js';
+import { COUPLE_ONLY, HttpError, endpoint, isCouple, json, readJson, type Member, requireSpace, type SpaceMember } from './_lib/http.js';
 import { mentioned } from './_lib/mentions.js';
 import { notify, type PushPayload } from './_lib/push.js';
 import { VISIBLE_TARGET } from './_lib/social.js';
@@ -58,7 +58,8 @@ const FOLDERS = ['momento', 'dia', 'ideia', 'carta', 'barriga'] as const;
 const entryFields = {
   // Pode ficar vazio só na foto da barriga (a legenda é opcional); ver apply().
   body: z.string().trim().max(4000),
-  visibility: z.enum(['private', 'shared']),
+  // 'family': o casal e os familiares (migração 023) veem.
+  visibility: z.enum(['private', 'shared', 'family']),
   remindOn: isoDate.nullish().transform(v => v || null),
   // Pasta do fichário (migração 012). Ao criar sem pasta, vai para "momento"; ao editar sem pasta, fica onde está.
   folder: z.enum(FOLDERS).optional(),
@@ -479,7 +480,7 @@ async function apply(m: Member, o: Op) {
       // Fica no registro de avisos de quem recebe ("abraco:dia:quem mandou"): o Início mostra, e não repete no mesmo dia.
       return query(
         `INSERT INTO notification_log (user_id, key)
-         SELECT user_id, $3 FROM family_members WHERE family_id = $1 AND user_id <> $2
+         SELECT user_id, $3 FROM family_members WHERE family_id = $1 AND user_id <> $2 AND role <> 'familia'
          ON CONFLICT DO NOTHING RETURNING user_id`,
         [fid, m.userId, `abraco:${o.day}:${m.userId}`],
       );
@@ -604,15 +605,46 @@ function tagged(o: Op, partners: Partner[], prev: Before): { people: Partner[]; 
   }
 }
 
-async function notifyPartners(m: Member, o: Op, prev: Before) {
-  const rows = await query<Partner & { me: boolean }>(
+interface Person extends Partner {
+  me: boolean;
+}
+
+async function peopleOf(m: SpaceMember) {
+  return query<Person>(
     `SELECT m.user_id, m.role, split_part(u.name, ' ', 1) AS first, m.user_id = $2 AS me
      FROM family_members m JOIN "user" u ON u.id = m.user_id WHERE m.family_id = $1`,
     [m.familyId, m.userId],
   );
-  const partners = rows.filter(r => !r.me);
-  if (partners.length === 0) return;
+}
+
+/** Familiares que já conversaram num post da família: recebem as respostas. */
+async function inConversation(fid: string, entryId: string, people: Person[]) {
+  const rows = await query<{ user_id: string }>(
+    `SELECT DISTINCT c.user_id FROM comments c JOIN journal_entries e ON e.id = c.target_id AND e.visibility = 'family'
+     WHERE c.family_id = $1 AND c.target_type = 'entry' AND c.target_id = $2 AND c.author_role = 'familia'`,
+    [fid, entryId],
+  );
+  const ids = new Set(rows.map(r => r.user_id));
+  return people.filter(p => !p.me && p.role === 'familia' && ids.has(p.user_id)).map(p => p.user_id);
+}
+
+async function notifyPartners(m: Member, o: Op, prev: Before) {
+  const rows = await peopleOf(m);
+  // O casal recebe tudo como antes; os familiares, só os posts para a família e a conversa neles.
+  const partners = rows.filter(r => !r.me && r.role !== 'familia');
+  const relatives = rows.filter(r => r.role === 'familia');
   const who = rows.find(r => r.me)?.first || (m.role === 'mae' ? 'A mãe' : 'O pai');
+  const toFamily = async () => {
+    if (o.op === 'createEntry' && o.visibility === 'family' && relatives.length) {
+      await notify(relatives.map(r => r.user_id), 'momentos', { title: `${who} ${ENTRY_TEXT[o.folder ?? 'momento']}`, body: 'Toque para ver no Mural da família.', url: '/', tag: 'familia-post' });
+    }
+    if (o.op === 'comment' && o.targetType === 'entry') {
+      const ids = await inConversation(m.familyId, o.targetId, rows);
+      if (ids.length) await notify(ids, 'momentos', { title: `${who} respondeu no Mural`, body: 'Toque para ver a conversa.', url: '/', tag: `conversa-${o.targetId}` });
+    }
+  };
+  await toFamily().catch(err => console.error('Aviso à família não enviado', err));
+  if (partners.length === 0) return;
   const tag = tagged(o, partners, prev);
   const marked = new Set((tag?.people ?? []).map(p => p.user_id));
   const message = partnerMessage(o);
@@ -626,14 +658,74 @@ async function notifyPartners(m: Member, o: Op, prev: Before) {
   ]);
 }
 
+// ---- Familiares (migração 023): só abraço e conversa nos posts da família ----
+
+/** Comentários por hora de cada familiar: conversa, não enxurrada. */
+const RELATIVE_COMMENTS_PER_HOUR = 20;
+
+const relativeOps = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('react'), targetType: z.literal('entry'), targetId: uuid, kind: z.enum(['abraco', 'forca', 'aqui', 'festa']), on: z.boolean() }),
+  z.object({ op: z.literal('comment'), targetType: z.literal('entry'), targetId: uuid, body: text(1000) }),
+  z.object({ op: z.literal('deleteComment'), id: uuid }),
+]);
+
+const REACTION_FOR_FAMILY = { abraco: 'mandou um abraço', forca: 'mandou força', aqui: 'disse: estou aqui', festa: 'comemorou com vocês' } as const;
+
+async function applyRelative(m: SpaceMember, body: unknown) {
+  const parsed = relativeOps.safeParse(body);
+  if (!parsed.success) throw new HttpError(403, COUPLE_ONLY);
+  const o = parsed.data;
+  const fid = m.familyId;
+  if (o.op === 'deleteComment') {
+    const rows = await query('DELETE FROM comments WHERE id = $1 AND family_id = $2 AND user_id = $3 RETURNING id', [o.id, fid, m.userId]);
+    if (rows.length === 0) throw new HttpError(404, 'Comentário não encontrado.');
+    return;
+  }
+  const visible = await query("SELECT 1 FROM journal_entries WHERE id = $1 AND family_id = $2 AND visibility = 'family'", [o.targetId, fid]);
+  if (visible.length === 0) throw new HttpError(404, 'Registro não encontrado.');
+  let fresh = true;
+  if (o.op === 'react') {
+    if (!o.on) {
+      await query('DELETE FROM reactions WHERE target_type = $1 AND target_id = $2 AND user_id = $3 AND kind = $4', ['entry', o.targetId, m.userId, o.kind]);
+      return;
+    }
+    const rows = await query(
+      `INSERT INTO reactions (family_id, target_type, target_id, user_id, author_role, kind) VALUES ($1, 'entry', $2, $3, 'familia', $4) ON CONFLICT DO NOTHING RETURNING kind`,
+      [fid, o.targetId, m.userId, o.kind],
+    );
+    fresh = rows.length > 0;
+  } else {
+    const [recent] = await query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM comments WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 hour'`, [m.userId]);
+    if (recent.n >= RELATIVE_COMMENTS_PER_HOUR) throw new HttpError(429, 'Muitos comentários em pouco tempo. Tente de novo daqui a pouco.');
+    await query(`INSERT INTO comments (family_id, target_type, target_id, user_id, author_role, body) VALUES ($1, 'entry', $2, $3, 'familia', $4)`, [fid, o.targetId, m.userId, o.body]);
+  }
+  if (!fresh) return;
+  // Avisa o casal (e, na conversa, quem mais da família já comentou ali).
+  const notifyAll = async () => {
+    const rows = await peopleOf(m);
+    const who = rows.find(r => r.me)?.first || 'Alguém da família';
+    const couple = rows.filter(r => r.role !== 'familia').map(r => r.user_id);
+    const others = o.op === 'comment' ? await inConversation(fid, o.targetId, rows) : [];
+    const action = o.op === 'react' ? REACTION_FOR_FAMILY[o.kind] : 'comentou no Mural';
+    await notify([...couple, ...others], 'parceiro', { title: `${who} ${action}`, body: o.op === 'comment' ? o.body.slice(0, 120) : 'Toque para ver.', url: '/?aba=diario', tag: `conversa-${o.targetId}` });
+  };
+  await notifyAll().catch(err => console.error('Aviso da família não enviado', err));
+}
+
 export const GET = endpoint(async request => {
-  const member = await requireMember(request);
-  return json(await fetchAll(member.familyId, member.userId));
+  const member = await requireSpace(request);
+  return json(isCouple(member) ? await fetchAll(member.familyId, member.userId) : await fetchFamilyView(member.familyId, member.userId));
 });
 
 export const POST = endpoint(async request => {
-  const member = await requireMember(request);
-  const parsed = ops.safeParse(await readJson(request));
+  const space = await requireSpace(request);
+  const body = await readJson(request);
+  if (!isCouple(space)) {
+    await applyRelative(space, body);
+    return json({ ok: true, data: await fetchFamilyView(space.familyId, space.userId) });
+  }
+  const member = space;
+  const parsed = ops.safeParse(body);
   if (!parsed.success) throw new HttpError(400, 'Dados inválidos.');
   const prev = await before(member, parsed.data);
   const result = await apply(member, parsed.data);

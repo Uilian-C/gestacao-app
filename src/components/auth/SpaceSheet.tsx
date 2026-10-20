@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useScrollLock } from '../../hooks/useScrollLock';
-import { Camera, Check, Copy, Download, ImagePlus, Link2, Loader2, LogOut, MessageCircle, Pencil, Trash2, UserMinus, X } from 'lucide-react';
-import { api, ApiError, type FamilyState, type Me } from '../../api';
+import { Camera, Check, Copy, Download, HeartHandshake, ImagePlus, Link2, Loader2, LogOut, MessageCircle, Pencil, Trash2, UserMinus, X } from 'lucide-react';
+import { api, ApiError, type CoupleFamilyState, type FamilyState, type Me } from '../../api';
 import { FileProblem, prepareAvatar } from '../../lib/examFiles';
 import { formatInviteCode, inviteLink } from '../../lib/invite';
 import { formatBR } from '../../lib/dates';
+import { MAX_RELATION, RELATIONS, slotsText } from '../../lib/relatives';
 import type { Author } from '../../types';
 import { inputClass } from '../styles';
 import { Button, Segmented } from '../ui';
@@ -14,7 +15,7 @@ import NotificationSettings from '../NotificationSettings';
 
 interface Props {
   me: Me;
-  family: FamilyState;
+  family: CoupleFamilyState;
   onClose: () => void;
   onFamilyChange: (family: FamilyState | null) => void;
   onSignOut: () => void;
@@ -23,7 +24,7 @@ interface Props {
 
 const ROLE_LABEL: Record<Author, string> = { mae: 'Mãe', pai: 'Pai' };
 
-/** "Nosso espaço": quem participa, convite para o(a) parceiro(a) e conta. */
+/** "Nosso espaço": quem participa, convite para o(a) parceiro(a), a família e a conta. */
 export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSignOut, onAccountDeleted }: Props) {
   const [invite, setInvite] = useState<{ code: string; expiresAt: string } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -135,7 +136,7 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 id="space-title" className="text-[1.35rem]">Nosso espaço</h2>
-            <p className="text-sm text-ink-mute">Todos aqui veem e editam os mesmos registros.</p>
+            <p className="text-sm text-ink-mute">Vocês dois veem e editam tudo. A família vê só o que vocês mostrarem.</p>
           </div>
           <button ref={closeRef} type="button" onClick={onClose} aria-label="Fechar" className="w-9 h-9 rounded-full bg-surface-2 text-ink-soft flex items-center justify-center hover:text-ink">
             <X className="w-4 h-4" />
@@ -174,9 +175,9 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
           {confirmRemove && confirmRemove !== me.user.id && <p className="text-xs text-ink-mute">A pessoa perde o acesso na hora. Os registros dela continuam no espaço.</p>}
         </section>
 
-        <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-4">
+        {others.length === 0 && <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-4">
           <div>
-            <h3 className="text-base">Convidar {others.length ? 'mais alguém' : 'o(a) parceiro(a)'}</h3>
+            <h3 className="text-base">Convidar o(a) parceiro(a)</h3>
             <p className="text-sm text-ink-mute">O convite vale 7 dias e pode ser usado uma vez.</p>
           </div>
           {invite ? (
@@ -206,7 +207,9 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
               {busy ? <Loader2 className="animate-spin" /> : <Link2 />} Gerar link de convite
             </Button>
           )}
-        </section>
+        </section>}
+
+        <FamilySection family={family} onFamilyChange={onFamilyChange} />
 
         <NotificationSettings />
 
@@ -333,5 +336,159 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
         {error && <p role="alert" className="text-sm text-alert bg-alert-soft rounded-2xl px-4 py-2.5">{error}</p>}
       </div>
     </div>
+  );
+}
+
+/**
+ * A família no espaço (migração 023): avós, tios, padrinhos... Até as vagas do
+ * espaço, cada um com o parentesco. Veem a semana do bebê e os posts para a
+ * família; abraçam e comentam. Saúde, exames e agenda ficam só com o casal.
+ */
+function FamilySection({ family, onFamilyChange }: { family: CoupleFamilyState; onFamilyChange: (family: FamilyState | null) => void }) {
+  const relatives = family.relatives ?? [];
+  const slots = family.slots ?? 0;
+  const full = relatives.length >= slots;
+  const [invite, setInvite] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ userId: string; relation: string } | null>(null);
+  const link = invite ? inviteLink(invite.code) : '';
+  const message = `Quero que você acompanhe a gestação do nosso bebê de pertinho, no Tumtum: ${link}`;
+
+  const act = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível concluir. Verifique a conexão.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Não foi possível copiar. Selecione o link e copie manualmente.');
+    }
+  };
+
+  return (
+    <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-4" aria-labelledby="familia-title">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 id="familia-title" className="text-base flex items-center gap-2">
+            <HeartHandshake className="w-4 h-4 text-lilas" /> Família
+          </h3>
+          <p className="text-sm text-ink-mute">Avós, tios e padrinhos acompanham a semana do bebê e os posts que vocês marcarem como <strong className="text-ink-soft">Família</strong>. Saúde, exames e agenda ficam só com vocês.</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-lilas-soft px-2.5 py-1 text-xs font-extrabold text-lilas-strong tabular">{slotsText(relatives.length, slots)}</span>
+      </div>
+
+      {relatives.length > 0 && (
+        <ul className="divide-y divide-line" aria-label="Familiares">
+          {relatives.map(r => (
+            <li key={r.userId} className="py-3 space-y-2">
+              <div className="flex items-center gap-3">
+                <Avatar member={r} role="familia" className="w-10 h-10 text-sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-ink truncate">{r.name}</p>
+                  <p className="text-xs text-ink-mute truncate">{r.relation ?? 'Família'}</p>
+                </div>
+                <button type="button" onClick={() => setEditing({ userId: r.userId, relation: r.relation ?? '' })} aria-label={`Mudar o parentesco de ${r.name}`} className="w-9 h-9 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2 flex items-center justify-center">
+                  <Pencil className="w-4 h-4" />
+                </button>
+                {confirmRemove === r.userId ? (
+                  <div className="flex gap-1">
+                    <Button tone="ghost" onClick={() => setConfirmRemove(null)} className="px-3 py-1.5">Não</Button>
+                    <Button
+                      tone="warm"
+                      disabled={busy}
+                      onClick={() =>
+                        act(async () => {
+                          onFamilyChange((await api.family('removeMember', { userId: r.userId })).family);
+                          setConfirmRemove(null);
+                        })
+                      }
+                      className="px-3 py-1.5"
+                    >
+                      Remover
+                    </Button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setConfirmRemove(r.userId)} aria-label={`Remover ${r.name}`} className="w-9 h-9 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft flex items-center justify-center">
+                    <UserMinus className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              {editing?.userId === r.userId && (
+                <form
+                  className="flex gap-2"
+                  onSubmit={e => {
+                    e.preventDefault();
+                    const relation = editing.relation.trim();
+                    if (relation) {
+                      void act(async () => {
+                        onFamilyChange((await api.family('setRelation', { userId: r.userId, relation })).family);
+                        setEditing(null);
+                      });
+                    }
+                  }}
+                >
+                  <input aria-label="Parentesco" autoFocus list="parentescos-casal" className={`${inputClass} !py-2`} value={editing.relation} maxLength={MAX_RELATION} onChange={e => setEditing({ ...editing, relation: e.target.value })} />
+                  <Button type="submit" disabled={busy || !editing.relation.trim()} className="px-4">Salvar</Button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <datalist id="parentescos-casal">
+        {RELATIONS.map(r => (
+          <option key={r} value={r} />
+        ))}
+      </datalist>
+      {confirmRemove && <p className="text-xs text-ink-mute">A pessoa perde o acesso na hora, e os comentários e abraços dela saem junto.</p>}
+
+      {invite ? (
+        <div className="space-y-3">
+          <div className="rounded-2xl bg-surface-2 px-4 py-3">
+            <p className="text-xs text-ink-mute">Convite para a família</p>
+            <p className="font-display text-xl tracking-[0.15em] text-ink">{formatInviteCode(invite.code)}</p>
+            <p className="text-xs text-ink-mute mt-1 break-all">{link}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(message)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold bg-brand text-on-accent hover:bg-brand-strong shadow-soft [&_svg]:w-4 [&_svg]:h-4"
+            >
+              <MessageCircle /> WhatsApp
+            </a>
+            <Button tone="soft" onClick={copy}>
+              {copied ? <Check /> : <Copy />} {copied ? 'Copiado' : 'Copiar link'}
+            </Button>
+          </div>
+          <p className="text-xs text-ink-mute">Um convite por pessoa. Vence em {formatBR(invite.expiresAt.slice(0, 10))}.</p>
+          {!full && (
+            <button type="button" onClick={() => setInvite(null)} className="text-sm font-bold text-brand-strong">
+              Convidar mais alguém
+            </button>
+          )}
+        </div>
+      ) : (
+        <Button tone="soft" onClick={() => act(async () => setInvite(await api.family<{ code: string; expiresAt: string }>('invite', { kind: 'familia' })))} disabled={busy || full} className="w-full">
+          {busy ? <Loader2 className="animate-spin" /> : <Link2 />} {full ? 'Todas as vagas estão ocupadas' : 'Convidar alguém da família'}
+        </Button>
+      )}
+      {error && <p role="alert" className="text-sm text-alert bg-alert-soft rounded-2xl px-4 py-2.5">{error}</p>}
+    </section>
   );
 }

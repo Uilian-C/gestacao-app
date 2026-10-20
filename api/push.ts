@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { query } from './_lib/db.js';
-import { HttpError, endpoint, json, readJson, requireMember } from './_lib/http.js';
+import { HttpError, endpoint, json, readJson, requireSpace } from './_lib/http.js';
 import { NOTIFY_KINDS, isPushEndpoint, notify, vapidKeys } from './_lib/push.js';
 
 // Notificações de cada pessoa: ativar ou desativar neste aparelho e escolher o que receber.
@@ -18,7 +18,7 @@ async function prefsOf(userId: string) {
 }
 
 export const GET = endpoint(async request => {
-  const member = await requireMember(request);
+  const member = await requireSpace(request);
   await ready();
   const [{ publicKey }, prefs, devices] = await Promise.all([
     vapidKeys(),
@@ -42,7 +42,7 @@ const ops = z.discriminatedUnion('op', [
 ]);
 
 export const POST = endpoint(async request => {
-  const member = await requireMember(request);
+  const member = await requireSpace(request);
   const parsed = ops.safeParse(await readJson(request));
   if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Dados inválidos.');
   await ready();

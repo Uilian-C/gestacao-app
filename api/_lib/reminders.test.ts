@@ -12,6 +12,16 @@ describe('localDate', () => {
 });
 
 describe('planReminders', () => {
+  it('familiares recebem só a semana nova, com um texto para a família', () => {
+    const notices = planReminders('2026-10-16', [family({ relatives: ['avo'] })], [
+      { id: 'c1', family_id: 'f1', local: '2026-10-17 09:30', professional_name: null, location: null },
+    ], []);
+    const toAvo = notices.filter(n => n.userIds.includes('avo'));
+    expect(toAvo).toHaveLength(1);
+    expect(toAvo[0]).toMatchObject({ kind: 'jornada', key: 'semana:f1:24', payload: { title: '24 semanas', url: '/' } });
+    expect(notices.find(n => n.kind === 'consultas')?.userIds).toEqual(['mae', 'pai']);
+  });
+
   it('avisa a consulta na véspera e no dia, para todo o espaço', () => {
     const notices = planReminders('2026-10-16', [family()], [
       { id: 'c1', family_id: 'f1', local: '2026-10-17 09:30', professional_name: 'Dra. Ana', location: 'Clínica Bem Nascer' },

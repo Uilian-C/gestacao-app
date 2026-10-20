@@ -7,7 +7,7 @@ import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
 import { takeTabFromUrl, takeViewFromUrl } from './lib/pwa';
-import { api, ApiError, type FamilyState, type Me } from './api';
+import { api, ApiError, type CoupleFamilyState, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
 import Header from './components/Header';
 import FichaBar, { type FichaInput } from './components/FichaBar';
@@ -43,7 +43,7 @@ import { isConsultation, resultOf } from './lib/appointments';
 import { autoDone, planFor, visitsOf } from './lib/journey';
 import { doneByAppointments, journeyRows, plannedItems } from './lib/journeyPlan';
 import { JourneyContext } from './lib/journeyContext';
-import { AttendeesReady, PeopleContext, TaskRemindersReady, TimedRemindersReady } from './lib/people';
+import { AttendeesReady, PeopleContext, RelativesContext, TaskRemindersReady, TimedRemindersReady } from './lib/people';
 import { markSeen } from './lib/news';
 import { PLAN_ITEMS } from './content/prenatalPlan';
 
@@ -95,7 +95,7 @@ function greetingFor(hour: number): string {
 
 interface AppProps {
   me: Me;
-  family: FamilyState;
+  family: CoupleFamilyState;
   onFamilyChange: (family: FamilyState | null) => void;
   /** Sessão vencida ou pessoa removida do espaço: volta para a porta de entrada. */
   onAccessLost: () => void;
@@ -614,6 +614,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   return (
     <PeopleContext.Provider value={family.members}>
+    <RelativesContext.Provider value={family.relatives ?? []}>
     <JourneyContext.Provider value={{ items: journeyItems, done: doneSteps, consultations, dumDate }}>
     <AttendeesReady.Provider value={data.attendeesAvailable ?? false}>
     <TaskRemindersReady.Provider value={data.taskRemindersAvailable ?? false}>
@@ -1012,6 +1013,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     </TaskRemindersReady.Provider>
     </AttendeesReady.Provider>
     </JourneyContext.Provider>
+    </RelativesContext.Provider>
     </PeopleContext.Provider>
   );
 }

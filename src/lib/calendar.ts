@@ -39,7 +39,7 @@ export interface CalendarMoment {
   entry_date: string;
   body: string;
   remind_on: string | null;
-  visibility: 'private' | 'shared';
+  visibility: 'private' | 'shared' | 'family';
   author_role: Author;
 }
 

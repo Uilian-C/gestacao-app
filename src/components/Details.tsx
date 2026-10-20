@@ -221,7 +221,7 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
                   <f.Icon className="w-3 h-3" /> {f.title}
                 </span>
               )}
-              <Pill>{e.visibility === 'private' ? <><Lock /> Só você vê</> : <><Users /> Vocês dois veem</>}</Pill>
+              <Pill>{e.visibility === 'private' ? <><Lock /> Só você vê</> : e.visibility === 'family' ? <><Users /> Vocês dois e a família veem</> : <><Users /> Vocês dois veem</>}</Pill>
               {e.remind_on && <Pill tone="brand"><Bell /> Lembrar em {formatBR(e.remind_on)}</Pill>}
             </div>
             {h.socialAvailable && (

@@ -12,6 +12,12 @@ const KINDS: Array<{ id: NotifyKind; label: string; hint: string }> = [
   { id: 'parceiro', label: 'Registros da outra pessoa', hint: 'Sintoma, consulta, dúvida, tarefa ou momento novo.' },
 ];
 
+/** Para quem é da família (migração 023): só o que chega até ela. */
+const RELATIVE_KINDS: Array<{ id: NotifyKind; label: string; hint: string }> = [
+  { id: 'momentos', label: 'Posts novos e respostas', hint: 'Quando o casal posta para a família ou responde a você.' },
+  { id: 'jornada', label: 'Semana nova do bebê', hint: 'No dia em que o bebê completa mais uma semana.' },
+];
+
 /**
  * Passo a passo do iPhone: o Tumtum não vem da App Store; ele é instalado pelo
  * Safari, e o Safari só entrega notificações para apps na Tela de Início.
@@ -101,7 +107,7 @@ export function InstallButton({ className = '' }: { className?: string }) {
 }
 
 /** Seção "Notificações" do Nosso espaço. */
-export default function NotificationSettings() {
+export default function NotificationSettings({ relative = false }: { relative?: boolean }) {
   const { state, busy, error, notice, enable, disable, test, setPref } = usePush();
 
   return (
@@ -159,7 +165,7 @@ export default function NotificationSettings() {
       {'prefs' in state && (
         <fieldset className="space-y-1" disabled={busy}>
           <legend className="text-sm font-medium text-ink-soft mb-1">O que você quer receber</legend>
-          {KINDS.map(k => (
+          {(relative ? RELATIVE_KINDS : KINDS).map(k => (
             <label key={k.id} className="flex items-start gap-3 py-2 cursor-pointer">
               <input type="checkbox" className="mt-0.5 w-5 h-5 accent-[var(--c-brand)] shrink-0" checked={state.prefs[k.id]} onChange={e => setPref(k.id, e.target.checked)} />
               <span>
