@@ -591,6 +591,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       return setHealthView('registros');
     }
     if (target === 'graficos') return openDashboardView('sintomas');
+    if (target === 'medidas') return openDashboardView('corpo');
     if (target === 'jornada') return openJourney();
     if (target === 'tarefas' || target === 'agenda') {
       navigate('agenda');
@@ -695,6 +696,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             lateSteps={lateSteps}
             bellyAvailable={!!data.journalAvailable && (data.photosAvailable ?? false)}
             onBellyPhoto={() => writeEntry('barriga')}
+            metrics={metrics}
+            symptoms={symptoms}
+            preWeightKg={data.profile.preWeightKg}
+            onSaveMetric={createMetric}
           />
         )}
 

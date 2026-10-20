@@ -12,7 +12,7 @@ import { gestationMonth } from '../../lib/ficha';
 import { appointmentTitle } from '../../lib/appointments';
 import { buildUpcoming } from '../../lib/upcoming';
 import type { Insight } from '../../lib/symptoms';
-import type { Author, Consultation, PartnerTask } from '../../types';
+import type { Author, Consultation, HealthMetric, PartnerTask, SymptomItem } from '../../types';
 import BrandMark from '../BrandMark';
 import CheckIn from '../CheckIn';
 import { DumForm } from '../DumForm';
@@ -20,6 +20,10 @@ import PushPrompt from '../PushPrompt';
 import BellyCard from '../home/BellyCard';
 import { DailyMessage, Readings } from '../home/Readings';
 import type { ContentItem } from '../../api';
+import QuickHealth from '../home/QuickHealth';
+import WeekSummaryCard from '../home/WeekSummaryCard';
+import { showsWeekSummary, weekSummary } from '../../lib/weekSummary';
+import type { NewMetric } from '../forms/RecordForms';
 import { Card, LinkButton, SectionTitle } from '../ui';
 import { InsightList } from '../InsightList';
 import { Row } from './UpcomingTab';
@@ -29,7 +33,7 @@ import { mentionsMe } from '../../lib/mentions';
 import { PeopleContext } from '../../lib/people';
 
 /** Para onde o Início leva (abas e partes delas). */
-export type HomeTarget = 'diario' | 'mural' | 'humor' | 'barriga' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
+export type HomeTarget = 'diario' | 'mural' | 'humor' | 'barriga' | 'medidas' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
 
 interface Props {
   age: GestationalAge;
@@ -73,6 +77,11 @@ interface Props {
   /** Diário com fotos (migrações 008 e 012): o cartão da barriguinha da semana. */
   bellyAvailable: boolean;
   onBellyPhoto: () => void;
+  /** Saúde rápida: peso e pressão de um toque. */
+  metrics: HealthMetric[];
+  symptoms: SymptomItem[];
+  preWeightKg: number | null;
+  onSaveMetric: (m: NewMetric) => Promise<boolean>;
 }
 
 /** Anel da gestação (40 semanas) com o coração batendo no centro e ondas saindo dele. */
@@ -152,6 +161,7 @@ export default function HomeTab(props: Props) {
   const up = buildUpcoming({ consultations: props.consultations, tasks: props.tasks, journal: props.journal, exams: props.exams, today: now });
   const lateSteps = props.lateSteps;
   const members = useContext(PeopleContext);
+  const summaryRoles = (['mae', 'pai'] as const).filter(r => members.some(m => m.role === r) || props.checkins.some(c => c.author_role === r));
   // A última visita ao Diário, lida uma vez ao abrir o Início.
   const [since] = useState(() => lastSeen(props.userId));
   const news = partnerNews(props.journal, props.threads, members, since);
@@ -266,7 +276,18 @@ export default function HomeTab(props: Props) {
         </section>
       )}
 
+      {showsWeekSummary(now) && (
+        <WeekSummaryCard
+          summary={weekSummary({ today: now, roles: summaryRoles, checkins: props.checkins, journal: props.journal, consultations: props.consultations, tasks: props.tasks, symptoms: props.symptoms })}
+          week={currentWeek}
+          onMood={() => onOpen('humor')}
+          onMural={() => onOpen('mural')}
+        />
+      )}
+
       {props.checkinAvailable && <CheckIn role={props.role} checkins={props.checkins} hugs={props.hugs} onCheckin={props.onCheckin} onHug={props.onHug} onShare={props.onShareMood} onMonth={() => onOpen('humor')} posts={posts} onOpenEntry={id => props.onOpenDetail({ kind: 'entry', id })} onMural={() => onOpen('mural')} />}
+
+      <QuickHealth metrics={props.metrics} preWeightKg={props.preWeightKg} busy={props.busy} onSave={props.onSaveMetric} onMore={() => onOpen('medidas')} />
 
       {props.bellyAvailable && <BellyCard journal={props.journal} dumDate={props.dumDate} currentWeek={currentWeek} onPhoto={props.onBellyPhoto} onOpenEntry={id => props.onOpenDetail({ kind: 'entry', id })} onAll={() => onOpen('barriga')} />}
 

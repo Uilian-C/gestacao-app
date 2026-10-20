@@ -109,6 +109,7 @@ const tests = [
   ['e2e-jornada.mjs', false],
   ['e2e-conteudo.mjs', false],
   ['e2e-barriga.mjs', false],
+  ['e2e-saude-resumo.mjs', false],
 ];
 const only = process.argv.slice(2);
 
