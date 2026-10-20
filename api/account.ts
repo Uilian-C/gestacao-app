@@ -36,7 +36,16 @@ export const GET = endpoint(async request => {
     .catch(() => null);
 
   let space: Record<string, unknown> | null = null;
-  if (member) {
+  if (member?.role === 'familia') {
+    // Familiar: o que é dele no espaço (parentesco, conversa e abraços), nunca os dados do casal.
+    const fid = member.familyId;
+    const [membership, comments, reactions] = await Promise.all([
+      query(`SELECT to_jsonb(m)->>'relation' AS relation, m.joined_at FROM family_members m WHERE m.user_id = $1`, [user.id]),
+      query('SELECT body, created_at FROM comments WHERE family_id = $1 AND user_id = $2 ORDER BY created_at', [fid, user.id]).catch(() => []),
+      query('SELECT kind, created_at FROM reactions WHERE family_id = $1 AND user_id = $2 ORDER BY created_at', [fid, user.id]).catch(() => []),
+    ]);
+    space = { membership: membership[0] ?? null, comments, reactions };
+  } else if (member) {
     const fid = member.familyId;
     const [profile, members, ...tables] = await Promise.all([
       query('SELECT * FROM families WHERE id = $1', [fid]),
@@ -51,7 +60,7 @@ export const GET = endpoint(async request => {
       `SELECT entry_date, COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS pasta, body, visibility, remind_on, author_role, created_at
               ${photos ? ', (SELECT COUNT(*)::int FROM journal_files f WHERE f.entry_id = j.id) AS fotos' : ''}
        FROM journal_entries j
-       WHERE family_id = $1 AND (visibility = 'shared' OR user_id = $2) ORDER BY entry_date`;
+       WHERE family_id = $1 AND (visibility <> 'private' OR user_id = $2) ORDER BY entry_date`;
     // As fotos em si se baixam pelo app; aqui vai quantas cada registro tem (se a migração 012 já rodou).
     const journal = await query(journalSql(true), [fid, user.id])
       .catch(() => query(journalSql(false), [fid, user.id]))
@@ -60,7 +69,7 @@ export const GET = endpoint(async request => {
     const exams = await query(
       `SELECT e.kind, e.title, e.exam_date, e.plan_item, e.notes, e.visibility, e.author_role, e.created_at,
               (SELECT COUNT(*)::int FROM exam_files f WHERE f.exam_id = e.id) AS arquivos
-       FROM exams e WHERE e.family_id = $1 AND (e.visibility = 'shared' OR e.user_id = $2) ORDER BY e.exam_date`,
+       FROM exams e WHERE e.family_id = $1 AND (e.visibility <> 'private' OR e.user_id = $2) ORDER BY e.exam_date`,
       [fid, user.id],
     ).catch(() => []);
     // Listas do casal, reações e conversas (só as de registros que o titular vê).
@@ -123,10 +132,18 @@ export const POST = endpoint(async request => {
 
   await transaction(async client => {
     if (member) {
-      const { rows } = await client.query('SELECT user_id FROM family_members WHERE family_id = $1 FOR UPDATE', [member.familyId]);
-      // Excluir o espaço (qualquer membro pode: poderes iguais) ou sair sendo a última pessoa:
-      // o espaço e todos os registros somem junto (ON DELETE CASCADE).
-      if (parsed.data.op === 'deleteSpace' || rows.length <= 1) {
+      const { rows } = await client.query('SELECT user_id, role FROM family_members WHERE family_id = $1 FOR UPDATE', [member.familyId]);
+      const relative = member.role === 'familia';
+      if (relative && parsed.data.op === 'deleteSpace') throw new HttpError(403, 'Só o casal pode excluir o espaço.');
+      // Familiar que sai leva a conversa e os abraços dele.
+      if (relative) {
+        await client.query('DELETE FROM comments WHERE family_id = $1 AND user_id = $2', [member.familyId, user.id]);
+        await client.query('DELETE FROM reactions WHERE family_id = $1 AND user_id = $2', [member.familyId, user.id]);
+      }
+      // Excluir o espaço (qualquer pessoa do casal pode: poderes iguais) ou sair sendo a última
+      // pessoa do casal: o espaço e todos os registros somem junto (ON DELETE CASCADE).
+      const couple = rows.filter((r: { role: string }) => r.role !== 'familia');
+      if (!relative && (parsed.data.op === 'deleteSpace' || couple.length <= 1)) {
         await client.query('DELETE FROM families WHERE id = $1', [member.familyId]);
         removeSpaceFiles = true;
       }

@@ -15,7 +15,7 @@ function dismissed() {
 }
 
 /** Convite no Início para ligar os lembretes neste aparelho. Some de vez ao ativar ou fechar. */
-export default function PushPrompt() {
+export default function PushPrompt({ relative = false }: { relative?: boolean }) {
   const [hidden, setHidden] = useState(dismissed);
   const { state, busy, error, enable } = usePush();
   if (hidden || (state.phase !== 'desligado' && state.phase !== 'ios-instalar' && state.phase !== 'outro-navegador')) return null;
@@ -39,8 +39,12 @@ export default function PushPrompt() {
           <BellRing className="w-5 h-5" />
         </span>
         <div>
-          <p className="font-semibold text-ink">Lembretes no celular</p>
-          <p className="text-sm text-ink-soft">Véspera das consultas, semana nova, exames chegando e os lembretes dos momentos, mesmo com o app fechado.</p>
+          <p className="font-semibold text-ink">{relative ? 'Avisos no celular' : 'Lembretes no celular'}</p>
+          <p className="text-sm text-ink-soft">
+            {relative
+              ? 'Saiba na hora quando o casal postar para a família, quando responderem você e a cada semana nova do bebê.'
+              : 'Véspera das consultas, semana nova, exames chegando e os lembretes dos momentos, mesmo com o app fechado.'}
+          </p>
         </div>
       </div>
       {state.phase === 'ios-instalar' ? (
@@ -49,7 +53,7 @@ export default function PushPrompt() {
         <OpenInChrome />
       ) : (
         <Button onClick={enable} disabled={busy}>
-          {busy ? <Loader2 className="animate-spin" /> : <BellRing />} Ativar lembretes
+          {busy ? <Loader2 className="animate-spin" /> : <BellRing />} {relative ? 'Ativar avisos' : 'Ativar lembretes'}
         </Button>
       )}
       {error && <p className="text-sm text-alert" role="alert">{error}</p>}

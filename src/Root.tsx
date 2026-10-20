@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { CloudRain } from 'lucide-react';
 import App from './App';
 import BrandMark from './components/BrandMark';
-import { api, ApiError, type FamilyState, type Me } from './api';
+import { api, ApiError, isCoupleFamily, type FamilyState, type Me } from './api';
 import AuthScreen from './components/auth/AuthScreen';
 import ConsentScreen from './components/auth/ConsentScreen';
 import Onboarding from './components/auth/Onboarding';
+import FamilyApp from './components/family/FamilyApp';
 import { authClient } from './lib/authClient';
 import { clearPendingInvite } from './lib/invite';
 import { markHere } from './lib/returning';
@@ -93,6 +94,8 @@ export default function Root() {
   }
   if (!current.family) return <Onboarding name={current.user.name} onReady={setFamily} onSignOut={signOut} />;
 
+  // Quem é da família (migração 023) usa um Tumtum próprio, só com o que o casal mostra.
+  if (!isCoupleFamily(current.family)) return <FamilyApp me={current} family={current.family} onFamilyChange={setFamily} onAccessLost={reload} onSignOut={signOut} />;
   return <App me={current} family={current.family} onFamilyChange={setFamily} onAccessLost={reload} onSignOut={signOut} />;
 }
 

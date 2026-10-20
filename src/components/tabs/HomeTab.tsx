@@ -163,7 +163,7 @@ export default function HomeTab(props: Props) {
   // Os 2 últimos posts do Mural (dos dois, da última semana) entram no "Vocês dois hoje".
   const newIds = new Set(news.entries.map(e => e.id));
   const posts = props.journal
-    .filter(e => e.visibility === 'shared' && daysBetween(parseLocalDate(e.entry_date), parseLocalDate(todayIso)) <= 7)
+    .filter(e => e.visibility !== 'private' && daysBetween(parseLocalDate(e.entry_date), parseLocalDate(todayIso)) <= 7)
     .slice(0, 2)
     .map(entry => ({ entry, isNew: newIds.has(entry.id), mentionsMe: !entry.mine && mentionsMe(members, entry.body) }));
   // O próximo agendamento já aparece em destaque: não se repete nas listas abaixo.

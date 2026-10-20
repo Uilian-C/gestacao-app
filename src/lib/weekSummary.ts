@@ -50,7 +50,7 @@ export function weekSummary(input: { today: Date; roles: Author[]; checkins: Che
     const top = [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
     return { role, days: new Set(mine.map(c => c.day)).size, top };
   });
-  const shared = input.journal.filter(e => e.visibility === 'shared' && inRange(e.entry_date.slice(0, 10)));
+  const shared = input.journal.filter(e => e.visibility !== 'private' && inRange(e.entry_date.slice(0, 10)));
   const day = (c: Consultation) => toISODate(localDay(c.scheduled_at));
   const today = toISODate(input.today);
   const nextEnd = shift(today, 7);

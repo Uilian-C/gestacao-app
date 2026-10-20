@@ -33,10 +33,30 @@ export interface FamilyMember {
   photo?: string | null;
 }
 
-export interface FamilyState {
-  role: Author;
-  members: FamilyMember[];
+/** Um familiar do espaço (migração 023): avó, tio, madrinha... */
+export interface Relative extends Omit<FamilyMember, 'role'> {
+  role: 'familia';
+  /** O parentesco, como aparece no Mural ("Avó", "Tio"). */
+  relation: string | null;
+  joinedAt: string;
 }
+
+export type SpaceRole = Author | 'familia';
+
+export interface FamilyState {
+  role: SpaceRole;
+  /** O casal (mãe e pai). */
+  members: FamilyMember[];
+  /** Os familiares (migração 023). */
+  relatives?: Relative[];
+  /** Quantos familiares o espaço pode ter. */
+  slots?: number;
+}
+
+/** O espaço visto pelo casal. */
+export type CoupleFamilyState = FamilyState & { role: Author };
+
+export const isCoupleFamily = (f: FamilyState): f is CoupleFamilyState => f.role !== 'familia';
 
 export interface Me {
   user: { id: string; name: string; email: string };

@@ -4,7 +4,7 @@ import { query } from './_lib/db.js';
 import { FAMILY_QUOTA_BYTES, FILE_TYPES, MAX_FILE_BYTES, QUOTA_MESSAGE, base64Max, familyUsedBytes, privateFileHeaders } from './_lib/files.js';
 import { familyState } from './_lib/family.js';
 import { fetchAll } from './_lib/gestation.js';
-import { HttpError, endpoint, json, readJson, requireMember, type Member } from './_lib/http.js';
+import { COUPLE_ONLY, HttpError, endpoint, isCouple, json, readJson, requireSpace, type SpaceMember } from './_lib/http.js';
 import { deleteFiles, getFile, putFile, storageReady } from './_lib/storage.js';
 
 // Fotos do diário (a barriga semana a semana, o enxoval, o quarto...).
@@ -12,7 +12,8 @@ import { deleteFiles, getFile, putFile, storageReady } from './_lib/storage.js';
 // particular. Só quem escreveu o registro põe ou tira fotos. Cada foto vem com
 // uma miniatura feita no celular, usada nas listas para não pesar.
 // Aqui também fica a foto de perfil de cada pessoa (migração 015), que só
-// quem é do mesmo espaço vê.
+// quem é do mesmo espaço vê. Familiar (migração 023) vê só as fotos dos posts
+// para a família e cuida só da própria foto de perfil.
 
 const MAX_PHOTOS_PER_ENTRY = 4;
 const MAX_THUMB_BYTES = 200 * 1024;
@@ -54,7 +55,7 @@ async function avatarReady() {
 }
 
 /** Foto de perfil de quem é do mesmo espaço: GET /api/fotos?perfil=<pessoa> */
-async function avatar(member: Member, userId: string) {
+async function avatar(member: SpaceMember, userId: string) {
   await avatarReady();
   const rows = await query<{ path: string | null }>('SELECT avatar_path AS path FROM family_members WHERE family_id = $1 AND user_id = $2', [member.familyId, userId]);
   const file = rows[0]?.path ? await getFile(rows[0].path) : null;
@@ -64,7 +65,7 @@ async function avatar(member: Member, userId: string) {
 
 /** Foto de um registro: GET /api/fotos?id=<foto>[&mini=1] */
 export const GET = endpoint(async request => {
-  const member = await requireMember(request);
+  const member = await requireSpace(request);
   const params = new URL(request.url).searchParams;
   const person = params.get('perfil');
   if (person !== null) return avatar(member, person.slice(0, 64));
@@ -73,7 +74,7 @@ export const GET = endpoint(async request => {
   await ready();
   const rows = await query<{ path: string; thumb_path: string | null; content_type: string }>(
     `SELECT f.path, f.thumb_path, f.content_type FROM journal_files f JOIN journal_entries e ON e.id = f.entry_id
-     WHERE f.id::text = $1 AND f.family_id = $2 AND (e.visibility = 'shared' OR e.user_id = $3)`,
+     WHERE f.id::text = $1 AND f.family_id = $2 AND ${isCouple(member) ? "(e.visibility <> 'private' OR e.user_id = $3)" : "e.visibility = 'family' AND $3::text IS NOT NULL"}`,
     [fileId, member.familyId, member.userId],
   );
   if (!rows[0]) throw new HttpError(404, 'Foto não encontrada.');
@@ -83,18 +84,19 @@ export const GET = endpoint(async request => {
   return new Response(file.body as BodyInit, { headers: privateFileHeaders(rows[0].content_type, 'foto') });
 });
 
-async function ownEntry(m: Member, entryId: string) {
+async function ownEntry(m: SpaceMember, entryId: string) {
   const rows = await query('SELECT 1 FROM journal_entries WHERE id::text = $1 AND family_id = $2 AND user_id = $3', [entryId, m.familyId, m.userId]);
   if (!rows[0]) throw new HttpError(404, 'Registro não encontrado.');
 }
 
 export const POST = endpoint(async request => {
-  const member = await requireMember(request);
+  const member = await requireSpace(request);
   const parsed = ops.safeParse(await readJson(request));
   if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? 'Dados inválidos.');
   const o = parsed.data;
   const fid = member.familyId;
   if (o.op === 'avatar' || o.op === 'removeAvatar') return setAvatar(member, o.op === 'avatar' ? o.data : null);
+  if (!isCouple(member)) throw new HttpError(403, COUPLE_ONLY);
   await ready();
 
   switch (o.op) {
@@ -141,7 +143,7 @@ export const POST = endpoint(async request => {
 });
 
 /** Troca (ou tira) a foto de perfil de quem está logado e devolve o espaço atualizado. */
-async function setAvatar(member: Member, data: string | null) {
+async function setAvatar(member: SpaceMember, data: string | null) {
   await avatarReady();
   let path: string | null = null;
   if (data) {

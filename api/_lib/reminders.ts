@@ -10,7 +10,10 @@ export interface FamilyRow {
   id: string;
   dum_date: string | null;
   blood_type: string | null;
+  /** O casal. */
   members: string[];
+  /** Familiares (migração 023): recebem só a semana nova. */
+  relatives?: string[];
   done: string[];
 }
 
@@ -166,6 +169,13 @@ export function planReminders(today: string, families: FamilyRow[], consultation
         url: opening.length ? '/?aba=jornada' : '/',
         tag: 'semana',
       },
+    });
+    // A família acompanha o bebê crescer, sem os detalhes do pré-natal.
+    notices.push({
+      userIds: f.relatives ?? [],
+      kind: 'jornada',
+      key: `semana:${f.id}:${week}`,
+      payload: { title: `${week} semanas`, body: 'O bebê completou mais uma semana. Toque para ver como ele está.', url: '/', tag: 'semana' },
     });
   }
 

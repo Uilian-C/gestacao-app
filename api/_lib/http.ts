@@ -43,20 +43,31 @@ export async function requireUser(request: Request) {
   return session.user;
 }
 
+/** Quem é do casal. */
 export type Role = 'mae' | 'pai';
+/** Papel no espaço: o casal ou um familiar (migração 023). */
+export type SpaceRole = Role | 'familia';
 export interface Member {
   userId: string;
   familyId: string;
   role: Role;
 }
+/** Qualquer pessoa do espaço, inclusive familiar. */
+export interface SpaceMember {
+  userId: string;
+  familyId: string;
+  role: SpaceRole;
+}
 
-export async function findMembership(userId: string): Promise<Member | null> {
-  const rows = await query<{ family_id: string; role: Role }>('SELECT family_id::text AS family_id, role FROM family_members WHERE user_id = $1', [userId]);
+export const isCouple = (m: SpaceMember): m is Member => m.role !== 'familia';
+
+export async function findMembership(userId: string): Promise<SpaceMember | null> {
+  const rows = await query<{ family_id: string; role: SpaceRole }>('SELECT family_id::text AS family_id, role FROM family_members WHERE user_id = $1', [userId]);
   return rows[0] ? { userId, familyId: rows[0].family_id, role: rows[0].role } : null;
 }
 
 export interface Access {
-  member: Member | null;
+  member: SpaceMember | null;
   /** Aceitou os termos vigentes. */
   consented: boolean;
   /** Já tinha aceitado alguma versão anterior. */
@@ -65,7 +76,7 @@ export interface Access {
 
 /** Espaço e aceite dos termos numa ida só ao banco (antes eram duas ou três). */
 export async function accessOf(userId: string): Promise<Access> {
-  const rows = await query<{ family_id: string | null; role: Role | null; consented: boolean; consented_before: boolean }>(
+  const rows = await query<{ family_id: string | null; role: SpaceRole | null; consented: boolean; consented_before: boolean }>(
     `SELECT m.family_id::text AS family_id, m.role,
             EXISTS (SELECT 1 FROM user_consents c WHERE c.user_id = $1 AND c.version = $2) AS consented,
             EXISTS (SELECT 1 FROM user_consents c WHERE c.user_id = $1) AS consented_before
@@ -80,12 +91,21 @@ export async function accessOf(userId: string): Promise<Access> {
   };
 }
 
-/** Usuário logado, que aceitou os termos vigentes, e o espaço dele. Toda leitura e gravação de dados passa por aqui. */
-export async function requireMember(request: Request): Promise<Member> {
+/** Usuário logado, que aceitou os termos vigentes, e o espaço dele (casal ou familiar). */
+export async function requireSpace(request: Request): Promise<SpaceMember> {
   const user = await requireUser(request);
   const { member, consented } = await accessOf(user.id);
   if (!consented) throw new HttpError(403, 'Aceite os Termos e a Política de Privacidade para continuar.');
   if (!member) throw new HttpError(403, 'Você ainda não faz parte de um espaço.');
+  return member;
+}
+
+export const COUPLE_ONLY = 'Esta parte é só do casal.';
+
+/** Como requireSpace, mas só para o casal: familiar não chega aos dados de saúde, agenda e o resto. */
+export async function requireMember(request: Request): Promise<Member> {
+  const member = await requireSpace(request);
+  if (!isCouple(member)) throw new HttpError(403, COUPLE_ONLY);
   return member;
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { MAX_RELATION, RELATIONS } from '../../lib/relatives';
 import { HeartHandshake, Loader2, LogOut, Sparkles, Ticket } from 'lucide-react';
 import { api, ApiError, type FamilyState } from '../../api';
 import { clearPendingInvite, pendingInvite } from '../../lib/invite';
@@ -15,6 +16,8 @@ interface InviteInfo {
   valid: boolean;
   inviter: string | null;
   inviterRole: Author | null;
+  /** 'familia': convite para acompanhar como familiar (migração 023). */
+  kind?: 'casal' | 'familia' | null;
 }
 
 interface Props {
@@ -26,31 +29,37 @@ interface Props {
 /** Logado, mas ainda sem espaço: criar um novo ou entrar com um convite. */
 export default function Onboarding({ name, onReady, onSignOut }: Props) {
   const [role, setRole] = useState<Author>('mae');
+  const [relation, setRelation] = useState('');
   const [code, setCode] = useState(() => pendingInvite() ?? '');
   const [invite, setInvite] = useState<InviteInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCode, setShowCode] = useState(() => !!pendingInvite());
 
-  // Convite que veio pelo link: confere na hora para mostrar quem convidou.
+  // O convite (do link ou digitado): confere na hora para mostrar quem convidou e se é para a família.
+  const typed = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
   useEffect(() => {
-    const fromLink = pendingInvite();
-    if (!fromLink) return;
+    if (typed.length !== 10) return;
+    let cancelled = false;
     api
-      .family<InviteInfo>('checkInvite', { code: fromLink })
+      .family<InviteInfo>('checkInvite', { code: typed })
       .then(info => {
+        if (cancelled) return;
         setInvite(info);
         // Quem convidou já tem um papel: sugere o outro.
-        if (info.inviterRole === 'mae') setRole('pai');
+        if (info.inviterRole === 'mae' && info.kind !== 'familia') setRole('pai');
       })
       .catch(() => undefined);
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [typed]);
 
   const act = async (op: 'create' | 'join') => {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.family(op, op === 'join' ? { code, role } : { role });
+      const res = await api.family(op, op === 'join' ? (asRelative ? { code, relation: relation.trim() } : { code, role }) : { role });
       clearPendingInvite();
       if (res.family) onReady(res.family);
     } catch (err) {
@@ -66,6 +75,7 @@ export default function Onboarding({ name, onReady, onSignOut }: Props) {
   };
 
   const firstName = name.split(' ')[0];
+  const asRelative = showCode && invite?.valid === true && invite.kind === 'familia';
 
   return (
     <div className="min-h-screen bg-canvas text-ink flex items-start sm:items-center justify-center px-4 py-10">
@@ -73,16 +83,33 @@ export default function Onboarding({ name, onReady, onSignOut }: Props) {
         <div className="text-center space-y-2">
           <h1 className="text-[1.7rem] leading-tight">Olá, {firstName}</h1>
           <p className="text-ink-soft text-[15px] text-balance">
-            {invite?.valid ? `${invite.inviter ?? 'Alguém'} convidou você para acompanhar a gestação juntos.` : 'Vamos preparar o espaço de vocês. Cada família tem o seu, e só quem vocês convidarem consegue ver.'}
+            {invite?.valid && invite.kind === 'familia'
+              ? `${invite.inviter ?? 'Alguém'} convidou você para acompanhar a gestação de perto: a semana do bebê, a barriguinha e os momentos que eles guardarem para a família.`
+              : invite?.valid ? `${invite.inviter ?? 'Alguém'} convidou você para acompanhar a gestação juntos.` : 'Vamos preparar o espaço de vocês. Cada família tem o seu, e só quem vocês convidarem consegue ver.'}
           </p>
         </div>
 
         <section className="bg-surface shadow-soft rounded-[28px] p-6 space-y-5">
-          <div className="space-y-2 text-center">
-            <p className="text-sm font-medium text-ink-soft">Quem é você nesta gestação?</p>
-            <Segmented label="Seu papel" value={role} onChange={setRole} options={ROLE_OPTIONS} />
-            <p className="text-xs text-ink-mute">Define a cor do app e aparece nos seus registros. Dá para mudar depois.</p>
-          </div>
+          {asRelative ? (
+            <div className="space-y-2.5">
+              <p className="text-sm font-medium text-ink-soft text-center">Quem é você para o bebê?</p>
+              <div className="flex flex-wrap justify-center gap-1.5" role="group" aria-label="Parentesco">
+                {RELATIONS.map(r => (
+                  <button key={r} type="button" aria-pressed={relation === r} onClick={() => setRelation(r)} className={`rounded-full px-3 py-1.5 text-sm font-bold transition ${relation === r ? 'bg-brand text-on-accent' : 'bg-surface-2 text-ink-soft hover:text-ink'}`}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <input aria-label="Outro parentesco" className={inputClass} value={relation} onChange={e => setRelation(e.target.value)} maxLength={MAX_RELATION} placeholder="Ou escreva: bisavó, dinda, amiga da família..." />
+              <p className="text-xs text-ink-mute text-center">Aparece junto do seu nome no Mural. Saúde, exames e agenda ficam só com o casal.</p>
+            </div>
+          ) : (
+            <div className="space-y-2 text-center">
+              <p className="text-sm font-medium text-ink-soft">Quem é você nesta gestação?</p>
+              <Segmented label="Seu papel" value={role} onChange={setRole} options={ROLE_OPTIONS} />
+              <p className="text-xs text-ink-mute">Define a cor do app e aparece nos seus registros. Dá para mudar depois.</p>
+            </div>
+          )}
 
           {showCode ? (
             <form onSubmit={join} className="space-y-4">
@@ -100,7 +127,7 @@ export default function Onboarding({ name, onReady, onSignOut }: Props) {
               </Field>
               {invite && !invite.valid && <p className="text-sm text-warn bg-warn-soft rounded-2xl px-4 py-2.5">Este convite já foi usado ou venceu. Peça um novo a quem convidou.</p>}
               {error && <p role="alert" className="text-sm text-alert bg-alert-soft rounded-2xl px-4 py-2.5">{error}</p>}
-              <Button type="submit" disabled={busy} className="w-full">
+              <Button type="submit" disabled={busy || (asRelative && !relation.trim())} className="w-full">
                 {busy ? <Loader2 className="animate-spin" /> : <HeartHandshake />} Entrar no espaço
               </Button>
               <button type="button" onClick={() => setShowCode(false)} className="w-full text-sm text-ink-mute hover:text-ink underline underline-offset-4">

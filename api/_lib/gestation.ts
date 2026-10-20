@@ -91,7 +91,7 @@ export async function fetchAll(fid: string, userId: string) {
               (user_id = $2) AS mine, created_at::text AS created_at, COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS folder,
               to_jsonb(j) ->> 'remind_at' AS remind_at
        FROM journal_entries j
-       WHERE family_id = $1 AND (visibility = 'shared' OR user_id = $2)
+       WHERE family_id = $1 AND (visibility <> 'private' OR user_id = $2)
        ORDER BY entry_date DESC, created_at DESC`,
       [fid, userId],
     ).catch(() => null),
@@ -103,7 +103,7 @@ export async function fetchAll(fid: string, userId: string) {
               COALESCE(json_agg(json_build_object('id', f.id, 'content_type', f.content_type, 'size', f.size_bytes) ORDER BY f.created_at)
                        FILTER (WHERE f.id IS NOT NULL), '[]') AS files
        FROM exams e LEFT JOIN exam_files f ON f.exam_id = e.id
-       WHERE e.family_id = $1 AND (e.visibility = 'shared' OR e.user_id = $2)
+       WHERE e.family_id = $1 AND (e.visibility <> 'private' OR e.user_id = $2)
        GROUP BY e.id
        ORDER BY e.exam_date DESC, e.created_at DESC`,
       [fid, userId],
@@ -114,9 +114,9 @@ export async function fetchAll(fid: string, userId: string) {
          (SELECT COALESCE(json_agg(json_build_object('id', i.id, 'list', i.list, 'title', i.title, 'bag_group', i.bag_group, 'week', i.week, 'created_by', i.created_by) ORDER BY i.created_at), '[]')
             FROM checklist_items i WHERE i.family_id = $1) AS items,
          (SELECT COALESCE(json_agg(json_build_object('list', h.list, 'item_id', h.item_id)), '[]') FROM checklist_hidden h WHERE h.family_id = $1) AS hidden,
-         (SELECT COALESCE(json_agg(json_build_object('target_type', r.target_type, 'target_id', r.target_id, 'kind', r.kind, 'author_role', r.author_role, 'mine', r.user_id = $2) ORDER BY r.created_at), '[]')
+         (SELECT COALESCE(json_agg(json_build_object('target_type', r.target_type, 'target_id', r.target_id, 'kind', r.kind, 'author_role', r.author_role, 'author_id', r.user_id, 'mine', r.user_id = $2) ORDER BY r.created_at), '[]')
             FROM reactions r WHERE r.family_id = $1 AND ${visibleTargetSql('r')}) AS reactions,
-         (SELECT COALESCE(json_agg(json_build_object('id', c.id, 'target_type', c.target_type, 'target_id', c.target_id, 'body', c.body, 'author_role', c.author_role, 'mine', COALESCE(c.user_id = $2, false), 'created_at', c.created_at) ORDER BY c.created_at), '[]')
+         (SELECT COALESCE(json_agg(json_build_object('id', c.id, 'target_type', c.target_type, 'target_id', c.target_id, 'body', c.body, 'author_role', c.author_role, 'author_id', c.user_id, 'mine', COALESCE(c.user_id = $2, false), 'created_at', c.created_at) ORDER BY c.created_at), '[]')
             FROM comments c WHERE c.family_id = $1 AND ${visibleTargetSql('c')}) AS threads`,
       [fid, userId],
     ).catch(() => null),
@@ -124,7 +124,7 @@ export async function fetchAll(fid: string, userId: string) {
     query<{ entry_id: string; id: string; thumb: boolean }>(
       `SELECT f.entry_id::text AS entry_id, f.id::text AS id, (f.thumb_path IS NOT NULL) AS thumb
        FROM journal_files f JOIN journal_entries e ON e.id = f.entry_id
-       WHERE f.family_id = $1 AND (e.visibility = 'shared' OR e.user_id = $2)
+       WHERE f.family_id = $1 AND (e.visibility <> 'private' OR e.user_id = $2)
        ORDER BY f.created_at`,
       [fid, userId],
     ).catch(() => null),
@@ -203,3 +203,46 @@ export async function fetchAll(fid: string, userId: string) {
   };
 }
 
+
+/**
+ * O que um familiar (migração 023) vê: a data para a semana do bebê e os posts
+ * que o casal guardou para a família, com fotos, abraços e conversa. Nada de
+ * saúde, exames, agenda, tarefas, humor ou do resto do diário.
+ */
+export async function fetchFamilyView(fid: string, userId: string) {
+  const [family, journal, photos, social] = await Promise.all([
+    query(`SELECT dum_date::text AS dum_date FROM families WHERE id = $1`, [fid]),
+    query(
+      `SELECT id, entry_date::text AS entry_date, body, visibility, author_role, false AS mine, created_at::text AS created_at,
+              COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS folder
+       FROM journal_entries j WHERE family_id = $1 AND visibility = 'family'
+       ORDER BY entry_date DESC, created_at DESC`,
+      [fid],
+    ).catch(() => []),
+    query<{ entry_id: string; id: string; thumb: boolean }>(
+      `SELECT f.entry_id::text AS entry_id, f.id::text AS id, (f.thumb_path IS NOT NULL) AS thumb
+       FROM journal_files f JOIN journal_entries e ON e.id = f.entry_id
+       WHERE f.family_id = $1 AND e.visibility = 'family' ORDER BY f.created_at`,
+      [fid],
+    ).catch(() => []),
+    query<{ reactions: unknown[]; threads: unknown[] }>(
+      `SELECT
+         (SELECT COALESCE(json_agg(json_build_object('target_type', r.target_type, 'target_id', r.target_id, 'kind', r.kind, 'author_role', r.author_role, 'author_id', r.user_id, 'mine', r.user_id = $2) ORDER BY r.created_at), '[]')
+            FROM reactions r JOIN journal_entries e ON e.id = r.target_id AND e.visibility = 'family'
+           WHERE r.family_id = $1 AND r.target_type = 'entry') AS reactions,
+         (SELECT COALESCE(json_agg(json_build_object('id', c.id, 'target_type', c.target_type, 'target_id', c.target_id, 'body', c.body, 'author_role', c.author_role, 'author_id', c.user_id, 'mine', COALESCE(c.user_id = $2, false), 'created_at', c.created_at) ORDER BY c.created_at), '[]')
+            FROM comments c JOIN journal_entries e ON e.id = c.target_id AND e.visibility = 'family'
+           WHERE c.family_id = $1 AND c.target_type = 'entry') AS threads`,
+      [fid, userId],
+    ).catch(() => null),
+  ]);
+  const dum = family[0]?.dum_date;
+  return {
+    familyView: true,
+    profile: { dumDate: typeof dum === 'string' && dum ? dum : null },
+    journal: journal.map(e => ({ ...e, photos: photos.filter(p => p.entry_id === e.id).map(p => ({ id: p.id, thumb: p.thumb })) })),
+    reactions: social?.[0].reactions ?? [],
+    threads: social?.[0].threads ?? [],
+    socialAvailable: social !== null,
+  };
+}

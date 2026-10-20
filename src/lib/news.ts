@@ -30,7 +30,7 @@ export function markSeen(userId: string, at = new Date()) {
 export function partnerNews(journal: JournalEntry[], threads: ThreadComment[], members: FamilyMember[], since: Date | null, now = new Date()) {
   const from = since ?? new Date(now.getTime() - 3 * 86_400_000);
   const after = (iso: string | undefined) => !!iso && parseTimestamp(iso) > from;
-  const entries = journal.filter(e => !e.mine && e.visibility === 'shared' && after(e.created_at));
+  const entries = journal.filter(e => !e.mine && e.visibility !== 'private' && after(e.created_at));
   const comments = threads.filter(c => !c.mine && c.target_type === 'entry' && after(c.created_at));
   const mentions = entries.filter(e => mentionsMe(members, e.body)).length + comments.filter(c => mentionsMe(members, c.body)).length;
   return { entries, comments, mentions, photos: entries.flatMap(e => e.photos.map(p => ({ ...p, entryId: e.id }))).slice(0, 4) };

@@ -36,7 +36,8 @@ export const GET = endpoint(async request => {
   const [families, consultations, entries, tasks] = await Promise.all([
     query<FamilyRow>(
       `SELECT f.id::text AS id, f.dum_date::text AS dum_date, f.blood_type,
-              ARRAY(SELECT m.user_id FROM family_members m WHERE m.family_id = f.id) AS members,
+              ARRAY(SELECT m.user_id FROM family_members m WHERE m.family_id = f.id AND m.role <> 'familia') AS members,
+              ARRAY(SELECT m.user_id FROM family_members m WHERE m.family_id = f.id AND m.role = 'familia') AS relatives,
               ARRAY(SELECT c.item_id FROM checklist c WHERE c.family_id = f.id AND c.list = 'prenatal') AS done
        FROM families f
        WHERE EXISTS (SELECT 1 FROM family_members m JOIN push_subscriptions s ON s.user_id = m.user_id WHERE m.family_id = f.id)`,
@@ -58,7 +59,7 @@ export const GET = endpoint(async request => {
     // Tarefas abertas com lembrete hoje (migração 017), para quem cuida delas.
     query<TaskRow>(
       `SELECT t.id::text AS id, t.task_title AS title,
-              ARRAY(SELECT m.user_id FROM family_members m WHERE m.family_id = t.family_id
+              ARRAY(SELECT m.user_id FROM family_members m WHERE m.family_id = t.family_id AND m.role <> 'familia'
                      AND (COALESCE(t.assigned_to, 'casal') = 'casal' OR m.role = t.assigned_to)) AS user_ids
        FROM partner_tasks t WHERE t.remind_on = $1::date AND NOT t.is_completed AND to_jsonb(t) ->> 'remind_at' IS NULL`,
       [today],
@@ -73,7 +74,7 @@ export const GET = endpoint(async request => {
     ).catch(() => []),
     query<TaskRow & { at: string }>(
       `SELECT t.id::text AS id, t.task_title AS title, t.remind_at::text AS at,
-              ARRAY(SELECT m.user_id FROM family_members m WHERE m.family_id = t.family_id
+              ARRAY(SELECT m.user_id FROM family_members m WHERE m.family_id = t.family_id AND m.role <> 'familia'
                      AND (COALESCE(t.assigned_to, 'casal') = 'casal' OR m.role = t.assigned_to)) AS user_ids
        FROM partner_tasks t WHERE NOT t.is_completed AND t.remind_at <= NOW() AND t.remind_at > NOW() - INTERVAL '12 hours'`,
     ).catch(() => []),

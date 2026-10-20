@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 import { BicepsFlexed, HandHeart, Heart, MessageCircle, PartyPopper, Send, Trash2 } from 'lucide-react';
 import type { Reaction, ReactionKind, SocialTarget, ThreadComment } from '../hooks/useGestationData';
-import { PeopleContext, authorOf, firstName } from '../lib/people';
+import { PeopleContext, RelativesContext, speakerOf } from '../lib/people';
 import Avatar from './Avatar';
 import { MentionBar, MentionText } from './Mentions';
 import { useMention } from '../lib/useMention';
@@ -17,11 +17,16 @@ const REACTIONS: Record<ReactionKind, { label: string; Icon: typeof Heart }> = {
   festa: { label: 'Festa', Icon: PartyPopper },
 };
 
+/** A cor do balão de cada um: rosa da mãe, azul do pai, lilás da família. */
+const BUBBLE = { mae: 'bg-mae-soft', pai: 'bg-pai-soft', familia: 'bg-lilas-soft' } as const;
+
 export type OnReact = (targetType: SocialTarget, targetId: string, kind: ReactionKind, on: boolean) => void;
 
 /** Botões de reação de um registro, com quantas pessoas reagiram e quem. */
 export function ReactionBar({ targetType, targetId, reactions, kinds = ['abraco', 'forca', 'aqui'], onReact }: { targetType: SocialTarget; targetId: string; reactions: Reaction[]; kinds?: ReactionKind[]; onReact: OnReact }) {
   const mine = reactions.filter(r => r.target_type === targetType && r.target_id === targetId);
+  const members = useContext(PeopleContext);
+  const relatives = useContext(RelativesContext);
   return (
     // Numa linha só (desliza se a tela for estreita): os botões não quebram em duas linhas.
     <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" role="group" aria-label="Reações">
@@ -29,7 +34,7 @@ export function ReactionBar({ targetType, targetId, reactions, kinds = ['abraco'
         const all = mine.filter(r => r.kind === kind);
         const on = all.some(r => r.mine);
         const { label, Icon } = REACTIONS[kind];
-        const others = all.filter(r => !r.mine).map(r => (r.author_role === 'mae' ? 'mãe' : 'pai'));
+        const others = all.filter(r => !r.mine).map(r => speakerOf(members, relatives, r).label);
         return (
           <button
             key={kind}
@@ -72,6 +77,7 @@ export function SocialCount({ reactions, comments }: { reactions: number; commen
 export function Thread({ comments, busy, onSend, onDelete }: { comments: ThreadComment[]; busy: boolean; onSend: (body: string) => Promise<boolean>; onDelete: (c: ThreadComment) => void }) {
   const [draft, setDraft] = useState('');
   const members = useContext(PeopleContext);
+  const relatives = useContext(RelativesContext);
   const { ref: fieldRef, track, suggestions, unmarked, insert } = useMention<HTMLInputElement>(draft, setDraft, members);
   return (
     <section className="space-y-2" aria-label="Conversa">
@@ -79,12 +85,15 @@ export function Thread({ comments, busy, onSend, onDelete }: { comments: ThreadC
         <MessageCircle className="w-4 h-4 text-brand" /> Conversa
       </h3>
       {comments.map(c => {
-        const by = authorOf(members, c.mine, c.author_role);
+        const by = speakerOf(members, relatives, c);
         return (
           <div key={c.id} className="flex items-start gap-2">
-            <Avatar member={by} role={c.author_role} className="w-7 h-7 text-[11px] mt-1" />
-            <span className={`flex-1 min-w-0 rounded-2xl px-3 py-2 text-[15px] text-ink break-words ${c.author_role === 'pai' ? 'bg-pai-soft' : 'bg-mae-soft'}`}>
-              <strong className="block text-xs font-extrabold text-ink-soft">{by ? firstName(by.name) : c.author_role === 'mae' ? 'Mãe' : 'Pai'}</strong>
+            <Avatar member={by.person} role={c.author_role} className="w-7 h-7 text-[11px] mt-1" />
+            <span className={`flex-1 min-w-0 rounded-2xl px-3 py-2 text-[15px] text-ink break-words ${BUBBLE[c.author_role]}`}>
+              <strong className="block text-xs font-extrabold text-ink-soft">
+                {by.name}
+                {by.role === 'familia' && <span className="font-semibold text-ink-mute"> · {by.label}</span>}
+              </strong>
               <MentionText text={c.body} />
             </span>
             {c.mine && (
