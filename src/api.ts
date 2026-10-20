@@ -47,6 +47,21 @@ export interface Me {
   data?: unknown;
 }
 
+/** Um texto do app (migração 021). */
+export interface ContentItem {
+  id: string;
+  kind: 'mensagem' | 'leitura';
+  title: string | null;
+  body: string;
+  weekFrom: number;
+  weekTo: number;
+  audience: 'casal' | 'mae' | 'pai';
+  source: string | null;
+  minutes: number | null;
+  status: 'rascunho' | 'publicado';
+  updatedAt: string;
+}
+
 export const api = {
   config: () => request<{ google: boolean; passwordReset: boolean }>('/api/config'),
   data: <T>() => request<T>('/api/data'),
@@ -59,6 +74,10 @@ export const api = {
   exams: <T = { ok: true; id?: string; data?: unknown }>(op: string, payload: Record<string, unknown> = {}) => request<T>('/api/exames', { op, ...payload }),
   /** Fotos do diário: add, delete. Ver api/fotos.ts. */
   photos: (op: 'add' | 'delete', payload: Record<string, unknown>) => request<{ ok: true; data?: unknown }>('/api/fotos', { op, ...payload }),
+  /** Conteúdo do app (mensagem do dia e leituras): o publicado; para quem administra, também os rascunhos. */
+  content: () => request<{ items: ContentItem[]; admin: boolean; available: boolean }>('/api/conteudo'),
+  /** Administração do conteúdo: create, update, delete. Ver api/conteudo.ts. */
+  saveContent: (op: 'create' | 'update' | 'delete', payload: Record<string, unknown>) => request<{ ok?: true; item?: ContentItem }>('/api/conteudo', { op, ...payload }),
   /** Foto de perfil de quem está logado: trocar (data) ou tirar (null). */
   avatar: (data: string | null) => request<{ ok: true; family: FamilyState }>('/api/fotos', data ? { op: 'avatar', data } : { op: 'removeAvatar' }),
 };

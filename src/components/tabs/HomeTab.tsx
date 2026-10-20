@@ -18,6 +18,8 @@ import CheckIn from '../CheckIn';
 import { DumForm } from '../DumForm';
 import PushPrompt from '../PushPrompt';
 import BellyCard from '../home/BellyCard';
+import { DailyMessage, Readings } from '../home/Readings';
+import type { ContentItem } from '../../api';
 import { Card, LinkButton, SectionTitle } from '../ui';
 import { InsightList } from '../InsightList';
 import { Row } from './UpcomingTab';
@@ -37,6 +39,9 @@ interface Props {
   onSelectWeek: (week: number) => void;
   onSaveDum: (iso: string) => Promise<boolean>;
   insights: Insight[];
+  /** Conteúdo publicado (migração 021): a mensagem do dia e as leituras da semana. */
+  message: ContentItem | null;
+  readings: ContentItem[];
   role: Author;
   /** Primeiro nome da outra pessoa do espaço (se já entrou). */
   partnerName: string | null;
@@ -235,6 +240,8 @@ export default function HomeTab(props: Props) {
         {age.isPostTerm && <p className="mt-3 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
       </section>
 
+      {props.message && selectedWeek === currentWeek && <DailyMessage item={props.message} />}
+
       {todayItems.length > 0 && (
         <section aria-labelledby="hoje-titulo" className="space-y-2.5">
           <div className="flex items-baseline justify-between gap-3 px-1">
@@ -310,6 +317,8 @@ export default function HomeTab(props: Props) {
         </ul>
         <p className="px-1 text-[11px] text-ink-mute">Referência: {WEEK_CARDS_SOURCE}. Cada gestação é única.</p>
       </section>
+
+      {props.readings.length > 0 && <Readings items={props.readings} week={currentWeek} />}
 
       <details className="rounded-[28px] bg-surface shadow-soft p-5 md:p-6 group">
         <summary className="cursor-pointer font-semibold text-ink flex items-center gap-2 list-none">

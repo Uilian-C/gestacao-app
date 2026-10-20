@@ -32,6 +32,7 @@ const ConsultationsTab = lazy(() => import('./components/tabs/ConsultationsTab')
 const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
 const LaborTab = lazy(() => import('./components/tabs/LaborTab'));
 const JourneyTab = lazy(() => import('./components/tabs/JourneyTab'));
+const ContentAdmin = lazy(() => import('./components/admin/ContentAdmin'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
 import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, toISODate, weekOfDay } from './lib/dates';
@@ -45,6 +46,8 @@ import { doneByAppointments, journeyRows, plannedItems } from './lib/journeyPlan
 import { JourneyContext } from './lib/journeyContext';
 import { AttendeesReady, PeopleContext, TaskRemindersReady, TimedRemindersReady } from './lib/people';
 import { markSeen } from './lib/news';
+import { useContent } from './hooks/useContent';
+import { messageOfDay, readingsFor } from './lib/content';
 import { PLAN_ITEMS } from './content/prenatalPlan';
 
 const UNDO_WINDOW_MS = 5000;
@@ -106,6 +109,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const { data, loadState, refresh, replace, patch, retry } = useGestationData(onAccessLost, me.data);
   const author = family.role;
   const [spaceOpen, setSpaceOpen] = useState(false);
+  const content = useContent();
+  const [contentOpen, setContentOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(() => takeTabFromUrl() ?? 'inicio');
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
@@ -443,7 +448,33 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       week={age ? currentWeek : null}
     />
   );
-  const spaceSheet = spaceOpen && <SpaceSheet me={me} family={family} onClose={() => setSpaceOpen(false)} onFamilyChange={onFamilyChange} onSignOut={onSignOut} onAccountDeleted={onSignOut} />;
+  const spaceSheet = (
+    <>
+      {spaceOpen && (
+        <SpaceSheet
+          me={me}
+          family={family}
+          onClose={() => setSpaceOpen(false)}
+          onFamilyChange={onFamilyChange}
+          onSignOut={onSignOut}
+          onAccountDeleted={onSignOut}
+          onOpenContent={
+            content.admin
+              ? () => {
+                  setSpaceOpen(false);
+                  setContentOpen(true);
+                }
+              : undefined
+          }
+        />
+      )}
+      {contentOpen && (
+        <Suspense fallback={null}>
+          <ContentAdmin items={content.items} available={content.available} onClose={() => setContentOpen(false)} onChanged={content.reload} />
+        </Suspense>
+      )}
+    </>
+  );
 
   if (!dumDate || !age) {
     return (
@@ -639,6 +670,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onSelectWeek={setPickedWeek}
             onSaveDum={saveDum}
             insights={recentInsights}
+            message={messageOfDay(content.items, currentWeek, author, now)}
+            readings={readingsFor(content.items, currentWeek, author)}
             role={author}
             partnerName={partnerName}
             consultations={consultations}
