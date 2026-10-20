@@ -25,8 +25,13 @@ const shot = (p, n, full = false) => p.screenshot({ path: `${OUT}${n}.png`, full
 // Mãe
 const mae = await ctx();
 await mae.goto(BASE);
-await mae.getByRole('heading', { name: 'Que bom ter vocês de volta' }).waitFor();
-await shot(mae, '01-login');
+await mae.getByRole('heading', { name: 'A gestação de vocês, vivida a dois.' }).waitFor();
+check(await mae.getByText('Tudo o que a gestação pede, num lugar só').isVisible(), 'quem é novo vê a apresentação do Tumtum, não só o login');
+check((await mae.getByRole('heading', { name: 'Crie o espaço de vocês' }).count()) === 1, 'e o formulário já começa em criar conta');
+await shot(mae, '01-login', true);
+await mae.getByRole('button', { name: 'Criar o nosso espaço' }).first().click();
+await mae.waitForTimeout(600);
+check(await mae.getByLabel('Seu nome').isVisible(), '"Criar o nosso espaço" leva ao formulário');
 await mae.getByRole('button', { name: 'Criar conta' }).first().click();
 await mae.getByLabel('Seu nome').fill('Ana Souza');
 await mae.getByLabel('E-mail').fill('ana@exemplo.com');
@@ -105,6 +110,8 @@ await shot(outra, '10-outra-familia');
 await outra.getByRole('button', { name: /Abrir nosso espaço/ }).click();
 await outra.getByRole('button', { name: 'Sair da conta' }).click();
 await outra.getByRole('heading', { name: 'Que bom ter vocês de volta' }).waitFor();
+check((await outra.getByText('Tudo o que a gestação pede, num lugar só').count()) === 0, 'quem já entrou neste celular volta direto para o login enxuto');
+await shot(outra, '10b-login-de-volta');
 await outra.getByLabel('E-mail').fill('carla@exemplo.com');
 await outra.getByLabel('Senha').fill('errada-123');
 await outra.locator('form').getByRole('button', { name: 'Entrar' }).click();

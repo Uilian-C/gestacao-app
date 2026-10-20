@@ -8,6 +8,7 @@ import ConsentScreen from './components/auth/ConsentScreen';
 import Onboarding from './components/auth/Onboarding';
 import { authClient } from './lib/authClient';
 import { clearPendingInvite } from './lib/invite';
+import { markHere } from './lib/returning';
 
 
 // Ao abrir, o espaço e os dados já começam a vir junto com a checagem do login,
@@ -31,6 +32,7 @@ export default function Root() {
 
   useEffect(() => {
     if (!userId) return;
+    markHere();
     let cancelled = false;
     loadMe(userId)
       .then(result => {
