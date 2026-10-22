@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, ChevronRight, ChevronUp, Lightbulb, Loader2, MapPin, PartyPopper, Pencil, Plus, Trash2, Users, Wallet } from 'lucide-react';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Check, ChevronRight, Lightbulb, Loader2, MapPin, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useScrollLock } from '../hooks/useScrollLock';
 import {
   CELEBRATION_KINDS,
@@ -7,13 +7,16 @@ import {
   PALETTE,
   SUPPLIER_STATUS,
   brl,
-  budgetOf,
+  brlCents,
+  budgetMeter,
   daysTo,
   diaperFor,
   diaperPlan,
   dueOf,
   guestsOf,
+  isLate,
   kindOfCelebration,
+  moneyFromTyping,
   pendingTasks,
   type Celebration,
   type CelebrationItem,
@@ -23,13 +26,15 @@ import {
   type SupplierStatus,
 } from '../lib/celebrations';
 import { formatBR, parseTimestamp } from '../lib/dates';
+import { CelebrationTile } from './CelebrationIcon';
 
 // Celebrações: o chá de bebê (e o de fraldas, o revelação, o ensaio...) do
 // planejamento à festa. No Diário, a lista; cada celebração abre um fichário
-// em tela cheia com a data, o tema e as cores, e as fichas: tarefas (com o
-// roteiro pronto, contado a partir da data), fornecedores e orçamento,
-// convidados (com a divisão das fraldas por tamanho) e ideias. Apagar sempre
-// pede confirmação. Por enquanto, só o casal organiza.
+// em tela cheia com um painel (contagem, tarefas, convidados, fornecedores e a
+// régua do orçamento) e as fichas: tarefas (com o roteiro pronto, contado a
+// partir da data), fornecedores, convidados (com a divisão das fraldas por
+// tamanho) e ideias. Toda ficha abre para editar; apagar sempre pede
+// confirmação. Por enquanto, só o casal organiza.
 
 export interface CelebrationFields {
   title: string;
@@ -81,6 +86,7 @@ const whenText = (iso: string) => {
   return `${d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}, ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 };
 const countdown = (days: number | null) => (days === null ? 'Sem data ainda' : days === 0 ? 'É hoje!' : days === 1 ? 'É amanhã' : days > 0 ? `Faltam ${days} dias` : 'Já aconteceu');
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** Diário → Celebrações: a lista e o começo de uma nova. */
 export function CelebrationList({ celebrations, actions, onOpen }: { celebrations: Celebration[]; actions: CelebrationActions; onOpen: (id: string) => void }) {
@@ -108,11 +114,9 @@ export function CelebrationList({ celebrations, actions, onOpen }: { celebration
                     setCreating(null);
                     if (ok) setPicking(false);
                   }}
-                  className="w-full flex items-center gap-3 rounded-2xl bg-surface px-3.5 py-2.5 text-left shadow-soft disabled:opacity-60"
+                  className="w-full flex items-center gap-3 rounded-2xl bg-surface px-3 py-2.5 text-left shadow-soft disabled:opacity-60"
                 >
-                  <span className="text-[1.4rem]" aria-hidden>
-                    {k.emoji}
-                  </span>
+                  <CelebrationTile kind={k.id} size="sm" />
                   <span className="flex-1 min-w-0">
                     <span className="block font-bold text-ink">{k.label}</span>
                     <span className="block text-[12.5px] text-ink-soft">{k.hint}</span>
@@ -132,37 +136,31 @@ export function CelebrationList({ celebrations, actions, onOpen }: { celebration
       ) : (
         <ul className="space-y-3" aria-label="Celebrações">
           {celebrations.map(c => {
-            const k = kindOfCelebration(c.kind);
             const tasks = c.items.filter(i => i.kind === 'tarefa');
             const done = tasks.filter(t => t.done).length;
             const next = pendingTasks(c)[0];
             const days = daysTo(c.event_at);
+            const guests = guestsOf(c);
+            const meter = budgetMeter(c);
+            const facts = [tasks.length ? `${done}/${tasks.length} tarefas` : null, guests.guests.length ? plural(guests.going, 'confirmado', 'confirmados') : null, meter.pct !== null ? `${Math.round(meter.pct)}% do orçamento` : null].filter(Boolean);
             return (
               <li key={c.id}>
-                <button type="button" onClick={() => onOpen(c.id)} aria-label={`${c.title}: abrir`} className="relative w-full text-left rounded-[26px] bg-surface shadow-soft px-5 pt-4 pb-4 transition active:scale-[0.99]">
+                <button type="button" onClick={() => onOpen(c.id)} aria-label={`${c.title}: abrir`} className="relative w-full text-left rounded-[26px] bg-surface shadow-soft px-4 pt-4 pb-4 transition active:scale-[0.99]">
                   <span className="flex items-start gap-3">
-                    <span className="text-[1.8rem] leading-none" aria-hidden>
-                      {k.emoji}
-                    </span>
+                    <CelebrationTile kind={c.kind} />
                     <span className="flex-1 min-w-0">
-                      <span className="block font-display text-[1.3rem] leading-tight text-ink">{c.title}</span>
-                      <span className="block text-[12.5px] text-ink-soft">{c.event_at ? whenText(c.event_at) : 'Sem data ainda'}</span>
+                      <span className="block font-display text-[1.25rem] leading-tight text-ink">{c.title}</span>
+                      <span className="block text-[12.5px] text-ink-soft first-letter:uppercase">{c.event_at ? whenText(c.event_at) : 'Sem data ainda'}</span>
                     </span>
                     <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-extrabold ${days !== null && days >= 0 && days <= 14 ? 'bg-rosa text-white' : 'bg-rosa-soft text-rosa-strong'}`}>{countdown(days)}</span>
                   </span>
-                  {c.colors.length > 0 && (
-                    <span className="mt-2 flex gap-1" aria-hidden>
-                      {c.colors.map(col => (
-                        <span key={col} className="w-5 h-5 rounded-full ring-1 ring-line" style={{ background: col }} />
-                      ))}
-                    </span>
-                  )}
                   {tasks.length > 0 && (
                     <span className="mt-3 block">
                       <span className="block h-1.5 rounded-full bg-surface-2 overflow-hidden" aria-hidden>
                         <span className="block h-full rounded-full bg-rosa" style={{ width: `${(done / tasks.length) * 100}%` }} />
                       </span>
-                      <span className="mt-1 block text-[12.5px] text-ink-soft truncate">{next ? `Próximo passo: ${next.item.title}${next.due ? ` · até ${formatBR(next.due)}` : ''}` : 'Tudo pronto. Agora é aproveitar!'}</span>
+                      {facts.length > 0 && <span className="mt-1.5 block text-[12px] font-semibold text-ink-soft">{facts.join(' · ')}</span>}
+                      <span className="block text-[12.5px] text-ink-mute truncate">{next ? `Próximo passo: ${next.item.title}` : 'Tudo pronto. Agora é aproveitar!'}</span>
                     </span>
                   )}
                 </button>
@@ -189,17 +187,17 @@ export function CelebrationSpace({ celebration: c, actions, onClose }: { celebra
   const [tab, setTab] = useState<Tab>('tarefa');
   const [editing, setEditing] = useState(!c.event_at);
   const [removing, setRemoving] = useState(false);
+  const tabsRef = useRef<HTMLDivElement>(null);
   const k = kindOfCelebration(c.kind);
-  const days = daysTo(c.event_at);
-  const tasks = c.items.filter(i => i.kind === 'tarefa');
-  const done = tasks.filter(t => t.done).length;
-  const budget = budgetOf(c);
-  const guests = guestsOf(c);
   useEffect(() => {
     const close = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [onClose]);
+  const goTo = (t: Tab) => {
+    setTab(t);
+    requestAnimationFrame(() => tabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
 
   return (
     <div role="dialog" aria-label={c.title} className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-canvas">
@@ -217,12 +215,10 @@ export function CelebrationSpace({ celebration: c, actions, onClose }: { celebra
           ) : (
             <>
               <div className="flex items-start gap-3">
-                <span className="text-[2.2rem] leading-none" aria-hidden>
-                  {k.emoji}
-                </span>
+                <CelebrationTile kind={c.kind} size="lg" onTint />
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] font-extrabold uppercase tracking-wide text-rosa">{k.label}</p>
-                  <h2 className="font-display text-[1.6rem] leading-tight text-ink">{c.title}</h2>
+                  <h2 className="font-display text-[1.55rem] leading-tight text-ink">{c.title}</h2>
                 </div>
                 <button type="button" onClick={() => setEditing(true)} aria-label="Editar os detalhes" className="shrink-0 w-9 h-9 rounded-full bg-surface flex items-center justify-center text-ink-soft shadow-soft">
                   <Pencil className="w-4 h-4" />
@@ -244,33 +240,12 @@ export function CelebrationSpace({ celebration: c, actions, onClose }: { celebra
                   </span>
                 </div>
               )}
-              {/* O resumo: quanto falta, as tarefas, o orçamento e quem vai. */}
-              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                <span className="rounded-2xl bg-surface px-2 py-2.5">
-                  <span className="block font-display text-[1.15rem] text-rosa-strong leading-tight">{countdown(days)}</span>
-                </span>
-                <span className="rounded-2xl bg-surface px-2 py-2.5">
-                  <span className="block font-display text-[1.15rem] text-ink leading-tight">
-                    {done}/{tasks.length}
-                  </span>
-                  <span className="block text-[11.5px] text-ink-soft">tarefas</span>
-                </span>
-                <span className="rounded-2xl bg-surface px-2 py-2.5">
-                  <span className="block font-display text-[1.15rem] text-ink leading-tight">{guests.going}</span>
-                  <span className="block text-[11.5px] text-ink-soft">confirmados</span>
-                </span>
-              </div>
-              {(budget.planned !== null || budget.quoted > 0) && (
-                <p className="mt-2 flex items-center gap-1.5 text-[13px] text-ink-soft">
-                  <Wallet className="w-4 h-4" /> {brl(budget.committed)} combinados{budget.planned !== null ? ` de ${brl(budget.planned)} previstos` : ''}
-                  {budget.paid > 0 && ` · ${brl(budget.paid)} pagos`}
-                </p>
-              )}
+              <Dashboard celebration={c} onTab={goTo} onEditBudget={() => setEditing(true)} />
             </>
           )}
         </section>
 
-        <div role="tablist" aria-label="Fichas da celebração" className="flex gap-1 rounded-full bg-surface shadow-soft p-1">
+        <div ref={tabsRef} role="tablist" aria-label="Fichas da celebração" className="scroll-mt-16 flex gap-1 rounded-full bg-surface shadow-soft p-1">
           {TABS.map(t => (
             <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={`flex-1 rounded-full py-2 text-[12.5px] font-bold transition ${tab === t.id ? 'bg-ink text-surface' : 'text-ink-soft'}`}>
               {t.label}
@@ -313,7 +288,111 @@ export function CelebrationSpace({ celebration: c, actions, onClose }: { celebra
   );
 }
 
+/** O painel: a contagem, o andamento de cada ficha e a régua do orçamento. */
+function Dashboard({ celebration: c, onTab, onEditBudget }: { celebration: Celebration; onTab: (t: Tab) => void; onEditBudget: () => void }) {
+  const days = daysTo(c.event_at);
+  const tasks = c.items.filter(i => i.kind === 'tarefa');
+  const done = tasks.filter(t => t.done).length;
+  const late = tasks.filter(t => isLate(t, c.event_at)).length;
+  const g = guestsOf(c);
+  const people = g.going + g.maybe + g.waiting;
+  const suppliers = c.items.filter(i => i.kind === 'fornecedor');
+  const closed = suppliers.filter(s => s.status === 'contratado' || s.status === 'pago').length;
+  return (
+    <div className="mt-4 space-y-2.5">
+      <p className="rounded-2xl bg-surface px-4 py-2.5 flex items-baseline justify-between gap-2">
+        <span className="font-display text-[1.35rem] text-rosa-strong leading-tight">{countdown(days)}</span>
+        {c.event_at && <span className="text-[12.5px] text-ink-soft">{formatBR(c.event_at.slice(0, 10))}</span>}
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="Tarefas" value={`${done}/${tasks.length}`} ratio={tasks.length ? done / tasks.length : 0} hint={late ? `${late} para já` : done === tasks.length && tasks.length ? 'tudo feito' : 'em dia'} hintTone={late ? 'text-rosa-strong' : 'text-ink-mute'} onClick={() => onTab('tarefa')} />
+        <Stat label="Convidados" value={`${g.going}/${people}`} ratio={people ? g.going / people : 0} hint={g.waiting ? `${g.waiting} sem resposta` : people ? 'todos responderam' : 'nenhum ainda'} onClick={() => onTab('convidado')} />
+        <Stat label="Fornecedores" value={`${closed}/${suppliers.length}`} ratio={suppliers.length ? closed / suppliers.length : 0} hint={suppliers.length - closed ? `${suppliers.length - closed} orçando` : suppliers.length ? 'tudo fechado' : 'nenhum ainda'} onClick={() => onTab('fornecedor')} />
+      </div>
+      <BudgetCard celebration={c} onEdit={onEditBudget} />
+    </div>
+  );
+}
+
+function Stat({ label, value, ratio, hint, hintTone = 'text-ink-mute', onClick }: { label: string; value: string; ratio: number; hint: string; hintTone?: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={`${label}: ${value}, ${hint}`} className="rounded-2xl bg-surface px-3 py-2.5 text-left transition active:scale-[0.98]">
+      <span className="block text-[11.5px] font-bold text-ink-soft truncate">{label}</span>
+      <span className="block font-display text-[1.25rem] leading-tight text-ink tabular">{value}</span>
+      <span className="mt-1.5 block h-1 rounded-full bg-surface-2 overflow-hidden" aria-hidden>
+        <span className="block h-full rounded-full bg-rosa transition-[width] duration-500" style={{ width: `${Math.min(100, ratio * 100)}%` }} />
+      </span>
+      <span className={`mt-1 block text-[11px] font-semibold truncate ${hintTone}`}>{hint}</span>
+    </button>
+  );
+}
+
+const LEVEL = {
+  livre: { bar: 'bg-verde', soft: 'bg-verde/45', text: 'text-verde-strong', badge: 'bg-verde-soft text-verde-strong' },
+  perto: { bar: 'bg-coral', soft: 'bg-coral/45', text: 'text-coral-strong', badge: 'bg-coral-soft text-coral-strong' },
+  estourou: { bar: 'bg-alert', soft: 'bg-alert/45', text: 'text-alert', badge: 'bg-alert-soft text-alert' },
+};
+
+/** A régua do orçamento: pago (cheio), combinado (mais leve) e orçamentos abertos (tracejado), com o recado do que ainda cabe. */
+function BudgetCard({ celebration: c, onEdit }: { celebration: Celebration; onEdit: () => void }) {
+  const m = budgetMeter(c);
+  if (m.planned === null || m.pct === null || m.level === null || m.left === null) {
+    return (
+      <button type="button" onClick={onEdit} className="w-full rounded-2xl bg-surface px-4 py-3 text-left text-[13px] text-ink-soft">
+        {m.quoted > 0 ? `${brl(m.committed)} combinados com fornecedores. ` : ''}
+        <span className="font-bold text-rosa">Definir um orçamento previsto ›</span>
+      </button>
+    );
+  }
+  const tone = LEVEL[m.level];
+  const scale = Math.max(m.planned, m.committed, m.quoted);
+  const w = (v: number) => `${(v / scale) * 100}%`;
+  const message =
+    m.level === 'estourou'
+      ? `Passou ${brl(-m.left)} do previsto.`
+      : m.level === 'perto'
+        ? `Atenção: só ${brl(m.left)} até o limite.`
+        : `Ainda dá para gastar ${brl(m.left)}.`;
+  return (
+    <section className="rounded-2xl bg-surface px-4 py-3" aria-label="Orçamento">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[11px] font-extrabold uppercase tracking-wide text-ink-mute">Orçamento</span>
+        <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-extrabold tabular ${tone.badge}`}>{Math.round(m.pct)}%</span>
+      </div>
+      <p className="mt-0.5 text-[15px] text-ink">
+        <span className="font-display text-[1.2rem] tabular">{brl(m.committed)}</span> <span className="text-ink-soft">combinados de {brl(m.planned)}</span>
+      </p>
+      <div className="relative mt-2 h-2 rounded-full bg-surface-2 overflow-hidden" role="img" aria-label={`${Math.round(m.pct)}% do orçamento previsto`}>
+        {m.quoted > m.committed && <span className="absolute inset-y-0 left-0 rounded-full border border-dashed border-ink-mute/50" style={{ width: w(m.quoted) }} />}
+        <span className={`absolute inset-y-0 left-0 rounded-full ${tone.soft} transition-[width] duration-500`} style={{ width: w(m.committed) }} />
+        <span className={`absolute inset-y-0 left-0 rounded-full ${tone.bar} transition-[width] duration-500`} style={{ width: w(m.paid) }} />
+        {scale > m.planned && <span className="absolute inset-y-0 w-0.5 bg-ink/60" style={{ left: w(m.planned) }} aria-hidden />}
+      </div>
+      <p className="mt-1.5 flex flex-wrap gap-x-3 text-[11.5px] text-ink-mute">
+        <span>
+          <span className={`inline-block w-2 h-2 rounded-full mr-1 ${tone.bar}`} />
+          {brl(m.paid)} pagos
+        </span>
+        <span>
+          <span className={`inline-block w-2 h-2 rounded-full mr-1 ${tone.soft}`} />a pagar {brl(m.committed - m.paid)}
+        </span>
+        {m.open > 0 && <span>em orçamento {brl(m.open)}</span>}
+      </p>
+      <p className={`mt-1.5 text-[12.5px] font-bold ${tone.text}`} role={m.level === 'livre' ? undefined : 'status'}>
+        {message}
+        {m.level !== 'estourou' && m.projectedPct !== null && m.projectedPct > 100 && <span className="font-semibold text-ink-soft"> Se fecharem os orçamentos abertos, vai a {Math.round(m.projectedPct)}% do previsto.</span>}
+      </p>
+    </section>
+  );
+}
+
 const input = 'w-full rounded-2xl bg-surface px-3.5 py-2.5 text-[15px] text-ink placeholder:text-ink-mute outline-none ring-1 ring-line focus:ring-2 focus:ring-rosa/50';
+const fit = input.replace('w-full ', '');
+
+/** Valor em reais formatado enquanto digita: "R$ 1.500,00". */
+function MoneyInput({ value, onChange, label, placeholder, className = input }: { value: number | null; onChange: (v: number | null) => void; label: string; placeholder: string; className?: string }) {
+  return <input inputMode="numeric" aria-label={label} placeholder={placeholder} value={value === null ? '' : brlCents(value)} onChange={e => onChange(moneyFromTyping(e.target.value))} className={className} />;
+}
 
 /** Nome, data e hora, local, tema, cores e orçamento previsto. */
 function DetailsForm({ celebration: c, onSave, onCancel }: { celebration: Celebration; onSave: (f: CelebrationFields) => Promise<unknown>; onCancel?: () => void }) {
@@ -325,7 +404,7 @@ function DetailsForm({ celebration: c, onSave, onCancel }: { celebration: Celebr
   const [location, setLocation] = useState(c.location ?? '');
   const [theme, setTheme] = useState(c.theme ?? '');
   const [colors, setColors] = useState<string[]>(c.colors);
-  const [budget, setBudget] = useState(c.budget ? String(Number(c.budget)) : '');
+  const [budget, setBudget] = useState<number | null>(num(c.budget));
   const [busy, setBusy] = useState(false);
   return (
     <form
@@ -340,7 +419,7 @@ function DetailsForm({ celebration: c, onSave, onCancel }: { celebration: Celebr
           location: location.trim() || null,
           theme: theme.trim() || null,
           colors,
-          budget: budget ? Number(budget.replace(',', '.')) : null,
+          budget,
           notes: c.notes,
         });
         setBusy(false);
@@ -350,7 +429,7 @@ function DetailsForm({ celebration: c, onSave, onCancel }: { celebration: Celebr
       <input aria-label="Nome da celebração" value={title} onChange={e => setTitle(e.target.value)} maxLength={80} className={input} />
       <div className="grid grid-cols-[1fr_auto] gap-2">
         <input type="date" aria-label="Data" value={date} onChange={e => setDate(e.target.value)} className={input} />
-        <input type="time" aria-label="Hora" value={time} onChange={e => setTime(e.target.value)} className={`${input.replace('w-full ', '')} shrink-0 w-28`} />
+        <input type="time" aria-label="Hora" value={time} onChange={e => setTime(e.target.value)} className={`${fit} shrink-0 w-28`} />
       </div>
       <input aria-label="Local" placeholder="Local (salão, casa da vó, parque…)" value={location} onChange={e => setLocation(e.target.value)} maxLength={300} className={input} />
       <input aria-label="Tema" placeholder="Tema (ursinhos, safári, nuvens…)" value={theme} onChange={e => setTheme(e.target.value)} maxLength={120} className={input} />
@@ -375,7 +454,7 @@ function DetailsForm({ celebration: c, onSave, onCancel }: { celebration: Celebr
           })}
         </div>
       </div>
-      <input inputMode="decimal" aria-label="Orçamento previsto" placeholder="Orçamento previsto (R$) — opcional" value={budget} onChange={e => setBudget(e.target.value.replace(/[^\d.,]/g, ''))} className={input} />
+      <MoneyInput label="Orçamento previsto" placeholder="Orçamento previsto (R$) — opcional" value={budget} onChange={setBudget} />
       <div className="flex gap-2 pt-1">
         <button type="submit" disabled={busy} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-full bg-rosa text-white py-2.5 font-extrabold disabled:opacity-60">
           {busy && <Loader2 className="w-4 h-4 animate-spin" />} Guardar
@@ -390,103 +469,245 @@ function DetailsForm({ celebration: c, onSave, onCancel }: { celebration: Celebr
   );
 }
 
-/** Uma linha que abre para mostrar mais (e o apagar com confirmação). */
-function Row({ title, sub, done, onToggle, children, onRemove, removeText }: { title: string; sub?: React.ReactNode; done?: boolean; onToggle?: () => void; children?: React.ReactNode; onRemove: () => Promise<boolean>; removeText: string }) {
-  const [open, setOpen] = useState(false);
-  const [removing, setRemoving] = useState(false);
-  return (
-    <li className="rounded-2xl bg-surface shadow-soft">
-      <div className="flex items-center gap-3 px-3.5 py-2.5">
-        {onToggle && (
-          <button type="button" onClick={onToggle} aria-pressed={!!done} aria-label={`${done ? 'Desmarcar' : 'Marcar como feita'}: ${title}`} className={`w-7 h-7 shrink-0 rounded-full border-2 flex items-center justify-center ${done ? 'bg-rosa border-rosa text-white' : 'border-ink-mute'}`}>
-            {done && <Check className="w-4 h-4" strokeWidth={3} />}
-          </button>
-        )}
-        <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open} className="flex-1 min-w-0 text-left">
-          <span className={`block text-[14.5px] leading-snug ${done ? 'text-ink-mute line-through' : 'text-ink font-semibold'}`}>{title}</span>
-          {sub && <span className="block text-[12px] text-ink-mute">{sub}</span>}
-        </button>
-        {open ? <ChevronUp className="w-4 h-4 text-ink-mute shrink-0" /> : <ChevronDown className="w-4 h-4 text-ink-mute shrink-0" />}
-      </div>
-      {open && (
-        <div className="border-t border-line px-3.5 py-2.5 space-y-2">
-          {children}
-          {removing ? (
-            <span className="flex flex-wrap items-center gap-2 text-[13px]">
-              <span className="text-ink-soft">{removeText}</span>
-              <button type="button" onClick={async () => (await onRemove()) && setRemoving(false)} className="font-bold text-alert">
-                Apagar
-              </button>
-              <button type="button" onClick={() => setRemoving(false)} className="font-bold text-ink-soft">
-                Manter
-              </button>
-            </span>
-          ) : (
-            <button type="button" onClick={() => setRemoving(true)} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-ink-mute">
-              <Trash2 className="w-3.5 h-3.5" /> Apagar
-            </button>
-          )}
-        </div>
-      )}
-    </li>
-  );
-}
-
 const WHO: Array<{ id: 'mae' | 'pai' | 'casal'; label: string }> = [
   { id: 'mae', label: 'Mãe' },
   { id: 'pai', label: 'Pai' },
   { id: 'casal', label: 'Os dois' },
 ];
 
+const NOUN: Record<CelebrationItemKind, { one: string; add: string; title: string; placeholder: string; remove: string }> = {
+  tarefa: { one: 'tarefa', add: 'Nova tarefa', title: 'O que fazer', placeholder: 'Ex.: Comprar as lembrancinhas', remove: 'Apagar esta tarefa?' },
+  fornecedor: { one: 'fornecedor', add: 'Novo fornecedor', title: 'Fornecedor ou serviço', placeholder: 'Ex.: Bolo da Ju', remove: 'Apagar este fornecedor?' },
+  convidado: { one: 'convidado', add: 'Novo convidado', title: 'Nome (ou família)', placeholder: 'Ex.: Tia Bia e Rafa', remove: 'Tirar da lista?' },
+  ideia: { one: 'ideia', add: 'Nova ideia', title: 'Ideia', placeholder: 'Decoração, cardápio, brincadeira, lembrancinha…', remove: 'Apagar esta ideia?' },
+};
+
+function Chips<T extends string>({ label, options, value, onChange }: { label: string; options: Array<{ id: T; label: string }>; value: T | null; onChange: (v: T) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label={label}>
+      {options.map(o => (
+        <button key={o.id} type="button" aria-pressed={value === o.id} onClick={() => onChange(o.id)} className={`rounded-full px-3 py-1.5 text-[12.5px] font-bold transition ${value === o.id ? 'bg-rosa text-white' : 'bg-surface-2 text-ink-soft'}`}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A ficha aberta, para criar ou editar: só os campos que importam para cada
+ * tipo, e o apagar (com confirmação) quando é uma ficha que já existe.
+ */
+function ItemEditor({ kind, item, eventAt, initialTitle = '', onSave, onCancel, onRemove }: { kind: CelebrationItemKind; item?: CelebrationItem; eventAt: string | null; initialTitle?: string; onSave: (f: ItemFields) => Promise<boolean>; onCancel: () => void; onRemove?: () => Promise<boolean> }) {
+  const noun = NOUN[kind];
+  const start = item ? itemFieldsOf(item) : null;
+  const relative = item && item.due_offset != null && !item.due_date ? dueOf(item, eventAt) : null;
+  const [title, setTitle] = useState(start?.title ?? initialTitle);
+  const [date, setDate] = useState((item ? dueOf(item, eventAt) : null) ?? '');
+  const [who, setWho] = useState<'mae' | 'pai' | 'casal'>(start?.assignedTo ?? 'casal');
+  const [contact, setContact] = useState(start?.contact ?? '');
+  const [amount, setAmount] = useState<number | null>(start?.amount ?? null);
+  const [status, setStatus] = useState<string>(start?.status ?? (kind === 'fornecedor' ? 'orcado' : kind === 'convidado' ? 'convidado' : ''));
+  const [people, setPeople] = useState(start?.people ?? 1);
+  const [notes, setNotes] = useState(start?.notes ?? '');
+  const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
+  useEffect(() => titleRef.current?.focus({ preventScroll: true }), []);
+
+  const save = async () => {
+    if (!title.trim()) return titleRef.current?.focus();
+    setBusy(true);
+    // O prazo "X dias antes" continua relativo enquanto a data mostrada for a dele.
+    const keepRelative = relative !== null && date === relative;
+    const ok = await onSave({
+      ...(start ?? {}),
+      title: title.trim(),
+      notes: notes.trim() || null,
+      ...(kind === 'tarefa' ? { dueDate: keepRelative ? null : date || null, dueOffset: keepRelative ? start?.dueOffset : null, assignedTo: who, done: start?.done ?? false } : {}),
+      ...(kind === 'fornecedor' ? { contact: contact.trim() || null, amount, status } : {}),
+      ...(kind === 'convidado' ? { contact: contact.trim() || null, people: Math.max(1, people), status } : {}),
+    });
+    setBusy(false);
+    if (ok) onCancel();
+  };
+
+  return (
+    <form
+      aria-label={item ? `Editar ${noun.one}` : noun.add}
+      className="rounded-[22px] bg-surface shadow-soft ring-1 ring-rosa/25 p-3.5 space-y-2.5"
+      onSubmit={e => {
+        e.preventDefault();
+        void save();
+      }}
+    >
+      <input ref={titleRef} aria-label={noun.title} placeholder={noun.placeholder} value={title} onChange={e => setTitle(e.target.value)} maxLength={120} className={input} />
+      {kind === 'tarefa' && (
+        <>
+          <label className="flex items-center gap-2 text-[13px] text-ink-soft">
+            <span className="shrink-0 font-bold">Prazo</span>
+            <input type="date" aria-label="Prazo" value={date} onChange={e => setDate(e.target.value)} className={`${fit} flex-1 min-w-0 py-2`} />
+          </label>
+          {relative && date === relative && item?.due_offset != null && <p className="text-[12px] text-ink-mute -mt-1">{plural(item.due_offset, 'dia', 'dias')} antes da celebração (muda junto com a data)</p>}
+          <Chips label="Quem cuida" options={WHO} value={who} onChange={setWho} />
+        </>
+      )}
+      {kind === 'fornecedor' && (
+        <>
+          <div className="grid grid-cols-[1fr_8.5rem] gap-2">
+            <input aria-label="Contato" placeholder="WhatsApp, Instagram…" value={contact} onChange={e => setContact(e.target.value)} maxLength={120} className={`${input} min-w-0`} />
+            <MoneyInput label="Valor" placeholder="R$ 0,00" value={amount} onChange={setAmount} className={`${fit} w-full min-w-0`} />
+          </div>
+          <Chips label="Situação" options={(Object.keys(SUPPLIER_STATUS) as SupplierStatus[]).map(id => ({ id, label: SUPPLIER_STATUS[id] }))} value={status as SupplierStatus} onChange={setStatus} />
+        </>
+      )}
+      {kind === 'convidado' && (
+        <>
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] font-bold text-ink-soft">Pessoas</span>
+            <span className="inline-flex items-center rounded-full bg-surface-2">
+              <button type="button" aria-label="Uma pessoa a menos" onClick={() => setPeople(n => Math.max(1, n - 1))} className="w-9 h-9 flex items-center justify-center text-ink-soft">
+                <Minus className="w-4 h-4" />
+              </button>
+              <span className="w-7 text-center font-bold text-ink tabular" aria-label="Quantas pessoas">
+                {people}
+              </span>
+              <button type="button" aria-label="Uma pessoa a mais" onClick={() => setPeople(n => Math.min(30, n + 1))} className="w-9 h-9 flex items-center justify-center text-ink-soft">
+                <Plus className="w-4 h-4" />
+              </button>
+            </span>
+          </div>
+          <Chips label="Confirmação" options={(Object.keys(GUEST_STATUS) as GuestStatus[]).map(id => ({ id, label: GUEST_STATUS[id] }))} value={status as GuestStatus} onChange={setStatus} />
+        </>
+      )}
+      <textarea aria-label="Observações" placeholder="Observações (opcional)" value={notes} onChange={e => setNotes(e.target.value)} maxLength={1000} rows={notes ? 2 : 1} className={`${input} resize-none text-[14px]`} />
+      <div className="flex items-center gap-2 pt-0.5">
+        <button type="submit" disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-5 py-2 text-[14px] font-extrabold disabled:opacity-60">
+          {busy && <Loader2 className="w-4 h-4 animate-spin" />} {item ? 'Guardar' : 'Adicionar'}
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-full px-3 py-2 text-[14px] font-bold text-ink-soft">
+          Cancelar
+        </button>
+        {onRemove && (
+          <span className="ml-auto">
+            {removing ? (
+              <span className="flex items-center gap-2 text-[12.5px]">
+                <span className="text-ink-soft">{noun.remove}</span>
+                <button type="button" onClick={async () => (await onRemove()) && onCancel()} className="font-extrabold text-alert">
+                  Apagar
+                </button>
+                <button type="button" onClick={() => setRemoving(false)} className="font-bold text-ink-soft">
+                  Não
+                </button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setRemoving(true)} aria-label={`Apagar ${noun.one}`} className="w-9 h-9 rounded-full flex items-center justify-center text-ink-mute hover:bg-surface-2">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </span>
+        )}
+      </div>
+    </form>
+  );
+}
+
+/** Uma ficha fechada: leve, com o essencial; tocar abre para editar. */
+function ItemRow({ title, sub, done, onToggle, pill, onEdit }: { title: string; sub?: React.ReactNode; done?: boolean; onToggle?: () => void; pill?: React.ReactNode; onEdit: () => void }) {
+  return (
+    <li className="rounded-2xl bg-surface shadow-soft flex items-center gap-3 px-3.5 py-2.5">
+      {onToggle && (
+        <button type="button" onClick={onToggle} aria-pressed={!!done} aria-label={`${done ? 'Desmarcar' : 'Marcar como feita'}: ${title}`} className={`w-7 h-7 shrink-0 rounded-full border-2 flex items-center justify-center transition ${done ? 'bg-rosa border-rosa text-white' : 'border-ink-mute/60'}`}>
+          {done && <Check className="w-4 h-4" strokeWidth={3} />}
+        </button>
+      )}
+      <button type="button" onClick={onEdit} aria-label={`${title}: editar`} className="flex-1 min-w-0 text-left">
+        <span className={`block text-[14.5px] leading-snug ${done ? 'text-ink-mute line-through' : 'text-ink font-semibold'}`}>{title}</span>
+        {sub && <span className="block text-[12px] text-ink-mute">{sub}</span>}
+      </button>
+      {pill}
+    </li>
+  );
+}
+
+/** A lista de um tipo de ficha: cada uma abre ali mesmo para editar, e o "+" no fim abre uma nova. */
+function ItemList({ celebration: c, kind, items, actions, row, empty, before }: { celebration: Celebration; kind: CelebrationItemKind; items: CelebrationItem[]; actions: CelebrationActions; row: (i: CelebrationItem, edit: () => void) => React.ReactNode; empty?: React.ReactNode; before?: (pick: (title: string) => void) => React.ReactNode }) {
+  const [editing, setEditing] = useState<string | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
+  return (
+    <section className="space-y-2.5" aria-label={TABS.find(t => t.id === kind)!.label}>
+      {items.length === 0 && empty}
+      {items.length === 0 && adding === null && before?.(t => setAdding(t))}
+      <ul className="space-y-2">
+        {items.map(i =>
+          editing === i.id ? (
+            <li key={i.id}>
+              <ItemEditor kind={kind} item={i} eventAt={c.event_at} onSave={f => actions.updateItem(i.id, f)} onCancel={() => setEditing(null)} onRemove={() => actions.removeItem(i.id)} />
+            </li>
+          ) : (
+            <Fragment key={i.id}>
+              {row(i, () => {
+                setAdding(null);
+                setEditing(i.id);
+              })}
+            </Fragment>
+          ),
+        )}
+      </ul>
+      {adding !== null ? (
+        <ItemEditor kind={kind} eventAt={c.event_at} initialTitle={adding} onSave={f => actions.addItem(c.id, kind, f)} onCancel={() => setAdding(null)} />
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setEditing(null);
+            setAdding('');
+          }}
+          className="w-full flex items-center justify-center gap-1.5 rounded-2xl border-[1.5px] border-dashed border-rosa/40 py-2.5 text-[13.5px] font-bold text-rosa"
+        >
+          <Plus className="w-4 h-4" /> {NOUN[kind].add}
+        </button>
+      )}
+    </section>
+  );
+}
+
+const pillCls = (on: boolean) => `shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold ${on ? 'bg-rosa-soft text-rosa-strong' : 'bg-surface-2 text-ink-soft'}`;
+
 function TaskList({ celebration: c, actions }: { celebration: Celebration; actions: CelebrationActions }) {
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState('');
   const tasks = c.items
     .filter(i => i.kind === 'tarefa')
     .map(i => ({ item: i, due: dueOf(i, c.event_at) }))
     .sort((a, b) => Number(a.item.done) - Number(b.item.done) || (a.due ?? '9999').localeCompare(b.due ?? '9999'));
   return (
-    <section className="space-y-2.5" aria-label="Tarefas">
+    <>
       {!c.event_at && <p className="text-[13px] text-ink-soft px-1">Coloquem a data para os prazos aparecerem (eles se ajustam sozinhos se a data mudar).</p>}
-      <ul className="space-y-2">
-        {tasks.map(({ item: t, due }) => (
-          <Row
-            key={t.id}
-            title={t.title}
-            done={t.done}
-            onToggle={() => actions.updateItem(t.id, { ...itemFieldsOf(t), done: !t.done })}
-            sub={[due ? `até ${formatBR(due)}` : null, t.due_offset != null && !t.due_date ? `${t.due_offset} ${t.due_offset === 1 ? 'dia' : 'dias'} antes` : null, WHO.find(w => w.id === t.assigned_to)?.label].filter(Boolean).join(' · ')}
-            onRemove={() => actions.removeItem(t.id)}
-            removeText="Apagar esta tarefa?"
-          >
-            <div className="flex gap-1.5" role="group" aria-label="Quem cuida">
-              {WHO.map(w => (
-                <button key={w.id} type="button" aria-pressed={t.assigned_to === w.id} onClick={() => actions.updateItem(t.id, { ...itemFieldsOf(t), assignedTo: w.id })} className={`rounded-full px-3 py-1 text-[12.5px] font-bold ${t.assigned_to === w.id ? 'bg-rosa text-white' : 'bg-surface-2 text-ink-soft'}`}>
-                  {w.label}
-                </button>
-              ))}
-            </div>
-          </Row>
-        ))}
-      </ul>
-      <form
-        className="flex gap-2"
-        onSubmit={async e => {
-          e.preventDefault();
-          if (!title.trim()) return;
-          if (await actions.addItem(c.id, 'tarefa', { title: title.trim(), dueDate: date || null, assignedTo: 'casal' })) {
-            setTitle('');
-            setDate('');
-          }
+      <ItemList
+        celebration={c}
+        kind="tarefa"
+        items={tasks.map(t => t.item)}
+        actions={actions}
+        row={(t, edit) => {
+          const due = dueOf(t, c.event_at);
+          const late = isLate(t, c.event_at);
+          return (
+            <ItemRow
+              key={t.id}
+              title={t.title}
+              done={t.done}
+              onToggle={() => actions.updateItem(t.id, { ...itemFieldsOf(t), done: !t.done })}
+              onEdit={edit}
+              sub={
+                <>
+                  {late && <span className="font-bold text-rosa-strong">Para já · </span>}
+                  {[due && !late ? `até ${formatBR(due)}` : null, WHO.find(w => w.id === t.assigned_to)?.label, t.notes].filter(Boolean).join(' · ')}
+                </>
+              }
+            />
+          );
         }}
-      >
-        <input aria-label="Nova tarefa" placeholder="Nova tarefa" value={title} onChange={e => setTitle(e.target.value)} maxLength={120} className={`${input} flex-1 min-w-0`} />
-        <input type="date" aria-label="Prazo da nova tarefa" value={date} onChange={e => setDate(e.target.value)} className={`${input.replace('w-full ', '')} shrink-0 w-36`} />
-        <button type="submit" aria-label="Adicionar tarefa" className="shrink-0 w-11 rounded-2xl bg-rosa text-white flex items-center justify-center">
-          <Plus className="w-5 h-5" />
-        </button>
-      </form>
-    </section>
+      />
+    </>
   );
 }
 
@@ -496,119 +717,62 @@ const whatsapp = (contact: string | null) => {
 };
 
 function SupplierList({ celebration: c, actions }: { celebration: Celebration; actions: CelebrationActions }) {
-  const [title, setTitle] = useState('');
-  const [contact, setContact] = useState('');
-  const [amount, setAmount] = useState('');
   const suppliers = c.items.filter(i => i.kind === 'fornecedor');
-  const budget = budgetOf(c);
-  const statuses = Object.keys(SUPPLIER_STATUS) as SupplierStatus[];
   return (
-    <section className="space-y-2.5" aria-label="Fornecedores">
-      <p className="px-1 text-[13px] text-ink-soft">
-        {suppliers.length === 0 ? 'Bolo, doces, decoração, fotógrafo, espaço… Anotem cada um com o contato e o valor.' : `${brl(budget.committed)} combinados · ${brl(budget.paid)} pagos${budget.planned !== null ? ` · previsto ${brl(budget.planned)}` : ''}`}
-      </p>
-      <ul className="space-y-2">
-        {suppliers.map(s => {
-          const link = whatsapp(s.contact);
-          const status = (s.status ?? 'orcado') as SupplierStatus;
-          return (
-            <Row key={s.id} title={s.title} sub={[s.amount ? brl(Number(s.amount)) : null, SUPPLIER_STATUS[status]].filter(Boolean).join(' · ')} onRemove={() => actions.removeItem(s.id)} removeText="Apagar este fornecedor?">
-              {s.contact && (
-                <p className="text-[13.5px] text-ink">
-                  {s.contact}
-                  {link && (
-                    <a href={link} target="_blank" rel="noopener" className="ml-2 font-bold text-verde-strong">
-                      WhatsApp ›
-                    </a>
-                  )}
-                </p>
-              )}
-              <div className="flex gap-1.5" role="group" aria-label="Situação">
-                {statuses.map(st => (
-                  <button key={st} type="button" aria-pressed={status === st} onClick={() => actions.updateItem(s.id, { ...itemFieldsOf(s), status: st })} className={`rounded-full px-3 py-1 text-[12.5px] font-bold ${status === st ? 'bg-rosa text-white' : 'bg-surface-2 text-ink-soft'}`}>
-                    {SUPPLIER_STATUS[st]}
-                  </button>
-                ))}
-              </div>
-            </Row>
-          );
-        })}
-      </ul>
-      <form
-        className="space-y-2 rounded-2xl bg-surface-2/60 p-2.5"
-        onSubmit={async e => {
-          e.preventDefault();
-          if (!title.trim()) return;
-          if (await actions.addItem(c.id, 'fornecedor', { title: title.trim(), contact: contact.trim() || null, amount: amount ? Number(amount.replace(',', '.')) : null, status: 'orcado' })) {
-            setTitle('');
-            setContact('');
-            setAmount('');
-          }
-        }}
-      >
-        <input aria-label="Fornecedor" placeholder="Fornecedor ou serviço (ex.: Bolo da Ju)" value={title} onChange={e => setTitle(e.target.value)} maxLength={120} className={input} />
-        <div className="flex gap-2">
-          <input aria-label="Contato" placeholder="Contato (WhatsApp, Instagram…)" value={contact} onChange={e => setContact(e.target.value)} maxLength={120} className={`${input} flex-1 min-w-0`} />
-          <input inputMode="decimal" aria-label="Valor" placeholder="R$" value={amount} onChange={e => setAmount(e.target.value.replace(/[^\d.,]/g, ''))} className={`${input.replace('w-full ', '')} shrink-0 w-24`} />
-          <button type="submit" aria-label="Adicionar fornecedor" className="shrink-0 w-11 rounded-2xl bg-rosa text-white flex items-center justify-center">
-            <Plus className="w-5 h-5" />
-          </button>
-        </div>
-      </form>
-    </section>
+    <ItemList
+      celebration={c}
+      kind="fornecedor"
+      items={suppliers}
+      actions={actions}
+      empty={<p className="px-1 text-[13px] text-ink-soft">Bolo, doces, decoração, fotógrafo, espaço… Anotem cada um com o contato e o valor.</p>}
+      row={(s, edit) => {
+        const link = whatsapp(s.contact);
+        const status = (s.status ?? 'orcado') as SupplierStatus;
+        return (
+          <ItemRow
+            key={s.id}
+            title={s.title}
+            onEdit={edit}
+            sub={
+              <>
+                {[s.amount ? brlCents(Number(s.amount)) : null, s.contact].filter(Boolean).join(' · ')}
+                {link && (
+                  <a href={link} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="ml-1.5 font-bold text-verde-strong">
+                    WhatsApp ›
+                  </a>
+                )}
+              </>
+            }
+            pill={<span className={pillCls(status !== 'orcado')}>{SUPPLIER_STATUS[status]}</span>}
+          />
+        );
+      }}
+    />
   );
 }
 
 function GuestList({ celebration: c, actions }: { celebration: Celebration; actions: CelebrationActions }) {
-  const [name, setName] = useState('');
-  const [people, setPeople] = useState('1');
   const g = guestsOf(c);
   const diapers = c.kind === 'cha_fraldas' || c.kind === 'cha_bebe';
   // Um pacote por convite (quem não vai fica de fora).
   const invited = g.guests.filter(x => x.status !== 'nao_vai');
   const sizes = diaperFor(invited.map(x => x.id));
-  const statuses = Object.keys(GUEST_STATUS) as GuestStatus[];
   return (
-    <section className="space-y-2.5" aria-label="Convidados">
-      <p className="px-1 text-[13px] text-ink-soft">
-        {g.guests.length === 0 ? 'Anotem quem vocês querem por perto. Cada convite pode levar mais de uma pessoa.' : `${g.going} confirmados · ${g.maybe} talvez · ${g.waiting} sem resposta`}
-      </p>
-      <ul className="space-y-2">
-        {g.guests.map(x => {
+    <>
+      <p className="px-1 text-[13px] text-ink-soft">{g.guests.length === 0 ? 'Anotem quem vocês querem por perto. Cada convite pode levar mais de uma pessoa.' : `${g.going} confirmados · ${g.maybe} talvez · ${g.waiting} sem resposta`}</p>
+      <ItemList
+        celebration={c}
+        kind="convidado"
+        items={g.guests}
+        actions={actions}
+        row={(x, edit) => {
           const status = (x.status ?? 'convidado') as GuestStatus;
           const size = sizes.get(x.id);
-          return (
-            <Row key={x.id} title={x.title} sub={[GUEST_STATUS[status], (x.people ?? 1) > 1 ? `${x.people} pessoas` : null, diapers && size ? `fralda ${size}` : null].filter(Boolean).join(' · ')} onRemove={() => actions.removeItem(x.id)} removeText="Tirar da lista?">
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Confirmação">
-                {statuses.map(st => (
-                  <button key={st} type="button" aria-pressed={status === st} onClick={() => actions.updateItem(x.id, { ...itemFieldsOf(x), status: st })} className={`rounded-full px-3 py-1 text-[12.5px] font-bold ${status === st ? 'bg-rosa text-white' : 'bg-surface-2 text-ink-soft'}`}>
-                    {GUEST_STATUS[st]}
-                  </button>
-                ))}
-              </div>
-            </Row>
-          );
-        })}
-      </ul>
-      <form
-        className="flex gap-2"
-        onSubmit={async e => {
-          e.preventDefault();
-          if (!name.trim()) return;
-          if (await actions.addItem(c.id, 'convidado', { title: name.trim(), people: Math.max(1, Number(people) || 1), status: 'convidado' })) {
-            setName('');
-            setPeople('1');
-          }
+          return <ItemRow key={x.id} title={x.title} onEdit={edit} sub={[(x.people ?? 1) > 1 ? `${x.people} pessoas` : null, diapers && size ? `fralda ${size}` : null, x.notes].filter(Boolean).join(' · ') || undefined} pill={<span className={pillCls(status === 'vai')}>{GUEST_STATUS[status]}</span>} />;
         }}
-      >
-        <input aria-label="Convidado" placeholder="Nome (ou família: Tia Bia e Rafa)" value={name} onChange={e => setName(e.target.value)} maxLength={120} className={`${input} flex-1 min-w-0`} />
-        <input inputMode="numeric" aria-label="Quantas pessoas" value={people} onChange={e => setPeople(e.target.value.replace(/\D/g, ''))} className={`${input.replace('w-full ', '')} shrink-0 w-16 text-center`} />
-        <button type="submit" aria-label="Adicionar convidado" className="shrink-0 w-11 rounded-2xl bg-rosa text-white flex items-center justify-center">
-          <Users className="w-5 h-5" />
-        </button>
-      </form>
+      />
       {diapers && invited.length > 0 && <DiaperCalculator packs={invited.length} />}
-    </section>
+    </>
   );
 }
 
@@ -633,58 +797,43 @@ function DiaperCalculator({ packs }: { packs: number }) {
 }
 
 function IdeaList({ celebration: c, actions }: { celebration: Celebration; actions: CelebrationActions }) {
-  const [title, setTitle] = useState('');
   const ideas = c.items.filter(i => i.kind === 'ideia');
   const starters = ['Painel de fotos da barriga', 'Brincadeira: adivinhe o tamanho da barriga', 'Lembrancinha: sabonete artesanal', 'Livro de recados para o bebê', 'Mesa de doces nas cores do tema'];
   return (
-    <section className="space-y-2.5" aria-label="Ideias">
-      {ideas.length === 0 && (
+    <ItemList
+      celebration={c}
+      kind="ideia"
+      items={ideas}
+      actions={actions}
+      before={pick => (
         <div className="flex flex-wrap gap-1.5 px-1">
           {starters.map(s => (
-            <button key={s} type="button" onClick={() => setTitle(s)} className="rounded-full bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-ink-soft shadow-soft">
+            <button key={s} type="button" onClick={() => pick(s)} className="rounded-full bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-ink-soft shadow-soft">
               <Lightbulb className="inline w-3.5 h-3.5 mr-1 -mt-0.5 text-warm" />
               {s}
             </button>
           ))}
         </div>
       )}
-      <ul className="space-y-2">
-        {ideas.map(i => (
-          <Row key={i.id} title={i.title} onRemove={() => actions.removeItem(i.id)} removeText="Apagar esta ideia?" />
-        ))}
-      </ul>
-      <form
-        className="flex gap-2"
-        onSubmit={async e => {
-          e.preventDefault();
-          if (!title.trim()) return;
-          if (await actions.addItem(c.id, 'ideia', { title: title.trim() })) setTitle('');
-        }}
-      >
-        <input aria-label="Nova ideia" placeholder="Decoração, cardápio, brincadeira, lembrancinha…" value={title} onChange={e => setTitle(e.target.value)} maxLength={120} className={`${input} flex-1 min-w-0`} />
-        <button type="submit" aria-label="Adicionar ideia" className="shrink-0 w-11 rounded-2xl bg-rosa text-white flex items-center justify-center">
-          <Plus className="w-5 h-5" />
-        </button>
-      </form>
-    </section>
+      row={(i, edit) => <ItemRow key={i.id} title={i.title} sub={i.notes ?? undefined} onEdit={edit} />}
+    />
   );
 }
 
 /** No Início, a partir de 60 dias antes: a contagem e o próximo passo. */
 export function CelebrationTeaser({ celebration: c, days, onOpen }: { celebration: Celebration; days: number; onOpen: () => void }) {
   const next = pendingTasks(c)[0];
-  const k = kindOfCelebration(c.kind);
+  const g = guestsOf(c);
   return (
     <button type="button" onClick={onOpen} aria-label={`${c.title}: abrir`} className="w-full flex items-center gap-3 rounded-[26px] bg-surface shadow-soft px-4 py-3.5 text-left transition active:scale-[0.99]">
-      <span className="w-12 h-12 rounded-2xl bg-rosa-soft flex items-center justify-center text-[1.6rem] shrink-0" aria-hidden>
-        {k.emoji}
-      </span>
+      <CelebrationTile kind={c.kind} />
       <span className="flex-1 min-w-0">
-        <span className="flex items-center gap-1.5 text-[12px] font-extrabold uppercase tracking-wide text-rosa">
-          <PartyPopper className="w-3.5 h-3.5" /> {countdown(days)}
+        <span className="block text-[12px] font-extrabold uppercase tracking-wide text-rosa">
+          {countdown(days)}
+          {g.guests.length > 0 && <span className="text-ink-mute"> · {plural(g.going, 'confirmado', 'confirmados')}</span>}
         </span>
         <span className="block font-bold text-ink leading-snug truncate">{c.title}</span>
-        <span className="block text-[12.5px] text-ink-soft truncate">{next ? `Próximo passo: ${next.item.title}${next.due ? ` · até ${formatBR(next.due)}` : ''}` : 'Tudo pronto. Agora é aproveitar!'}</span>
+        <span className="block text-[12.5px] text-ink-soft truncate">{next ? `Próximo passo: ${next.item.title}` : 'Tudo pronto. Agora é aproveitar!'}</span>
       </span>
       <ChevronRight className="w-5 h-5 text-ink-mute shrink-0" />
     </button>

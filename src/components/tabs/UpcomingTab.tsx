@@ -124,7 +124,7 @@ export function Row({ item: i, today = false, onOpen }: { item: UpcomingItem; to
         {today ? (
           i.time ? (
             <span className={`font-display text-[1.1rem] font-semibold tabular ${t.time}`}>{i.time}</span>
-          ) : i.task ? (
+          ) : i.task || i.celebrationTask ? (
             <CheckSquare className={`w-6 h-6 mx-auto ${i.overdue ? 'text-alert' : t.time}`} aria-hidden />
           ) : (
             <Bell className={`w-6 h-6 mx-auto ${t.time}`} aria-hidden />

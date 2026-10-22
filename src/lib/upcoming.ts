@@ -25,9 +25,11 @@ export interface UpcomingItem {
   entry?: JournalEntry;
   /** Celebração (o dia dela, ou uma tarefa com prazo): abre o fichário dela. */
   celebration?: Celebration;
+  /** Uma tarefa de celebração (e não o dia da festa). */
+  celebrationTask?: boolean;
 }
 
-const WHO: Record<string, string> = { mae: 'mãe', pai: 'pai', casal: 'casal' };
+const WHO: Record<string, string> = { mae: 'mãe', pai: 'pai', casal: 'os dois' };
 const hhmm = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 export function appointmentItem(c: Consultation): UpcomingItem {
@@ -70,7 +72,9 @@ export function buildUpcoming(input: { consultations: Consultation[]; tasks: Par
     items.push({ id: `lembrete-${e.id}`, day: e.remind_on.slice(0, 10), time: e.remind_at ? hhmm(parseTimestamp(e.remind_at)) : undefined, label: 'Lembrete', title: e.body || 'Lembrete do diário', detail: e.visibility === 'private' ? 'Só você vê' : undefined, tone: 'rosa', entry: e });
   }
 
-  // Celebrações: o dia da festa e as tarefas com prazo (as atrasadas aparecem hoje).
+  // Celebrações: o dia da festa e as tarefas no dia do prazo. As que já passaram
+  // ficam no espaço da celebração (como "para já") e no cartão do Início, sem
+  // lotar o Hoje: muitas vencem antes mesmo de a data ser marcada.
   for (const c of input.celebrations ?? []) {
     if (c.event_at && daysBetween(today, localDay(c.event_at)) >= 0) {
       items.push({ id: `celebracao-${c.id}`, day: toISODate(localDay(c.event_at)), time: hhmm(parseTimestamp(c.event_at)), label: kindOfCelebration(c.kind).label, title: c.title, detail: c.location ?? undefined, tone: 'rosa', celebration: c });
@@ -79,8 +83,8 @@ export function buildUpcoming(input: { consultations: Consultation[]; tasks: Par
       if (t.kind !== 'tarefa' || t.done) continue;
       const due = dueOf(t, c.event_at);
       if (!due) continue;
-      const overdue = isOverdue(due, today);
-      items.push({ id: `celebracao-tarefa-${t.id}`, day: overdue ? toISODate(today) : due, label: overdue ? `${c.title} · atrasada` : c.title, title: t.title, detail: `Para: ${WHO[t.assigned_to ?? 'casal'] ?? 'casal'}`, tone: 'rosa', overdue, celebration: c });
+      if (isOverdue(due, today)) continue;
+      items.push({ id: `celebracao-tarefa-${t.id}`, day: due, label: c.title, title: t.title, detail: `Para: ${WHO[t.assigned_to ?? 'casal']}`, tone: 'rosa', celebration: c, celebrationTask: true });
     }
   }
 

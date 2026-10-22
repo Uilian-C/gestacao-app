@@ -40,12 +40,12 @@ export interface Celebration {
   items: CelebrationItem[];
 }
 
-export const CELEBRATION_KINDS: Array<{ id: CelebrationKind; label: string; hint: string; emoji: string }> = [
-  { id: 'cha_bebe', label: 'Chá de bebê', hint: 'Família e amigos celebrando a chegada', emoji: '🍼' },
-  { id: 'cha_fraldas', label: 'Chá de fraldas', hint: 'Cada convidado leva fraldas no tamanho certo', emoji: '🧷' },
-  { id: 'cha_revelacao', label: 'Chá revelação', hint: 'Menino ou menina? O segredo revelado', emoji: '🎈' },
-  { id: 'ensaio', label: 'Ensaio de fotos', hint: 'A barriga num dia especial', emoji: '📷' },
-  { id: 'outra', label: 'Outra celebração', hint: 'Do jeito de vocês', emoji: '✨' },
+export const CELEBRATION_KINDS: Array<{ id: CelebrationKind; label: string; hint: string }> = [
+  { id: 'cha_bebe', label: 'Chá de bebê', hint: 'Família e amigos celebrando a chegada' },
+  { id: 'cha_fraldas', label: 'Chá de fraldas', hint: 'Cada convidado leva fraldas no tamanho certo' },
+  { id: 'cha_revelacao', label: 'Chá revelação', hint: 'Menino ou menina? O segredo revelado' },
+  { id: 'ensaio', label: 'Ensaio de fotos', hint: 'A barriga num dia especial' },
+  { id: 'outra', label: 'Outra celebração', hint: 'Do jeito de vocês' },
 ];
 export const kindOfCelebration = (k: CelebrationKind) => CELEBRATION_KINDS.find(c => c.id === k) ?? CELEBRATION_KINDS[4];
 
@@ -143,3 +143,34 @@ export function upcomingCelebration(list: Celebration[] | null | undefined, toda
     .filter((x): x is { c: Celebration; days: number } => x.days !== null && x.days >= 0 && x.days <= 60)
     .sort((a, b) => a.days - b.days)[0] ?? null;
 }
+
+/** "R$ 1.500,00" (sempre com centavos, como no campo de valor). */
+export const brlCents = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+
+/** O campo de valor digitado como no banco: só números, os dois últimos são os centavos ("150000" → 1500). */
+export function moneyFromTyping(text: string): number | null {
+  const digits = text.replace(/\D/g, '').replace(/^0+/, '').slice(0, 10);
+  return digits ? Number(digits) / 100 : null;
+}
+
+export type BudgetLevel = 'livre' | 'perto' | 'estourou';
+
+/**
+ * A régua do orçamento: quanto do previsto já está combinado (contratado ou
+ * pago), quanto falta, e o que acontece se os orçamentos ainda abertos forem
+ * fechados. Sem previsto, não há régua.
+ */
+export function budgetMeter(c: Celebration) {
+  const b = budgetOf(c);
+  const open = b.quoted - b.committed;
+  if (!b.planned) return { ...b, open, pct: null, left: null, level: null as BudgetLevel | null, projectedPct: null };
+  const pct = (b.committed / b.planned) * 100;
+  const level: BudgetLevel = pct > 100 ? 'estourou' : pct >= 80 ? 'perto' : 'livre';
+  return { ...b, open, pct, left: b.planned - b.committed, level, projectedPct: (b.quoted / b.planned) * 100 };
+}
+
+/** Tarefa com prazo vencido e ainda por fazer. */
+export const isLate = (item: CelebrationItem, eventAt: string | null, today = new Date()) => {
+  const due = item.kind === 'tarefa' && !item.done ? dueOf(item, eventAt) : null;
+  return !!due && due < toISODate(today);
+};
