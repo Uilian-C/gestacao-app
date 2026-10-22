@@ -9,7 +9,10 @@ import AuthorBadge from '../AuthorBadge';
 import { MentionText } from '../Mentions';
 import { SocialCount, type OnReact } from '../Social';
 import Mural from './Mural';
-import { BookView } from '../Book';
+import { useState } from 'react';
+import { BookPrint, BookView } from '../Book';
+import type { BabyTone } from '../../content/babyTones';
+import { coupleNames } from '../../lib/relatives';
 import { freshChapter, type Chapter } from '../../lib/chapters';
 import MoodTab from './MoodTab';
 import { Card } from '../ui';
@@ -45,10 +48,13 @@ interface Props {
   onOpenHealth: () => void;
   /** O livro de vocês: um capítulo por semana. */
   book: Chapter[];
+  /** O tom do bebê (o desenho de cada capítulo). */
+  babyTone: BabyTone;
 }
 
 export default function DiaryTab(props: Props) {
   const entries = props.journal;
+  const [printing, setPrinting] = useState(false);
   const count = (f: Folder) => entries.filter(e => e.folder === f).length;
   const social = (e: JournalEntry) => ({
     reactions: props.reactions.filter(r => r.target_type === 'entry' && r.target_id === e.id).length,
@@ -75,10 +81,14 @@ export default function DiaryTab(props: Props) {
           onOpen={id => props.onOpen({ kind: 'entry', id })}
           onWrite={props.onWrite}
           fresh={freshChapter(props.book, props.dumDate, new Date())}
+          babyTone={props.babyTone}
           onOpenBook={() => props.onView('livro')}
         />
       ) : props.view === 'livro' ? (
-        <BookView book={props.book} onOpenEntry={id => props.onOpen({ kind: 'entry', id })} />
+        <>
+          <BookView book={props.book} tone={props.babyTone} onOpenEntry={id => props.onOpen({ kind: 'entry', id })} onWrite={props.journalAvailable ? () => props.onWrite() : undefined} onPrint={() => setPrinting(true)} />
+          {printing && <BookPrint book={props.book} tone={props.babyTone} parents={coupleNames(props.members.map(m => m.name))} onClose={() => setPrinting(false)} />}
+        </>
       ) : props.view === 'tudo' ? (
         <Cover {...props} count={count} social={social} />
       ) : (

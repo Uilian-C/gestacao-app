@@ -12,6 +12,7 @@ import { MentionBar, MentionText } from '../Mentions';
 import type { OnReact } from '../Social';
 import { FreshChapter } from '../Book';
 import type { Chapter } from '../../lib/chapters';
+import type { BabyTone } from '../../content/babyTones';
 
 // O Mural do diário: tudo o que vocês guardam, do mais novo ao mais antigo, como
 // uma rede social só de vocês dois. Foto grande, quem postou, abraço e conversa
@@ -39,6 +40,7 @@ interface Props {
   /** O capítulo da semana que acabou de fechar (nos primeiros dias da semana seguinte). */
   fresh?: Chapter | null;
   onOpenBook?: () => void;
+  babyTone?: BabyTone;
 }
 
 /** O post foi feito no próprio dia do momento: aí a hora ajuda (registro de um dia passado mostra só a data). */
@@ -74,7 +76,7 @@ export default function Mural(props: Props) {
         <PenLine className="w-5 h-5 text-brand shrink-0" aria-hidden />
       </button>}
 
-      {props.fresh && props.onOpenBook && <FreshChapter chapter={props.fresh} onOpenEntry={props.onOpen} onWrite={onWrite && (() => onWrite())} onOpenBook={props.onOpenBook} />}
+      {props.fresh && props.onOpenBook && <FreshChapter chapter={props.fresh} tone={props.babyTone ?? 'tumtum'} onOpenEntry={props.onOpen} onWrite={onWrite && (() => onWrite())} onOpenBook={props.onOpenBook} />}
 
       {props.entries.length === 0 ? (
         <div className="rounded-[26px] bg-surface shadow-soft p-6 text-center space-y-1">

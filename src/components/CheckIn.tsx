@@ -78,15 +78,28 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
     d.setDate(d.getDate() - (6 - i));
     return toISODate(d);
   });
-  const people = [me ? { member: me, role } : null, partner ? { member: partner, role: partner.role } : null].filter(Boolean) as Array<{ member: FamilyMember; role: Author }>;
   const moodAt = (day: string, mineSide: boolean) => checkins.find(c => c.day === day && c.mine === mineSide)?.mood;
   const hasWeek = checkins.some(c => week.includes(c.day));
 
   return (
-    <section aria-labelledby="checkin-titulo" className="rounded-[28px] bg-surface shadow-soft p-4 space-y-3.5">
-      <h2 id="checkin-titulo" className="text-[1.2rem] text-ink px-1">
-        {partner ? 'Vocês dois hoje' : 'Como você está hoje?'}
-      </h2>
+    <section aria-labelledby="checkin-titulo" className="rounded-[26px] bg-surface shadow-soft p-3 space-y-2.5">
+      <div className="flex items-center justify-between gap-3 px-1">
+        <h2 id="checkin-titulo" className="text-[1.05rem] text-ink">
+          {partner ? 'Vocês dois hoje' : 'Como você está hoje?'}
+        </h2>
+        {/* Os últimos 7 dias, em bolinhas, levam ao histórico no Diário → Humor. */}
+        {hasWeek && (
+          <button type="button" onClick={onMonth} disabled={!onMonth} aria-label="Últimos 7 dias dos dois: ver o histórico" className="shrink-0 flex items-center gap-1.5 text-[12px] font-bold text-brand-strong">
+            <span className="flex gap-[3px]" aria-hidden>
+              {week.map(d => {
+                const mood = moodAt(d, true) ?? moodAt(d, false);
+                return <span key={d} className={`w-1.5 h-1.5 rounded-full ${mood ? MOOD_COLOR[mood].bg : 'bg-line'}`} />;
+              })}
+            </span>
+            7 dias ›
+          </button>
+        )}
+      </div>
 
       <div className={`grid gap-2 ${partner ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <Person member={me} role={role} name="Você" mood={mine?.mood} empty={picking ? 'Como está?' : ''} onChange={!picking ? () => setChanging(true) : undefined} />
@@ -104,9 +117,9 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
                 disabled={saving !== null}
                 aria-pressed={on}
                 onClick={() => (on ? setChanging(false) : pick(m.id))}
-                className={`flex flex-col items-center gap-1 rounded-2xl px-0.5 py-2 text-[12px] font-bold transition active:scale-95 ${on ? 'bg-rosa text-white shadow-soft' : 'bg-surface-2 text-ink-soft hover:text-ink'} ${saving && saving !== m.id ? 'opacity-60' : ''}`}
+                className={`flex flex-col items-center gap-0.5 rounded-2xl px-0.5 py-1.5 text-[11.5px] font-bold transition active:scale-95 ${on ? 'bg-rosa text-white shadow-soft' : 'bg-surface-2 text-ink-soft hover:text-ink'} ${saving && saving !== m.id ? 'opacity-60' : ''}`}
               >
-                {saving === m.id ? <Loader2 className="w-6 h-6 animate-spin" /> : <MoodFace path={m.face} className="w-6 h-6" />}
+                {saving === m.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <MoodFace path={m.face} className="w-5 h-5" />}
                 {role === 'pai' ? m.pai : m.mae}
               </button>
             );
@@ -189,28 +202,6 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
         </div>
       )}
 
-      {hasWeek && (
-        <button type="button" onClick={onMonth} disabled={!onMonth} aria-label="Últimos 7 dias dos dois: ver o histórico" className="w-full flex items-center gap-3 rounded-2xl bg-surface-2/60 px-3 py-2.5 text-left">
-          <span className="flex-1 min-w-0 space-y-1">
-            {people.map(p => (
-              <span key={p.member.userId} className="flex items-center gap-2">
-                <Avatar member={p.member} role={p.role} className="w-4 h-4 text-[8px]" />
-                <span className="flex-1 grid grid-cols-7 gap-1" aria-hidden>
-                  {week.map(d => {
-                    const mood = moodAt(d, p.member.me);
-                    return <span key={d} className={`h-2.5 rounded-full ${mood ? MOOD_COLOR[mood].bg : 'bg-surface-2'}`} />;
-                  })}
-                </span>
-              </span>
-            ))}
-          </span>
-          <span className="shrink-0 text-[12px] font-bold text-brand-strong leading-tight text-right">
-            7 dias
-            <span className="block font-semibold text-ink-mute">histórico ›</span>
-          </span>
-        </button>
-      )}
-
       {posts.length > 0 && (
         <div className="space-y-1.5 pt-1 border-t border-line">
           <div className="flex items-baseline justify-between gap-3 px-1 pt-2">
@@ -260,23 +251,25 @@ function PostRow({ entry: e, isNew, mentionsMe, onOpen }: { entry: JournalEntry;
 /** Uma pessoa no cartão: foto, nome e como está hoje. */
 function Person({ member, role, name, mood, empty, onChange }: { member?: FamilyMember; role: Author; name: string; mood?: Mood; empty: string; onChange?: () => void }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-2xl bg-surface-2/60 p-2.5 min-w-0">
+    <div className="flex items-center gap-2 rounded-full bg-surface-2/60 p-1 pr-3 min-w-0">
       <span className="relative shrink-0">
-        <Avatar member={member} role={role} className="w-11 h-11 text-base" />
+        <Avatar member={member} role={role} className="w-9 h-9 text-sm" />
         {mood && (
-          <span className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-surface flex items-center justify-center shadow-soft ${role === 'pai' ? 'text-pai' : 'text-mae'}`}>
-            <MoodFace path={moodOf(mood).face} className="w-5 h-5" />
+          <span className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-surface flex items-center justify-center shadow-soft ${role === 'pai' ? 'text-pai' : 'text-mae'}`}>
+            <MoodFace path={moodOf(mood).face} className="w-4 h-4" />
           </span>
         )}
       </span>
-      <span className="min-w-0">
-        <span className="block text-xs font-bold text-ink-mute truncate">{name}</span>
-        <span className={`block leading-tight ${mood ? 'font-extrabold text-ink truncate' : 'text-ink-mute text-[13px] font-semibold'}`}>{mood ? moodLabel(mood, role) : empty}</span>
-        {onChange && (
-          <button type="button" onClick={onChange} className="text-[12px] font-bold text-brand-strong">
-            Trocar
-          </button>
-        )}
+      <span className="min-w-0 flex-1">
+        <span className="block text-[11px] font-bold text-ink-mute truncate leading-tight">{name}</span>
+        <span className="flex items-baseline gap-1.5 min-w-0">
+          <span className={`leading-tight truncate ${mood ? 'text-[14px] font-extrabold text-ink' : 'text-ink-mute text-[12.5px] font-semibold'}`}>{mood ? moodLabel(mood, role) : empty}</span>
+          {onChange && (
+            <button type="button" onClick={onChange} className="shrink-0 text-[11.5px] font-bold text-brand-strong">
+              Trocar
+            </button>
+          )}
+        </span>
       </span>
     </div>
   );
