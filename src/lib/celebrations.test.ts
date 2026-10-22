@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { budgetOf, diaperFor, diaperPlan, dueOf, guestsOf, pendingTasks, upcomingCelebration, type Celebration, type CelebrationItem } from './celebrations';
+import { brlCents, budgetMeter, budgetOf, moneyFromTyping, diaperFor, diaperPlan, dueOf, guestsOf, pendingTasks, upcomingCelebration, type Celebration, type CelebrationItem } from './celebrations';
 
 const item = (over: Partial<CelebrationItem>): CelebrationItem => ({ id: 'i', kind: 'tarefa', title: 'x', due_date: null, due_offset: null, assigned_to: 'casal', done: false, contact: null, amount: null, status: null, people: null, notes: null, created_at: '', ...over });
 const party = (over: Partial<Celebration>): Celebration => ({ id: 'c', kind: 'cha_bebe', title: 'Chá', event_at: '2026-12-12T15:00:00-03:00', location: null, theme: null, colors: [], budget: null, notes: null, created_at: '', items: [], ...over });
@@ -38,5 +38,25 @@ describe('celebrações', () => {
     const today = new Date(2026, 9, 22);
     expect(upcomingCelebration([party({ event_at: '2027-02-01T15:00:00-03:00' })], today)).toBeNull();
     expect(upcomingCelebration([party({ id: 'perto', event_at: '2026-11-15T15:00:00-03:00' }), party({ id: 'longe', event_at: '2026-12-15T15:00:00-03:00' })], today)?.c.id).toBe('perto');
+  });
+});
+
+describe('orçamento e valores', () => {
+  const base = { id: 'c', kind: 'cha_bebe' as const, title: 'Chá', event_at: null, location: null, theme: null, colors: [], notes: null, created_at: '' };
+  const sup = (amount: string, status: string) => ({ id: amount + status, kind: 'fornecedor' as const, title: 'x', due_date: null, due_offset: null, assigned_to: null, done: false, contact: null, amount, status, people: null, notes: null, created_at: '' });
+  it('o valor é digitado em centavos', () => {
+    expect(moneyFromTyping('150000')).toBe(1500);
+    expect(moneyFromTyping('R$ 1.500,0')).toBe(150);
+    expect(moneyFromTyping('')).toBeNull();
+    expect(brlCents(1500).replace(/\s/g, ' ')).toBe('R$ 1.500,00');
+  });
+  it('a régua do orçamento', () => {
+    const m = budgetMeter({ ...base, budget: '1000', items: [sup('500', 'contratado'), sup('350', 'pago'), sup('400', 'orcado')] });
+    expect(m.pct).toBe(85);
+    expect(m.level).toBe('perto');
+    expect(m.left).toBe(150);
+    expect(m.projectedPct).toBe(125);
+    expect(budgetMeter({ ...base, budget: '500', items: [sup('600', 'pago')] }).level).toBe('estourou');
+    expect(budgetMeter({ ...base, budget: null, items: [] }).pct).toBeNull();
   });
 });

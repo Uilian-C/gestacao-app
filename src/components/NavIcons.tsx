@@ -53,17 +53,17 @@ function Care({ on }: IconProps) {
   );
 }
 
-/** O rostinho do bebê da Jornada: olhinhos fechados, bochechas, sorriso e o cachinho. */
+/** O rostinho do bebê da Jornada: olhinhos fechados, bochechas, sorriso e o cachinho na testa. */
 function Birth({ on }: IconProps) {
-  const detail = on ? CUT : 'currentColor';
+  // Aceso, o rosto ganha um tom suave da cor da aba (cheio, ele virava uma bolinha escura e os traços sumiam).
   return (
     <svg {...base} stroke="currentColor">
-      <circle cx="12" cy="13.2" r="7.8" fill={on ? 'currentColor' : 'none'} />
-      <path d="M11.6 5.4c-.6-2.3 2.6-3.2 3.1-1.2.3 1.3-1.3 1.6-1.5.7" />
-      <path d="M8.2 12.6q1.3 1.2 2.6 0M13.2 12.6q1.3 1.2 2.6 0" stroke={detail} strokeWidth={1.5} />
-      <circle cx="8.4" cy="15" r="1" fill={detail} stroke="none" opacity={0.45} />
-      <circle cx="15.6" cy="15" r="1" fill={detail} stroke="none" opacity={0.45} />
-      <path d="M10.9 15.7q1.1 1 2.2 0" stroke={detail} strokeWidth={1.4} />
+      <circle cx="12" cy="12.6" r="8.4" fill={on ? 'currentColor' : 'none'} fillOpacity={on ? 0.22 : undefined} />
+      <path d="M12.4 4.3c-1.5.3-1.9 2.2-.6 2.6.9.3 1.5-.5 1.1-1.1" strokeWidth={1.4} />
+      <path d="M8.2 12.2q1.2 1.1 2.4 0M13.4 12.2q1.2 1.1 2.4 0" strokeWidth={on ? 1.7 : 1.5} />
+      <circle cx="8.3" cy="14.8" r="1" fill="currentColor" stroke="none" opacity={on ? 0.6 : 0.45} />
+      <circle cx="15.7" cy="14.8" r="1" fill="currentColor" stroke="none" opacity={on ? 0.6 : 0.45} />
+      <path d="M10.8 15.6q1.2 1 2.4 0" strokeWidth={on ? 1.6 : 1.4} />
     </svg>
   );
 }

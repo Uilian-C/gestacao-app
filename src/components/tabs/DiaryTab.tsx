@@ -70,7 +70,7 @@ export default function DiaryTab(props: Props) {
 
   return (
     <div className="space-y-5">
-      <FolderStrip value={props.view} onChange={props.onView} count={count} total={entries.length} folders={props.photosAvailable} />
+      <FolderStrip value={props.view} onChange={props.onView} count={count} folders={props.photosAvailable} />
       {props.view === 'humor' ? (
         <MoodTab checkins={props.checkins} journal={entries} dumDate={props.dumDate} onOpenEntry={id => props.onOpen({ kind: 'entry', id })} />
       ) : props.view === 'mural' ? (
@@ -120,7 +120,7 @@ export default function DiaryTab(props: Props) {
  * (achar fácil, por pasta, com o humor) e o Livro (a história de vocês). As
  * pastas aparecem embaixo quando o Fichário está aberto.
  */
-function FolderStrip({ value, onChange, count, total, folders }: { value: DiaryView; onChange: (v: DiaryView) => void; count: (f: Folder) => number; total: number; folders: boolean }) {
+function FolderStrip({ value, onChange, count, folders }: { value: DiaryView; onChange: (v: DiaryView) => void; count: (f: Folder) => number; folders: boolean }) {
   const inFichario = value !== 'mural' && value !== 'livro' && value !== 'celebracoes';
   const main = (v: DiaryView, on: boolean, Icon: typeof BookOpen, label: string, extra?: React.ReactNode) => (
     <button type="button" onClick={() => onChange(v)} aria-current={on ? 'page' : undefined} className={`flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 rounded-full px-1 py-2 text-[12.5px] sm:text-[13.5px] font-bold transition ${on ? 'bg-ink text-surface shadow-soft' : 'text-ink-soft'}`}>
@@ -133,7 +133,7 @@ function FolderStrip({ value, onChange, count, total, folders }: { value: DiaryV
     <nav className="space-y-2.5" aria-label="Pastas do diário">
       <div className="flex gap-1 rounded-full bg-surface shadow-soft p-1">
         {main('mural', value === 'mural', LayoutList, 'Mural')}
-        {main('tudo', inFichario, BookHeart, 'Fichário', total > 0 && <span className="tabular opacity-70">{total}</span>)}
+        {main('tudo', inFichario, BookHeart, 'Fichário')}
         {main('livro', value === 'livro', BookOpen, 'Livro')}
         {main('celebracoes', value === 'celebracoes', PartyPopper, 'Celebrações')}
       </div>
