@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { CloudRain, Plus, Sprout } from 'lucide-react';
 import BrandMark from './components/BrandMark';
 import QuickRecord, { type QuickMode } from './components/QuickRecord';
@@ -15,6 +15,9 @@ import Nav from './components/Nav';
 import Toast, { type ToastMessage } from './components/Toast';
 import { DumForm } from './components/DumForm';
 import { Card, Segmented, SubTabs } from './components/ui';
+import { SavingContext } from './lib/saving';
+import type { BabyTone } from './content/babyTones';
+import { FreshEntryContext } from './lib/people';
 import type { BirthPlan } from './lib/birthPlan';
 import HomeTab, { type HomeTarget } from './components/tabs/HomeTab';
 import DiaryTab from './components/tabs/DiaryTab';
@@ -83,6 +86,17 @@ const appointmentFields = (c: NewConsultation) => ({
   attendees: c.attendees,
   ...(c.remindBefore === undefined ? {} : { remindBefore: c.remindBefore }),
 });
+const APPOINTMENT_DONE = { consulta: 'Consulta agendada', exame: 'Exame agendado', ultrassom: 'Ultrassom agendado', vacina: 'Vacina agendada' } as const;
+const appointmentDone = (c: NewConsultation) => APPOINTMENT_DONE[c.kind ?? 'consulta'];
+
+/** O que o aviso diz quando o registro do diário foi guardado. */
+function entryDone(edited: boolean, visibility: NewEntry['visibility']) {
+  if (edited) return 'Alterações salvas';
+  if (visibility === 'family') return 'Postado no Mural, para vocês e a família';
+  if (visibility === 'private') return 'Guardado no Mural, só você vê';
+  return 'Postado no Mural';
+}
+
 const appointmentError = (c: NewConsultation) =>
   c.kind === 'consulta' ? undefined : 'Não foi possível agendar. Se for o primeiro exame agendado, rode a migração db/migrations/013_agendamentos.sql no Neon.';
 
@@ -142,6 +156,16 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     };
   }, [author]);
   const [busy, setBusy] = useState(false);
+  /** O passo da gravação em andamento ("Enviando foto 1 de 3"), no botão do formulário. */
+  const [savingLabel, setSavingLabel] = useState<string | null>(null);
+  /** O post que acabou de entrar no Mural, em destaque por alguns segundos. */
+  const [freshEntry, setFreshEntry] = useState<string | null>(null);
+  useEffect(() => {
+    if (!freshEntry) return;
+    const timer = window.setTimeout(() => setFreshEntry(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [freshEntry]);
+  const savingState = useMemo(() => ({ busy, label: savingLabel }), [busy, savingLabel]);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const deleteTimers = useRef(new Map<string, number>());
@@ -169,13 +193,16 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   /**
    * Executa uma alteração no banco e avisa se der errado. Retorna se deu certo.
    * O servidor devolve os dados atualizados na mesma resposta; sem eles, recarrega.
+   * Com `done`, confirma com um aviso curto ("Sintoma registrado"); no erro, o
+   * aviso fica até a pessoa fechar, com "Tentar de novo".
    */
-  const run = async (action: () => Promise<unknown>, errorText = 'Não foi possível salvar. Verifique a conexão e tente de novo.') => {
+  const run = async (action: () => Promise<unknown>, errorText = 'Não foi possível salvar. Verifique a conexão e tente de novo.', done?: string): Promise<boolean> => {
     setBusy(true);
     try {
       const result = (await action()) as { data?: unknown } | undefined;
       if (result?.data) replace(result.data);
       else await refresh();
+      if (done) showToast({ text: done, tone: 'success' });
       return true;
     } catch (err) {
       console.error(err);
@@ -185,7 +212,15 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         onAccessLost();
         return false;
       }
-      showToast({ text: errorText, tone: 'error' });
+      showToast({
+        text: errorText,
+        tone: 'error',
+        actionLabel: 'Tentar de novo',
+        onAction: () => {
+          setToast(null);
+          void run(action, errorText, done);
+        },
+      });
       return false;
     } finally {
       setBusy(false);
@@ -241,21 +276,23 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       const result = await api.mutate('saveDum', { date: iso });
       setPickedWeek(null);
       return result;
-    });
+    }, undefined, 'Data da gestação salva');
 
-  const saveProfile = (preWeightKg: number, heightCm: number) => run(() => api.mutate('saveProfile', { preWeightKg, heightCm }));
+  const saveProfile = (preWeightKg: number, heightCm: number) => run(() => api.mutate('saveProfile', { preWeightKg, heightCm }), undefined, 'Dados salvos');
 
-  const saveFicha = (f: FichaInput) => run(() => api.mutate('saveFicha', { ...f }), 'Não foi possível salvar a ficha. Confira os campos e tente de novo.');
+  const saveFicha = (f: FichaInput) => run(() => api.mutate('saveFicha', { ...f }), 'Não foi possível salvar a ficha. Confira os campos e tente de novo.', 'Ficha salva');
 
-  const saveKicks = (k: { startedAt: string; endedAt: string; kicks: number; target: number }) => run(() => api.mutate('saveKicks', k));
+  const saveKicks = (k: { startedAt: string; endedAt: string; kicks: number; target: number }) => run(() => api.mutate('saveKicks', k), undefined, 'Contagem de chutes salva');
 
   const saveContraction = (c: { startedAt: string; endedAt: string }) => run(() => api.mutate('saveContraction', c));
 
-  const saveBirthPlan = (plan: BirthPlan) => run(() => api.mutate('saveBirthPlan', { plan }));
+  const saveBirthPlan = (plan: BirthPlan) => run(() => api.mutate('saveBirthPlan', { plan }), undefined, 'Plano de parto salvo');
 
   const createTask = (t: NewTask) =>
     run(() =>
       api.mutate('createTask', { week: t.week ?? (t.dueDate ? weekOfDay(dumDate!, t.dueDate) : currentWeek), title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null, ...reminderOf(t) }),
+      undefined,
+      'Tarefa criada',
     );
 
   // Marcar e desmarcar aparece na hora; o servidor confirma em seguida.
@@ -267,16 +304,18 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const createSymptom = (s: NewSymptom) =>
     run(() =>
       api.mutate('createSymptom', { week: weekOfDay(dumDate!, s.date), date: s.date, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }),
+      undefined,
+      'Sintoma registrado',
     );
 
-  const createComment = (symptomId: string, text: string) => run(() => api.mutate('createComment', { symptomId, text }));
+  const createComment = (symptomId: string, text: string) => run(() => api.mutate('createComment', { symptomId, text }), undefined, 'Comentário enviado');
 
   const createQuestion = (text: string, category: string, specialty: SpecialtyId) =>
-    run(() => api.mutate('createQuestion', { week: currentWeek, text, category, specialty }));
+    run(() => api.mutate('createQuestion', { week: currentWeek, text, category, specialty }), undefined, 'Dúvida anotada para a consulta');
 
-  const answerQuestion = (id: string, answer: string) => run(() => api.mutate('answerQuestion', { id, answer }));
+  const answerQuestion = (id: string, answer: string) => run(() => api.mutate('answerQuestion', { id, answer }), undefined, 'Resposta guardada');
 
-  const createMetric = ({ date, ...m }: NewMetric) => run(() => api.mutate('createMetric', { week: weekOfDay(dumDate!, date), date, ...m }), 'Não foi possível salvar a medição.');
+  const createMetric = ({ date, ...m }: NewMetric) => run(() => api.mutate('createMetric', { week: weekOfDay(dumDate!, date), date, ...m }), 'Não foi possível salvar a medição.', 'Medição registrada');
 
   const setCheck = (list: 'prenatal' | 'mala', itemId: string, done: boolean, doneOn?: string) => {
     patch(d => ({
@@ -292,6 +331,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
    */
   const saveEntry = async (id: string | null, e: NewEntry) => {
     setBusy(true);
+    setSavingLabel(id ? 'Salvando...' : 'Postando...');
     let entryId = id;
     try {
       const fields = { body: e.body, visibility: e.visibility, remindOn: e.remindOn, folder: e.folder, ...(e.remindAt === undefined ? {} : { remindAt: e.remindAt }) };
@@ -299,9 +339,14 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       else entryId = ((await api.mutate('createEntry', { date: e.date, ...fields })) as { id?: string }).id ?? null;
       if (entryId) {
         for (const photoId of e.removePhotos) await api.photos('delete', { id: photoId });
-        for (const p of e.photos) await api.photos('add', { entryId, data: p.data, thumb: p.thumb });
+        for (let i = 0; i < e.photos.length; i++) {
+          setSavingLabel(e.photos.length > 1 ? `Enviando foto ${i + 1} de ${e.photos.length}` : 'Enviando a foto...');
+          await api.photos('add', { entryId, data: e.photos[i].data, thumb: e.photos[i].thumb });
+        }
       }
       await refresh();
+      showToast({ text: entryDone(!!id, e.visibility), tone: 'success' });
+      if (entryId && !id) setFreshEntry(entryId);
       return true;
     } catch (err) {
       console.error(err);
@@ -320,6 +365,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       return false;
     } finally {
       setBusy(false);
+      setSavingLabel(null);
     }
   };
   const createEntry = (e: NewEntry) => saveEntry(null, e);
@@ -330,15 +376,18 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
    */
   const saveExam: SaveExam = async (exam, examId, files, onProgress) => {
     setBusy(true);
+    setSavingLabel('Guardando...');
     let id = examId;
     try {
       if (!id && exam) id = (await api.exams<{ ok: true; id: string }>('create', { ...exam })).id;
       for (let i = 0; i < files.length; i++) {
+        setSavingLabel(files.length > 1 ? `Enviando ${i + 1} de ${files.length}...` : 'Enviando o arquivo...');
         await api.exams('addFile', { examId: id, contentType: files[i].contentType, data: files[i].data });
         onProgress(i + 1);
       }
       if (exam?.planItem && !data?.checks.some(c => c.list === 'prenatal' && c.item_id === exam.planItem)) await api.mutate('setCheck', { list: 'prenatal', itemId: exam.planItem, done: true }).catch(() => undefined);
       await refresh();
+      showToast({ text: examId ? (files.length > 1 ? 'Arquivos enviados' : 'Arquivo enviado') : 'Exame guardado', tone: 'success' });
       return null;
     } catch (err) {
       console.error(err);
@@ -356,13 +405,14 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       return examId ? `Não foi possível enviar. ${reason}` : `Não foi possível guardar. ${reason}`;
     } finally {
       setBusy(false);
+      setSavingLabel(null);
     }
   };
 
   // Listas editáveis (mala e jornada).
   const addItem = (list: 'prenatal' | 'mala', title: string, bagGroup: string | null, week: number | null) =>
-    run(() => api.mutate('addItem', { list, title, bagGroup, week }), 'Não foi possível adicionar. Se for a primeira vez, rode a migração 011 no Neon.');
-  const renameItem = (item: ListItem, title: string) => run(() => api.mutate('updateItem', { id: item.id, title, bagGroup: item.bag_group, week: item.week }));
+    run(() => api.mutate('addItem', { list, title, bagGroup, week }), 'Não foi possível adicionar. Se for a primeira vez, rode a migração 011 no Neon.', 'Item adicionado');
+  const renameItem = (item: ListItem, title: string) => run(() => api.mutate('updateItem', { id: item.id, title, bagGroup: item.bag_group, week: item.week }), undefined, 'Item atualizado');
   const deleteListItem = (item: ListItem) => scheduleDelete('item', item.id, `"${item.title}"`);
   /** Planejado de um item: semanas (null volta à referência) e, com a migração 020, o combinado com a equipe. */
   const setPlan = (itemId: string, from: number | null, to: number | null, note?: string | null) => {
@@ -372,7 +422,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       const row = from !== null || keepNote ? [{ item_id: itemId, from, to, note: keepNote }] : [];
       return { ...d, planWeeks: [...(d.planWeeks ?? []).filter(w => w.item_id !== itemId), ...row] };
     });
-    return run(() => api.mutate('setPlanWeeks', { itemId, from, to, ...(note === undefined ? {} : { note }) }), 'Não foi possível salvar o planejado. Se for a primeira vez, rode as migrações 019 e 020 no Neon.');
+    return run(() => api.mutate('setPlanWeeks', { itemId, from, to, ...(note === undefined ? {} : { note }) }), 'Não foi possível salvar o planejado. Se for a primeira vez, rode as migrações 019 e 020 no Neon.', 'Planejado salvo');
   };
   const hideItem = (list: 'prenatal' | 'mala', itemId: string, hidden: boolean) => {
     patch(d => ({ ...d, hiddenItems: hidden ? [...d.hiddenItems, { list, item_id: itemId }] : d.hiddenItems.filter(h => !(h.list === list && h.item_id === itemId)) }));
@@ -395,13 +445,13 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   // Edições feitas na janela de detalhes.
   const updateSymptom = (id: string, s: NewSymptom) =>
-    run(() => api.mutate('updateSymptom', { id, week: weekOfDay(dumDate!, s.date), date: s.date, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }));
-  const updateMetric = (id: string, { date, ...m }: NewMetric) => run(() => api.mutate('updateMetric', { id, week: weekOfDay(dumDate!, date), date, ...m }), 'Não foi possível salvar a medição.');
+    run(() => api.mutate('updateSymptom', { id, week: weekOfDay(dumDate!, s.date), date: s.date, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }), undefined, 'Alterações salvas');
+  const updateMetric = (id: string, { date, ...m }: NewMetric) => run(() => api.mutate('updateMetric', { id, week: weekOfDay(dumDate!, date), date, ...m }), 'Não foi possível salvar a medição.', 'Alterações salvas');
   const updateEntry = (id: string, e: NewEntry) => saveEntry(id, e);
   const updateTask = (id: string, t: NewTask) =>
-    run(() => api.mutate('updateTask', { id, title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null, ...reminderOf(t) }));
+    run(() => api.mutate('updateTask', { id, title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null, ...reminderOf(t) }), undefined, 'Alterações salvas');
   const updateConsultation = (id: string, c: NewConsultation) =>
-    run(() => api.mutate('updateConsultation', { id, ...appointmentFields(c) }), appointmentError(c));
+    run(() => api.mutate('updateConsultation', { id, ...appointmentFields(c) }), appointmentError(c), 'Alterações salvas');
   const deleteDetail = (d: Detail) => {
     if (d.kind === 'symptom') scheduleDelete('symptom', d.item.id, d.item.symptom_name);
     else if (d.kind === 'metric') scheduleDelete('metric', d.item.id, `medição da semana ${d.item.week_number}`);
@@ -411,7 +461,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   };
 
   const createConsultation = (c: NewConsultation) =>
-    run(() => api.mutate('createConsultation', appointmentFields(c)), appointmentError(c));
+    run(() => api.mutate('createConsultation', appointmentFields(c)), appointmentError(c), appointmentDone(c));
 
   if (loadState !== 'ready' || !data) {
     return (
@@ -555,13 +605,18 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     }));
     return run(() => api.mutate('checkin', { day: today, mood }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/014_checkin.sql no Neon.');
   };
+  // O tom do bebê aparece na hora; o servidor confirma em seguida.
+  const setBabyTone = (tone: BabyTone) => {
+    patch(d => ({ ...d, babyTone: tone }));
+    void run(() => api.mutate('setBabyTone', { tone }), 'Não foi possível salvar o tom. Se for a primeira vez, rode a migração db/migrations/024_tom_do_bebe.sql no Neon.');
+  };
   const hug = () => {
     patch(d => ({ ...d, hugs: [...(d.hugs ?? []), { day: today, toMe: false }] }));
-    return run(() => api.mutate('hug', { day: today }), 'Não foi possível mandar o abraço. Verifique a conexão.');
+    return run(() => api.mutate('hug', { day: today }), 'Não foi possível mandar o abraço. Verifique a conexão.', 'Abraço enviado');
   };
   // "Quer contar no Mural?" depois do check-in: vira um registro do dia a dia, para os dois.
   const shareMood = (body: string) =>
-    run(() => api.mutate('createEntry', { date: today, body, visibility: 'shared', remindOn: null, folder: 'dia' }), 'Não foi possível postar no Mural.');
+    run(() => api.mutate('createEntry', { date: today, body, visibility: 'shared', remindOn: null, folder: 'dia' }), 'Não foi possível postar no Mural.', 'Postado no Mural');
   const openFromHome = (target: HomeTarget, planItem?: string) => {
     if (target === 'diario') return navigate('diario');
     if (target === 'mural' || target === 'humor' || target === 'barriga') {
@@ -613,6 +668,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   );
 
   return (
+    <SavingContext.Provider value={savingState}>
+    <FreshEntryContext.Provider value={freshEntry}>
     <PeopleContext.Provider value={family.members}>
     <RelativesContext.Provider value={family.relatives ?? []}>
     <JourneyContext.Provider value={{ items: journeyItems, done: doneSteps, consultations, dumDate }}>
@@ -647,6 +704,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
         {activeTab === 'inicio' && (
           <HomeTab
+            babyTone={data.babyTone ?? 'tumtum'}
+            onBabyTone={setBabyTone}
             age={age}
             dumDate={dumDate}
             selectedWeek={selectedWeek}
@@ -1015,6 +1074,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     </JourneyContext.Provider>
     </RelativesContext.Provider>
     </PeopleContext.Provider>
+    </FreshEntryContext.Provider>
+    </SavingContext.Provider>
   );
 }
 

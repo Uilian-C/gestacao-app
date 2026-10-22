@@ -11,7 +11,7 @@ export async function fetchAll(fid: string, userId: string) {
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
-              f.abortions, f.cesareans, f.allergies, f.medications, f.conditions,
+              f.abortions, f.cesareans, f.allergies, f.medications, f.conditions, to_jsonb(f) ->> 'baby_tone' AS baby_tone,
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'consultations' AND column_name = 'attendees') AS attendees_ready,
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'partner_tasks' AND column_name = 'remind_on') AS task_reminders_ready,
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'journal_entries' AND column_name = 'remind_at') AS timed_reminders_ready,
@@ -198,6 +198,8 @@ export async function fetchAll(fid: string, userId: string) {
     socialAvailable: social !== null,
     planWeeks: planWeeks ?? [],
     planWeeksAvailable: planWeeks !== null,
+    /** Tom do bebê desenhado (migração 024); null é o tom neutro. */
+    babyTone: text('baby_tone'),
     /** A migração 020 já rodou: anotação do combinado com a equipe. */
     planNotesAvailable: f.plan_notes_ready === true,
   };
@@ -211,7 +213,7 @@ export async function fetchAll(fid: string, userId: string) {
  */
 export async function fetchFamilyView(fid: string, userId: string) {
   const [family, journal, photos, social] = await Promise.all([
-    query(`SELECT dum_date::text AS dum_date FROM families WHERE id = $1`, [fid]),
+    query(`SELECT dum_date::text AS dum_date, to_jsonb(f) ->> 'baby_tone' AS baby_tone FROM families f WHERE id = $1`, [fid]),
     query(
       `SELECT id, entry_date::text AS entry_date, body, visibility, author_role, false AS mine, created_at::text AS created_at,
               COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS folder
@@ -240,6 +242,7 @@ export async function fetchFamilyView(fid: string, userId: string) {
   return {
     familyView: true,
     profile: { dumDate: typeof dum === 'string' && dum ? dum : null },
+    babyTone: (family[0]?.baby_tone as string | null | undefined) ?? null,
     journal: journal.map(e => ({ ...e, photos: photos.filter(p => p.entry_id === e.id).map(p => ({ id: p.id, thumb: p.thumb })) })),
     reactions: social?.[0].reactions ?? [],
     threads: social?.[0].threads ?? [],

@@ -374,6 +374,32 @@
   100% { transform: scale(1); }
 }
 
+/* O eco do Tumtum em volta do bebê ("Como o bebê cresce"): pulsa no ritmo tum-tum. */
+.tt-bebe-batida,
+.tt-bebe-eco {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  animation: tt-batida 1.5s ease-in-out infinite;
+}
+.tt-bebe-eco {
+  animation-name: tt-eco;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-bebe-batida, .tt-bebe-eco { animation: none; }
+}
+
+/* Post que acabou de entrar no Mural: chega de leve, em destaque. */
+.tt-novo {
+  animation: tt-novo 0.5s ease-out;
+}
+@keyframes tt-novo {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-novo { animation: none; }
+}
+
 /* ---- Anel da semana no Início: ondas saindo no ritmo do tum-tum ---- */
 .tt-onda {
   animation: tt-onda 1.5s ease-out infinite;

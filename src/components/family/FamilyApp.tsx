@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CloudRain, Loader2, Ruler, Scale } from 'lucide-react';
+import { ChevronRight, CloudRain, Loader2, Ruler, Scale } from 'lucide-react';
 import { api, ApiError, photoUrl, type FamilyState, type Me } from '../../api';
 import type { JournalEntry, Reaction, ReactionKind, ThreadComment } from '../../hooks/useGestationData';
 import { weekInfo } from '../../content/weeks';
 import { clampWeek, gestationalAge, parseLocalDate } from '../../lib/dates';
-import { FOLDER, weekOn } from '../../lib/folders';
+import { FOLDER, bellyShots, weekOn } from '../../lib/folders';
 import { PeopleContext, RelativesContext } from '../../lib/people';
 import { coupleNames } from '../../lib/relatives';
 import Avatar from '../Avatar';
+import BabyGrowth, { type BellyShot } from '../BabyGrowth';
+import type { BabyTone } from '../../content/babyTones';
 import BrandMark from '../BrandMark';
 import PushPrompt from '../PushPrompt';
 import Sheet from '../Sheet';
@@ -27,6 +29,8 @@ export interface FamilyView {
   reactions: Reaction[];
   threads: ThreadComment[];
   socialAvailable: boolean;
+  /** Tom do bebê escolhido pelo casal (migração 024). */
+  babyTone?: BabyTone | null;
 }
 
 interface Props {
@@ -127,7 +131,7 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
           </header>
 
           <main className="max-w-[640px] mx-auto px-4 py-5 space-y-5 pb-16">
-            {dumDate ? <BabyWeek dumDate={dumDate} /> : <p className="rounded-[24px] bg-surface shadow-soft p-5 text-sm text-ink-soft">O casal ainda não informou a data da gestação. Logo a semana do bebê aparece aqui.</p>}
+            {dumDate ? <BabyWeek dumDate={dumDate} tone={view.babyTone ?? 'tumtum'} parents={couple} belly={bellyShots(view.journal, dumDate)} onOpenEntry={setOpen} /> : <p className="rounded-[24px] bg-surface shadow-soft p-5 text-sm text-ink-soft">O casal ainda não informou a data da gestação. Logo a semana do bebê aparece aqui.</p>}
             {dumDate && <Belly entries={view.journal} dumDate={dumDate} onOpen={setOpen} />}
             <PushPrompt relative />
             <section aria-labelledby="mural-familia" className="space-y-3">
@@ -180,7 +184,8 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
 }
 
 /** A semana do bebê: tamanho, peso, o que acontece e quanto falta. */
-function BabyWeek({ dumDate }: { dumDate: string }) {
+function BabyWeek({ dumDate, tone, parents, belly, onOpenEntry }: { dumDate: string; tone: BabyTone; parents: string; belly: BellyShot[]; onOpenEntry: (id: string) => void }) {
+  const [growth, setGrowth] = useState(false);
   const age = gestationalAge(dumDate);
   if (!age) return null;
   const week = clampWeek(age.weeks);
@@ -204,6 +209,24 @@ function BabyWeek({ dumDate }: { dumDate: string }) {
         <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-ink-soft"><Scale className="w-3.5 h-3.5" /> {info.weight}</span>
         {age.daysToDpp > 0 && <span className="inline-flex items-center rounded-full bg-brand-soft px-3 py-1.5 font-bold text-brand-strong">Faltam {age.daysToDpp} dias · previsão {due}</span>}
       </div>
+      <button type="button" onClick={() => setGrowth(true)} className="inline-flex items-center gap-1 rounded-full bg-rosa-soft px-3.5 py-1.5 text-sm font-bold text-rosa-strong hover:brightness-[0.97]">
+        Ver como o bebê cresce <ChevronRight className="w-4 h-4" />
+      </button>
+      {growth && (
+        <Sheet title="Como o bebê cresce" subtitle={`Da 4ª à 40ª semana · o bebê está na ${week}ª`} onClose={() => setGrowth(false)}>
+          <BabyGrowth
+            currentWeek={week}
+            hereText="o bebê está aqui"
+            tone={tone}
+            parents={parents}
+            belly={belly}
+            onOpenEntry={id => {
+              setGrowth(false);
+              onOpenEntry(id);
+            }}
+          />
+        </Sheet>
+      )}
     </section>
   );
 }

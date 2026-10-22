@@ -13,7 +13,12 @@ import { appointmentTitle } from '../../lib/appointments';
 import { buildUpcoming } from '../../lib/upcoming';
 import type { Insight } from '../../lib/symptoms';
 import type { Author, Consultation, HealthMetric, PartnerTask, SymptomItem } from '../../types';
+import BabyGrowth from '../BabyGrowth';
+import type { BabyTone } from '../../content/babyTones';
+import { bellyShots } from '../../lib/folders';
+import { coupleNames } from '../../lib/relatives';
 import BrandMark from '../BrandMark';
+import Sheet from '../Sheet';
 import CheckIn from '../CheckIn';
 import { DumForm } from '../DumForm';
 import PushPrompt from '../PushPrompt';
@@ -40,6 +45,9 @@ interface Props {
   currentWeek: number;
   onSelectWeek: (week: number) => void;
   onSaveDum: (iso: string) => Promise<boolean>;
+  /** Tom do bebê desenhado (migração 024) e como trocar. */
+  babyTone: BabyTone;
+  onBabyTone: (tone: BabyTone) => void;
   insights: Insight[];
   role: Author;
   /** Primeiro nome da outra pessoa do espaço (se já entrou). */
@@ -145,6 +153,7 @@ function WeekStrip({ selected, current, onSelect }: { selected: number; current:
 export default function HomeTab(props: Props) {
   const { age, selectedWeek, currentWeek, onSelectWeek, insights, onOpen } = props;
   const [editingDum, setEditingDum] = useState(false);
+  const [growth, setGrowth] = useState(false);
   const info = weekInfo(selectedWeek);
   const now = new Date();
   const todayIso = toISODate(now);
@@ -203,7 +212,25 @@ export default function HomeTab(props: Props) {
             {info.size} · {info.weight}
           </p>
           <p className="text-[15px] text-ink pt-2 text-balance">{info.milestone}</p>
+          <button type="button" onClick={() => setGrowth(true)} className="mt-2 inline-flex items-center gap-1 rounded-full bg-rosa-soft px-3.5 py-1.5 text-sm font-bold text-rosa-strong hover:brightness-[0.97]">
+            Ver como o bebê cresce <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
+        {growth && (
+          <Sheet title="Como o bebê cresce" subtitle={`Da 4ª à 40ª semana · vocês estão na ${currentWeek}ª`} onClose={() => setGrowth(false)}>
+            <BabyGrowth
+              currentWeek={currentWeek}
+              tone={props.babyTone}
+              onToneChange={props.onBabyTone}
+              parents={coupleNames(members.map(m => m.name))}
+              belly={bellyShots(props.journal, props.dumDate)}
+              onOpenEntry={id => {
+                setGrowth(false);
+                props.onOpenDetail({ kind: 'entry', id });
+              }}
+            />
+          </Sheet>
+        )}
 
         <div className="mt-5">
           <WeekStrip selected={selectedWeek} current={currentWeek} onSelect={onSelectWeek} />

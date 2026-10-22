@@ -130,6 +130,13 @@ export function bellyWeeks(entries: JournalEntry[], dumDate: string) {
   return [...weeks.entries()].sort((a, b) => b[0] - a[0]).map(([week, items]) => ({ week, items }));
 }
 
+/** As fotos da barriga com a semana de cada uma (a primeira foto de cada registro), para a linha do crescimento. */
+export function bellyShots(entries: JournalEntry[], dumDate: string) {
+  return entries
+    .filter(e => e.folder === 'barriga' && e.photos.length > 0)
+    .map(e => ({ week: weekOn(dumDate, e.entry_date), entryId: e.id, photo: e.photos[0] }));
+}
+
 /** Data curta para os cartões: "14 out" (com o ano, se não for o atual). */
 export function shortDate(iso: string) {
   const d = parseLocalDate(iso);
