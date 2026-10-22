@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, CloudRain, Loader2, Ruler, Scale } from 'lucide-react';
 import { api, ApiError, photoUrl, type FamilyState, type Me } from '../../api';
 import type { JournalEntry, NameIdea, Reaction, ReactionKind, ThreadComment } from '../../hooks/useGestationData';
-import { BabyNameContext } from '../../lib/baby';
-import BabyNames, { NameTeaser } from '../BabyNames';
+import { BabyNameContext, markNameSeen, nameSeen } from '../../lib/baby';
+import NameSpace, { NameReveal, NameTeaser } from '../BabyNames';
 import { weekInfo } from '../../content/weeks';
 import { clampWeek, gestationalAge, parseLocalDate } from '../../lib/dates';
 import { FOLDER, bellyShots, weekOn } from '../../lib/folders';
@@ -37,6 +37,7 @@ export interface FamilyView {
   babyTone?: BabyTone | null;
   /** O nome escolhido (migração 025) e as ideias de nome (migração 026). */
   babyName?: string | null;
+  babyNameAt?: string | null;
   nameIdeas?: NameIdea[] | null;
 }
 
@@ -58,6 +59,11 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
   const [open, setOpen] = useState<string | null>(null);
   const [profile, setProfile] = useState(false);
   const [names, setNames] = useState(false);
+  // A revelação do nome, uma vez por aparelho, quando o casal escolhe.
+  const [revealSeen, setRevealSeen] = useState(nameSeen);
+  const [revealAgain, setReveal] = useState<string | null>(null);
+  const chosenName = view?.babyName ?? null;
+  const reveal = revealAgain ?? (chosenName && revealSeen !== chosenName ? chosenName : null);
   const relatives = useMemo(() => family.relatives ?? [], [family.relatives]);
   const self = relatives.find(r => r.me);
   const couple = coupleNames(family.members.map(m => m.name));
@@ -119,6 +125,14 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
   }
 
   const dumDate = view.profile.dumDate;
+  const babyWeek = dumDate ? clampWeek(gestationalAge(dumDate)?.weeks ?? 4) : 4;
+  const closeReveal = () => {
+    if (reveal) {
+      markNameSeen(reveal);
+      setRevealSeen(reveal);
+    }
+    setReveal(null);
+  };
   const entry = open ? view.journal.find(e => e.id === open) : null;
 
   return (
@@ -141,23 +155,33 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
 
           <main className="max-w-[640px] mx-auto px-4 py-5 space-y-5 pb-16">
             {dumDate ? <BabyWeek dumDate={dumDate} tone={view.babyTone ?? 'tumtum'} parents={couple} belly={bellyShots(view.journal, dumDate)} onOpenEntry={setOpen} /> : <p className="rounded-[24px] bg-surface shadow-soft p-5 text-sm text-ink-soft">O casal ainda não informou a data da gestação. Logo a semana do bebê aparece aqui.</p>}
-            {/* A família também dá palpite no nome (quem escolhe é o casal). */}
+            {/* A família também dá palpite no nome (quem escolhe é o casal); depois, vê a história dele. */}
             {view.nameIdeas && !view.babyName && <NameTeaser ideas={view.nameIdeas} onOpen={() => setNames(true)} />}
-            {names && view.nameIdeas && (
-              <Sheet title="O nome do bebê" subtitle="Sugira e curta os seus favoritos" onClose={() => setNames(false)}>
-                <BabyNames
-                  ideas={view.nameIdeas}
-                  tone={view.babyTone ?? 'tumtum'}
-                  week={dumDate ? clampWeek(gestationalAge(dumDate)?.weeks ?? 4) : 4}
-                  couple={false}
-                  actions={{
-                    onAdd: name => mutate('addNameIdea', { name }),
-                    onLike: (id, on) => mutate('likeNameIdea', { id, on }),
-                    onDelete: id => mutate('deleteNameIdea', { id }),
-                  }}
-                />
-              </Sheet>
+            {view.nameIdeas && view.babyName && (
+              <button type="button" onClick={() => setNames(true)} className="w-full rounded-[22px] bg-surface shadow-soft px-5 py-3 text-left text-[14px] font-bold text-rosa-strong">
+                A história do nome de {view.babyName} ›
+              </button>
             )}
+            {names && view.nameIdeas && (
+              <NameSpace
+                ideas={view.nameIdeas}
+                tone={view.babyTone ?? 'tumtum'}
+                week={babyWeek}
+                couple={false}
+                chosenAt={view.babyNameAt}
+                onClose={() => setNames(false)}
+                onReveal={setReveal}
+                actions={{
+                  onAdd: (name, note) => mutate('addNameIdea', { name, ...(note ? { note } : {}) }),
+                  onLike: (id, on) => mutate('likeNameIdea', { id, on }),
+                  onDelete: id => mutate('deleteNameIdea', { id }),
+                  onNote: (id, note) => mutate('noteNameIdea', { id, note }),
+                  onComment: (id, body) => mutate('commentNameIdea', { id, body }),
+                  onDeleteComment: id => mutate('deleteNameComment', { id }),
+                }}
+              />
+            )}
+            {reveal && <NameReveal name={reveal} tone={view.babyTone ?? 'tumtum'} week={babyWeek} onDone={closeReveal} />}
             {dumDate && <Belly entries={view.journal} dumDate={dumDate} onOpen={setOpen} />}
             <PushPrompt relative />
             <section aria-labelledby="mural-familia" className="space-y-3">

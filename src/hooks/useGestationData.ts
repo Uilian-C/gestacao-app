@@ -58,8 +58,9 @@ export interface GestationData {
   planNotesAvailable?: boolean;
   /** Tom do bebê desenhado (migração 024); null é o tom neutro. */
   babyTone?: BabyTone | null;
-  /** Nome do bebê (migração 025). */
+  /** Nome do bebê (migração 025) e quando foi escolhido (migração 027). */
   babyName?: string | null;
+  babyNameAt?: string | null;
   /** Ideias de nome do bebê (migração 026); null antes da migração. */
   nameIdeas?: NameIdea[] | null;
 }
@@ -85,6 +86,10 @@ export interface NameIdea {
   mine: boolean;
   created_at: string;
   likes: Array<{ user_id: string; author_role: 'mae' | 'pai' | 'familia'; mine: boolean }>;
+  /** O porquê do nome (migração 027). */
+  note?: string | null;
+  /** A conversa sobre o nome (migração 027). */
+  comments?: Array<{ id: string; user_id: string; author_role: 'mae' | 'pai' | 'familia'; body: string; mine: boolean; created_at: string }>;
 }
 
 export interface Reaction {

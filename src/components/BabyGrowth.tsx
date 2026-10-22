@@ -140,9 +140,9 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
             <span>{left > 0 ? `faltam ${left} ${left === 1 ? 'semana' : 'semanas'} para o colo` : 'a qualquer momento no colo'}</span>
           </p>
         </div>
-        {onNames && !babyName && (
+        {onNames && (
           <button type="button" onClick={onNames} className="mx-auto mt-2 block text-[13.5px] font-bold text-rosa-strong">
-            Qual vai ser o nome? Ver as ideias ›
+            {babyName ? `A história do nome de ${babyName} ›` : 'Qual vai ser o nome? Abrir o caderno ›'}
           </button>
         )}
         {onToneChange && <ToneSetting tone={tone} onPreview={setPreview} onSave={onToneChange} />}

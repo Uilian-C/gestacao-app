@@ -3,8 +3,7 @@ import { CloudRain, Plus, Sprout } from 'lucide-react';
 import BrandMark from './components/BrandMark';
 import QuickRecord, { type QuickMode } from './components/QuickRecord';
 import DetailSheet from './components/Details';
-import Sheet from './components/Sheet';
-import BabyNames, { type NameActions } from './components/BabyNames';
+import NameSpace, { NameReveal, type NameActions } from './components/BabyNames';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
@@ -42,7 +41,7 @@ import { useGestationData } from './hooks/useGestationData';
 import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, toISODate, weekOfDay } from './lib/dates';
 import { FOLDER } from './lib/folders';
 import { buildBook } from './lib/chapters';
-import { BabyNameContext } from './lib/baby';
+import { BabyNameContext, markNameSeen, nameSeen } from './lib/baby';
 import { pressureInsights } from './lib/health';
 import type { NewMetric } from './components/forms/RecordForms';
 import { findPatterns, toEntries } from './lib/symptoms';
@@ -149,6 +148,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   /** Pasta (e ideia) com que o diário abre no registro. */
   const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string }>({});
   const [namesOpen, setNamesOpen] = useState(false);
+  // A revelação do nome: para quem escolhe, na hora; para quem não estava (o parceiro, a família), na próxima vez que abre o app.
+  const [revealSeen, setRevealSeen] = useState(nameSeen);
+  const [revealAgain, setReveal] = useState<string | null>(null);
+  const babyNameNow = data?.babyName ?? null;
+  const reveal = revealAgain ?? (babyNameNow && revealSeen !== babyNameNow ? babyNameNow : null);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
 
   // A cor principal segue a aba (index.css, data-aba); para o pai, o rosa vira azul (data-papel).
@@ -563,7 +567,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const comments = visible('comment', data.comments);
   const consultations = visible('consultation', data.consultations);
   // O livro de vocês: no Diário → Livro, no Mural (a página nova) e no Início (o capítulo sendo escrito).
-  const book = buildBook({ dumDate, today: new Date(), journal, reactions: socialAvailable ? reactions : [], threads, hugs: data.hugs ?? [], consultations, exams, checkins: data.checkins ?? [] });
+  const book = buildBook({ dumDate, today: new Date(), journal, reactions: socialAvailable ? reactions : [], threads, hugs: data.hugs ?? [], consultations, exams, checkins: data.checkins ?? [], babyName: data.babyName, babyNameAt: data.babyNameAt, nameIdeas: data.nameIdeas });
   // Só as consultas têm resumo e contam como consulta do pré-natal; exames, ultrassons e vacinas são agendamentos à parte.
   const consultsOnly = consultations.filter(isConsultation);
   const prepareReport = (c: Consultation) => {
@@ -623,8 +627,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   };
   // A escolha do nome: ideias, curtidas (aparecem na hora) e a escolha, que vira festa e pode ir para o Mural.
   const NAMES_MISSING = 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/026_nomes_do_bebe.sql no Neon.';
+  const CADERNO_MISSING = 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/027_caderno_do_nome.sql no Neon.';
   const nameActions: NameActions = {
-    onAdd: name => run(() => api.mutate('addNameIdea', { name }), NAMES_MISSING, 'Ideia guardada'),
+    onAdd: (name, note) => run(() => api.mutate('addNameIdea', { name, ...(note ? { note } : {}) }), NAMES_MISSING, 'Anotado no caderno'),
+    onNote: (id, note) => run(() => api.mutate('noteNameIdea', { id, note }), CADERNO_MISSING),
+    onComment: (id, body) => run(() => api.mutate('commentNameIdea', { id, body }), CADERNO_MISSING),
+    onDeleteComment: id => run(() => api.mutate('deleteNameComment', { id }), CADERNO_MISSING),
     onLike: (id, on) => {
       patch(d => ({
         ...d,
@@ -1038,10 +1046,19 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           Registrar
         </button>
       )}
-      {namesOpen && (
-        <Sheet title="O nome do bebê" subtitle={data.babyName ? 'Escolhido com amor' : 'Uma escolha sem pressa, feita a muitas mãos'} onClose={() => setNamesOpen(false)}>
-          <BabyNames ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple actions={nameActions} />
-        </Sheet>
+      {namesOpen && <NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} />}
+      {reveal && (
+        <NameReveal
+          name={reveal}
+          tone={data.babyTone ?? 'tumtum'}
+          week={currentWeek}
+          onShare={data.journal.some(e => e.body.includes(`nome: ${reveal}`)) ? undefined : nameActions.onShareChoice}
+          onDone={() => {
+            markNameSeen(reveal);
+            setRevealSeen(reveal);
+            setReveal(null);
+          }}
+        />
       )}
       {recording && (
         <QuickRecord
