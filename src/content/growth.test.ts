@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GROWTH, growthTimeline, lengthText, stageAt, weightText } from './growth';
+import { GROWTH, lengthText, stageAt, stageShots, weightText } from './growth';
 
 describe('crescimento do bebê', () => {
   it('as médias só crescem, semana a semana', () => {
@@ -9,12 +9,12 @@ describe('crescimento do bebê', () => {
       expect(GROWTH[i].weightG).toBeGreaterThan(GROWTH[i - 1].weightG);
     }
   });
-  it('põe a semana de hoje no lugar certo da linha', () => {
-    const rows = growthTimeline(22);
-    expect(rows.map(r => r.week)).toEqual([4, 8, 12, 16, 20, 22, 24, 28, 32, 36, 40]);
-    expect(rows.find(r => r.now)).toMatchObject({ week: 22, stage: null });
-    expect(growthTimeline(24).filter(r => r.now)).toHaveLength(1);
-    expect(growthTimeline(24).find(r => r.now)?.stage?.week).toBe(24);
+  it('cada fase mostra a foto da barriga mais recente, até a fase seguinte', () => {
+    const shots = stageShots([{ week: 17 }, { week: 19 }, { week: 22 }, { week: 41 }]);
+    expect(shots[GROWTH.findIndex(s => s.week === 16)]?.week).toBe(19);
+    expect(shots[GROWTH.findIndex(s => s.week === 20)]?.week).toBe(22);
+    expect(shots[GROWTH.findIndex(s => s.week === 12)]).toBeUndefined();
+    expect(shots[GROWTH.length - 1]?.week).toBe(41);
   });
   it('escreve tamanho e peso do jeito brasileiro', () => {
     expect(lengthText(GROWTH[0])).toBe('Cerca de 2 mm');

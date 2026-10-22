@@ -14,6 +14,8 @@ import { buildUpcoming } from '../../lib/upcoming';
 import type { Insight } from '../../lib/symptoms';
 import type { Author, Consultation, HealthMetric, PartnerTask, SymptomItem } from '../../types';
 import BabyGrowth from '../BabyGrowth';
+import { bellyShots } from '../../lib/folders';
+import { coupleNames } from '../../lib/relatives';
 import BrandMark from '../BrandMark';
 import Sheet from '../Sheet';
 import CheckIn from '../CheckIn';
@@ -212,7 +214,15 @@ export default function HomeTab(props: Props) {
         </div>
         {growth && (
           <Sheet title="Como o bebê cresce" subtitle={`Da 4ª à 40ª semana · vocês estão na ${currentWeek}ª`} onClose={() => setGrowth(false)}>
-            <BabyGrowth currentWeek={currentWeek} />
+            <BabyGrowth
+              currentWeek={currentWeek}
+              parents={coupleNames(members.map(m => m.name))}
+              belly={bellyShots(props.journal, props.dumDate)}
+              onOpenEntry={id => {
+                setGrowth(false);
+                props.onOpenDetail({ kind: 'entry', id });
+              }}
+            />
           </Sheet>
         )}
 

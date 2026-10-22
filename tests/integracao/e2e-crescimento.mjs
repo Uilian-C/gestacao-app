@@ -7,20 +7,36 @@ const mae = await phone(b);
 const dum = new Date(Date.now() - (22 * 7 + 2) * 86_400_000).toISOString().slice(0, 10);
 await quickAccount(mae, { name: 'Ana', dum });
 
+// Uma foto da barriga desta semana: ela aparece na fase certa da linha.
+const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(2000, 7)]).toString('base64');
+await mae.evaluate(async jpg => {
+  const post = async (path, body) => (await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json();
+  const today = new Date().toISOString().slice(0, 10);
+  const { id } = await post('/api/data', { op: 'createEntry', date: today, body: '', visibility: 'shared', remindOn: null, folder: 'barriga' });
+  await post('/api/fotos', { op: 'add', entryId: id, data: jpg });
+}, JPG);
+await mae.reload();
+
 // ---- Linha do crescimento ----
 await mae.getByRole('button', { name: /Ver como o bebê cresce/ }).click();
 const sheet = mae.getByRole('dialog', { name: 'Como o bebê cresce' });
 await sheet.waitFor();
+const hoje = sheet.getByRole('region', { name: 'O bebê hoje' });
+check(await hoje.getByText('O bebê de Ana').isVisible(), 'em cima, o bebê de quem espera');
+check(await hoje.getByText('Os primeiros chutinhos').isVisible() && (await hoje.getByText('55% do caminho').isVisible()), 'com o nome carinhoso da fase e o caminho até o colo');
+check(await hoje.getByText('faltam 18 semanas para o colo').isVisible(), 'e quanto falta');
 const linha = sheet.getByRole('list', { name: /Crescimento do bebê/ });
-check((await linha.getByRole('listitem').count()) === 11, 'a linha tem as 10 fases e a semana de hoje');
-const hoje = linha.getByRole('button', { name: /22 semanas/ });
-check(await hoje.getByText('vocês estão aqui').isVisible(), 'a semana de hoje aparece em destaque');
-check((await hoje.getAttribute('aria-expanded')) === 'true', 'e já abre mostrando o que acontece nela');
+check((await linha.getByRole('listitem').count()) === 11, 'a linha tem as 10 fases e o marcador de hoje');
+check(await linha.getByText('Semana 22 · vocês estão aqui').isVisible(), 'a semana de hoje fica marcada entre as fases');
 const fase = linha.getByRole('button', { name: /^32 semanas/ });
-check(await fase.getByText('Cerca de 42,4 cm · 1,7 kg').isVisible(), 'cada fase mostra tamanho e peso médios');
+check(await fase.getByText('Ganhando dobrinhas').isVisible() && (await fase.getByText('Cerca de 42,4 cm · 1,7 kg').isVisible()), 'cada fase tem um nome carinhoso, tamanho e peso médios');
 await fase.click();
 check(await fase.getByText(/Medido da cabeça aos pés/).isVisible(), 'tocar numa fase mostra o que acontece e como foi medido');
+check(await linha.getByRole('button', { name: 'A barriga de vocês na semana 22: ver' }).isVisible(), 'a foto da barriga do casal aparece na fase dela');
 check(await sheet.getByText(/da cabeça ao bumbum/).first().isVisible(), 'o rodapé explica a diferença entre as medidas');
+await sheet.getByRole('region', { name: 'O bebê hoje' }).scrollIntoViewIfNeeded();
+await mae.screenshot({ path: `${OUT}crescimento-topo.png` });
+await linha.getByText('Semana 22 · vocês estão aqui').scrollIntoViewIfNeeded();
 await mae.screenshot({ path: `${OUT}crescimento.png` });
 await mae.keyboard.press('Escape');
 
