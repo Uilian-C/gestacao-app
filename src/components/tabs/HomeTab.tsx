@@ -48,7 +48,7 @@ interface Props {
   onSaveDum: (iso: string) => Promise<boolean>;
   /** Tom do bebê desenhado (migração 024) e como trocar. */
   babyTone: BabyTone;
-  onBabyTone: (tone: BabyTone) => void;
+  onBabyTone: (tone: BabyTone) => Promise<boolean>;
   insights: Insight[];
   role: Author;
   /** Primeiro nome da outra pessoa do espaço (se já entrou). */

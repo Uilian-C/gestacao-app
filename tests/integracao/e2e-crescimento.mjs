@@ -40,6 +40,14 @@ check(await hoje.getByText('O bebê de Ana').isVisible(), 'em cima, o bebê de q
 check(await hoje.getByText('Os primeiros chutinhos').isVisible() && (await hoje.getByText('55% do caminho').isVisible()), 'com o nome carinhoso da fase e o caminho até o colo');
 check(await hoje.getByText('faltam 18 semanas para o colo').isVisible(), 'e quanto falta');
 const linha = sheet.getByRole('list', { name: /Crescimento do bebê/ });
+// O trilho é contínuo e o preenchimento termina exatamente no marcador de hoje.
+const trilho = await linha.evaluate(list => {
+  const fill = list.querySelector('.bg-rosa.w-\\[3px\\]');
+  const here = list.querySelector('[data-hoje]');
+  const mid = el => el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2;
+  return fill && here ? Math.abs(fill.getBoundingClientRect().bottom - mid(here)) : 999;
+});
+check(trilho < 2, `o progresso é contínuo e chega até o ponto de hoje (diferença ${Math.round(trilho)}px)`);
 check((await sheet.locator('.tt-bebe-eco').count()) === 2 && (await linha.locator('.tt-bebe-eco').count()) === 1, 'pulsam só o coração do topo e o da fase atual');
 check((await linha.getByRole('listitem').filter({ hasText: 'Os primeiros chutinhos' }).locator('.tt-bebe-eco').count()) === 1, 'a fase que pulsa é a do bebê agora (20 semanas)');
 check((await linha.getByRole('listitem').count()) === 11, 'a linha tem as 10 fases e o marcador de hoje');
@@ -50,11 +58,16 @@ await fase.click();
 check(await fase.getByText(/Medido da cabeça aos pés/).isVisible(), 'tocar numa fase mostra o que acontece e como foi medido');
 check(await linha.getByRole('button', { name: 'A barriga de vocês na semana 22: ver' }).isVisible(), 'a foto da barriga do casal aparece na fase dela');
 check(await sheet.getByText(/da cabeça ao bumbum/).first().isVisible(), 'o rodapé explica a diferença entre as medidas');
+check((await sheet.getByRole('radiogroup', { name: 'Tom do bebê' }).count()) === 0, 'a escolha do tom fica recolhida');
+await sheet.getByRole('button', { name: /Tom do bebê/ }).click();
 const tons = sheet.getByRole('radiogroup', { name: 'Tom do bebê' });
 check((await tons.getByRole('radio', { name: /Neutro/ }).getAttribute('aria-checked')) === 'true', 'o bebê começa neutro, sem cor de pele');
 await tons.getByRole('radio', { name: 'Pele tom 4' }).click();
-await mae.waitForTimeout(800);
 check((await tons.getByRole('radio', { name: 'Pele tom 4' }).getAttribute('aria-checked')) === 'true', 'o casal pode escolher um tom de pele');
+await sheet.getByRole('button', { name: 'Salvar' }).click();
+await sheet.getByText('Salvo').waitFor();
+check((await sheet.getByRole('radiogroup', { name: 'Tom do bebê' }).count()) === 0, 'ao salvar, mostra "Salvo" e recolhe');
+await mae.waitForTimeout(500);
 const salvo = await mae.evaluate(async () => (await (await fetch('/api/data')).json()).babyTone);
 check(salvo === 'tom4', 'e o tom fica salvo para o espaço');
 await sheet.getByRole('region', { name: 'O bebê hoje' }).scrollIntoViewIfNeeded();

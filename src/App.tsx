@@ -608,7 +608,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   // O tom do bebê aparece na hora; o servidor confirma em seguida.
   const setBabyTone = (tone: BabyTone) => {
     patch(d => ({ ...d, babyTone: tone }));
-    void run(() => api.mutate('setBabyTone', { tone }), 'Não foi possível salvar o tom. Se for a primeira vez, rode a migração db/migrations/024_tom_do_bebe.sql no Neon.');
+    return run(() => api.mutate('setBabyTone', { tone }), 'Não foi possível salvar o tom. Se for a primeira vez, rode a migração db/migrations/024_tom_do_bebe.sql no Neon.');
   };
   const hug = () => {
     patch(d => ({ ...d, hugs: [...(d.hugs ?? []), { day: today, toMe: false }] }));
