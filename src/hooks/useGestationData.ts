@@ -58,6 +58,8 @@ export interface GestationData {
   planNotesAvailable?: boolean;
   /** Tom do bebê desenhado (migração 024); null é o tom neutro. */
   babyTone?: BabyTone | null;
+  /** Nome do bebê (migração 025). */
+  babyName?: string | null;
 }
 
 export interface ListItem {

@@ -39,6 +39,7 @@ check((await p.getByText(/64[,.]5/).count()) > 0, 'peso aparece em Medidas');
 // Diário: só o fichário, já na pasta aberta
 await tab('Diário');
 check((await p.getByText('Enjoo').count()) === 0, 'sintoma não aparece no Diário');
+await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Fichário/ }).click();
 await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Ideias/ }).click();
 await plus.click();
 check((await dlg.getByRole('group', { name: 'Tipo de registro' }).count()) === 0, 'Diário abre direto o registro do fichário');

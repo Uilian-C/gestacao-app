@@ -40,6 +40,7 @@ import { useGestationData } from './hooks/useGestationData';
 import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, toISODate, weekOfDay } from './lib/dates';
 import { FOLDER } from './lib/folders';
 import { buildBook } from './lib/chapters';
+import { BabyNameContext } from './lib/baby';
 import { pressureInsights } from './lib/health';
 import type { NewMetric } from './components/forms/RecordForms';
 import { findPatterns, toEntries } from './lib/symptoms';
@@ -558,6 +559,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const questions = visible('question', data.questions);
   const comments = visible('comment', data.comments);
   const consultations = visible('consultation', data.consultations);
+  // O livro de vocês: no Diário → Livro, no Mural (a página nova) e no Início (o capítulo sendo escrito).
+  const book = buildBook({ dumDate, today: new Date(), journal, reactions: socialAvailable ? reactions : [], threads, hugs: data.hugs ?? [], consultations, exams, checkins: data.checkins ?? [] });
   // Só as consultas têm resumo e contam como consulta do pré-natal; exames, ultrassons e vacinas são agendamentos à parte.
   const consultsOnly = consultations.filter(isConsultation);
   const prepareReport = (c: Consultation) => {
@@ -610,6 +613,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     return run(() => api.mutate('checkin', { day: today, mood }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/014_checkin.sql no Neon.');
   };
   // O tom do bebê aparece na hora; o servidor confirma em seguida.
+  // O nome do bebê aparece na hora em todo o app; o servidor confirma em seguida.
+  const setBabyName = (name: string | null) => {
+    patch(d => ({ ...d, babyName: name }));
+    return run(() => api.mutate('setBabyName', { name }), 'Não foi possível salvar o nome. Se for a primeira vez, rode a migração db/migrations/025_nome_do_bebe.sql no Neon.', name ? 'Nome guardado' : undefined);
+  };
   const setBabyTone = (tone: BabyTone) => {
     patch(d => ({ ...d, babyTone: tone }));
     return run(() => api.mutate('setBabyTone', { tone }), 'Não foi possível salvar o tom. Se for a primeira vez, rode a migração db/migrations/024_tom_do_bebe.sql no Neon.');
@@ -623,7 +631,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     run(() => api.mutate('createEntry', { date: today, body, visibility: 'shared', remindOn: null, folder: 'dia' }), 'Não foi possível postar no Mural.', 'Postado no Mural');
   const openFromHome = (target: HomeTarget, planItem?: string) => {
     if (target === 'diario') return navigate('diario');
-    if (target === 'mural' || target === 'humor' || target === 'barriga') {
+    if (target === 'mural' || target === 'humor' || target === 'barriga' || target === 'livro') {
       setDiaryView(target);
       return navigate('diario');
     }
@@ -674,6 +682,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   return (
     <SavingContext.Provider value={savingState}>
     <FreshEntryContext.Provider value={freshEntry}>
+    <BabyNameContext.Provider value={data.babyName ?? null}>
     <PeopleContext.Provider value={family.members}>
     <RelativesContext.Provider value={family.relatives ?? []}>
     <JourneyContext.Provider value={{ items: journeyItems, done: doneSteps, consultations, dumDate }}>
@@ -734,6 +743,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onShareMood={data.journalAvailable ? shareMood : undefined}
             onToggleTask={toggleTask}
             onOpen={openFromHome}
+            book={book}
+            onBabyName={setBabyName}
             onOpenDetail={setDetail}
             onResult={openResult}
             onWrite={() => writeEntry('dia')}
@@ -769,8 +780,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onOpen={setDetail}
             onWrite={writeEntry}
             onOpenHealth={() => openCare('saude')}
-            book={buildBook({ dumDate, today: new Date(), journal, reactions: socialAvailable ? reactions : [], threads, hugs: data.hugs ?? [], consultations, exams, checkins: data.checkins ?? [] })}
+            book={book}
             babyTone={data.babyTone ?? 'tumtum'}
+            onBabyName={setBabyName}
           />
         )}
 
@@ -1080,6 +1092,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     </JourneyContext.Provider>
     </RelativesContext.Provider>
     </PeopleContext.Provider>
+    </BabyNameContext.Provider>
     </FreshEntryContext.Provider>
     </SavingContext.Provider>
   );

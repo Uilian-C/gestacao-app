@@ -28,42 +28,86 @@ await mae.evaluate(
 await mae.reload();
 
 await mae.getByRole('button', { name: /^Diário/ }).first().click();
-const capitulo = mae.getByRole('region', { name: 'Capítulo da semana' });
+const tabs = mae.getByRole('navigation', { name: 'Pastas do diário' });
+check((await tabs.getByRole('button').count()) === 3, 'o Diário tem só três lugares: Mural, Fichário e Livro');
+const capitulo = mae.getByRole('region', { name: 'Página da semana' });
 await capitulo.waitFor();
-check(await capitulo.getByText('Capítulo 21', { exact: false }).first().isVisible(), 'o capítulo que acabou de fechar aparece no Mural');
+check(await capitulo.getByText('Uma página nova no livro de vocês').isVisible(), 'a semana que acabou de fechar aparece no Mural como página nova do livro');
 check(
   await capitulo.getByText('Depois de uma semana quieta, vocês voltaram a guardar lembranças. Teve um momento daqueles que a gente não esquece, a primeira carta para o bebê, uma foto nova e abraços trocados.').isVisible(),
   'a semana contada como história, comparada com a anterior e sem números (nem o que é "Só eu")',
 );
-check(await capitulo.getByText('“Ouvimos o coração pela primeira vez!”').isVisible(), 'o título do capítulo é o momento mais abraçado, nas palavras deles');
-check(await capitulo.getByText('“Querido bebê, já te amamos.”').isVisible() && (await capitulo.getByText('Para guardar desta semana').isVisible()), 'e outra lembrança em destaque');
-check(await capitulo.getByRole('button', { name: 'Começar o capítulo 22' }).isVisible(), 'e o convite para o próximo capítulo');
-check(await capitulo.getByText('O bebê na semana 21').isVisible() && (await capitulo.getByText(/Do tamanho de uma manga/).isVisible()), 'cada capítulo traz o bebê daquela semana');
-check(await capitulo.getByText('A barriga ainda não apareceu no livro. Uma foto de lado já é um começo lindo.').isVisible(), 'e um convite gentil a partir do que falta no fichário');
+check(await capitulo.getByText('“Ouvimos o coração pela primeira vez!”').isVisible(), 'o título da página é o momento mais abraçado, nas palavras deles');
+check(await capitulo.getByText('O bebê na semana 21').isVisible() && (await capitulo.getByText(/Do tamanho de uma manga/).isVisible()), 'com o bebê daquela semana');
+check(await capitulo.getByRole('button', { name: 'Começar a semana 22' }).isVisible(), 'e o convite para a próxima');
 await mae.screenshot({ path: `${OUT}livro-mural.png` });
 
+// ---- O livro: capítulos por mês ----
 await capitulo.getByRole('button', { name: 'Ver o livro' }).click();
 const livro = mae.getByRole('list', { name: 'Capítulos' });
 await livro.waitFor();
-check(await mae.getByText('Um livro que cresce junto com o bebê').isVisible(), 'o livro se apresenta sem contagem');
-check(await livro.getByRole('article', { name: 'Capítulo 22' }).getByText('sendo escrito', { exact: false }).isVisible(), 'o capítulo de hoje está sendo escrito');
-check(await livro.getByText('“Contamos para a família”').isVisible(), 'cada capítulo leva o nome do seu momento');
-check(await livro.getByText(/Capítulos 17 a 20/).isVisible() && (await livro.getByText(/Semanas quietas/).isVisible()), 'semanas sem registro viram uma linha só, sem cobrança');
+check(await mae.getByText('Um dia vocês vão ler estas páginas juntos, com o bebê no colo.').isVisible(), 'o livro convida com afeto, sem contagem');
+check(await livro.getByRole('button', { name: /^Capítulo 5: Os primeiros chutinhos/ }).isVisible() && (await livro.getByRole('button', { name: /^Capítulo 4: Ganhando forma/ }).isVisible()), 'cada mês é um capítulo');
+
+// O nome do bebê vai para a capa e para o app todo.
+await mae.getByRole('button', { name: /Já escolheram o nome/ }).click();
+await mae.getByRole('textbox', { name: 'Nome do bebê' }).fill('Helena');
+await mae.getByRole('button', { name: 'Guardar', exact: true }).click();
+await mae.getByText('O livro de Helena').waitFor();
+check(await mae.getByText('Um dia vocês vão ler estas páginas juntos, com Helena no colo.').isVisible(), 'com o nome escolhido, o livro passa a ser de Helena');
 await mae.screenshot({ path: `${OUT}livro.png`, fullPage: true });
 
-// ---- O livro em PDF ----
-await mae.getByRole('button', { name: 'Baixar o livro em PDF' }).click();
-const pdf = mae.getByRole('dialog', { name: 'O livro para imprimir' });
+// Abrir um capítulo é abrir o livro: folhear página por página.
+await livro.getByRole('button', { name: /^Capítulo 5/ }).click();
+const aberto = mae.getByRole('dialog', { name: 'O livro de Helena' });
+await aberto.waitFor();
+check(await aberto.getByText('O quinto mês de Helena').isVisible(), 'o capítulo abre na sua abertura');
+await mae.screenshot({ path: `${OUT}livro-aberto.png` });
+await aberto.getByRole('button', { name: 'Próxima página' }).click();
+check(await aberto.getByRole('heading', { name: '“Ouvimos o coração pela primeira vez!”' }).isVisible() && (await aberto.getByText('Querido bebê, já te amamos.').isVisible()), 'a página seguinte é a semana, com tudo o que escreveram');
+await mae.screenshot({ path: `${OUT}livro-pagina.png` });
+await aberto.getByRole('button', { name: 'Próxima página' }).click();
+check(await aberto.getByText(/Semana 22 · sendo escrita/).isVisible(), 'e a semana de hoje, ainda sendo escrita');
+await aberto.getByRole('button', { name: 'Página anterior' }).click();
+await aberto.getByRole('button', { name: 'Página anterior' }).click();
+await aberto.getByRole('button', { name: 'Página anterior' }).click();
+check(await aberto.getByText('Capítulo 4').first().isVisible(), 'voltando, chega ao capítulo anterior');
+await aberto.getByRole('button', { name: 'Fechar o livro' }).click();
+
+// ---- Imprimir para o fichário: só as páginas escolhidas ----
+await mae.evaluate(() => (window.print = () => undefined));
+await mae.getByRole('button', { name: /Imprimir para o fichário de memórias/ }).click();
+const escolha = mae.getByRole('dialog', { name: 'Imprimir para o fichário' });
+await escolha.waitFor();
+check((await escolha.getByRole('button', { name: /Semana 21/ }).getAttribute('aria-pressed')) === 'true' && (await escolha.getByRole('button', { name: /Semana 16/ }).getAttribute('aria-pressed')) === 'true', 'as páginas novas já vêm marcadas');
+await escolha.getByRole('button', { name: /Semana 16/ }).click();
+await mae.screenshot({ path: `${OUT}livro-escolha.png` });
+await escolha.getByRole('button', { name: 'Montar as páginas' }).click();
+const pdf = mae.getByRole('dialog', { name: 'Páginas para imprimir' });
 await pdf.waitFor();
-check(await pdf.getByRole('heading', { name: 'Ana', level: 1 }).isVisible(), 'o PDF abre com a capa do livro');
-check(await pdf.getByText('Querido bebê, já te amamos.').isVisible() && (await pdf.getByText('Ouvimos o coração pela primeira vez! Choramos juntos.').isVisible()), 'com tudo o que escreveram, inteiro');
+check(await pdf.getByRole('heading', { name: 'Helena', level: 1 }).isVisible() && (await pdf.getByText('contado por Ana').isVisible()), 'a capa leva o nome do bebê');
+check(await pdf.getByText('Querido bebê, já te amamos.').isVisible() && (await pdf.getByText('Contamos para a família').count()) === 0, 'só as páginas escolhidas, com tudo o que escreveram');
 check((await pdf.getByText('Só meu').count()) === 0, 'sem o que é "Só eu"');
-check(await pdf.getByRole('button', { name: 'Salvar em PDF' }).isVisible(), 'e o botão de salvar em PDF');
-await mae.screenshot({ path: `${OUT}livro-pdf.png` });
 await mae.emulateMedia({ media: 'print' });
 await mae.pdf?.({ path: `${OUT}livro.pdf` }).catch(() => undefined);
 await mae.emulateMedia({ media: 'screen' });
+await pdf.getByRole('button', { name: 'Imprimir' }).click();
 await pdf.getByRole('button', { name: 'Fechar' }).click();
-check((await pdf.count()) === 0, 'e fecha');
+await escolha.getByRole('button', { name: 'Fechar' }).click();
+await mae.getByRole('button', { name: /Imprimir para o fichário de memórias/ }).click();
+check((await escolha.getByRole('button', { name: /Semana 21/ }).getAttribute('aria-pressed')) === 'false' && (await escolha.getByRole('button', { name: /Semana 16/ }).getAttribute('aria-pressed')) === 'true', 'depois de imprimir, só o que falta vem marcado');
+await escolha.getByRole('button', { name: 'Fechar' }).click();
 
-await finish(b);
+// ---- No Início: o nome do bebê e o livro no coração ----
+await mae.getByRole('button', { name: /^Início/ }).first().click();
+const topo = mae.getByRole('region', { name: 'Semana da gestação' });
+check(await topo.getByText('Helena', { exact: true }).isVisible(), 'o nome do bebê aparece no Início');
+const chamada = topo.getByRole('button', { name: 'O livro de Helena: abrir' });
+check(await chamada.isVisible() && (await chamada.getByText('Uma página nova foi escrita').isVisible()), 'e o livro chama no coração do Início');
+await mae.screenshot({ path: `${OUT}livro-inicio.png` });
+await chamada.click();
+await livro.waitFor();
+check(true, 'tocar leva ao livro');
+
+await b.close();
+finish();

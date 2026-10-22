@@ -4,6 +4,7 @@ import { stageAt } from '../content/growth';
 import { weekInfo } from '../content/weeks';
 import { localDay, parseLocalDate, parseTimestamp, toISODate } from './dates';
 import { weekOn } from './folders';
+import { gestationMonth } from './ficha';
 
 // O livro de vocês: cada semana da gestação vira um capítulo. Sem contagem:
 // a semana é comparada com a anterior ("mais emoções do que a semana
@@ -34,6 +35,10 @@ export interface Chapter {
   quiet: boolean;
   /** A semana de hoje: o capítulo ainda está sendo escrito. */
   open: boolean;
+  /** O que aconteceu, em palavras ("uma ida ao ultrassom"), para o resumo do mês. */
+  things: string[];
+  /** O peso afetivo da semana (para comparar meses). */
+  warmth: number;
 }
 
 export interface BookInput {
@@ -188,6 +193,8 @@ export function buildBook(input: BookInput): Chapter[] {
       story,
       baby: `Do tamanho de ${weekInfo(Math.min(42, Math.max(4, week))).fruit}`,
       nudge,
+      things,
+      warmth: w,
       quiet,
       open,
     });
@@ -203,4 +210,61 @@ export function freshChapter(book: Chapter[], dumDate: string, today: Date): Cha
   if (day > 2) return null;
   const last = book.find(c => !c.open);
   return last && !last.quiet && last.week === weekOn(dumDate, todayIso) - 1 ? last : null;
+}
+
+// ---- O livro por meses: cada mês é um capítulo; cada semana, uma página ----
+
+export interface MonthChapter {
+  month: number;
+  /** "O quinto mês". */
+  name: string;
+  /** Um nome carinhoso para o mês. */
+  title: string;
+  /** As páginas (semanas), da mais antiga para a mais nova. */
+  pages: Chapter[];
+  cover: Chapter['cover'];
+  story: string;
+  quiet: boolean;
+  open: boolean;
+}
+
+const ORDINAL = ['', 'primeiro', 'segundo', 'terceiro', 'quarto', 'quinto', 'sexto', 'sétimo', 'oitavo', 'nono'];
+const MONTH_TITLE = ['', 'O começo de tudo', 'Um coraçãozinho batendo', 'Adeus, primeiro trimestre', 'Ganhando forma', 'Os primeiros chutinhos', 'Ouvindo a voz de vocês', 'Abrindo os olhinhos', 'Ganhando dobrinhas', 'Quase no colo'];
+
+/** Agrupa as semanas em meses da gestação, do mês mais novo para o mais antigo. */
+export function bookMonths(book: Chapter[]): MonthChapter[] {
+  const byMonth = new Map<number, Chapter[]>();
+  for (const c of [...book].reverse()) {
+    const m = gestationMonth(Math.max(1, c.week));
+    byMonth.set(m, [...(byMonth.get(m) ?? []), c]);
+  }
+  const months: MonthChapter[] = [];
+  let prevWarmth: number | null = null;
+  for (const [month, pages] of [...byMonth.entries()].sort((a, b) => a[0] - b[0])) {
+    const open = pages.some(p => p.open);
+    const quiet = pages.every(p => p.quiet);
+    const warmth = pages.reduce((n, p) => n + p.warmth, 0);
+    const things = [...new Set(pages.flatMap(p => p.things))].slice(0, 3);
+    const best = [...pages].sort((a, b) => b.warmth - a.warmth)[0];
+    let pace: string;
+    if (quiet) pace = open ? 'Um capítulo novinho, esperando as primeiras lembranças.' : 'Um mês quieto. Às vezes o melhor é só viver.';
+    else if (open) pace = 'Este capítulo ainda está sendo escrito.';
+    else if (prevWarmth === null || prevWarmth === 0) pace = pick(month, ['Um mês cheio de histórias.', 'Um mês para guardar no coração.']);
+    else if (warmth >= prevWarmth * 1.4) pace = pick(month, ['Um mês com mais emoções do que o anterior.', 'O mês mais cheio de lembranças até aqui.']);
+    else if (warmth <= prevWarmth * 0.6) pace = 'Um mês mais tranquilo que o anterior, e tudo bem.';
+    else pace = pick(month, ['Mais um mês bonito na história de vocês.', 'Um mês no ritmo de vocês.']);
+    const had = !quiet && things.length ? `Teve ${joinPt(things)}.` : '';
+    months.push({
+      month,
+      name: `O ${ORDINAL[month] ?? `${month}º`} mês`,
+      title: MONTH_TITLE[month] ?? 'Quase no colo',
+      pages,
+      cover: [...pages].reverse().find(p => p.cover)?.cover ?? null,
+      story: [pace, had].filter(Boolean).join(' ') || (best?.story ?? ''),
+      quiet,
+      open,
+    });
+    prevWarmth = warmth;
+  }
+  return months.reverse();
 }

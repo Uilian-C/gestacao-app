@@ -36,9 +36,12 @@ import { NextAppointment, SharedTasks } from '../home/CoupleCards';
 import { lastSeen, partnerNews } from '../../lib/news';
 import { mentionsMe } from '../../lib/mentions';
 import { PeopleContext } from '../../lib/people';
+import { BabyNameContext } from '../../lib/baby';
+import type { Chapter } from '../../lib/chapters';
+import { BookTeaser } from '../Book';
 
 /** Para onde o Início leva (abas e partes delas). */
-export type HomeTarget = 'diario' | 'mural' | 'humor' | 'barriga' | 'medidas' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
+export type HomeTarget = 'diario' | 'mural' | 'livro' | 'humor' | 'barriga' | 'medidas' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
 
 interface Props {
   age: GestationalAge;
@@ -71,6 +74,10 @@ interface Props {
   onShareMood?: (text: string) => Promise<boolean>;
   onToggleTask: (t: PartnerTask) => void;
   onOpen: (target: HomeTarget, planItem?: string) => void;
+  /** O livro de vocês (o capítulo sendo escrito aparece no coração do Início). */
+  book?: Chapter[];
+  /** Guardar o nome do bebê. */
+  onBabyName?: (name: string | null) => Promise<boolean>;
   /** Abre os detalhes de um agendamento, tarefa ou registro do diário. */
   onOpenDetail: (target: DetailTarget) => void;
   /** Guardar o resultado de um exame que já aconteceu. */
@@ -110,6 +117,7 @@ export default function HomeTab(props: Props) {
   const up = buildUpcoming({ consultations: props.consultations, tasks: props.tasks, journal: props.journal, exams: props.exams, today: now });
   const lateSteps = props.lateSteps;
   const members = useContext(PeopleContext);
+  const babyName = useContext(BabyNameContext);
   const summaryRoles = (['mae', 'pai'] as const).filter(r => members.some(m => m.role === r) || props.checkins.some(c => c.author_role === r));
   // A última visita ao Diário, lida uma vez ao abrir o Início.
   const [since] = useState(() => lastSeen(props.userId));
@@ -164,6 +172,7 @@ export default function HomeTab(props: Props) {
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
+            {babyName && <p className="font-display text-[1.05rem] leading-none text-rosa-strong mb-1">{babyName}</p>}
             <h2 className="font-display text-[1.35rem] leading-tight text-ink text-balance">{stage.title}</h2>
             <p className="mt-1 text-[13px] text-ink-soft">
               Do tamanho de {info.fruit}
@@ -217,6 +226,7 @@ export default function HomeTab(props: Props) {
             Jornada do bebê <ChevronRight className="w-4 h-4" />
           </button>
         )}
+        {props.book && props.book.length > 0 && <BookTeaser book={props.book} dumDate={props.dumDate} onOpen={() => onOpen('livro')} />}
         {growth && (
           <Sheet title="Jornada do bebê" subtitle={`Da 4ª à 40ª semana · vocês estão na ${currentWeek}ª`} onClose={() => setGrowth(false)}>
             <BabyGrowth
@@ -224,6 +234,7 @@ export default function HomeTab(props: Props) {
               goal={upcoming ? { week: upcoming.milestone.week, title: upcoming.milestone.title, text: upcoming.milestone.text, when: inDays(upcoming.days) } : undefined}
               tone={props.babyTone}
               onToneChange={props.onBabyTone}
+              onNameChange={props.onBabyName}
               parents={coupleNames(members.map(m => m.name))}
               belly={bellyShots(props.journal, props.dumDate)}
               onOpenEntry={id => {

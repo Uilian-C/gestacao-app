@@ -1,4 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import BabyNameSetting from './BabyNameSetting';
+import { BabyNameContext } from '../lib/baby';
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, Palette } from 'lucide-react';
 import { photoUrl } from '../api';
 import { GROWTH, GROWTH_SOURCE, MEASURE_TEXT, lengthText, stageAt, stageShots, weightText } from '../content/growth';
@@ -33,6 +35,8 @@ interface Props {
   tone?: BabyTone;
   /** Só o casal escolhe o tom; sem isso (família), o seletor não aparece. */
   onToneChange?: (tone: BabyTone) => Promise<boolean> | void;
+  /** Guardar o nome do bebê (vai para o app todo). */
+  onNameChange?: (name: string | null) => Promise<boolean>;
   /** O próximo marco (do Início): aparece na linha e o trilho mostra, em lilás, o caminho de hoje até ele. */
   goal?: Goal;
 }
@@ -50,7 +54,8 @@ const TERM = 40;
 /** Tamanho do desenho em cada fase: cresce com o bebê, sem sumir no começo. */
 const artSize = (week: number) => Math.round(44 + Math.sqrt(stageAt(week).lengthCm / 51.2) * 52);
 
-export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry, tone = 'tumtum', onToneChange, goal }: Props) {
+export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry, tone = 'tumtum', onToneChange, onNameChange, goal }: Props) {
+  const babyName = useContext(BabyNameContext);
   const [open, setOpen] = useState<number | null>(null);
   // Enquanto o casal escolhe o tom, o bebê já aparece nele; só grava ao salvar.
   const [preview, setPreview] = useState<BabyTone | null>(null);
@@ -108,7 +113,14 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
     <div className="space-y-5">
       {/* O bebê de hoje */}
       <section aria-label="O bebê hoje" className="rounded-[28px] bg-gradient-to-b from-surface-2 to-surface px-5 pt-4 pb-5 text-center">
-        {parents && <p className="text-[12px] font-bold text-rosa-strong">O bebê de {parents}</p>}
+        {babyName ? (
+          <p className="leading-tight">
+            <span className="block font-display text-[1.5rem] text-rosa-strong">{babyName}</span>
+            {parents && <span className="block text-[12px] font-bold text-ink-soft">de {parents}</span>}
+          </p>
+        ) : (
+          parents && <p className="text-[12px] font-bold text-rosa-strong">O bebê de {parents}</p>
+        )}
         <BabyArt week={currentWeek} beat tone={shown} className="w-44 h-44 mx-auto" />
         <p className="text-[12px] font-extrabold uppercase tracking-wide text-rosa">
           Semana {currentWeek} · {info.trimester}º trimestre
@@ -129,6 +141,7 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
             <span>{left > 0 ? `faltam ${left} ${left === 1 ? 'semana' : 'semanas'} para o colo` : 'a qualquer momento no colo'}</span>
           </p>
         </div>
+        {onNameChange && <BabyNameSetting onSave={onNameChange} invite="Já escolheram o nome?" className="mx-auto mt-2" />}
         {onToneChange && <ToneSetting tone={tone} onPreview={setPreview} onSave={onToneChange} />}
       </section>
 
