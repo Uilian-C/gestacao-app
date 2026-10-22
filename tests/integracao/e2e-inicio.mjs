@@ -42,7 +42,7 @@ await mae.reload();
 
 const hero = mae.getByRole('region', { name: 'Próximo compromisso' });
 await hero.waitFor();
-check(await hero.getByText(/^(Hoje|Amanhã), \d\d:\d\d$/).isVisible() && (await hero.getByText(/Ultrassom morfológico/).isVisible()), 'próximo compromisso em destaque: quando e o quê');
+check(await hero.getByText(/^(Hoje|Amanhã), \d\d:\d\d/).isVisible() && (await hero.getByText(/Ultrassom morfológico/).isVisible()), 'próximo compromisso em destaque: quando e o quê');
 check(await hero.getByText('Vão Ana e Caio').isVisible(), 'com quem vai');
 check(await hero.getByText('Av. Paulista, 1000, São Paulo').isVisible(), 'e o endereço com o caminho');
 check((await mae.locator('section[aria-labelledby="hoje-titulo"]').getByText('Ultrassom morfológico').count()) === 0, 'o destaque não se repete em "Hoje"');

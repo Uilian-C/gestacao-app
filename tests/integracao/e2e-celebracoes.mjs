@@ -36,22 +36,24 @@ check((await orcamento.inputValue()).replace(/\s/g, ' ') === 'R$ 1.000,00', `o v
 await form.getByRole('button', { name: 'Guardar' }).click();
 const espaco = mae.getByRole('dialog', { name: 'Chá da Helena' });
 await espaco.getByText('Tema: Ursinhos').waitFor();
-check(await espaco.getByRole('button', { name: /^Tarefas: 0\/11/ }).isVisible(), 'o painel mostra as tarefas do roteiro');
+check(await espaco.getByRole('button', { name: /^Tarefas: 0 de 11/ }).isVisible(), 'o painel mostra as tarefas do roteiro');
 check(await espaco.getByText('Faltam 7 dias').isVisible(), 'com a contagem até o dia');
 check(await espaco.getByText(/Definir a data, o local e o estilo/).isVisible() && (await espaco.getByText('Para já ·').first().isVisible()), 'os passos que já passaram aparecem como "para já"');
 
 const tarefas = espaco.getByRole('region', { name: 'Tarefas' });
 await tarefas.getByRole('button', { name: /^Marcar como feita: Definir a data/ }).click();
-await espaco.getByRole('button', { name: /^Tarefas: 1\/11/ }).waitFor();
+await espaco.getByRole('button', { name: /^Tarefas: 1 de 11/ }).waitFor();
 check(true, 'marca a primeira tarefa como feita');
-// Editar uma tarefa: muda o nome e quem cuida.
-await tarefas.getByRole('button', { name: 'Escolher o tema e as cores: editar' }).click();
-const editarTarefa = tarefas.getByRole('form', { name: 'Editar tarefa' });
-await editarTarefa.getByLabel('O que fazer').fill('Escolher o tema, as cores e o bolo');
-await editarTarefa.getByRole('group', { name: 'Quem cuida' }).getByRole('button', { name: 'Pai' }).click();
-await editarTarefa.getByRole('button', { name: 'Guardar' }).click();
-await tarefas.getByRole('button', { name: 'Escolher o tema, as cores e o bolo: editar' }).waitFor();
-check(await tarefas.getByText(/Pai/).first().isVisible(), 'edita a tarefa ali mesmo');
+// Abrir uma tarefa: só os ajustes (prazo, quem cuida, comentário), sem formulário de novo e sem "Guardar".
+await tarefas.getByRole('button', { name: 'Escolher o tema e as cores: abrir' }).click();
+check((await tarefas.getByRole('form').count()) === 0 && (await tarefas.getByRole('button', { name: 'Guardar' }).count()) === 0, 'abrir uma tarefa não abre o formulário inteiro');
+await tarefas.getByRole('group', { name: 'Quem cuida' }).getByRole('button', { name: 'Pai' }).click();
+await tarefas.getByRole('button', { name: 'Escolher o tema e as cores: fechar' }).getByText(/Pai/).waitFor();
+check(true, 'quem cuida muda com um toque');
+await tarefas.getByLabel('Comentário').fill('Ver com a Ju se dá para bolo de ursinho');
+await tarefas.getByRole('button', { name: 'Salvar comentário' }).click();
+await tarefas.getByRole('button', { name: 'Salvar comentário' }).waitFor({ state: 'detached' });
+check(await tarefas.getByText(/bolo de ursinho/).first().isVisible(), 'e o comentário fica na ficha');
 
 await espaco.getByRole('tab', { name: 'Fornecedores' }).click();
 const fornecedores = espaco.getByRole('region', { name: 'Fornecedores' });
@@ -61,12 +63,14 @@ await novoFornecedor.getByLabel('Fornecedor ou serviço').fill('Bolo da Ju');
 await novoFornecedor.getByLabel('Contato').fill('11 99999-0000');
 const valor = novoFornecedor.getByLabel('Valor');
 await valor.pressSequentially('90000');
-check((await valor.inputValue()).replace(/\s/g, ' ') === 'R$ 900,00', 'o valor do fornecedor também vira moeda ao digitar');
-await novoFornecedor.getByRole('group', { name: 'Situação' }).getByRole('button', { name: 'Contratado' }).click();
+check((await valor.inputValue()).replace(/\s/g, ' ') === 'R$ 900,00', 'o valor do fornecedor vira moeda ao digitar');
 await novoFornecedor.getByRole('button', { name: 'Adicionar' }).click();
-await fornecedores.getByRole('button', { name: 'Bolo da Ju: editar' }).waitFor();
+await fornecedores.getByRole('button', { name: 'Bolo da Ju: abrir' }).click();
+// A situação muda com um toque, sem formulário.
+await fornecedores.getByRole('group', { name: 'Situação' }).getByRole('button', { name: 'Contratado' }).click();
 const regua = espaco.getByRole('region', { name: 'Orçamento' });
-check(await regua.getByText('90%').isVisible(), 'a régua do orçamento mostra o percentual');
+await regua.getByText('90%').waitFor();
+check(true, 'contratar com um toque já entra na régua do orçamento (90%)');
 check(await regua.getByText(/Atenção: só R\$\s100 até o limite/).isVisible(), 'e avisa quando está perto do limite');
 // Um segundo orçamento, ainda aberto, que estouraria o previsto.
 await fornecedores.getByRole('button', { name: 'Novo fornecedor' }).click();
@@ -80,29 +84,41 @@ await mae.screenshot({ path: `${OUT}celebracao-painel.png` });
 
 await espaco.getByRole('tab', { name: 'Convidados' }).click();
 const convidados = espaco.getByRole('region', { name: 'Convidados' });
+// O formulário novo fica à vista quando o teclado sobe (a tela encolhe).
+await convidados.getByRole('button', { name: 'Novo convidado' }).click();
+await mae.setViewportSize({ width: 390, height: 430 });
+await mae.waitForTimeout(700);
+const caixa = await convidados.getByRole('form', { name: 'Novo convidado' }).boundingBox();
+check(caixa && caixa.y >= 0 && caixa.y + caixa.height <= 430, `com o teclado aberto, o formulário continua à vista (${Math.round(caixa?.y ?? -1)}–${Math.round((caixa?.y ?? 0) + (caixa?.height ?? 0))} de 430)`);
+await mae.setViewportSize({ width: 390, height: 844 });
+await convidados.getByRole('button', { name: 'Cancelar' }).click();
 for (const [nome, pessoas] of [['Tia Lu', 2], ['Vó Rosa', 1], ['Bia', 1]]) {
   await convidados.getByRole('button', { name: 'Novo convidado' }).click();
   const novo = convidados.getByRole('form', { name: 'Novo convidado' });
   await novo.getByLabel('Nome (ou família)').fill(nome);
   for (let i = 1; i < pessoas; i++) await novo.getByRole('button', { name: 'Uma pessoa a mais' }).click();
-  await novo.getByRole('button', { name: 'Adicionar' }).click();
-  await convidados.getByRole('button', { name: `${nome}: editar` }).waitFor();
+  // Toque duplo no "Adicionar" não cria o convidado duas vezes.
+  await novo.getByRole('button', { name: 'Adicionar' }).dblclick();
+  await convidados.getByRole('button', { name: `${nome}: abrir` }).waitFor();
 }
-await convidados.getByRole('button', { name: 'Tia Lu: editar' }).click();
-const tiaLu = convidados.getByRole('form', { name: 'Editar convidado' });
-await tiaLu.getByRole('group', { name: 'Confirmação' }).getByRole('button', { name: 'Vai', exact: true }).click();
-await tiaLu.getByRole('button', { name: 'Guardar' }).click();
-await espaco.getByRole('button', { name: /^Convidados: 2\/4/ }).waitFor();
-check(true, 'confirma a presença e o painel conta as pessoas');
+await mae.waitForTimeout(800);
+check((await convidados.getByRole('button', { name: 'Tia Lu: abrir' }).count()) === 1, 'cada convidado entra uma vez só');
+check(await espaco.getByRole('button', { name: /^Convidados: 0 de 4, confirmados · 4 sem resposta/ }).isVisible(), 'o painel conta 4 pessoas, sem duplicar');
+await convidados.getByRole('button', { name: 'Tia Lu: abrir' }).click();
+await convidados.getByRole('group', { name: 'Confirmação' }).getByRole('button', { name: 'Vai', exact: true }).click();
+await espaco.getByRole('button', { name: /^Convidados: 2 de 4/ }).waitFor();
+check(true, 'confirma a presença com um toque e o painel conta as pessoas');
+await convidados.screenshot({ path: `${OUT}celebracao-ficha-aberta.png` });
 check(await espaco.getByLabel('Calculadora de fraldas').isVisible(), 'a calculadora de fraldas divide os pacotes por tamanho');
+await espaco.evaluate(el => el.scrollTo(0, 0));
 await mae.screenshot({ path: `${OUT}celebracao-convidados.png`, fullPage: true });
 
 // Apagar pede confirmação.
-await convidados.getByRole('button', { name: 'Bia: editar' }).click();
-const bia = convidados.getByRole('form', { name: 'Editar convidado' });
-await bia.getByRole('button', { name: 'Apagar convidado' }).click();
-await bia.getByRole('button', { name: 'Apagar', exact: true }).click();
-await convidados.getByRole('button', { name: 'Bia: editar' }).waitFor({ state: 'detached' });
+await convidados.getByRole('button', { name: 'Tia Lu: fechar' }).click();
+await convidados.getByRole('button', { name: 'Bia: abrir' }).click();
+await convidados.getByRole('button', { name: 'Apagar' }).click();
+await convidados.getByRole('button', { name: 'Apagar', exact: true }).click();
+await convidados.getByRole('button', { name: 'Bia: abrir' }).waitFor({ state: 'detached' });
 check(true, 'tira um convidado da lista, com confirmação');
 
 await espaco.getByRole('button', { name: 'Voltar' }).click();
