@@ -38,6 +38,7 @@ const JourneyTab = lazy(() => import('./components/tabs/JourneyTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
 import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, toISODate, weekOfDay } from './lib/dates';
+import { FOLDER } from './lib/folders';
 import { pressureInsights } from './lib/health';
 import type { NewMetric } from './components/forms/RecordForms';
 import { findPatterns, toEntries } from './lib/symptoms';
@@ -90,11 +91,13 @@ const APPOINTMENT_DONE = { consulta: 'Consulta agendada', exame: 'Exame agendado
 const appointmentDone = (c: NewConsultation) => APPOINTMENT_DONE[c.kind ?? 'consulta'];
 
 /** O que o aviso diz quando o registro do diário foi guardado. */
-function entryDone(edited: boolean, visibility: NewEntry['visibility']) {
+function entryDone(edited: boolean, visibility: NewEntry['visibility'], folder: NewEntry['folder']) {
   if (edited) return 'Alterações salvas';
-  if (visibility === 'family') return 'Postado no Mural, para vocês e a família';
-  if (visibility === 'private') return 'Guardado no Mural, só você vê';
-  return 'Postado no Mural';
+  // Diz a pasta: quem posta pelo Mural vê onde o registro foi guardado.
+  const where = ` · em ${FOLDER[folder].label}`;
+  if (visibility === 'family') return `Postado no Mural, para vocês e a família${where}`;
+  if (visibility === 'private') return `Guardado, só você vê${where}`;
+  return `Postado no Mural${where}`;
 }
 
 const appointmentError = (c: NewConsultation) =>
@@ -140,7 +143,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [journeyFocus, setJourneyFocus] = useState<string | null>(null);
   const [recording, setRecording] = useState<QuickMode[] | null>(null);
   /** Pasta (e ideia) com que o diário abre no registro. */
-  const [entryStart, setEntryStart] = useState<{ folder: Folder; idea?: string }>({ folder: 'momento' });
+  const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string }>({});
   const [detail, setDetail] = useState<DetailTarget | null>(null);
 
   // A cor principal segue a aba (index.css, data-aba); para o pai, o rosa vira azul (data-papel).
@@ -345,7 +348,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         }
       }
       await refresh();
-      showToast({ text: entryDone(!!id, e.visibility), tone: 'success' });
+      showToast({ text: entryDone(!!id, e.visibility, e.folder), tone: 'success' });
       if (entryId && !id) setFreshEntry(entryId);
       return true;
     } catch (err) {
@@ -578,8 +581,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     openCare('saude');
     setHealthView(v === 'geral' ? 'resumo' : v);
   };
-  /** Abre o registro do diário já numa pasta. */
-  const writeEntry = (folder: Folder, idea?: string) => {
+  /** Abre o registro do diário já numa pasta (sem pasta, ela acompanha o texto). */
+  const writeEntry = (folder?: Folder, idea?: string) => {
     setEntryStart({ folder, idea });
     setRecording(RECORD_MODES.diario);
   };
@@ -994,7 +997,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {recordModes.length > 0 && (
         <button
           type="button"
-          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' || diaryView === 'mural' || diaryView === 'humor' ? 'momento' : diaryView) : (setEntryStart({ folder: 'momento' }), setRecording(recordModes)))}
+          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' || diaryView === 'mural' || diaryView === 'humor' ? undefined : diaryView) : (setEntryStart({}), setRecording(recordModes)))}
           className="tt-registrar no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-8 h-11 pl-3 pr-4 rounded-full text-white text-[14px] font-extrabold flex items-center gap-1.5 transition active:scale-95 hover:brightness-110"
         >
           <Plus className="w-[18px] h-[18px]" strokeWidth={3} />

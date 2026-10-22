@@ -31,6 +31,22 @@ const photo = Buffer.from(
 
 await p.getByRole('button', { name: /^Diário/ }).first().click();
 check(await p.getByRole('button', { name: /O que vocês querem guardar hoje/ }).isVisible(), 'Diário abre no Mural');
+
+// ---- Pelo Mural, a pasta acompanha o texto (nada vem marcado antes) ----
+await p.getByRole('button', { name: /O que vocês querem guardar hoje/ }).click();
+const novo = p.getByRole('dialog');
+const pastas = novo.getByRole('radiogroup', { name: 'Pasta' });
+check((await pastas.locator('[aria-checked="true"]').count()) === 0, 'pelo Mural, nenhuma pasta vem marcada antes de escrever');
+const campo = novo.getByLabel('O que aconteceu?');
+await campo.fill('Hoje me senti cansada, mas feliz');
+check((await pastas.getByRole('radio', { name: /Dia a dia/ }).getAttribute('aria-checked')) === 'true' && (await novo.getByRole('button', { name: 'Guardar no dia a dia' }).isVisible()), 'um dia comum vai para o Dia a dia');
+await campo.fill('Ouvimos o coração pela primeira vez');
+check((await pastas.getByRole('radio', { name: /Momentos/ }).getAttribute('aria-checked')) === 'true' && (await novo.getByText(/Vai para Momentos pelo que você escreveu/).isVisible()), 'uma primeira vez vira Momento, e o formulário diz para onde vai');
+await pastas.getByRole('radio', { name: /Ideias/ }).click();
+await campo.fill('Hoje me senti cansada');
+check((await pastas.getByRole('radio', { name: /Ideias/ }).getAttribute('aria-checked')) === 'true', 'tocar numa pasta fixa a escolha');
+await p.screenshot({ path: `${OUT}mural-pasta-automatica.png` });
+await p.keyboard.press('Escape');
 await folders.getByRole('button', { name: /^Fichário/ }).click();
 check(await p.getByText('O que vocês querem lembrar').isVisible(), 'o Fichário mostra a capa com as pastas');
 check(await p.getByRole('button', { name: /Sintomas, peso e pressão/ }).isVisible(), 'capa aponta para onde foi a saúde');

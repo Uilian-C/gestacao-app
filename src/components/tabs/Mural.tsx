@@ -33,7 +33,7 @@ interface Props {
   onComment: (entryId: string, body: string) => Promise<boolean>;
   onOpen: (entryId: string) => void;
   /** Sem ele (familiar), não há o campo de escrever. */
-  onWrite?: (folder: Folder) => void;
+  onWrite?: (folder?: Folder) => void;
 }
 
 /** O post foi feito no próprio dia do momento: aí a hora ajuda (registro de um dia passado mostra só a data). */
@@ -61,7 +61,7 @@ export default function Mural(props: Props) {
       {onWrite && <button
         type="button"
         disabled={!props.journalAvailable}
-        onClick={() => onWrite('momento')}
+        onClick={() => onWrite()}
         className="w-full flex items-center gap-3 rounded-[26px] bg-surface shadow-soft p-3 pr-4 text-left transition hover:brightness-[0.99] disabled:opacity-60"
       >
         <Avatar member={me} role={props.role} className="w-11 h-11 text-base" />
