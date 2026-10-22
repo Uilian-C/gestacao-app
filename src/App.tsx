@@ -629,7 +629,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const NAMES_MISSING = 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/026_nomes_do_bebe.sql no Neon.';
   const CADERNO_MISSING = 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/027_caderno_do_nome.sql no Neon.';
   const nameActions: NameActions = {
-    onAdd: (name, note) => run(() => api.mutate('addNameIdea', { name, ...(note ? { note } : {}) }), NAMES_MISSING, 'Anotado no caderno'),
+    onAdd: (name, note) => run(() => api.mutate('addNameIdea', { name, ...(note ? { note } : {}) }), NAMES_MISSING, 'Anotado no fichário do nome'),
     onNote: (id, note) => run(() => api.mutate('noteNameIdea', { id, note }), CADERNO_MISSING),
     onComment: (id, body) => run(() => api.mutate('commentNameIdea', { id, body }), CADERNO_MISSING),
     onDeleteComment: id => run(() => api.mutate('deleteNameComment', { id }), CADERNO_MISSING),

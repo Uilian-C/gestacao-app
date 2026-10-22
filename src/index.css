@@ -557,3 +557,8 @@
   .tt-revelacao-coracao, .tt-revelacao-bebe, .tt-revelacao-nome, .tt-revelacao-texto { animation: none; }
   .tt-revelacao-eco { display: none; }
 }
+
+/* Ao imprimir com uma janela aberta, a página de fundo travada (useScrollLock) não pode cortar o livro. */
+@media print {
+  body { position: static !important; overflow: visible !important; top: auto !important; }
+}

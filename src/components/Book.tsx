@@ -12,6 +12,7 @@ import { MOOD_COLOR, moodLabel, moodOf } from '../lib/moods';
 import { PeopleContext, firstName } from '../lib/people';
 import BabyArt from './BabyArt';
 import BrandMark from './BrandMark';
+import { useScrollLock } from '../hooks/useScrollLock';
 import MoodFace from './MoodFace';
 
 // O livro de vocês: cada mês da gestação é um capítulo e cada semana, uma
@@ -293,16 +294,16 @@ export function BookView({ book, tone, parents, onOpenEntry, onWrite, onNames }:
         )}
         {/* Para o fichário de papel: com afeto e presença, sem gritar mais que o livro. */}
         {written.length > 0 && (
-          <button type="button" onClick={() => setChoosing(true)} className="mt-3 w-full flex items-center gap-3 rounded-[20px] bg-surface/80 ring-1 ring-rosa/25 px-3.5 py-3 text-left transition hover:bg-surface active:scale-[0.99]">
-            <span className="relative w-10 h-10 rounded-2xl bg-rosa-soft text-rosa-strong flex items-center justify-center shrink-0">
-              <Printer className="w-5 h-5" />
-              {fresh.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rosa ring-2 ring-surface" aria-hidden />}
+          <button type="button" onClick={() => setChoosing(true)} className="mt-3 w-full flex items-center gap-2.5 rounded-2xl bg-surface/70 ring-1 ring-rosa/20 px-2.5 py-1.5 text-left transition hover:bg-surface active:scale-[0.99]">
+            <span className="relative w-7 h-7 rounded-xl bg-rosa-soft text-rosa-strong flex items-center justify-center shrink-0">
+              <Printer className="w-3.5 h-3.5" />
+              {fresh.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rosa ring-2 ring-surface" aria-hidden />}
             </span>
-            <span className="flex-1 min-w-0">
-              <span className="block font-bold text-ink leading-tight">Imprimir para o fichário de memórias</span>
-              <span className="block text-[12.5px] text-ink-soft">{fresh.length > 0 ? 'Páginas novas esperando para ir para o papel' : 'Para guardar no papel, junto com as outras lembranças'}</span>
+            <span className="flex-1 min-w-0 leading-tight">
+              <span className="block text-[13px] font-bold text-ink">Imprimir para o fichário de memórias</span>
+              <span className="block text-[11.5px] text-ink-soft truncate">{fresh.length > 0 ? 'Páginas novas esperando o papel' : 'Para guardar com as outras lembranças'}</span>
             </span>
-            <ChevronRight className="w-5 h-5 text-rosa-strong shrink-0" />
+            <ChevronRight className="w-4 h-4 text-rosa-strong shrink-0" />
           </button>
         )}
         {!name && onNames && (
@@ -396,6 +397,7 @@ type Page = { kind: 'abertura'; month: MonthChapter } | { kind: 'semana'; month:
  * capítulo ou semana e lembra onde vocês pararam. Tocar num registro leva a ele.
  */
 function BookReader({ months, start, tone, onClose, onOpenEntry, onPage }: { months: MonthChapter[]; start: { month: number; week?: number }; tone: BabyTone; onClose: () => void; onOpenEntry: (id: string) => void; onPage: (week: number) => void }) {
+  useScrollLock();
   const name = useContext(BabyNameContext);
   const pages = useMemo<Page[]>(
     () =>
@@ -448,7 +450,7 @@ function BookReader({ months, start, tone, onClose, onOpenEntry, onPage }: { mon
   const where = page.kind === 'abertura' ? `Capítulo ${page.month.month}` : page.kind === 'nome' ? `O nome · semana ${page.chapter.week}` : `Semana ${page.chapter.week}`;
 
   return (
-    <div role="dialog" aria-label={`O livro de ${name ?? 'vocês'}`} className="fixed inset-0 z-50 flex flex-col bg-surface text-ink">
+    <div role="dialog" aria-label={`O livro de ${name ?? 'vocês'}`} className="fixed inset-0 z-50 flex flex-col overscroll-contain bg-surface text-ink">
       <header className="flex items-center gap-1 border-b border-line px-2 pt-[calc(env(safe-area-inset-top,0px)+6px)] pb-1.5">
         <button type="button" onClick={onClose} aria-label="Fechar o livro" className="w-10 h-10 rounded-full flex items-center justify-center text-ink-soft hover:bg-surface-2">
           <X className="w-5 h-5" />
@@ -545,6 +547,7 @@ function BookReader({ months, start, tone, onClose, onOpenEntry, onPage }: { mon
 
 /** Escolher o que imprimir: por capítulo (mês) e por página (semana); já vêm marcadas as páginas novas. */
 function PrintPicker({ book, tone, parents, printed, onPrinted, onClose }: { book: Chapter[]; tone: BabyTone; parents: string; printed: Set<string>; onPrinted: (pages: Chapter[]) => void; onClose: () => void }) {
+  useScrollLock();
   const months = useMemo(() => bookMonths(book), [book]);
   const ready = book.filter(c => !c.quiet);
   const fresh = newPages(book, printed);
