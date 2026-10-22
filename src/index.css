@@ -461,3 +461,11 @@
   background-size: 3px 8px;
   background-repeat: repeat-y;
 }
+
+/* O livro em PDF: capa numa página, cada capítulo começando numa página nova, cores como na tela. */
+@media print {
+  .tt-livro { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .tt-livro-capa { break-after: page; min-height: 0; padding-top: 30vh; }
+  section.tt-livro-capitulo { break-before: page; border-top: 0; }
+  .tt-livro-registro, .tt-livro img { break-inside: avoid; }
+}

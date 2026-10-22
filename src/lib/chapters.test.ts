@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JournalEntry } from '../hooks/useGestationData';
-import { buildBook, count, freshChapter, joinPt } from './chapters';
+import { buildBook, freshChapter, joinPt } from './chapters';
 
 // DUM 2026-05-21: a semana 22 vai de 2026-10-22 a 2026-10-28.
 const DUM = '2026-05-21';
@@ -8,11 +8,9 @@ const entry = (over: Partial<JournalEntry>): JournalEntry => ({ id: 'e', entry_d
 const base = { dumDate: DUM, today: new Date(2026, 9, 23, 10), reactions: [], threads: [], hugs: [], consultations: [], exams: [] };
 
 describe('palavras', () => {
-  it('números viram palavras, no gênero certo', () => {
-    expect(count(1, 'lembrança', 'lembranças', true)).toBe('uma lembrança');
-    expect(count(7, 'abraço', 'abraços', false)).toBe('sete abraços');
-    expect(count(12, 'foto', 'fotos', true)).toBe('12 fotos');
+  it('junta como se fala', () => {
     expect(joinPt(['a', 'b', 'c'])).toBe('a, b e c');
+    expect(joinPt(['a'])).toBe('a');
   });
 });
 
@@ -43,9 +41,22 @@ describe('buildBook', () => {
     const c = book[1];
     expect(c.entries.map(e => e.id)).toEqual(['b', 'a']);
     expect(c.title).toBe('Ouvimos o coração pela primeira vez!');
-    expect(c.story).toBe('Uma semana de duas lembranças e uma foto. Vocês trocaram três abraços, foram a um ultrassom e escreveram a primeira carta para o bebê.');
+    expect(c.story).toBe('Uma semana que ficou guardada. Teve um momento daqueles que a gente não esquece, a primeira carta para o bebê, uma foto nova, uma ida ao ultrassom e abraços trocados.');
+    expect(c.story).not.toMatch(/\d/);
+    expect(c.baby).toBe('Do tamanho de uma manga');
+    expect(c.nudge).toBe('A barriga ainda não apareceu no livro. Uma foto de lado já é um começo lindo.');
     expect(c.cover?.entryId).toBe('a');
     expect(c.highlight).toEqual({ entryId: 'b', quote: 'Querido bebê, já te amamos', hugged: false });
+  });
+
+  it('compara com a semana anterior e conta o humor com carinho', () => {
+    const busy = [1, 2, 3, 4].map(i => entry({ id: `w${i}`, entry_date: '2026-10-09', folder: 'ideia', body: 'Ideia para o quarto' }));
+    const calm = buildBook({ ...base, journal: [...busy, entry({ id: 'x', entry_date: '2026-10-16', body: 'Dia tranquilo' })], checkins: [{ day: '2026-10-17', mood: 'cansada', author_role: 'mae', mine: true }] });
+    const w21 = calm.find(c => c.week === 21)!;
+    expect(w21.story).toBe('Mais tranquila que a semana passada: às vezes é disso que precisamos. O cansaço apareceu: que a próxima traga descanso.');
+    expect(calm.find(c => c.week === 20)!.nudge).toBe('A primeira carta para o bebê ainda está esperando por vocês.');
+    const more = buildBook({ ...base, journal: [entry({ id: 'y', entry_date: '2026-10-09' }), ...busy.map(e => ({ ...e, entry_date: '2026-10-16' }))] });
+    expect(more.find(c => c.week === 21)!.story).toMatch(/^(Uma semana com mais emoções|A semana mais cheia|Vocês viveram mais)/);
   });
 
   it('semana sem nada é uma semana quieta, sem cobrança', () => {

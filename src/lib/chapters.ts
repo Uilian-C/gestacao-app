@@ -1,13 +1,15 @@
-import type { EntryPhoto, ExamItem, Hug, JournalEntry, Reaction, ThreadComment } from '../hooks/useGestationData';
+import type { Checkin, EntryPhoto, ExamItem, Hug, JournalEntry, Mood, Reaction, ThreadComment } from '../hooks/useGestationData';
 import type { Consultation } from '../types';
 import { stageAt } from '../content/growth';
+import { weekInfo } from '../content/weeks';
 import { localDay, parseLocalDate, parseTimestamp, toISODate } from './dates';
 import { weekOn } from './folders';
 
-// O livro de vocês: cada semana da gestação vira um capítulo. Os números viram
-// frases ("trocaram sete abraços"), o ponto alto ganha destaque e uma semana
-// sem registros é só "uma semana quieta", nunca uma cobrança. O que é "Só eu"
-// não entra no livro do casal.
+// O livro de vocês: cada semana da gestação vira um capítulo. Sem contagem:
+// a semana é comparada com a anterior ("mais emoções do que a semana
+// passada"), o que aconteceu vira frase ("abraços trocados, uma ida ao
+// ultrassom"), o humor dos dois entra com carinho e, quando falta algo no
+// fichário, vem um convite (nunca uma cobrança). O que é "Só eu" não entra.
 
 export interface Chapter {
   week: number;
@@ -23,8 +25,12 @@ export interface Chapter {
   cover: { entryId: string; photo: EntryPhoto } | null;
   /** O registro mais abraçado, com um trecho para citar. */
   highlight: { entryId: string; quote: string; hugged: boolean } | null;
-  /** A semana contada em uma ou duas frases. */
+  /** A semana contada em poucas frases, sem números. */
   story: string;
+  /** "Do tamanho de uma manga": o bebê naquela semana. */
+  baby: string;
+  /** Um convite gentil a partir do que ainda não tem no fichário (só no capítulo aberto e no que acabou de fechar). */
+  nudge: string | null;
   quiet: boolean;
   /** A semana de hoje: o capítulo ainda está sendo escrito. */
   open: boolean;
@@ -39,6 +45,8 @@ export interface BookInput {
   hugs: Hug[];
   consultations: Consultation[];
   exams: ExamItem[];
+  /** O humor dos dois (check-in do dia). */
+  checkins?: Checkin[];
 }
 
 const shift = (iso: string, n: number) => {
@@ -46,22 +54,28 @@ const shift = (iso: string, n: number) => {
   return toISODate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n));
 };
 
-const FEM = ['nenhuma', 'uma', 'duas', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez'];
-const MASC = ['nenhum', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez'];
-
-/** "uma lembrança", "sete abraços", "12 fotos". */
-export function count(n: number, one: string, many: string, fem: boolean) {
-  const word = n <= 10 ? (fem ? FEM : MASC)[n] : String(n);
-  return `${word} ${n === 1 ? one : many}`;
-}
-
 /** "a, b e c". */
 export function joinPt(parts: string[]) {
   if (parts.length <= 1) return parts[0] ?? '';
   return `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}`;
 }
 
-const KIND_ONE = { consulta: 'uma consulta', exame: 'um exame', ultrassom: 'um ultrassom', vacina: 'uma vacina' } as const;
+/** Uma das frases, sempre a mesma para a mesma semana (para não repetir de um capítulo para o outro). */
+const pick = (week: number, options: string[]) => options[week % options.length];
+
+const VISIT = { consulta: 'uma consulta', exame: 'um exame', ultrassom: 'uma ida ao ultrassom', vacina: 'uma vacina' } as const;
+
+/** O peso afetivo da semana: lembranças, fotos, abraços e conversas. */
+const warmth = (w: { entries: number; photos: number; hugs: number; talks: number }) => w.entries * 2 + w.photos + w.hugs + w.talks;
+
+/** O humor que mais apareceu nos dois, na semana. */
+function weekMood(checkins: Checkin[], from: string, to: string): Mood | null {
+  const seen = new Map<Mood, number>();
+  for (const c of checkins) if (c.day >= from && c.day <= to) seen.set(c.mood, (seen.get(c.mood) ?? 0) + 1);
+  return [...seen.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+
+const LIGHT: Mood[] = ['otima', 'bem'];
 
 /** Um trecho do texto para citar: a primeira frase, sem passar de ~90 letras. */
 function quoteOf(body: string) {
@@ -86,7 +100,9 @@ export function buildBook(input: BookInput): Chapter[] {
   const firstBelly = firstOf('barriga');
 
   const chapters: Chapter[] = [];
-  for (let week = current; week >= Math.max(1, firstWeek); week--) {
+  // Da semana mais antiga para a de hoje, para comparar cada uma com a anterior.
+  let prev: { entries: number; photos: number; hugs: number; talks: number; mood: Mood | null } | null = null;
+  for (let week = Math.max(1, firstWeek); week <= current; week++) {
     const from = shift(dumDate, week * 7);
     const to = shift(from, 6);
     const inWeek = (iso: string) => iso >= from && iso <= to;
@@ -106,27 +122,59 @@ export function buildBook(input: BookInput): Chapter[] {
     const results = input.exams.filter(x => x.visibility !== 'private' && inWeek(x.exam_date.slice(0, 10)));
     const letters = entries.filter(e => e.folder === 'carta');
 
-    const acts: string[] = [];
-    if (hugs) acts.push(`trocaram ${count(hugs, 'abraço', 'abraços', false)}`);
-    if (talks) acts.push(`deixaram ${count(talks, 'comentário', 'comentários', false)}`);
-    if (visits.length === 1) acts.push(`foram a ${KIND_ONE[visits[0].kind ?? 'consulta']}`);
-    else if (visits.length > 1) acts.push(`foram a ${count(visits.length, 'compromisso', 'compromissos', false)} do pré-natal`);
-    if (results.length) acts.push(`guardaram ${count(results.length, 'resultado de exame', 'resultados de exames', false)}`);
-    if (firstLetter && letters.some(e => e.id === firstLetter)) acts.push('escreveram a primeira carta para o bebê');
-    else if (letters.length) acts.push(`escreveram ${count(letters.length, 'carta', 'cartas', true)} para o bebê`);
-    if (firstBelly && entries.some(e => e.id === firstBelly)) acts.push('tiraram a primeira foto da barriga');
+    const now_ = { entries: entries.length, photos, hugs, talks };
+    const first = (id: string | undefined) => !!id && entries.some(e => e.id === id);
+    const things: string[] = [];
+    if (entries.some(e => e.folder === 'momento')) things.push(pick(week, ['um momento para guardar para sempre', 'um momento daqueles que a gente não esquece']));
+    if (first(firstLetter)) things.push('a primeira carta para o bebê');
+    else if (letters.length) things.push(letters.length > 1 ? 'cartas para o bebê' : 'uma carta para o bebê');
+    if (first(firstBelly)) things.push('a primeira foto da barriga');
+    else if (entries.some(e => e.folder === 'barriga')) things.push('a barriga registrada');
+    else if (photos) things.push(photos > 1 ? 'fotos novas' : 'uma foto nova');
+    if (entries.some(e => e.folder === 'ideia')) things.push('planos e ideias');
+    if (visits.length === 1) things.push(VISIT[visits[0].kind ?? 'consulta']);
+    else if (visits.length > 1) things.push('idas ao pré-natal');
+    if (results.length) things.push('resultados de exames guardados');
+    if (hugs) things.push(hugs >= 5 ? 'muitos abraços' : 'abraços trocados');
+    if (talks) things.push(talks >= 5 ? 'muita conversa no Mural' : 'conversas no Mural');
 
-    const quiet = entries.length === 0 && acts.length === 0;
+    const quiet = entries.length === 0 && things.length === 0;
     const open = week === current;
+    // Comparado com a semana anterior (só quando ela existe e teve algo).
+    const prevWarmth = prev ? warmth(prev) : 0;
+    const w = warmth(now_);
+    let pace: string;
+    if (open) pace = '';
+    else if (!prev) pace = pick(week, ['Uma semana com histórias para contar.', 'Uma semana que ficou guardada.']);
+    else if (prevWarmth === 0) pace = pick(week, ['Depois de dias quietos, uma semana cheia de histórias.', 'Depois de uma semana quieta, vocês voltaram a guardar lembranças.']);
+    else if (w >= prevWarmth * 1.5 && w - prevWarmth >= 3) pace = pick(week, ['Uma semana com mais emoções do que a anterior.', 'A semana mais cheia de lembranças das últimas.', 'Vocês viveram mais coisas do que na semana passada.']);
+    else if (w <= prevWarmth * 0.6) pace = pick(week, ['Uma semana mais calma que a anterior, e tudo bem.', 'Mais tranquila que a semana passada: às vezes é disso que precisamos.']);
+    else pace = pick(week, ['Uma semana no ritmo de vocês.', 'Mais uma semana bonita na história de vocês.']);
+
+    const mood = weekMood(input.checkins ?? [], from, to);
+    const prevMood = prev?.mood ?? null;
+    let feel = '';
+    if (mood && LIGHT.includes(mood)) feel = prevMood && !LIGHT.includes(prevMood) ? 'E o coração andou mais leve do que na semana passada.' : pick(week, ['O humor andou leve.', 'Foi uma semana de sorrisos.']);
+    else if (mood === 'cansada') feel = hugs ? 'O cansaço apareceu, e vocês cuidaram um do outro.' : 'O cansaço apareceu: que a próxima traga descanso.';
+    else if (mood === 'enjoada') feel = 'Teve enjoo pelo caminho, e também muito carinho.';
+    else if (mood === 'ansiosa') feel = 'Teve ansiedade no caminho; dividir com quem a gente ama alivia.';
+
     let story: string;
     if (quiet) story = open ? 'Um capítulo novinho, esperando a primeira lembrança.' : 'Uma semana quieta. Às vezes o melhor é só viver.';
     else {
-      const head = entries.length
-        ? `${open ? 'Até agora, ' : 'Uma semana de '}${count(entries.length, 'lembrança', 'lembranças', true)}${photos ? ` e ${count(photos, 'foto', 'fotos', true)}` : ''}.`
-        : '';
-      const body = acts.length ? `Vocês ${joinPt(acts)}.` : '';
-      story = [head, body].filter(Boolean).join(' ');
+      const had = things.length ? `${open ? 'Até agora teve' : 'Teve'} ${joinPt(things)}.` : '';
+      story = [pace, had, feel].filter(Boolean).join(' ');
     }
+
+    // Um convite gentil a partir do que ainda falta no fichário (até esta semana).
+    const upTo = shared.filter(e => weekOfEntry(e) <= week);
+    const nudges: string[] = [];
+    if (!upTo.some(e => e.folder === 'ideia')) nudges.push('Ainda não guardaram nenhuma ideia para o quarto ou o enxoval. Que tal começar nesta semana?');
+    if (!upTo.some(e => e.folder === 'carta')) nudges.push('A primeira carta para o bebê ainda está esperando por vocês.');
+    const lastBelly = Math.max(-1, ...upTo.filter(e => e.folder === 'barriga').map(weekOfEntry));
+    if (week >= 12 && week - lastBelly >= 3) nudges.push(lastBelly < 0 ? 'A barriga ainda não apareceu no livro. Uma foto de lado já é um começo lindo.' : 'Faz um tempinho que a barriga não sai na foto.');
+    const nudge = nudges.length ? pick(week, nudges) : null;
+    prev = { ...now_, mood };
 
     chapters.push({
       week,
@@ -138,11 +186,14 @@ export function buildBook(input: BookInput): Chapter[] {
       cover: withPhoto ? { entryId: withPhoto.id, photo: withPhoto.photos[0] } : null,
       highlight: top ? { entryId: top.id, quote: quoteOf(top.body), hugged: hugsOn(top.id) > 0 } : null,
       story,
+      baby: `Do tamanho de ${weekInfo(Math.min(42, Math.max(4, week))).fruit}`,
+      nudge,
       quiet,
       open,
     });
   }
-  return chapters;
+  // Do mais novo para o mais antigo.
+  return chapters.reverse();
 }
 
 /** O capítulo que acabou de fechar aparece no Mural nos três primeiros dias da semana seguinte. */

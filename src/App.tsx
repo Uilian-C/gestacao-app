@@ -769,7 +769,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onOpen={setDetail}
             onWrite={writeEntry}
             onOpenHealth={() => openCare('saude')}
-            book={buildBook({ dumDate, today: new Date(), journal, reactions: socialAvailable ? reactions : [], threads, hugs: data.hugs ?? [], consultations, exams })}
+            book={buildBook({ dumDate, today: new Date(), journal, reactions: socialAvailable ? reactions : [], threads, hugs: data.hugs ?? [], consultations, exams, checkins: data.checkins ?? [] })}
+            babyTone={data.babyTone ?? 'tumtum'}
           />
         )}
 
