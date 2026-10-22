@@ -16,7 +16,7 @@ check((await eco.count()) === 1 && (await eco.evaluate(el => getComputedStyle(el
 check(await mae.getByRole('button', { name: /Semana 22 de 40/ }).isVisible(), 'o bebê da semana no centro do Início');
 check(await mae.getByText(/Dia \d+ de 280/).isVisible(), 'mostra o dia da gestação');
 check(await mae.getByRole('progressbar', { name: 'Quanto da gestação já passou' }).isVisible(), 'barra da gestação com os trimestres');
-check(await mae.getByText(/Próximo marco, em [56] semanas.*Começa o 3º trimestre/).isVisible(), 'próximo marco: o 3º trimestre, daqui a umas 6 semanas');
+check(await mae.getByRole('button', { name: /Próximo marco em [56] semanas.*Começa o 3º trimestre/ }).isVisible(), 'próximo marco: o 3º trimestre, daqui a umas 6 semanas');
 check(await mae.getByRole('heading', { name: 'Como você está hoje?' }).isVisible(), 'sem parceiro, o check-in pergunta só por ela');
 
 // ---- Parceiro, agenda, tarefas e diário ----

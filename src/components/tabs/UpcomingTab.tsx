@@ -69,8 +69,9 @@ export default function UpcomingTab(props: Props) {
       )}
 
       {up.today.length > 0 && <Group title="Hoje">{up.today.map(i => <Row key={i.id} item={i} today onOpen={() => props.onOpen(targetOf(i))} />)}</Group>}
-      {up.week.length > 0 && <Group title="Esta semana">{up.week.map(i => <Row key={i.id} item={i} onOpen={() => props.onOpen(targetOf(i))} />)}</Group>}
-      {up.later.length > 0 && <Group title="Depois">{up.later.map(i => <Row key={i.id} item={i} onOpen={() => props.onOpen(targetOf(i))} />)}</Group>}
+      {up.thisWeek.length > 0 && <Group title="Esta semana">{up.thisWeek.map(i => <Row key={i.id} item={i} onOpen={() => props.onOpen(targetOf(i))} />)}</Group>}
+      {up.nextWeek.length > 0 && <Group title="Semana que vem">{up.nextWeek.map(i => <Row key={i.id} item={i} onOpen={() => props.onOpen(targetOf(i))} />)}</Group>}
+      {up.afterNextWeek.length > 0 && <Group title="Mais para frente">{up.afterNextWeek.map(i => <Row key={i.id} item={i} onOpen={() => props.onOpen(targetOf(i))} />)}</Group>}
 
       {up.past.length > 0 && (
         <details className="rounded-[22px] bg-surface-2/50 px-4 py-3">

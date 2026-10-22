@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localDay, clampWeek, daysBetween, formatBR, gestationalAge, isOverdue, parseLocalDate, toISODate, trimesterOf } from './dates';
+import { localDay, clampWeek, daysBetween, formatBR, gestationalAge, isOverdue, parseLocalDate, stampText, toISODate, trimesterOf } from './dates';
 
 const at = (iso: string, hour = 12) => {
   const d = parseLocalDate(iso);
@@ -91,5 +91,16 @@ describe('timestamps do Postgres', () => {
     const expected = new Date(Date.UTC(2026, 8, 21, 1, 30));
     expect(d.getDate()).toBe(expected.getDate());
     expect(d.getHours()).toBe(0);
+  });
+});
+
+describe('stampText', () => {
+  const now = new Date(2026, 9, 22, 22, 0);
+  it('hoje, ontem ou a data, sempre com a hora', () => {
+    expect(stampText('2026-10-22 21:40:00-03', now)).toBe('hoje, 21:40');
+    expect(stampText('2026-10-21T08:12:00-03:00', now)).toBe('ontem, 08:12');
+    expect(stampText('2026-10-12 09:00:00-03', now)).toBe('12/10, 09:00');
+    expect(stampText('2025-12-30 10:00:00-03', now)).toBe('30/12/2025, 10:00');
+    expect(stampText(null, now)).toBe('');
   });
 });

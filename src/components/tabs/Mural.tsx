@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { ChevronRight, Heart, Lock, MessageCircle, PenLine, Send, Users } from 'lucide-react';
 import { photoUrl, type FamilyMember, type Relative, type SpaceRole } from '../../api';
 import type { Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
-import { daysBetween, parseLocalDate, toISODate } from '../../lib/dates';
+import { daysBetween, hhmmOf, parseLocalDate, parseTimestamp, stampText, toISODate } from '../../lib/dates';
 import { FOLDER, TONE, shortDate, weekOn } from '../../lib/folders';
 import { mentionsMe } from '../../lib/mentions';
 import { FreshEntryContext, PeopleContext, RelativesContext, authorOf, firstName, speakerOf } from '../../lib/people';
@@ -35,6 +35,9 @@ interface Props {
   /** Sem ele (familiar), não há o campo de escrever. */
   onWrite?: (folder: Folder) => void;
 }
+
+/** O post foi feito no próprio dia do momento: aí a hora ajuda (registro de um dia passado mostra só a data). */
+const sameDay = (e: JournalEntry) => !!e.created_at && toISODate(parseTimestamp(e.created_at)) === e.entry_date.slice(0, 10);
 
 /** "hoje", "ontem", "há 3 dias" ou a data. */
 function when(iso: string) {
@@ -143,7 +146,7 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
             <span className={`inline-flex items-center gap-1 font-bold ${t.text}`}>
               <f.Icon className="w-3 h-3" /> {f.singular}
             </span>
-            · {when(e.entry_date)} · semana {weekOn(dumDate, e.entry_date)}
+            · {when(e.entry_date)}{sameDay(e) && `, ${hhmmOf(e.created_at)}`} · semana {weekOn(dumDate, e.entry_date)}
             {e.visibility === 'family' && role !== 'familia' && (
               <span className="inline-flex items-center gap-0.5">
                 · <Users className="w-3 h-3" /> família
@@ -208,6 +211,7 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
                 <Avatar member={by.person} role={c.author_role} className="w-6 h-6 text-[10px] mt-0.5" />
                 <span className="min-w-0 break-words">
                   <strong className="font-extrabold">{by.name}</strong> <MentionText text={c.body} />
+                  {c.created_at && <span className="ml-1 text-[11px] text-ink-mute whitespace-nowrap">{stampText(c.created_at)}</span>}
                 </span>
               </p>
             );

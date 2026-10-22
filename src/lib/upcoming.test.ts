@@ -32,7 +32,14 @@ describe('Hoje e próximos', () => {
     expect(up.today[1]).toMatchObject({ label: 'Ultrassom', title: 'Morfológico', time: '14:00' });
   });
 
-  it('a semana traz os próximos 7 dias; o resto vai para depois', () => {
+  it('na Agenda, "esta semana" acaba no domingo; segunda já é a semana que vem', () => {
+    // Hoje é sábado, 17/10: esta semana só tem o domingo, 18/10.
+    expect(up.thisWeek.map(i => i.id)).toEqual([]);
+    expect(up.nextWeek.map(i => i.id)).toEqual(['agendado-ter', 'tarefa-sab']);
+    expect(up.afterNextWeek.map(i => i.id)).toEqual(['agendado-nov', 'lembrete-lembra']);
+  });
+
+  it('no Início, a semana traz os próximos 7 dias; o resto vai para depois', () => {
     expect(up.week.map(i => i.id)).toEqual(['agendado-ter', 'tarefa-sab']);
     expect(up.later.map(i => i.id)).toEqual(['agendado-nov', 'lembrete-lembra']);
   });

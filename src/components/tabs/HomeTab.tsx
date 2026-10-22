@@ -15,7 +15,8 @@ import type { Insight } from '../../lib/symptoms';
 import type { Author, Consultation, HealthMetric, PartnerTask, SymptomItem } from '../../types';
 import BabyArt from '../BabyArt';
 import BabyGrowth from '../BabyGrowth';
-import { nextStage, stageAt } from '../../content/growth';
+import { stageAt } from '../../content/growth';
+import { inDays, nextMilestone } from '../../lib/milestones';
 import type { BabyTone } from '../../content/babyTones';
 import { bellyShots } from '../../lib/folders';
 import { coupleNames } from '../../lib/relatives';
@@ -31,7 +32,7 @@ import type { NewMetric } from '../forms/RecordForms';
 import { Card, LinkButton, SectionTitle } from '../ui';
 import { InsightList } from '../InsightList';
 import { Row } from './UpcomingTab';
-import { MilestoneBar, NextAppointment, SharedTasks } from '../home/CoupleCards';
+import { NextAppointment, SharedTasks } from '../home/CoupleCards';
 import { lastSeen, partnerNews } from '../../lib/news';
 import { mentionsMe } from '../../lib/mentions';
 import { PeopleContext } from '../../lib/people';
@@ -88,22 +89,26 @@ interface Props {
   onSaveMetric: (m: NewMetric) => Promise<boolean>;
 }
 
-/** "1 semana", "3 semanas". */
-const weeksText = (n: number) => (n === 1 ? '1 semana' : `${n} semanas`);
-
 export default function HomeTab(props: Props) {
   const { age, selectedWeek, currentWeek, onSelectWeek, insights, onOpen } = props;
   const [editingDum, setEditingDum] = useState(false);
   const [growth, setGrowth] = useState(false);
+  // A jornada pode abrir na fase de um marco ("Próximo marco" → a fase dele).
+  const [growthFocus, setGrowthFocus] = useState<number | undefined>(undefined);
+  const openGrowth = (week?: number) => {
+    setGrowthFocus(week);
+    setGrowth(true);
+  };
   const info = weekInfo(selectedWeek);
   const stage = stageAt(selectedWeek);
-  const upcoming = nextStage(currentWeek);
   const now = new Date();
   const todayIso = toISODate(now);
   const alerts = insights.filter(i => i.tone === 'alerta');
   const phase = phaseOf(currentWeek);
   const cards = weekCards(selectedWeek);
   const dayOfPregnancy = daysBetween(parseLocalDate(props.dumDate), parseLocalDate(todayIso)) + 1;
+  const next = selectedWeek === currentWeek && age.daysToDpp >= 0 ? nextMilestone(props.dumDate, todayIso) : null;
+  const gestationPct = Math.min(100, Math.max(0, ((dayOfPregnancy - 1) / 280) * 100));
 
   const up = buildUpcoming({ consultations: props.consultations, tasks: props.tasks, journal: props.journal, exams: props.exams, today: now });
   const lateSteps = props.lateSteps;
@@ -145,48 +150,81 @@ export default function HomeTab(props: Props) {
       </p>
 
       <section aria-label="Semana da gestação" className="rounded-[32px] bg-surface shadow-soft px-5 pt-6 pb-5 overflow-hidden">
-        {/* O bebê é o centro do Início: tocar nele abre a jornada do bebê. */}
-        <button type="button" onClick={() => setGrowth(true)} aria-label={`Semana ${selectedWeek} de 40: abrir a jornada do bebê`} className="block mx-auto rounded-full focus-visible:outline-offset-4">
-          <BabyArt week={selectedWeek} beat={selectedWeek === currentWeek} tone={props.babyTone} className="w-52 h-52 sm:w-60 sm:h-60" />
-        </button>
-        <div className="flex items-center justify-center gap-1 -mt-1">
-          <button type="button" onClick={() => onSelectWeek(selectedWeek - 1)} disabled={selectedWeek <= FIRST_WEEK} aria-label="Semana anterior" className="w-9 h-9 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2 flex items-center justify-center disabled:opacity-30">
-            <ChevronLeft className="w-5 h-5" />
+        {/* O bebê ao lado da semana: compacto, e tocar nele abre a jornada do bebê. */}
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => openGrowth()} aria-label={`Semana ${selectedWeek} de 40: abrir a jornada do bebê`} className="shrink-0 rounded-full -ml-1">
+            <BabyArt week={selectedWeek} beat={selectedWeek === currentWeek} tone={props.babyTone} className="w-32 h-32 sm:w-36 sm:h-36" />
           </button>
-          <p className="min-w-[11rem] text-center text-[13px] font-extrabold tracking-wide uppercase text-rosa tabular" aria-live="polite">
-            {selectedWeek === currentWeek ? `${age.weeks} semanas${age.days ? ` e ${age.days} ${age.days === 1 ? 'dia' : 'dias'}` : ''}` : `Semana ${selectedWeek}`}
-            <span className="block text-[11px] font-bold normal-case tracking-normal text-ink-mute">
-              {info.trimester}º trimestre · {gestationMonth(selectedWeek)}º mês{selectedWeek !== currentWeek && ' · espiando outra semana'}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-0.5 -ml-2">
+              <button type="button" onClick={() => onSelectWeek(selectedWeek - 1)} disabled={selectedWeek <= FIRST_WEEK} aria-label="Semana anterior" className="w-8 h-8 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2 flex items-center justify-center disabled:opacity-30">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <p className="text-[13px] font-extrabold text-rosa tabular whitespace-nowrap" aria-live="polite">
+                {selectedWeek === currentWeek ? `${age.weeks} semanas${age.days ? ` e ${age.days} ${age.days === 1 ? 'dia' : 'dias'}` : ''}` : `Semana ${selectedWeek}`}
+              </p>
+              <button type="button" onClick={() => onSelectWeek(selectedWeek + 1)} disabled={selectedWeek >= LAST_WEEK} aria-label="Próxima semana" className="w-8 h-8 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2 flex items-center justify-center disabled:opacity-30">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+            <h2 className="font-display text-[1.35rem] leading-tight text-ink text-balance">{stage.title}</h2>
+            <p className="mt-1 text-[13px] text-ink-soft">
+              Do tamanho de {info.fruit}
+              <span className="block tabular text-ink-mute">
+                {info.trimester}º tri · {gestationMonth(selectedWeek)}º mês{selectedWeek !== currentWeek ? ' · espiando outra semana' : ` · ${info.weight}`}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        {/* A gestação inteira numa barra fina, com o dia e quanto falta. */}
+        <div className="mt-3 space-y-1.5">
+          <div className="relative h-1.5 rounded-full bg-surface-2" role="progressbar" aria-label="Quanto da gestação já passou" aria-valuenow={Math.round(gestationPct)} aria-valuemin={0} aria-valuemax={100}>
+            <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-rosa to-lilas" style={{ width: `${gestationPct}%` }} />
+            {[13, 28].map(w => (
+              <span key={w} className="absolute -top-0.5 h-2.5 w-0.5 rounded-full bg-surface" style={{ left: `${(w * 7 * 100) / 280}%` }} aria-hidden />
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-2 text-[12.5px] text-ink-soft">
+            <span className="tabular">
+              {age.daysToDpp >= 0 ? (
+                <>
+                  Dia <strong className="text-ink">{dayOfPregnancy}</strong> de 280 · faltam <strong className="text-ink">{age.daysToDpp} dias</strong>
+                </>
+              ) : (
+                <>DPP foi em {age.dpp.toLocaleDateString('pt-BR')}</>
+              )}
             </span>
-          </p>
-          <button type="button" onClick={() => onSelectWeek(selectedWeek + 1)} disabled={selectedWeek >= LAST_WEEK} aria-label="Próxima semana" className="w-9 h-9 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2 flex items-center justify-center disabled:opacity-30">
-            <ChevronRight className="w-5 h-5" />
+            <span className="flex items-center gap-1">
+              {selectedWeek !== currentWeek && <LinkButton onClick={() => onSelectWeek(currentWeek)}>Voltar para hoje</LinkButton>}
+              <button onClick={() => setEditingDum(v => !v)} aria-label="Alterar a DUM" className="w-8 h-8 rounded-full hover:bg-surface-2 text-ink-mute flex items-center justify-center">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          </div>
+        </div>
+
+        {/* Próximo marco: o que vem aí, com atalho para a fase dele na jornada. */}
+        {next ? (
+          <button type="button" onClick={() => openGrowth(next.milestone.week)} aria-label={`Próximo marco ${inDays(next.days)}: ${next.milestone.title}. Ver na jornada do bebê`} className="mt-3 w-full flex items-center gap-3 rounded-[20px] bg-surface-2/80 hover:bg-surface-2 pl-2 pr-3 py-2 text-left transition">
+            <BabyArt week={Math.min(40, next.milestone.week)} tone={props.babyTone} className="w-12 h-12 shrink-0" />
+            <span className="flex-1 min-w-0">
+              <span className="block text-[12px] font-bold text-rosa">Próximo marco {inDays(next.days)}</span>
+              <span className="block font-bold text-ink leading-snug">{next.milestone.title}</span>
+              <span className="block text-[12.5px] text-ink-soft line-clamp-1">{next.milestone.text}</span>
+            </span>
+            <ChevronRight className="w-5 h-5 text-ink-mute shrink-0" />
           </button>
-        </div>
-        <div className="text-center mt-2 space-y-1">
-          <h2 className="font-display text-[1.6rem] leading-tight text-ink text-balance">{stage.title}</h2>
-          <p className="text-sm text-ink-soft tabular">
-            Do tamanho de {info.fruit}
-            <span className="block">
-              {info.size} · {info.weight}
-            </span>
-          </p>
-          <p className="text-[15px] text-ink pt-1.5 text-balance">{info.milestone}</p>
-        </div>
-        <button type="button" onClick={() => setGrowth(true)} className="mt-4 w-full flex items-center gap-3 rounded-[20px] bg-surface-2/80 hover:bg-surface-2 px-4 py-3 text-left transition">
-          <BabyArt week={nextStage(currentWeek)?.week ?? 40} tone={props.babyTone} className="w-11 h-11 shrink-0" />
-          <span className="flex-1 min-w-0">
-            <span className="block font-bold text-ink">Jornada do bebê</span>
-            <span className="block text-[13px] text-ink-soft line-clamp-2">
-              {upcoming ? `Próxima fase em ${weeksText(upcoming.week - currentWeek)}: ${upcoming.title.toLowerCase()}` : 'Da sementinha ao colo, fase a fase'}
-            </span>
-          </span>
-          <ChevronRight className="w-5 h-5 text-ink-mute shrink-0" />
-        </button>
+        ) : (
+          <button type="button" onClick={() => openGrowth()} className="mt-3 w-full flex items-center justify-between rounded-[20px] bg-surface-2/80 px-4 py-3 text-left font-bold text-ink">
+            Jornada do bebê <ChevronRight className="w-4 h-4" />
+          </button>
+        )}
         {growth && (
           <Sheet title="Jornada do bebê" subtitle={`Da 4ª à 40ª semana · vocês estão na ${currentWeek}ª`} onClose={() => setGrowth(false)}>
             <BabyGrowth
               currentWeek={currentWeek}
+              focusWeek={growthFocus}
               tone={props.babyTone}
               onToneChange={props.onBabyTone}
               parents={coupleNames(members.map(m => m.name))}
@@ -199,28 +237,6 @@ export default function HomeTab(props: Props) {
           </Sheet>
         )}
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-ink-soft">
-          <span className="tabular">
-            {age.daysToDpp >= 0 ? (
-              <>
-                Dia <strong className="text-ink">{dayOfPregnancy}</strong> de 280 · faltam <strong className="text-ink">{age.daysToDpp} dias</strong>
-              </>
-            ) : (
-              <>DPP foi em {age.dpp.toLocaleDateString('pt-BR')}</>
-            )}
-          </span>
-          <span className="flex items-center gap-1">
-            {selectedWeek !== currentWeek && <LinkButton onClick={() => onSelectWeek(currentWeek)}>Voltar para hoje</LinkButton>}
-            <button onClick={() => setEditingDum(v => !v)} aria-label="Alterar a DUM" className="w-9 h-9 rounded-full hover:bg-surface-2 text-ink-mute flex items-center justify-center">
-              <Pencil className="w-4 h-4" />
-            </button>
-          </span>
-        </div>
-        {selectedWeek === currentWeek && age.daysToDpp >= 0 && (
-          <div className="mt-4">
-            <MilestoneBar dumDate={props.dumDate} todayIso={todayIso} />
-          </div>
-        )}
         {editingDum && (
           <div className="mt-3">
             <DumForm

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { useScrollLock } from '../hooks/useScrollLock';
+import { useSheetDrag } from '../hooks/useSheetDrag';
 
 /**
  * Janela que sobe de baixo no celular (e aparece no meio no computador): usada
@@ -25,13 +26,21 @@ export default function Sheet({ title, subtitle, icon, onClose, children }: { ti
   }, []);
 
   useScrollLock();
+  const { handle, panelStyle, full } = useSheetDrag(() => closeFn.current());
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="absolute inset-0 bg-ink/35 backdrop-blur-[2px] touch-none" onClick={onClose} />
-      <div className="relative w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto overscroll-contain bg-surface rounded-t-[28px] sm:rounded-[28px] shadow-lift px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+20px)] sm:p-7">
-        <div className="sm:hidden w-11 h-1.5 rounded-full bg-line mx-auto mb-3" aria-hidden />
-        <div className="flex items-start gap-3 mb-4">
+      <div
+        style={panelStyle}
+        className={`relative w-full sm:max-w-lg overflow-y-auto overscroll-contain bg-surface shadow-lift px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+20px)] sm:p-7 ${full ? 'h-[100dvh] max-h-[100dvh] rounded-none sm:rounded-[28px] sm:h-auto sm:max-h-[92dvh]' : 'max-h-[92dvh] rounded-t-[28px] sm:rounded-[28px]'}`}
+      >
+        {/* Alça e título: puxar para baixo fecha; para cima, tela cheia. */}
+        <div {...handle} className="sticky -top-3 sm:-top-7 z-20 -mx-5 sm:-mx-7 -mt-3 sm:-mt-7 px-5 sm:px-7 pt-3 sm:pt-7 bg-surface cursor-grab active:cursor-grabbing select-none">
+          <div className="sm:hidden -mt-1 pt-1 pb-3" aria-hidden>
+            <div className="w-11 h-1.5 rounded-full bg-line mx-auto" />
+          </div>
+        <div className="flex items-start gap-3 pb-4">
           {icon && <span className="w-10 h-10 rounded-full bg-brand-soft text-brand-strong flex items-center justify-center shrink-0 [&_svg]:w-5 [&_svg]:h-5">{icon}</span>}
           <div className="flex-1 min-w-0">
             <h2 id={titleId} className="text-[1.3rem] leading-snug text-ink break-words">{title}</h2>
@@ -40,6 +49,7 @@ export default function Sheet({ title, subtitle, icon, onClose, children }: { ti
           <button ref={closeRef} type="button" onClick={onClose} aria-label="Fechar" className="w-10 h-10 rounded-full bg-surface-2 text-ink-soft flex items-center justify-center hover:text-ink shrink-0">
             <X className="w-4 h-4" />
           </button>
+        </div>
         </div>
         {children}
       </div>

@@ -95,3 +95,22 @@ export function weekOfDay(dumDate: string, iso: string) {
   const w = gestationalAge(dumDate, parseLocalDate(iso))?.weeks ?? 1;
   return Math.min(45, Math.max(1, w));
 }
+
+/** Hora local de um timestamp: "21:40". */
+export const hhmmOf = (value: string) => parseTimestamp(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+/**
+ * Quando algo foi registrado, curtinho: "hoje, 21:40", "ontem, 08:12" ou
+ * "12/10, 09:00" (com o ano, se não for o atual). Vazio sem data.
+ */
+export function stampText(value: string | null | undefined, now: Date = new Date()): string {
+  if (!value) return '';
+  const d = parseTimestamp(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const days = daysBetween(new Date(d.getFullYear(), d.getMonth(), d.getDate()), new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+  const time = hhmmOf(value);
+  if (days === 0) return `hoje, ${time}`;
+  if (days === 1) return `ontem, ${time}`;
+  const date = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+  return `${date}, ${time}`;
+}
