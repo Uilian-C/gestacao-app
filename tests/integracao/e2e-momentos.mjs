@@ -19,7 +19,7 @@ await p.getByRole('button', { name: /^Início/ }).first().click();
 await p.waitForTimeout(600);
 await p.getByRole('button', { name: /^Agenda(\s|$)/ }).first().click();
 await p.waitForTimeout(600);
-check(await p.getByRole('region', { name: 'Depois' }).getByText(/Contamos hoje para a empresa/).isVisible(), 'lembrete aparece na Agenda → Próximos, no dia marcado');
+check(await p.getByRole('region', { name: 'Mais para frente' }).getByText(/Contamos hoje para a empresa/).isVisible(), 'lembrete aparece na Agenda → Próximos, no dia marcado');
 await p.screenshot({ path: `${OUT}momento-inicio.png`, fullPage: false });
 await b.close();
 finish();
