@@ -3,8 +3,9 @@ import { appointmentTitle, kindInfo, kindOf } from './appointments';
 import type { AppointmentKind, Author, Consultation, HealthMetric, PartnerTask, SymptomItem } from '../types';
 import { daysBetween, isOverdue, localDay, parseLocalDate, parseTimestamp, toISODate } from './dates';
 import { isHighBloodPressure } from './health';
+import { dueOf, kindOfCelebration, type Celebration } from './celebrations';
 
-export type EventKind = 'consulta' | 'exame' | 'tarefa' | 'marco' | 'momento';
+export type EventKind = 'consulta' | 'exame' | 'tarefa' | 'marco' | 'momento' | 'celebracao';
 
 export interface CalendarEvent {
   id: string;
@@ -58,7 +59,7 @@ export interface CalendarData {
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
-export function buildCalendar(input: { dumDate: string; consultations: Consultation[]; results?: CalendarResult[]; tasks: PartnerTask[]; symptoms: SymptomItem[]; metrics: HealthMetric[]; journal?: CalendarMoment[]; today?: Date }): CalendarData {
+export function buildCalendar(input: { dumDate: string; consultations: Consultation[]; results?: CalendarResult[]; tasks: PartnerTask[]; symptoms: SymptomItem[]; metrics: HealthMetric[]; journal?: CalendarMoment[]; today?: Date; celebrations?: Celebration[] | null }): CalendarData {
   const today = input.today ?? new Date();
   const events = new Map<string, CalendarEvent[]>();
   const push = (e: CalendarEvent) => events.set(e.date, [...(events.get(e.date) ?? []), e]);
@@ -122,7 +123,20 @@ export function buildCalendar(input: { dumDate: string; consultations: Consultat
     }
   }
 
-  const order: Record<EventKind, number> = { marco: 0, consulta: 1, exame: 2, tarefa: 3, momento: 4 };
+  // Celebrações: o dia da festa (em destaque) e os prazos das tarefas.
+  for (const c of input.celebrations ?? []) {
+    if (c.event_at) {
+      const d = parseTimestamp(c.event_at);
+      push({ id: `celebracao-${c.id}`, kind: 'celebracao', date: toISODate(d), time: hhmm(d), title: c.title, detail: [kindOfCelebration(c.kind).label, c.location].filter(Boolean).join(' · '), major: true, sourceId: c.id });
+    }
+    for (const t of c.items) {
+      const due = t.kind === 'tarefa' ? dueOf(t, c.event_at) : null;
+      if (!due) continue;
+      push({ id: `celebracao-tarefa-${t.id}`, kind: 'celebracao', date: due, title: t.title, detail: c.title, done: t.done, overdue: !t.done && isOverdue(due, today), sourceId: c.id });
+    }
+  }
+
+  const order: Record<EventKind, number> = { marco: 0, celebracao: 1, consulta: 2, exame: 3, tarefa: 4, momento: 5 };
   for (const list of events.values()) list.sort((a, b) => order[a.kind] - order[b.kind] || (a.time ?? '').localeCompare(b.time ?? ''));
 
   const records = new Map<string, DayRecords>();

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { BabyTone } from '../content/babyTones';
+import type { Celebration } from '../lib/celebrations';
 import { api, ApiError } from '../api';
 import type { BirthPlanRecord, Consultation, Contraction, HealthMetric, KickSession, PartnerComment, PartnerTask, PregnancyProfile, QuestionItem, SymptomItem } from '../types';
 import type { PlanWeeks } from '../lib/journeyPlan';
@@ -61,6 +62,8 @@ export interface GestationData {
   /** Nome do bebê (migração 025) e quando foi escolhido (migração 027). */
   babyName?: string | null;
   babyNameAt?: string | null;
+  /** Celebrações (migração 028); null antes da migração. */
+  celebrations?: Celebration[] | null;
   /** Ideias de nome do bebê (migração 026); null antes da migração. */
   nameIdeas?: NameIdea[] | null;
 }

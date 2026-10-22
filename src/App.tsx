@@ -4,6 +4,8 @@ import BrandMark from './components/BrandMark';
 import QuickRecord, { type QuickMode } from './components/QuickRecord';
 import DetailSheet from './components/Details';
 import NameSpace, { NameReveal, type NameActions } from './components/BabyNames';
+import { CelebrationSpace, type CelebrationActions } from './components/Celebrations';
+import type { Celebration } from './lib/celebrations';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
@@ -148,6 +150,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   /** Pasta (e ideia) com que o diário abre no registro. */
   const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string }>({});
   const [namesOpen, setNamesOpen] = useState(false);
+  /** A celebração aberta (Diário → Celebrações, Início ou Agenda). */
+  const [celebrationOpen, setCelebrationOpen] = useState<string | null>(null);
   // A revelação do nome: para quem escolhe, na hora; para quem não estava (o parceiro, a família), na próxima vez que abre o app.
   const [revealSeen, setRevealSeen] = useState(nameSeen);
   const [revealAgain, setReveal] = useState<string | null>(null);
@@ -644,6 +648,28 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     onChoose: name => setBabyName(name),
     onShareChoice: name => run(() => api.mutate('createEntry', { date: today, body: `Escolhemos o nome: ${name} 💛`, visibility: 'shared', remindOn: null, folder: 'momento' }), 'Não foi possível postar no Mural.', 'Guardado no Mural'),
   };
+  // Celebrações: o casal planeja (migração 028). Ao criar uma, ela já abre.
+  const PARTY_MISSING = 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/028_celebracoes.sql no Neon.';
+  const celebrationActions: CelebrationActions = {
+    create: async (kind, f) => {
+      const before = new Set((data.celebrations ?? []).map(c => c.id));
+      const ok = await run(() => api.mutate('createCelebration', { kind, ...f }), PARTY_MISSING, 'Celebração criada');
+      if (ok) {
+        const fresh = await api.data<{ celebrations?: Celebration[] | null }>().catch(() => null);
+        const created = fresh?.celebrations?.find(c => !before.has(c.id));
+        if (created) setCelebrationOpen(created.id);
+      }
+      return ok;
+    },
+    update: (id, f) => run(() => api.mutate('updateCelebration', { id, ...f }), PARTY_MISSING, 'Celebração atualizada'),
+    remove: id => run(() => api.mutate('deleteCelebration', { id }), PARTY_MISSING, 'Celebração apagada'),
+    addItem: (celebrationId, kind, f) => run(() => api.mutate('addCelebrationItem', { celebrationId, kind, ...f }), PARTY_MISSING),
+    updateItem: (id, f) => {
+      patch(d => ({ ...d, celebrations: (d.celebrations ?? []).map(c => ({ ...c, items: c.items.map(i => (i.id !== id ? i : { ...i, done: f.done ?? i.done, status: f.status ?? i.status, assigned_to: f.assignedTo ?? i.assigned_to })) })) }));
+      return run(() => api.mutate('updateCelebrationItem', { id, ...f }), PARTY_MISSING);
+    },
+    removeItem: id => run(() => api.mutate('deleteCelebrationItem', { id }), PARTY_MISSING),
+  };
   const setBabyTone = (tone: BabyTone) => {
     patch(d => ({ ...d, babyTone: tone }));
     return run(() => api.mutate('setBabyTone', { tone }), 'Não foi possível salvar o tom. Se for a primeira vez, rode a migração db/migrations/024_tom_do_bebe.sql no Neon.');
@@ -675,7 +701,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     openCare(target);
     if (target === 'exames') setExamPreset(planItem ?? null);
   };
-  const recordModes = report ? [] : activeTab === 'cuidados' && careView === 'saude' ? HEALTH_MODES : RECORD_MODES[activeTab];
+  const recordModes = report || (activeTab === 'diario' && diaryView === 'celebracoes') ? [] : activeTab === 'cuidados' && careView === 'saude' ? HEALTH_MODES : RECORD_MODES[activeTab];
   // O registro aberto nos detalhes, com os dados atuais (some se foi apagado).
   const openDetail = resolveDetail(detail, {
     symptoms,
@@ -772,6 +798,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             book={book}
             nameIdeas={data.nameIdeas}
             onOpenNames={() => setNamesOpen(true)}
+            celebrations={data.celebrations}
+            onOpenCelebration={setCelebrationOpen}
             onOpenDetail={setDetail}
             onResult={openResult}
             onWrite={() => writeEntry('dia')}
@@ -810,6 +838,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             book={book}
             babyTone={data.babyTone ?? 'tumtum'}
             onOpenNames={() => setNamesOpen(true)}
+            celebrations={data.celebrations}
+            celebrationActions={celebrationActions}
+            onOpenCelebration={setCelebrationOpen}
           />
         )}
 
@@ -832,6 +863,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             />
             {agendaView === 'proximos' && (
               <UpcomingTab
+                celebrations={data.celebrations}
+                onOpenCelebration={setCelebrationOpen}
                 consultations={consultations}
                 tasks={tasks}
                 journal={journal}
@@ -845,6 +878,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             )}
             {agendaView === 'calendario' && (
               <CalendarTab
+                celebrations={data.celebrations}
+                onOpenCelebration={setCelebrationOpen}
                 dumDate={dumDate}
                 currentWeek={currentWeek}
                 consultations={consultations}
@@ -1039,12 +1074,15 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {recordModes.length > 0 && (
         <button
           type="button"
-          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' || diaryView === 'mural' || diaryView === 'livro' || diaryView === 'humor' ? undefined : diaryView) : (setEntryStart({}), setRecording(recordModes)))}
+          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' || diaryView === 'mural' || diaryView === 'livro' || diaryView === 'celebracoes' || diaryView === 'humor' ? undefined : diaryView) : (setEntryStart({}), setRecording(recordModes)))}
           className="tt-registrar no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-8 h-11 pl-3 pr-4 rounded-full text-white text-[14px] font-extrabold flex items-center gap-1.5 transition active:scale-95 hover:brightness-110"
         >
           <Plus className="w-[18px] h-[18px]" strokeWidth={3} />
           Registrar
         </button>
+      )}
+      {celebrationOpen && data.celebrations?.some(c => c.id === celebrationOpen) && (
+        <CelebrationSpace celebration={data.celebrations.find(c => c.id === celebrationOpen)!} actions={celebrationActions} onClose={() => setCelebrationOpen(null)} />
       )}
       {namesOpen && <NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} />}
       {reveal && (

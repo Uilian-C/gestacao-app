@@ -3,6 +3,7 @@ import type { DetailTarget } from '../../lib/details';
 import { appointmentTitle, kindInfo, kindOf, resultOf } from '../../lib/appointments';
 import { formatBR, localDay, toISODate } from '../../lib/dates';
 import { buildUpcoming, dayChip, type UpcomingItem } from '../../lib/upcoming';
+import type { Celebration } from '../../lib/celebrations';
 import type { ExamItem, JournalEntry } from '../../hooks/useGestationData';
 import type { Consultation, PartnerTask } from '../../types';
 import { Card } from '../ui';
@@ -23,6 +24,9 @@ interface Props {
   onOpen: (target: DetailTarget) => void;
   /** Exame ou ultrassom que aconteceu: guardar (ou ver) o resultado. */
   onResult: (c: Consultation) => void;
+  /** Celebrações (migração 028): o dia e as tarefas entram aqui. */
+  celebrations?: Celebration[] | null;
+  onOpenCelebration?: (id: string) => void;
 }
 
 const TONE = {
@@ -34,7 +38,8 @@ const TONE = {
 const targetOf = (i: UpcomingItem): DetailTarget => (i.consultation ? { kind: 'consultation', id: i.consultation.id } : i.task ? { kind: 'task', id: i.task.id } : { kind: 'entry', id: i.entry!.id });
 
 export default function UpcomingTab(props: Props) {
-  const up = buildUpcoming({ consultations: props.consultations, tasks: props.tasks, journal: props.journal, exams: props.exams, today: new Date() });
+  const up = buildUpcoming({ consultations: props.consultations, tasks: props.tasks, journal: props.journal, exams: props.exams, today: new Date(), celebrations: props.celebrations });
+  const open = (i: UpcomingItem) => (i.celebration ? props.onOpenCelebration?.(i.celebration.id) : props.onOpen(targetOf(i)));
   const empty = up.today.length + up.week.length + up.later.length === 0;
 
   return (
@@ -68,10 +73,10 @@ export default function UpcomingTab(props: Props) {
         </Card>
       )}
 
-      {up.today.length > 0 && <Group title="Hoje">{up.today.map(i => <Row key={i.id} item={i} today onOpen={() => props.onOpen(targetOf(i))} />)}</Group>}
-      {up.thisWeek.length > 0 && <Group title="Esta semana">{up.thisWeek.map(i => <Row key={i.id} item={i} onOpen={() => props.onOpen(targetOf(i))} />)}</Group>}
-      {up.nextWeek.length > 0 && <Group title="Semana que vem">{up.nextWeek.map(i => <Row key={i.id} item={i} onOpen={() => props.onOpen(targetOf(i))} />)}</Group>}
-      {up.afterNextWeek.length > 0 && <Group title="Mais para frente">{up.afterNextWeek.map(i => <Row key={i.id} item={i} onOpen={() => props.onOpen(targetOf(i))} />)}</Group>}
+      {up.today.length > 0 && <Group title="Hoje">{up.today.map(i => <Row key={i.id} item={i} today onOpen={() => open(i)} />)}</Group>}
+      {up.thisWeek.length > 0 && <Group title="Esta semana">{up.thisWeek.map(i => <Row key={i.id} item={i} onOpen={() => open(i)} />)}</Group>}
+      {up.nextWeek.length > 0 && <Group title="Semana que vem">{up.nextWeek.map(i => <Row key={i.id} item={i} onOpen={() => open(i)} />)}</Group>}
+      {up.afterNextWeek.length > 0 && <Group title="Mais para frente">{up.afterNextWeek.map(i => <Row key={i.id} item={i} onOpen={() => open(i)} />)}</Group>}
 
       {up.past.length > 0 && (
         <details className="rounded-[22px] bg-surface-2/50 px-4 py-3">

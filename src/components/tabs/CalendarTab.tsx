@@ -1,5 +1,5 @@
 import { useContext, useRef, useState } from 'react';
-import { AlertTriangle, Bell, FileCheck2, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, Heart, ListPlus, NotebookPen, Stethoscope } from 'lucide-react';
+import { AlertTriangle, Bell, FileCheck2, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, Heart, ListPlus, NotebookPen, PartyPopper, Stethoscope } from 'lucide-react';
 import { buildCalendar, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, monthGrid, toIcs, type CalendarEvent, type CalendarMoment, type CalendarResult, type DayRecords } from '../../lib/calendar';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, toISODate } from '../../lib/dates';
 import type { Consultation, HealthMetric, PartnerTask, SymptomItem, Tab } from '../../types';
@@ -14,6 +14,7 @@ import type { DetailTarget } from '../../lib/details';
 import { ScheduleForm, type NewConsultation } from './ConsultationsTab';
 import AppointmentIcon from '../AppointmentIcon';
 import { TaskForm, type NewTask } from './TasksTab';
+import type { Celebration } from '../../lib/celebrations';
 
 interface Props {
   dumDate: string;
@@ -36,6 +37,9 @@ interface Props {
   results: CalendarResult[];
   /** Humor de cada um (check-in do dia): bolinhas no rodapé do dia e linha no detalhe. */
   checkins: Checkin[];
+  /** Celebrações (chá de bebê...): o dia da festa e os prazos das tarefas. */
+  celebrations?: Celebration[] | null;
+  onOpenCelebration?: (id: string) => void;
 }
 
 /** O que um evento abre: os detalhes (agendamento, tarefa, momento) ou o resultado guardado. */
@@ -48,6 +52,7 @@ const KIND_STYLE: Record<CalendarEvent['kind'], string> = {
   tarefa: 'bg-surface-2 text-ink-soft',
   marco: 'bg-warm-soft text-warm',
   momento: 'bg-casal-soft text-casal',
+  celebracao: 'bg-rosa-soft text-rosa',
 };
 
 export default function CalendarTab(props: Props) {
@@ -64,7 +69,7 @@ export default function CalendarTab(props: Props) {
     requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
   };
 
-  const cal = buildCalendar({ dumDate: props.dumDate, consultations: props.consultations, results: props.results, tasks: props.tasks, symptoms: props.symptoms, metrics: props.metrics, journal: props.journal, today });
+  const cal = buildCalendar({ dumDate: props.dumDate, consultations: props.consultations, results: props.results, tasks: props.tasks, symptoms: props.symptoms, metrics: props.metrics, journal: props.journal, celebrations: props.celebrations, today });
 
   const goToday = () => {
     setCursor({ year: today.getFullYear(), month: today.getMonth() });
@@ -124,7 +129,7 @@ export default function CalendarTab(props: Props) {
           {view === 'mes' ? (
             <MonthView year={cursor.year} month={cursor.month} dumDate={props.dumDate} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} checkins={props.checkins} />
           ) : (
-            <WeekView days={weekDays} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} checkins={props.checkins} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} onOpen={props.onOpen} />
+            <WeekView days={weekDays} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} checkins={props.checkins} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} onOpen={props.onOpen} onOpenCelebration={props.onOpenCelebration} />
           )}
         </Card>
 
@@ -146,6 +151,7 @@ export default function CalendarTab(props: Props) {
           onToggleTask={props.onToggleTask}
           onNavigate={props.onNavigate}
           onOpen={props.onOpen}
+          onOpenCelebration={props.onOpenCelebration}
         />
         </div>
       </div>
@@ -202,6 +208,7 @@ function dotClass(e: CalendarEvent) {
   if (e.kind === 'exame') return 'bg-verde';
   if (e.kind === 'marco') return 'bg-warm';
   if (e.kind === 'momento') return 'bg-casal';
+  if (e.kind === 'celebracao') return e.done ? 'bg-line' : 'bg-rosa';
   return e.done ? 'bg-line' : 'bg-ink-mute';
 }
 
@@ -296,7 +303,7 @@ function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events,
   );
 }
 
-function WeekView({ days, todayIso, selected, onSelect, events, records, checkins, onToggleTask, onOpen }: { days: Date[]; todayIso: string; selected: string; onSelect: (d: string) => void; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; checkins: Checkin[]; onToggleTask: (id: string) => void; onOpen: OpenTarget }) {
+function WeekView({ days, todayIso, selected, onSelect, events, records, checkins, onToggleTask, onOpen, onOpenCelebration }: { days: Date[]; todayIso: string; selected: string; onSelect: (d: string) => void; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; checkins: Checkin[]; onToggleTask: (id: string) => void; onOpen: OpenTarget; onOpenCelebration?: (id: string) => void }) {
   return (
     <ol className="divide-y divide-line">
       {days.map(d => {
@@ -319,7 +326,7 @@ function WeekView({ days, todayIso, selected, onSelect, events, records, checkin
               </div>
               <div className="flex-1 min-w-0 space-y-1.5 py-1">
                 {list.length === 0 && !rec && <p className="text-sm text-ink-mute">Nada marcado</p>}
-                {list.map(e => <EventLine key={e.id} event={e} onToggleTask={onToggleTask} onOpen={onOpen} />)}
+                {list.map(e => <EventLine key={e.id} event={e} onToggleTask={onToggleTask} onOpen={onOpen} onOpenCelebration={onOpenCelebration} />)}
                 {rec && <RecordLine records={rec} />}
                 <DayMoods list={checkins.filter(c => c.day === iso)} compact />
               </div>
@@ -333,10 +340,11 @@ function WeekView({ days, todayIso, selected, onSelect, events, records, checkin
 
 const OPENS: Partial<Record<CalendarEvent['kind'], DetailTarget['kind'] | 'exam'>> = { consulta: 'consultation', exame: 'exam', tarefa: 'task', momento: 'entry' };
 
-function EventLine({ event: e, onToggleTask, onOpen }: { event: CalendarEvent; onToggleTask?: (id: string) => void; onOpen?: OpenTarget }) {
+function EventLine({ event: e, onToggleTask, onOpen, onOpenCelebration }: { event: CalendarEvent; onToggleTask?: (id: string) => void; onOpen?: OpenTarget; onOpenCelebration?: (id: string) => void }) {
   const opens = onOpen && e.sourceId ? OPENS[e.kind] : undefined;
+  const party = e.kind === 'celebracao' && e.sourceId && onOpenCelebration ? () => onOpenCelebration(e.sourceId!) : undefined;
   const icon =
-    e.kind === 'consulta' ? (e.appointment && e.appointment !== 'consulta' ? <AppointmentIcon kind={e.appointment} className="w-4 h-4 text-brand" /> : <Stethoscope className="w-4 h-4 text-brand" />) : e.kind === 'exame' ? <FileCheck2 className="w-4 h-4 text-verde" /> : e.kind === 'marco' ? <Flag className="w-4 h-4 text-warm" /> : e.kind === 'momento' ? (e.reminder ? <Bell className="w-4 h-4 text-casal" /> : <Heart className="w-4 h-4 text-casal" />) : e.overdue ? <AlertTriangle className="w-4 h-4 text-alert" /> : <CheckCircle2 className={`w-4 h-4 ${e.done ? 'text-ok' : 'text-ink-mute'}`} />;
+    e.kind === 'celebracao' ? (e.major ? <PartyPopper className="w-4 h-4 text-rosa" /> : <CheckCircle2 className={`w-4 h-4 ${e.done ? 'text-ok' : e.overdue ? 'text-alert' : 'text-rosa'}`} />) : e.kind === 'consulta' ? (e.appointment && e.appointment !== 'consulta' ? <AppointmentIcon kind={e.appointment} className="w-4 h-4 text-brand" /> : <Stethoscope className="w-4 h-4 text-brand" />) : e.kind === 'exame' ? <FileCheck2 className="w-4 h-4 text-verde" /> : e.kind === 'marco' ? <Flag className="w-4 h-4 text-warm" /> : e.kind === 'momento' ? (e.reminder ? <Bell className="w-4 h-4 text-casal" /> : <Heart className="w-4 h-4 text-casal" />) : e.overdue ? <AlertTriangle className="w-4 h-4 text-alert" /> : <CheckCircle2 className={`w-4 h-4 ${e.done ? 'text-ok' : 'text-ink-mute'}`} />;
   return (
     <div className="flex items-start gap-2 text-sm">
       {e.kind === 'tarefa' && onToggleTask && e.sourceId ? (
@@ -353,7 +361,11 @@ function EventLine({ event: e, onToggleTask, onOpen }: { event: CalendarEvent; o
       ) : (
         <span className="mt-0.5 shrink-0">{icon}</span>
       )}
-      {opens ? (
+      {party ? (
+        <button type="button" onClick={party} className={`min-w-0 text-left hover:underline underline-offset-2 ${e.done ? 'line-through text-ink-mute' : 'text-ink'}`}>
+          <EventText event={e} />
+        </button>
+      ) : opens ? (
         <button type="button" onClick={() => onOpen!({ kind: opens, id: e.sourceId! } as DetailTarget | { kind: 'exam'; id: string })} className={`min-w-0 text-left hover:underline underline-offset-2 ${e.done ? 'line-through text-ink-mute' : 'text-ink'}`}>
           <EventText event={e} />
         </button>
@@ -430,6 +442,7 @@ function DayPanel(props: {
   onToggleTask: (t: PartnerTask) => void;
   onNavigate: (tab: Tab) => void;
   onOpen: OpenTarget;
+  onOpenCelebration?: (id: string) => void;
 }) {
   const [adding, setAdding] = useState<'consulta' | 'tarefa' | null>(null);
   const date = parseLocalDate(props.day);
@@ -455,7 +468,7 @@ function DayPanel(props: {
             const c = e.kind === 'consulta' ? consultationOf(e) : undefined;
             return (
               <li key={e.id} className="space-y-1.5">
-                <EventLine event={e} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} onOpen={props.onOpen} />
+                <EventLine event={e} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} onOpen={props.onOpen} onOpenCelebration={props.onOpenCelebration} />
                 {e.author && <span className="ml-6"><AuthorBadge role={e.author} prefix={e.kind === 'tarefa' ? 'Resp.:' : 'Por'} /></span>}
                 {c && (
                   <a href={googleCalendarUrl(c)} target="_blank" rel="noopener noreferrer" className="ml-6 inline-flex items-center gap-1 text-xs font-semibold text-brand underline underline-offset-2">

@@ -1,6 +1,7 @@
 import { query } from './db.js';
 import { visibleTargetSql } from './social.js';
 import { fetchNameIdeas } from './babyNames.js';
+import { fetchCelebrations } from './celebrations.js';
 
 // Tudo o que o espaço tem registrado, de uma vez. Usado ao abrir o app (/api/family)
 // e depois de cada gravação (/api/data), sempre filtrado pelo espaço de quem está logado.
@@ -9,6 +10,7 @@ const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? nu
 
 export async function fetchAll(fid: string, userId: string) {
   const nameIdeas = fetchNameIdeas(fid, userId);
+  const celebrations = fetchCelebrations(fid);
   const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams, social, photos, planWeeks, checkins] = await Promise.all([
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
@@ -208,6 +210,8 @@ export async function fetchAll(fid: string, userId: string) {
     babyNameAt: text('baby_name_at'),
     /** Ideias de nome do bebê (migração 026); null antes da migração. */
     nameIdeas: await nameIdeas,
+    /** Celebrações (migração 028); null antes da migração. */
+    celebrations: await celebrations,
     /** A migração 020 já rodou: anotação do combinado com a equipe. */
     planNotesAvailable: f.plan_notes_ready === true,
   };

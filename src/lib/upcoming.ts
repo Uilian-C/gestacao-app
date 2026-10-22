@@ -2,6 +2,7 @@ import type { ExamItem, JournalEntry } from '../hooks/useGestationData';
 import type { Consultation, PartnerTask } from '../types';
 import { appointmentTitle, hasResult, kindInfo, kindOf, resultOf } from './appointments';
 import { daysBetween, isOverdue, localDay, parseLocalDate, parseTimestamp, toISODate } from './dates';
+import { dueOf, kindOfCelebration, type Celebration } from './celebrations';
 
 // "O que vai acontecer": agendamentos, tarefas com prazo e lembretes do diário
 // numa lista só, por dia. A Agenda mostra tudo; o Início mostra hoje e a semana.
@@ -22,6 +23,8 @@ export interface UpcomingItem {
   consultation?: Consultation;
   task?: PartnerTask;
   entry?: JournalEntry;
+  /** Celebração (o dia dela, ou uma tarefa com prazo): abre o fichário dela. */
+  celebration?: Celebration;
 }
 
 const WHO: Record<string, string> = { mae: 'mãe', pai: 'pai', casal: 'casal' };
@@ -40,7 +43,7 @@ export function appointmentItem(c: Consultation): UpcomingItem {
   };
 }
 
-export function buildUpcoming(input: { consultations: Consultation[]; tasks: PartnerTask[]; journal: JournalEntry[]; exams: ExamItem[]; today: Date }) {
+export function buildUpcoming(input: { consultations: Consultation[]; tasks: PartnerTask[]; journal: JournalEntry[]; exams: ExamItem[]; today: Date; celebrations?: Celebration[] | null }) {
   const today = parseLocalDate(toISODate(input.today));
   const items: UpcomingItem[] = [];
 
@@ -65,6 +68,20 @@ export function buildUpcoming(input: { consultations: Consultation[]; tasks: Par
   for (const e of input.journal) {
     if (!e.remind_on || daysBetween(today, parseLocalDate(e.remind_on)) < 0) continue;
     items.push({ id: `lembrete-${e.id}`, day: e.remind_on.slice(0, 10), time: e.remind_at ? hhmm(parseTimestamp(e.remind_at)) : undefined, label: 'Lembrete', title: e.body || 'Lembrete do diário', detail: e.visibility === 'private' ? 'Só você vê' : undefined, tone: 'rosa', entry: e });
+  }
+
+  // Celebrações: o dia da festa e as tarefas com prazo (as atrasadas aparecem hoje).
+  for (const c of input.celebrations ?? []) {
+    if (c.event_at && daysBetween(today, localDay(c.event_at)) >= 0) {
+      items.push({ id: `celebracao-${c.id}`, day: toISODate(localDay(c.event_at)), time: hhmm(parseTimestamp(c.event_at)), label: kindOfCelebration(c.kind).label, title: c.title, detail: c.location ?? undefined, tone: 'rosa', celebration: c });
+    }
+    for (const t of c.items) {
+      if (t.kind !== 'tarefa' || t.done) continue;
+      const due = dueOf(t, c.event_at);
+      if (!due) continue;
+      const overdue = isOverdue(due, today);
+      items.push({ id: `celebracao-tarefa-${t.id}`, day: overdue ? toISODate(today) : due, label: overdue ? `${c.title} · atrasada` : c.title, title: t.title, detail: `Para: ${WHO[t.assigned_to ?? 'casal'] ?? 'casal'}`, tone: 'rosa', overdue, celebration: c });
+    }
   }
 
   items.sort((a, b) => a.day.localeCompare(b.day) || Number(!!b.overdue) - Number(!!a.overdue) || (a.time ?? '99').localeCompare(b.time ?? '99'));
