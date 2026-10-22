@@ -14,6 +14,7 @@ import { buildUpcoming } from '../../lib/upcoming';
 import type { Insight } from '../../lib/symptoms';
 import type { Author, Consultation, HealthMetric, PartnerTask, SymptomItem } from '../../types';
 import BabyGrowth from '../BabyGrowth';
+import type { BabyTone } from '../../content/babyTones';
 import { bellyShots } from '../../lib/folders';
 import { coupleNames } from '../../lib/relatives';
 import BrandMark from '../BrandMark';
@@ -44,6 +45,9 @@ interface Props {
   currentWeek: number;
   onSelectWeek: (week: number) => void;
   onSaveDum: (iso: string) => Promise<boolean>;
+  /** Tom do bebê desenhado (migração 024) e como trocar. */
+  babyTone: BabyTone;
+  onBabyTone: (tone: BabyTone) => void;
   insights: Insight[];
   role: Author;
   /** Primeiro nome da outra pessoa do espaço (se já entrou). */
@@ -216,6 +220,8 @@ export default function HomeTab(props: Props) {
           <Sheet title="Como o bebê cresce" subtitle={`Da 4ª à 40ª semana · vocês estão na ${currentWeek}ª`} onClose={() => setGrowth(false)}>
             <BabyGrowth
               currentWeek={currentWeek}
+              tone={props.babyTone}
+              onToneChange={props.onBabyTone}
               parents={coupleNames(members.map(m => m.name))}
               belly={bellyShots(props.journal, props.dumDate)}
               onOpenEntry={id => {

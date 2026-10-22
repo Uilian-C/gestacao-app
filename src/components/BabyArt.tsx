@@ -4,20 +4,40 @@ import { TONES, type BabyTone } from '../content/babyTones';
 // O bebê do Tumtum. Desenhado para dar vontade de cuidar: segue o "esquema do
 // bebê" (Lorenz) que desperta o carinho de quem olha — cabeça grande e
 // redonda, testa alta, bochechas coradas, olhinhos fechados e serenos, formas
-// macias e sem contorno duro — em tons quentes de pele, dentro de uma bolha
-// clarinha (a barriga). No peito, o coraçãozinho do Tumtum.
+// macias e sem contorno duro. Por padrão é uma luz lilás, sem cor de pele, em
+// que todo casal se vê; o casal pode escolher um tom de pele. Fica dentro de uma bolha
+// clarinha (a barriga), abraçado pelo eco do símbolo do Tumtum.
 //
-// Ele muda com a gestação: uma sementinha luminosa com o coração (até a 7ª
+// Ele muda com a gestação: uma sementinha luminosa (até a 7ª
 // semana), um feijãozinho de carinha grande (8ª a 11ª) e, a partir da 12ª, o
 // bebê encolhido que vai ganhando bochecha, dobrinha e um cachinho de cabelo.
 
-const HEART = 'var(--c-rosa)';
-
-/** Coração do Tumtum (centro em x, y; `s` é a escala). */
-function Heart({ x, y, s = 1, beat = false }: { x: number; y: number; s?: number; beat?: boolean }) {
+/**
+ * O eco do Tumtum: as ondas do símbolo (rosa de um lado, azul do outro, do
+ * claro embaixo ao intenso em cima) abraçando o bebê, como os dois que esperam
+ * por ele. Na semana de hoje, pulsam no ritmo tum-tum.
+ */
+function Echo({ id, beat }: { id: string; beat: boolean }) {
   return (
-    <g transform={`translate(${x} ${y}) scale(${s})`}>
-      <path d="M0 3.2 C-4.6 -0.4 -4.8 -4.6 -2.2 -5 C-1 -5.2 -0.2 -4.4 0 -3.4 C0.2 -4.4 1 -5.2 2.2 -5 C4.8 -4.6 4.6 -0.4 0 3.2 Z" style={{ fill: HEART }} className={beat ? 'tt-bebe-batida' : undefined} />
+    <g fill="none" strokeLinecap="round">
+      <defs>
+        <linearGradient id={`${id}r`} x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0" stopColor="#ffd0dc" />
+          <stop offset="1" stopColor="#e64d78" />
+        </linearGradient>
+        <linearGradient id={`${id}b`} x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0" stopColor="#cfe8ff" />
+          <stop offset="1" stopColor="#2f84d6" />
+        </linearGradient>
+      </defs>
+      <g className={beat ? 'tt-bebe-eco' : undefined} opacity={0.32} strokeWidth={3}>
+        <path d="M30.2 17.4 A52 52 0 0 0 30.2 102.6" stroke={`url(#${id}r)`} />
+        <path d="M89.8 17.4 A52 52 0 0 1 89.8 102.6" stroke={`url(#${id}b)`} />
+      </g>
+      <g className={beat ? 'tt-bebe-batida' : undefined} opacity={0.5} strokeWidth={3.4}>
+        <path d="M41 19.2 A45 45 0 0 0 41 100.8" stroke={`url(#${id}r)`} />
+        <path d="M79 19.2 A45 45 0 0 1 79 100.8" stroke={`url(#${id}b)`} />
+      </g>
     </g>
   );
 }
@@ -69,13 +89,14 @@ export default function BabyArt({ week, beat = false, tone = 'tumtum', className
 
       {/* A bolha: a barriga, aconchegante */}
       <circle cx={60} cy={60} r={58} fill={`url(#${bubble})`} />
+      <Echo id={`eco-${id}`} beat={beat} />
 
       {week < 8 ? (
         // Sementinha: uma luz quente com o coração já batendo.
         <g>
           <circle cx={60} cy={60} r={26} fill={`url(#${glow})`} />
           <circle cx={60} cy={60} r={11} fill={`url(#${skin})`} />
-          <Heart x={60} y={60.5} s={1.05} beat={beat} />
+          <circle cx={60} cy={60} r={4} fill="#fff" opacity={0.85} className={beat ? 'tt-bebe-batida' : undefined} />
         </g>
       ) : week < 12 ? (
         // Feijãozinho: carinha grande e o corpinho curvado como um feijão.
@@ -85,7 +106,6 @@ export default function BabyArt({ week, beat = false, tone = 'tumtum', className
           <circle cx={53} cy={47} r={24} fill={`url(#${skin})`} />
           <ellipse cx={45} cy={69} rx={4.4} ry={3.8} fill={SKIN.light} />
           <Face x={52} y={49} s={0.82} feature={SKIN.feature} blush={SKIN.blush} />
-          <Heart x={72} y={80} s={0.85} beat={beat} />
         </g>
       ) : (
         // O bebê encolhido, de lado, com a carinha virada para quem olha.
@@ -108,8 +128,6 @@ export default function BabyArt({ week, beat = false, tone = 'tumtum', className
           <path d="M32.5 70 q1.6 -1.1 3.2 0 M36.4 69.6 q1.6 -1.1 3.2 0" fill="none" stroke={SKIN.deep} strokeWidth={1.1} strokeLinecap="round" />
           {/* Dobrinha no pulso, de quem já está gordinho */}
           {week >= 32 && <path d="M40 77.5 q2.5 1.2 5 -0.4" fill="none" stroke={SKIN.deep} strokeWidth={1.2} strokeLinecap="round" />}
-          {/* O coraçãozinho do Tumtum, no peito */}
-          <Heart x={82} y={80} s={1.05} beat={beat} />
         </g>
       )}
     </svg>

@@ -9,6 +9,7 @@ import { PeopleContext, RelativesContext } from '../../lib/people';
 import { coupleNames } from '../../lib/relatives';
 import Avatar from '../Avatar';
 import BabyGrowth, { type BellyShot } from '../BabyGrowth';
+import type { BabyTone } from '../../content/babyTones';
 import BrandMark from '../BrandMark';
 import PushPrompt from '../PushPrompt';
 import Sheet from '../Sheet';
@@ -28,6 +29,8 @@ export interface FamilyView {
   reactions: Reaction[];
   threads: ThreadComment[];
   socialAvailable: boolean;
+  /** Tom do bebê escolhido pelo casal (migração 024). */
+  babyTone?: BabyTone | null;
 }
 
 interface Props {
@@ -128,7 +131,7 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
           </header>
 
           <main className="max-w-[640px] mx-auto px-4 py-5 space-y-5 pb-16">
-            {dumDate ? <BabyWeek dumDate={dumDate} parents={couple} belly={bellyShots(view.journal, dumDate)} onOpenEntry={setOpen} /> : <p className="rounded-[24px] bg-surface shadow-soft p-5 text-sm text-ink-soft">O casal ainda não informou a data da gestação. Logo a semana do bebê aparece aqui.</p>}
+            {dumDate ? <BabyWeek dumDate={dumDate} tone={view.babyTone ?? 'tumtum'} parents={couple} belly={bellyShots(view.journal, dumDate)} onOpenEntry={setOpen} /> : <p className="rounded-[24px] bg-surface shadow-soft p-5 text-sm text-ink-soft">O casal ainda não informou a data da gestação. Logo a semana do bebê aparece aqui.</p>}
             {dumDate && <Belly entries={view.journal} dumDate={dumDate} onOpen={setOpen} />}
             <PushPrompt relative />
             <section aria-labelledby="mural-familia" className="space-y-3">
@@ -181,7 +184,7 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
 }
 
 /** A semana do bebê: tamanho, peso, o que acontece e quanto falta. */
-function BabyWeek({ dumDate, parents, belly, onOpenEntry }: { dumDate: string; parents: string; belly: BellyShot[]; onOpenEntry: (id: string) => void }) {
+function BabyWeek({ dumDate, tone, parents, belly, onOpenEntry }: { dumDate: string; tone: BabyTone; parents: string; belly: BellyShot[]; onOpenEntry: (id: string) => void }) {
   const [growth, setGrowth] = useState(false);
   const age = gestationalAge(dumDate);
   if (!age) return null;
@@ -214,6 +217,7 @@ function BabyWeek({ dumDate, parents, belly, onOpenEntry }: { dumDate: string; p
           <BabyGrowth
             currentWeek={week}
             hereText="o bebê está aqui"
+            tone={tone}
             parents={parents}
             belly={belly}
             onOpenEntry={id => {

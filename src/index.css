@@ -374,19 +374,18 @@
   100% { transform: scale(1); }
 }
 
-/* O coraçãozinho do bebê em "Como o bebê cresce": bate no ritmo do tum-tum. */
-.tt-bebe-batida {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: tt-bebe-batida 1.5s ease-in-out infinite;
+/* O eco do Tumtum em volta do bebê ("Como o bebê cresce"): pulsa no ritmo tum-tum. */
+.tt-bebe-batida,
+.tt-bebe-eco {
+  transform-box: view-box;
+  transform-origin: 60px 60px;
+  animation: tt-batida 1.5s ease-in-out infinite;
 }
-@keyframes tt-bebe-batida {
-  0%, 40%, 100% { transform: scale(1); }
-  12% { transform: scale(1.28); }
-  26% { transform: scale(1.12); }
+.tt-bebe-eco {
+  animation-name: tt-eco;
 }
 @media (prefers-reduced-motion: reduce) {
-  .tt-bebe-batida { animation: none; }
+  .tt-bebe-batida, .tt-bebe-eco { animation: none; }
 }
 
 /* Post que acabou de entrar no Mural: chega de leve, em destaque. */

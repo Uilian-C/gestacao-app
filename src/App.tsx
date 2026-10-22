@@ -16,6 +16,7 @@ import Toast, { type ToastMessage } from './components/Toast';
 import { DumForm } from './components/DumForm';
 import { Card, Segmented, SubTabs } from './components/ui';
 import { SavingContext } from './lib/saving';
+import type { BabyTone } from './content/babyTones';
 import { FreshEntryContext } from './lib/people';
 import type { BirthPlan } from './lib/birthPlan';
 import HomeTab, { type HomeTarget } from './components/tabs/HomeTab';
@@ -604,6 +605,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     }));
     return run(() => api.mutate('checkin', { day: today, mood }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/014_checkin.sql no Neon.');
   };
+  // O tom do bebê aparece na hora; o servidor confirma em seguida.
+  const setBabyTone = (tone: BabyTone) => {
+    patch(d => ({ ...d, babyTone: tone }));
+    void run(() => api.mutate('setBabyTone', { tone }), 'Não foi possível salvar o tom. Se for a primeira vez, rode a migração db/migrations/024_tom_do_bebe.sql no Neon.');
+  };
   const hug = () => {
     patch(d => ({ ...d, hugs: [...(d.hugs ?? []), { day: today, toMe: false }] }));
     return run(() => api.mutate('hug', { day: today }), 'Não foi possível mandar o abraço. Verifique a conexão.', 'Abraço enviado');
@@ -698,6 +704,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
         {activeTab === 'inicio' && (
           <HomeTab
+            babyTone={data.babyTone ?? 'tumtum'}
+            onBabyTone={setBabyTone}
             age={age}
             dumDate={dumDate}
             selectedWeek={selectedWeek}

@@ -7,6 +7,16 @@ export type BabyTone = 'tumtum' | 'tom1' | 'tom2' | 'tom3' | 'tom4' | 'tom5';
  * pele: todo casal se vê nele. Os outros cinco seguem a escala de tons de pele
  * dos emojis, para quem quiser escolher.
  */
+/** Como cada tom aparece para leitores de tela e na dica do botão. */
+export const TONE_LABEL: Record<BabyTone, string> = {
+  tumtum: 'Neutro (uma luz, sem cor de pele)',
+  tom1: 'Pele tom 1 (mais clara)',
+  tom2: 'Pele tom 2',
+  tom3: 'Pele tom 3',
+  tom4: 'Pele tom 4',
+  tom5: 'Pele tom 5 (mais escura)',
+};
+
 export const TONES: Record<BabyTone, { light: string; mid: string; deep: string; feature: string; blush: string }> = {
   tumtum: { light: '#f8f2ff', mid: '#e8dcf8', deep: '#d2c0ee', feature: '#5f4a86', blush: '#f2a9c6' },
   tom1: { light: '#ffeadf', mid: '#fcd7c6', deep: '#f1bca6', feature: '#8f5545', blush: '#f39a9a' },

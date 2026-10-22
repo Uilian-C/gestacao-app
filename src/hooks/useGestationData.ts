@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { BabyTone } from '../content/babyTones';
 import { api, ApiError } from '../api';
 import type { BirthPlanRecord, Consultation, Contraction, HealthMetric, KickSession, PartnerComment, PartnerTask, PregnancyProfile, QuestionItem, SymptomItem } from '../types';
 import type { PlanWeeks } from '../lib/journeyPlan';
@@ -55,6 +56,8 @@ export interface GestationData {
   planWeeksAvailable?: boolean;
   /** A migração 020 já rodou: o combinado com a equipe em cada item. */
   planNotesAvailable?: boolean;
+  /** Tom do bebê desenhado (migração 024); null é o tom neutro. */
+  babyTone?: BabyTone | null;
 }
 
 export interface ListItem {

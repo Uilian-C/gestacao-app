@@ -28,8 +28,8 @@ export const GROWTH: GrowthStage[] = [
   { week: 24, title: 'Já ouve a voz de vocês', lengthCm: 30, measure: 'cabeca-pes', weightG: 600 },
   { week: 28, title: 'Abre os olhinhos', lengthCm: 37.6, measure: 'cabeca-pes', weightG: 1000 },
   { week: 32, title: 'Ganhando dobrinhas', lengthCm: 42.4, measure: 'cabeca-pes', weightG: 1700 },
-  { week: 36, title: 'Quase pronto para o colo', lengthCm: 47.4, measure: 'cabeca-pes', weightG: 2600 },
-  { week: 40, title: 'Pronto para conhecer vocês', lengthCm: 51.2, measure: 'cabeca-pes', weightG: 3400 },
+  { week: 36, title: 'Quase na hora do colo', lengthCm: 47.4, measure: 'cabeca-pes', weightG: 2600 },
+  { week: 40, title: 'Na hora de conhecer vocês', lengthCm: 51.2, measure: 'cabeca-pes', weightG: 3400 },
 ];
 
 export const GROWTH_SOURCE = 'Médias de tabelas de crescimento fetal usadas no pré-natal. Cada bebê tem o próprio ritmo.';

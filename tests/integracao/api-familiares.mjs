@@ -91,6 +91,15 @@ let limited = false;
 for (let i = 0; i < 21 && !limited; i++) limited = (await avo.call('/api/data', { op: 'comment', targetType: 'entry', targetId: paraFamilia, body: `oi ${i}` })).status === 429;
 check(limited, 'comentários demais em uma hora são barrados');
 
+// ---- Tom do bebê (migração 024) ----
+check((await data(ana)).babyTone === null, 'o bebê começa no tom neutro');
+check((await ana.call('/api/data', { op: 'setBabyTone', tone: 'tom3' })).status === 200, 'o casal escolhe um tom para o bebê');
+check((await data(avo)).babyTone === 'tom3', 'a família vê o mesmo bebê');
+check((await avo.call('/api/data', { op: 'setBabyTone', tone: 'tom1' })).status === 403, 'familiar não muda o tom');
+check((await ana.call('/api/data', { op: 'setBabyTone', tone: 'azul' })).status === 400, 'tom desconhecido é recusado');
+await ana.call('/api/data', { op: 'setBabyTone', tone: 'tumtum' });
+check((await data(caio)).babyTone === null, 'voltar ao neutro');
+
 // ---- Parentesco e vagas ----
 check((await avo.call('/api/family', { op: 'setRelation', userId: rosaId, relation: 'Vovó' })).status === 200, 'a avó ajusta o próprio parentesco');
 check((await ana.call('/api/family', { op: 'setRelation', userId: rosaId, relation: 'Avó materna' })).data.family.relatives[0].relation === 'Avó materna', 'o casal também ajusta');

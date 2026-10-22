@@ -5,6 +5,7 @@ import { GROWTH, GROWTH_SOURCE, MEASURE_TEXT, lengthText, stageAt, stageShots, w
 import { weekInfo } from '../content/weeks';
 import type { EntryPhoto } from '../hooks/useGestationData';
 import BabyArt from './BabyArt';
+import { TONES, TONE_LABEL, type BabyTone } from '../content/babyTones';
 
 // "Como o bebê cresce": a gestação de vocês numa linha só. Em cima, o bebê de
 // hoje, com o coraçãozinho batendo, e quanto já caminharam até o colo. Embaixo,
@@ -28,6 +29,10 @@ interface Props {
   parents?: string;
   belly?: BellyShot[];
   onOpenEntry?: (entryId: string) => void;
+  /** Tom do bebê desenhado; o neutro ("tumtum") é o padrão. */
+  tone?: BabyTone;
+  /** Só o casal escolhe o tom; sem isso (família), o seletor não aparece. */
+  onToneChange?: (tone: BabyTone) => void;
 }
 
 const TERM = 40;
@@ -35,7 +40,7 @@ const TERM = 40;
 /** Tamanho do desenho em cada fase: cresce com o bebê, sem sumir no começo. */
 const artSize = (week: number) => Math.round(44 + Math.sqrt(stageAt(week).lengthCm / 51.2) * 52);
 
-export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry }: Props) {
+export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry, tone = 'tumtum', onToneChange }: Props) {
   const [open, setOpen] = useState<number | null>(null);
   const hereRef = useRef<HTMLLIElement>(null);
   useEffect(() => {
@@ -53,9 +58,9 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
   return (
     <div className="space-y-5">
       {/* O bebê de hoje */}
-      <section aria-label="O bebê hoje" className="rounded-[28px] bg-gradient-to-b from-rosa-soft to-surface px-5 pt-4 pb-5 text-center">
+      <section aria-label="O bebê hoje" className="rounded-[28px] bg-gradient-to-b from-surface-2 to-surface px-5 pt-4 pb-5 text-center">
         {parents && <p className="text-[12px] font-bold text-rosa-strong">O bebê de {parents}</p>}
-        <BabyArt week={currentWeek} beat className="w-44 h-44 mx-auto" />
+        <BabyArt week={currentWeek} beat tone={tone} className="w-44 h-44 mx-auto" />
         <p className="text-[12px] font-extrabold uppercase tracking-wide text-rosa">
           Semana {currentWeek} · {info.trimester}º trimestre
         </p>
@@ -72,6 +77,7 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
             <span>{left > 0 ? `faltam ${left} ${left === 1 ? 'semana' : 'semanas'} para o colo` : 'a qualquer momento no colo'}</span>
           </p>
         </div>
+        {onToneChange && <TonePicker tone={tone} onChange={onToneChange} />}
       </section>
 
       {/* As fases */}
@@ -100,7 +106,7 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
             <li key={s.week} ref={isNow ? hereRef : undefined} className="relative flex items-stretch gap-3">
               <div className="w-[96px] shrink-0 flex items-center justify-center py-1.5">
                 <span style={{ width: artSize(s.week) }} className={`block transition ${passed ? '' : 'opacity-45 saturate-50'}`}>
-                  <BabyArt week={s.week} beat={isNow} className="w-full h-auto" />
+                  <BabyArt week={s.week} beat={isNow} tone={tone} className="w-full h-auto" />
                 </span>
               </div>
               <Rail top={i > 0} bottom={i < GROWTH.length - 1} filledTop={passed} filledBottom={(GROWTH[i + 1]?.week ?? 99) <= currentWeek} dot={isNow ? 'now' : passed ? 'passed' : 'next'} />
@@ -152,6 +158,31 @@ function Rail({ top, bottom, filledTop, filledBottom, dot }: { top: boolean; bot
       {top && <span className={`absolute top-0 h-1/2 w-[3px] ${filledTop ? 'bg-rosa' : 'bg-line'}`} />}
       {bottom && <span className={`absolute bottom-0 h-1/2 w-[3px] ${filledBottom ? 'bg-rosa' : 'bg-line'}`} />}
       <span className={`relative self-center rounded-full ${dot === 'now' ? 'w-4 h-4 bg-rosa ring-4 ring-rosa-soft' : dot === 'passed' ? 'w-3 h-3 bg-rosa' : 'w-3 h-3 bg-surface border-2 border-line'}`} />
+    </div>
+  );
+}
+
+/**
+ * O tom do bebê: o neutro (uma luz, sem cor de pele) ou um dos cinco tons de
+ * pele. Discreto, para quem quiser; vale para o espaço todo (a família vê igual).
+ */
+function TonePicker({ tone, onChange }: { tone: BabyTone; onChange: (tone: BabyTone) => void }) {
+  return (
+    <div className="mt-4 flex items-center justify-center gap-2.5" role="radiogroup" aria-label="Tom do bebê">
+      <span className="text-[12px] text-ink-mute">Tom do bebê</span>
+      {(Object.keys(TONES) as BabyTone[]).map(t => (
+        <button
+          key={t}
+          type="button"
+          role="radio"
+          aria-checked={tone === t}
+          aria-label={TONE_LABEL[t]}
+          title={TONE_LABEL[t]}
+          onClick={() => onChange(t)}
+          className={`w-7 h-7 rounded-full transition ${tone === t ? 'ring-2 ring-offset-2 ring-offset-surface ring-ink-soft scale-110' : 'hover:scale-110'}`}
+          style={{ background: `radial-gradient(circle at 35% 30%, ${TONES[t].light}, ${TONES[t].mid} 60%, ${TONES[t].deep})` }}
+        />
+      ))}
     </div>
   );
 }
