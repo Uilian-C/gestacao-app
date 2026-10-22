@@ -1,4 +1,4 @@
-import { Bell, BookHeart, ChevronRight, HeartPulse, Images, LayoutList, Lock, Plus, Smile } from 'lucide-react';
+import { Bell, BookHeart, BookOpen, ChevronRight, HeartPulse, Images, LayoutList, Lock, Plus, Smile } from 'lucide-react';
 import { photoUrl, type FamilyMember } from '../../api';
 import type { Checkin, Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { formatBR, toISODate } from '../../lib/dates';
@@ -9,6 +9,8 @@ import AuthorBadge from '../AuthorBadge';
 import { MentionText } from '../Mentions';
 import { SocialCount, type OnReact } from '../Social';
 import Mural from './Mural';
+import { BookView } from '../Book';
+import { freshChapter, type Chapter } from '../../lib/chapters';
 import MoodTab from './MoodTab';
 import { Card } from '../ui';
 
@@ -41,6 +43,8 @@ interface Props {
   onWrite: (folder?: Folder, idea?: string) => void;
   /** Leva para Cuidados → Saúde. */
   onOpenHealth: () => void;
+  /** O livro de vocês: um capítulo por semana. */
+  book: Chapter[];
 }
 
 export default function DiaryTab(props: Props) {
@@ -70,7 +74,11 @@ export default function DiaryTab(props: Props) {
           onComment={props.onComment}
           onOpen={id => props.onOpen({ kind: 'entry', id })}
           onWrite={props.onWrite}
+          fresh={freshChapter(props.book, props.dumDate, new Date())}
+          onOpenBook={() => props.onView('livro')}
         />
+      ) : props.view === 'livro' ? (
+        <BookView book={props.book} onOpenEntry={id => props.onOpen({ kind: 'entry', id })} />
       ) : props.view === 'tudo' ? (
         <Cover {...props} count={count} social={social} />
       ) : (
@@ -87,6 +95,9 @@ function FolderStrip({ value, onChange, count, total, folders }: { value: DiaryV
     <nav className="-mx-4 px-4 flex gap-2 overflow-x-auto no-scrollbar" aria-label="Pastas do diário">
       <button type="button" onClick={() => onChange('mural')} aria-current={value === 'mural' ? 'page' : undefined} className={`${tab} ${value === 'mural' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
         <LayoutList className="w-4 h-4" /> Mural
+      </button>
+      <button type="button" onClick={() => onChange('livro')} aria-current={value === 'livro' ? 'page' : undefined} className={`${tab} ${value === 'livro' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
+        <BookOpen className="w-4 h-4" /> Livro
       </button>
       <button type="button" onClick={() => onChange('tudo')} aria-current={value === 'tudo' ? 'page' : undefined} className={`${tab} ${value === 'tudo' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
         <BookHeart className="w-4 h-4" /> Fichário <span className="tabular opacity-70">{total}</span>
