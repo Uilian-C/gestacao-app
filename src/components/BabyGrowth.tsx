@@ -1,4 +1,3 @@
-import BabyNameSetting from './BabyNameSetting';
 import { BabyNameContext } from '../lib/baby';
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronUp, Palette } from 'lucide-react';
@@ -35,8 +34,8 @@ interface Props {
   tone?: BabyTone;
   /** Só o casal escolhe o tom; sem isso (família), o seletor não aparece. */
   onToneChange?: (tone: BabyTone) => Promise<boolean> | void;
-  /** Guardar o nome do bebê (vai para o app todo). */
-  onNameChange?: (name: string | null) => Promise<boolean>;
+  /** Abre a escolha do nome do bebê. */
+  onNames?: () => void;
   /** O próximo marco (do Início): aparece na linha e o trilho mostra, em lilás, o caminho de hoje até ele. */
   goal?: Goal;
 }
@@ -54,7 +53,7 @@ const TERM = 40;
 /** Tamanho do desenho em cada fase: cresce com o bebê, sem sumir no começo. */
 const artSize = (week: number) => Math.round(44 + Math.sqrt(stageAt(week).lengthCm / 51.2) * 52);
 
-export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry, tone = 'tumtum', onToneChange, onNameChange, goal }: Props) {
+export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry, tone = 'tumtum', onToneChange, onNames, goal }: Props) {
   const babyName = useContext(BabyNameContext);
   const [open, setOpen] = useState<number | null>(null);
   // Enquanto o casal escolhe o tom, o bebê já aparece nele; só grava ao salvar.
@@ -141,7 +140,11 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
             <span>{left > 0 ? `faltam ${left} ${left === 1 ? 'semana' : 'semanas'} para o colo` : 'a qualquer momento no colo'}</span>
           </p>
         </div>
-        {onNameChange && <BabyNameSetting onSave={onNameChange} invite="Já escolheram o nome?" className="mx-auto mt-2" />}
+        {onNames && !babyName && (
+          <button type="button" onClick={onNames} className="mx-auto mt-2 block text-[13.5px] font-bold text-rosa-strong">
+            Qual vai ser o nome? Ver as ideias ›
+          </button>
+        )}
         {onToneChange && <ToneSetting tone={tone} onPreview={setPreview} onSave={onToneChange} />}
       </section>
 

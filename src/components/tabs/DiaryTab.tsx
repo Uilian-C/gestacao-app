@@ -1,9 +1,10 @@
-import { Bell, BookHeart, BookOpen, ChevronRight, HeartPulse, Images, LayoutList, Lock, Plus, Smile } from 'lucide-react';
+import { useState } from 'react';
+import { Bell, BookHeart, BookOpen, ChevronDown, ChevronUp, ChevronRight, HeartPulse, Images, LayoutList, Lock, Plus, Smile } from 'lucide-react';
 import { photoUrl, type FamilyMember } from '../../api';
 import type { Checkin, Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { formatBR, toISODate } from '../../lib/dates';
 import type { DetailTarget } from '../../lib/details';
-import { FOLDER, FOLDERS, TONE, bellyWeeks, byMonth, shortDate, weekOn } from '../../lib/folders';
+import { FOLDER, FOLDERS, TONE, bellyWeeks, groupEntries, shortDate, weekOn, type GroupBy } from '../../lib/folders';
 import type { Author, DiaryView } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import { MentionText } from '../Mentions';
@@ -14,7 +15,7 @@ import type { BabyTone } from '../../content/babyTones';
 import { coupleNames } from '../../lib/relatives';
 import { freshChapter, type Chapter } from '../../lib/chapters';
 import MoodTab from './MoodTab';
-import { Card } from '../ui';
+import { Card, Segmented } from '../ui';
 
 // O Diário é o fichário afetivo da gestação: momentos, dia a dia, ideias,
 // cartas para o bebê e a barriga semana a semana. Abre no Mural (tudo junto,
@@ -49,8 +50,8 @@ interface Props {
   book: Chapter[];
   /** O tom do bebê (o desenho de cada capítulo). */
   babyTone: BabyTone;
-  /** Guardar o nome do bebê (vai para a capa do livro). */
-  onBabyName?: (name: string | null) => Promise<boolean>;
+  /** Abre a escolha do nome do bebê (vai para a capa do livro). */
+  onOpenNames?: () => void;
 }
 
 export default function DiaryTab(props: Props) {
@@ -91,7 +92,7 @@ export default function DiaryTab(props: Props) {
           parents={coupleNames(props.members.map(m => m.name))}
           onOpenEntry={id => props.onOpen({ kind: 'entry', id })}
           onWrite={props.journalAvailable ? () => props.onWrite() : undefined}
-          onName={props.onBabyName}
+          onNames={props.onOpenNames}
         />
       ) : props.view === 'tudo' ? (
         <Cover {...props} count={count} social={social} />
@@ -147,9 +148,104 @@ function FolderStrip({ value, onChange, count, total, folders }: { value: DiaryV
 
 type SocialOf = (e: JournalEntry) => { reactions: number; comments: number };
 
+const remembered = (key: string, fallback: string) => {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+const remember = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* sem armazenamento: só não lembra */
+  }
+};
+
+const GROUPS: Array<{ value: GroupBy; label: string }> = [
+  { value: 'mes', label: 'Mês' },
+  { value: 'semana', label: 'Semana' },
+  { value: 'trimestre', label: 'Trimestre' },
+];
+
+/**
+ * Os registros de uma pasta, agrupados por mês, semana ou trimestre (a escolha
+ * fica lembrada por pasta). O grupo mais novo vem aberto; os outros, recolhidos,
+ * com quantos registros e as fotinhos, para achar rápido.
+ */
+function Grouped({ folder, entries, dumDate, social, onOpen }: { folder: Folder; entries: JournalEntry[]; dumDate: string; social: SocialOf; onOpen: (id: string) => void }) {
+  const key = `tumtum-fichario-grupo-${folder}`;
+  const [by, setBy] = useState<GroupBy>(() => remembered(key, 'mes') as GroupBy);
+  const groups = groupEntries(entries, by, dumDate);
+  const [open, setOpen] = useState<Set<string>>(() => new Set(groups.slice(0, 1).map(g => g.key)));
+  const pick = (v: GroupBy) => {
+    setBy(v);
+    remember(key, v);
+    setOpen(new Set(groupEntries(entries, v, dumDate).slice(0, 1).map(g => g.key)));
+  };
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2 px-1">
+        <span className="text-xs font-bold uppercase tracking-wider text-ink-mute">Ver por</span>
+        <Segmented label="Agrupar por" size="sm" value={by} onChange={pick} options={GROUPS} />
+      </div>
+      {groups.map(g => {
+        const isOpen = open.has(g.key);
+        const photos = g.items.flatMap(e => e.photos).slice(0, 4);
+        return (
+          <section key={g.key} className="rounded-3xl bg-surface shadow-soft">
+            <button
+              type="button"
+              aria-expanded={isOpen}
+              onClick={() =>
+                setOpen(prev => {
+                  const next = new Set(prev);
+                  if (next.has(g.key)) next.delete(g.key);
+                  else next.add(g.key);
+                  return next;
+                })
+              }
+              className="w-full flex items-center gap-3 px-4 py-3 text-left"
+            >
+              <span className="flex-1 min-w-0">
+                <span className="block font-extrabold text-ink first-letter:uppercase">{g.label}</span>
+                <span className="block text-[12px] text-ink-mute">{g.items.length === 1 ? '1 registro' : `${g.items.length} registros`}</span>
+              </span>
+              {!isOpen && photos.length > 0 && (
+                <span className="flex -space-x-2" aria-hidden>
+                  {photos.map(p => (
+                    <img key={p.id} src={photoUrl(p.id, p.thumb)} alt="" loading="lazy" className="w-8 h-8 rounded-lg object-cover ring-2 ring-surface" />
+                  ))}
+                </span>
+              )}
+              {isOpen ? <ChevronUp className="w-4 h-4 text-ink-mute shrink-0" /> : <ChevronDown className="w-4 h-4 text-ink-mute shrink-0" />}
+            </button>
+            {isOpen && (
+              <div className="space-y-2.5 px-3 pb-3">
+                {g.items.map(e => (
+                  <EntryCard key={e.id} entry={e} dumDate={dumDate} social={social(e)} onOpen={() => onOpen(e.id)} />
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Capa do fichário: as pastas, os últimos registros e o caminho para a saúde. */
 function Cover({ journal, dumDate, photosAvailable, journalAvailable, onView, onOpen, onWrite, onOpenHealth, count, social }: Props & { count: (f: Folder) => number; social: SocialOf }) {
   const recent = journal.slice(0, 5);
+  // Recolher os últimos registros fica lembrado neste aparelho.
+  const [showRecent, setShowRecentState] = useState(() => remembered('tumtum-fichario-ultimos', 'aberto') !== 'fechado');
+  const setShowRecent = (f: (v: boolean) => boolean) =>
+    setShowRecentState(v => {
+      const next = f(v);
+      remember('tumtum-fichario-ultimos', next ? 'aberto' : 'fechado');
+      return next;
+    });
   const photos = journal.filter(e => e.photos.length > 0).length;
   const belly = journal.filter(e => e.folder === 'barriga' && e.photos.length > 0).slice(0, 4);
 
@@ -207,12 +303,19 @@ function Cover({ journal, dumDate, photosAvailable, journalAvailable, onView, on
 
       {recent.length > 0 && (
         <Card>
-          <h2 className="text-sm font-extrabold text-ink-soft mb-3">Últimos registros</h2>
-          <div className="space-y-2.5">
-            {recent.map(e => (
-              <EntryCard key={e.id} entry={e} dumDate={dumDate} showFolder={photosAvailable} social={social(e)} onOpen={() => onOpen({ kind: 'entry', id: e.id })} />
-            ))}
-          </div>
+          <button type="button" onClick={() => setShowRecent(v => !v)} aria-expanded={showRecent} className="w-full flex items-center justify-between gap-3 text-left">
+            <h2 className="text-sm font-extrabold text-ink-soft">Últimos registros</h2>
+            <span className="inline-flex items-center gap-1 text-[12.5px] font-bold text-ink-mute">
+              {showRecent ? 'Recolher' : 'Mostrar'} {showRecent ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </span>
+          </button>
+          {showRecent && (
+            <div className="space-y-2.5 mt-3">
+              {recent.map(e => (
+                <EntryCard key={e.id} entry={e} dumDate={dumDate} showFolder={photosAvailable} social={social(e)} onOpen={() => onOpen({ kind: 'entry', id: e.id })} />
+              ))}
+            </div>
+          )}
         </Card>
       )}
 
@@ -277,14 +380,7 @@ function FolderPage({ folder, entries, dumDate, journalAvailable, onOpen, onWrit
       ) : folder === 'barriga' ? (
         <BellyGrid entries={entries} dumDate={dumDate} onOpen={id => onOpen({ kind: 'entry', id })} />
       ) : (
-        byMonth(entries).map(group => (
-          <section key={group.key} className="space-y-2.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-ink-mute px-1">{group.label}</h3>
-            {group.items.map(e => (
-              <EntryCard key={e.id} entry={e} dumDate={dumDate} social={social(e)} onOpen={() => onOpen({ kind: 'entry', id: e.id })} />
-            ))}
-          </section>
-        ))
+        <Grouped key={folder} folder={folder} entries={entries} dumDate={dumDate} social={social} onOpen={id => onOpen({ kind: 'entry', id })} />
       )}
     </>
   );

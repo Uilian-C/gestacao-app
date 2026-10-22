@@ -6,6 +6,7 @@ import { mentioned } from './_lib/mentions.js';
 import { notify, type PushPayload } from './_lib/push.js';
 import { VISIBLE_TARGET } from './_lib/social.js';
 import { deleteFiles } from './_lib/storage.js';
+import { addNameIdea, deleteNameIdea, likeNameIdea } from './_lib/babyNames.js';
 
 // Toda consulta filtra por family_id = espaço de quem está logado. O autor dos
 // registros vem do login (papel no espaço), nunca do que o navegador envia.
@@ -133,6 +134,9 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('comment'), targetType: z.enum(['entry', 'exam']), targetId: uuid, body: text(1000) }),
   z.object({ op: z.literal('deleteComment'), id: uuid }),
   // Tom do bebê desenhado (migração 024); null volta ao tom neutro.
+  z.object({ op: z.literal('addNameIdea'), name: z.string().trim().min(1).max(40) }),
+  z.object({ op: z.literal('likeNameIdea'), id: uuid, on: z.boolean() }),
+  z.object({ op: z.literal('deleteNameIdea'), id: uuid }),
   z.object({ op: z.literal('setBabyName'), name: z.string().trim().max(40).nullable() }),
   z.object({ op: z.literal('setBabyTone'), tone: z.enum(['tumtum', 'tom1', 'tom2', 'tom3', 'tom4', 'tom5']).nullable() }),
   // Check-in do dia (migração 014): o humor de cada um; null apaga.
@@ -479,6 +483,12 @@ async function apply(m: Member, o: Op) {
          RETURNING (xmax = 0) AS inserted`,
         [fid, m.userId, who, o.day, o.mood],
       ).catch(checkinMissing);
+    case 'addNameIdea':
+      return addNameIdea(fid, m.userId, who, o.name);
+    case 'likeNameIdea':
+      return likeNameIdea(fid, m.userId, who, o.id, o.on);
+    case 'deleteNameIdea':
+      return deleteNameIdea(fid, m.userId, o.id, true);
     case 'setBabyName':
       return query('UPDATE families SET baby_name = $2 WHERE id = $1', [fid, o.name ? o.name : null]).catch(err => {
         if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'O nome do bebê ainda não está ligado no servidor. Rode a migração db/migrations/025_nome_do_bebe.sql no Neon.');
@@ -542,6 +552,10 @@ function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } 
       return { action: 'criou uma tarefa', body: o.title.length > 80 ? `${o.title.slice(0, 79)}…` : o.title, url: '/?aba=agenda', tag: 'parceiro-tarefa' };
     case 'createEntry':
       return o.visibility === 'shared' ? { action: ENTRY_TEXT[o.folder ?? 'momento'], body: 'Toque para ver no diário.', url: '/?aba=diario', tag: 'parceiro-momento' } : null;
+    case 'addNameIdea':
+      return { action: `sugeriu um nome: ${o.name}`, body: 'Toque para curtir ou sugerir outro.', url: '/', tag: 'nomes' };
+    case 'setBabyName':
+      return o.name ? { action: `confirmou o nome do bebê: ${o.name}`, body: 'Agora ele faz parte da história de vocês.', url: '/', tag: 'nomes' } : null;
     case 'hug':
       return { action: 'mandou um abraço', body: 'Toque para ver como vocês estão hoje.', url: '/', tag: 'abraco' };
     case 'checkin':
@@ -680,6 +694,9 @@ const relativeOps = z.discriminatedUnion('op', [
   z.object({ op: z.literal('react'), targetType: z.literal('entry'), targetId: uuid, kind: z.enum(['abraco', 'forca', 'aqui', 'festa']), on: z.boolean() }),
   z.object({ op: z.literal('comment'), targetType: z.literal('entry'), targetId: uuid, body: text(1000) }),
   z.object({ op: z.literal('deleteComment'), id: uuid }),
+  z.object({ op: z.literal('addNameIdea'), name: z.string().trim().min(1).max(40) }),
+  z.object({ op: z.literal('likeNameIdea'), id: uuid, on: z.boolean() }),
+  z.object({ op: z.literal('deleteNameIdea'), id: uuid }),
 ]);
 
 const REACTION_FOR_FAMILY = { abraco: 'mandou um abraço', forca: 'mandou força', aqui: 'disse: estou aqui', festa: 'comemorou com vocês' } as const;
@@ -689,6 +706,18 @@ async function applyRelative(m: SpaceMember, body: unknown) {
   if (!parsed.success) throw new HttpError(403, COUPLE_ONLY);
   const o = parsed.data;
   const fid = m.familyId;
+  // Nomes do bebê: a família também sugere e curte (e avisa o casal da sugestão).
+  if (o.op === 'likeNameIdea') return likeNameIdea(fid, m.userId, 'familia', o.id, o.on);
+  if (o.op === 'deleteNameIdea') return deleteNameIdea(fid, m.userId, o.id, false);
+  if (o.op === 'addNameIdea') {
+    const added = await addNameIdea(fid, m.userId, 'familia', o.name);
+    if (!added) return;
+    const rows = await peopleOf(m);
+    const who = rows.find(r => r.me)?.first || 'Alguém da família';
+    const couple = rows.filter(r => r.role !== 'familia').map(r => r.user_id);
+    await notify(couple, 'parceiro', { title: `${who} sugeriu um nome: ${o.name}`, body: 'Toque para ver as ideias de nome.', url: '/', tag: 'nomes' }).catch(err => console.error('Aviso de nome não enviado', err));
+    return;
+  }
   if (o.op === 'deleteComment') {
     const rows = await query('DELETE FROM comments WHERE id = $1 AND family_id = $2 AND user_id = $3 RETURNING id', [o.id, fid, m.userId]);
     if (rows.length === 0) throw new HttpError(404, 'Comentário não encontrado.');

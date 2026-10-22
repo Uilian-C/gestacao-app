@@ -1,25 +1,36 @@
 import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { BookOpen, Check, ChevronLeft, ChevronRight, PenLine, Printer, Sparkles, X } from 'lucide-react';
+import { BookOpen, Check, ChevronLeft, ChevronRight, List, PenLine, Printer, Sparkles, X } from 'lucide-react';
 import { photoUrl } from '../api';
 import type { BabyTone } from '../content/babyTones';
 import { stageAt } from '../content/growth';
+import type { JournalEntry } from '../hooks/useGestationData';
 import { BabyNameContext, babyCall } from '../lib/baby';
 import { bookMonths, freshChapter, type Chapter, type MonthChapter } from '../lib/chapters';
-import { formatBR, parseLocalDate } from '../lib/dates';
+import { formatBR, hhmmOf, parseLocalDate, parseTimestamp, toISODate } from '../lib/dates';
 import { FOLDER, shortDate } from '../lib/folders';
+import { MOOD_COLOR, moodLabel, moodOf } from '../lib/moods';
+import { PeopleContext, firstName } from '../lib/people';
 import BabyArt from './BabyArt';
-import BabyNameSetting from './BabyNameSetting';
+import MoodFace from './MoodFace';
 
 // O livro de vocês: cada mês da gestação é um capítulo e cada semana, uma
-// página, contada como história (sem contagem) e com o bebê daquela semana.
-// No Mural aparece a página que acabou de fechar; no Diário → Livro, os
-// capítulos, que abrem como um livro (folheando), e a impressão para o
-// fichário de memórias, só com as páginas que vocês escolherem.
+// página, contada como história (sem contagem), com o bebê daquela semana e o
+// humor dos dois. No Mural aparece a página que acabou de fechar; no Diário →
+// Livro, os capítulos, que abrem num leitor como os de e-book (página inteira,
+// folhear, sumário e "continuar de onde parou"), e a impressão para o fichário
+// de memórias, só com as páginas escolhidas.
 
 /** "16 a 22 out". */
 const span = (c: Chapter) => `${parseLocalDate(c.from).getDate()} a ${shortDate(c.to)}`;
 const titleOf = (c: Chapter) => (c.personal ? `“${c.title}”` : c.title);
 const artWeek = (week: number) => Math.min(40, Math.max(4, week));
+
+/** "Momento · 17/10/2026 às 14:32" (a hora só quando foi postado no próprio dia). */
+function stamp(e: JournalEntry) {
+  const day = e.entry_date.slice(0, 10);
+  const sameDay = !!e.created_at && toISODate(parseTimestamp(e.created_at)) === day;
+  return `${FOLDER[e.folder].singular} · ${formatBR(day)}${sameDay ? ` às ${hhmmOf(e.created_at)}` : ''}`;
+}
 
 /** O bebê naquela semana: o desenho da jornada, o tamanho e o nome carinhoso da fase. */
 function BabyOfWeek({ chapter: c, tone }: { chapter: Chapter; tone: BabyTone }) {
@@ -41,7 +52,32 @@ function BabyOfWeek({ chapter: c, tone }: { chapter: Chapter; tone: BabyTone }) 
   );
 }
 
-/** Uma semana (página) como cartão: no Mural, o capítulo que acabou de fechar. */
+/** Como cada um estava na semana (as carinhas do check-in) e uma frase sobre a variação, ou o convite para contar. */
+function MoodOfWeek({ chapter: c }: { chapter: Chapter }) {
+  const people = useContext(PeopleContext);
+  return (
+    <div className="rounded-2xl border border-line px-3.5 py-2.5 space-y-1.5" aria-label="O humor da semana">
+      {c.moods.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {c.moods.map(m => {
+            const who = people.find(p => p.role === m.role);
+            return (
+              <span key={m.role} className={`inline-flex items-center gap-1.5 text-[13px] font-bold ${MOOD_COLOR[m.mood].text}`}>
+                <MoodFace path={moodOf(m.mood).face} className="w-5 h-5" />
+                <span className="text-ink">
+                  {who ? firstName(who.name) : m.role === 'mae' ? 'Mãe' : 'Pai'}: {moodLabel(m.mood, m.role).toLowerCase()}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+      <p className="text-[13.5px] italic leading-snug text-ink-soft">{c.moodNote}</p>
+    </div>
+  );
+}
+
+/** Uma semana (página) como cartão: no Mural, a página que acabou de fechar. */
 export function ChapterCard({ chapter: c, tone, onOpenEntry, onWrite, showNudge = false }: { chapter: Chapter; tone: BabyTone; onOpenEntry: (id: string) => void; onWrite?: () => void; showNudge?: boolean }) {
   const label = `Semana ${c.week} · ${c.open ? 'sendo escrita' : span(c)}`;
   return (
@@ -63,6 +99,7 @@ export function ChapterCard({ chapter: c, tone, onOpenEntry, onWrite, showNudge 
       <div className="px-5 pt-3 pb-5 space-y-3">
         <BabyOfWeek chapter={c} tone={tone} />
         <p className="text-[15px] leading-relaxed text-ink">{c.story}</p>
+        <MoodOfWeek chapter={c} />
         {c.highlight && !c.open && (
           <button type="button" onClick={() => onOpenEntry(c.highlight!.entryId)} className="block w-full text-left border-l-[3px] border-rosa/60 pl-3">
             <span className="block font-display text-[1.05rem] italic leading-snug text-ink">“{c.highlight.quote}”</span>
@@ -105,23 +142,39 @@ export function FreshChapter({ chapter, tone, onOpenEntry, onWrite, onOpenBook }
 
 // ---- As páginas do livro (no leitor e na impressão, iguais) ----
 
-/** A abertura de um capítulo (um mês): o bebê no fim do mês, o nome do capítulo e o resumo. */
+/** Fotos inteiras, sem cortar: uma grande, ou duas por linha no tamanho de cada uma. */
+function BookPhotos({ photos }: { photos: JournalEntry['photos'] }) {
+  if (photos.length === 0) return null;
+  if (photos.length === 1) return <img src={photoUrl(photos[0].id)} alt="" className="tt-livro-foto block mx-auto w-auto max-w-full h-auto max-h-[70vh] rounded-2xl" />;
+  return (
+    <span className="grid grid-cols-2 gap-2 items-start">
+      {photos.map(p => (
+        <img key={p.id} src={photoUrl(p.id)} alt="" className="tt-livro-foto block w-full h-auto rounded-xl" />
+      ))}
+    </span>
+  );
+}
+
+/** A abertura de um capítulo (um mês): o bebê no fim do mês, o nome do capítulo, o resumo e o humor do mês. */
 function MonthOpening({ month: m, tone, print = false }: { month: MonthChapter; tone: BabyTone; print?: boolean }) {
   const name = useContext(BabyNameContext);
   const last = m.pages[m.pages.length - 1];
   return (
-    <section className={`tt-livro-abertura flex flex-col items-center justify-center text-center gap-3 ${print ? 'py-16' : 'min-h-full py-8'}`}>
+    <section className={`tt-livro-abertura flex flex-col items-center justify-center text-center gap-3 ${print ? 'py-16' : 'min-h-full py-6'}`}>
       <p className="text-[12px] font-extrabold uppercase tracking-[0.2em] text-rosa">Capítulo {m.month}</p>
       <h2 className="font-display text-[2rem] leading-tight text-ink">{m.title}</h2>
-      <p className="text-[14px] text-ink-soft">{m.name} {name ? `de ${name}` : 'da gestação'}</p>
+      <p className="text-[14px] text-ink-soft">
+        {m.name} {name ? `de ${name}` : 'da gestação'}
+      </p>
       <BabyArt week={artWeek(last?.week ?? 4)} tone={tone} className="w-44 h-44" />
-      {m.cover && <img src={photoUrl(m.cover.photo.id)} alt="" className={`w-full ${print ? 'max-h-[360px]' : 'max-h-[220px]'} object-cover rounded-2xl`} />}
+      {m.cover && <img src={photoUrl(m.cover.photo.id)} alt="" className="tt-livro-foto block mx-auto w-auto max-w-full h-auto max-h-[40vh] rounded-2xl" />}
       <p className="font-display text-[1.1rem] leading-relaxed text-ink max-w-[440px]">{m.story}</p>
+      {m.moodArc && <p className="text-[14px] italic text-ink-soft max-w-[440px]">{m.moodArc}</p>}
     </section>
   );
 }
 
-/** Uma semana: o bebê, a história, a foto e tudo o que vocês escreveram, inteiro. */
+/** Uma semana: o bebê, a história, o humor, a foto e tudo o que vocês escreveram (com data e hora), inteiro. */
 function WeekPage({ chapter: c, tone, onOpenEntry }: { chapter: Chapter; tone: BabyTone; onOpenEntry?: (id: string) => void }) {
   return (
     <section className="tt-livro-semana space-y-4">
@@ -137,24 +190,15 @@ function WeekPage({ chapter: c, tone, onOpenEntry }: { chapter: Chapter; tone: B
           </p>
         </div>
       </header>
-      {c.cover && <img src={photoUrl(c.cover.photo.id)} alt="" className="w-full max-h-[380px] object-cover rounded-2xl" />}
-      <p className="text-[15.5px] leading-relaxed text-ink">{c.story}</p>
+      <p className="text-[16px] leading-relaxed text-ink">{c.story}</p>
+      <MoodOfWeek chapter={c} />
       {[...c.entries].reverse().map(e => {
-        const photos = e.photos.filter(p => p.id !== c.cover?.photo.id);
         const Wrap = onOpenEntry ? 'button' : 'div';
         return (
-          <Wrap key={e.id} {...(onOpenEntry ? { type: 'button' as const, onClick: () => onOpenEntry(e.id) } : {})} className="tt-livro-registro block w-full text-left space-y-2 border-t border-line/70 pt-3">
-            <span className="block text-[11px] font-bold uppercase tracking-wide text-ink-mute">
-              {FOLDER[e.folder].singular} · {formatBR(e.entry_date.slice(0, 10))}
-            </span>
-            {e.body && <span className={`block text-[15px] leading-relaxed text-ink whitespace-pre-line ${e.folder === 'carta' || e.folder === 'momento' ? 'font-display text-[1.08rem]' : ''}`}>{e.body}</span>}
-            {photos.length > 0 && (
-              <span className="grid grid-cols-3 gap-2">
-                {photos.map(p => (
-                  <img key={p.id} src={photoUrl(p.id)} alt="" className="w-full aspect-square object-cover rounded-xl" />
-                ))}
-              </span>
-            )}
+          <Wrap key={e.id} {...(onOpenEntry ? { type: 'button' as const, onClick: () => onOpenEntry(e.id), 'aria-label': `${FOLDER[e.folder].singular}: abrir` } : {})} className="tt-livro-registro block w-full text-left space-y-2 border-t border-line pt-3">
+            <span className="block text-[11.5px] font-bold uppercase tracking-wide text-ink-mute">{stamp(e)}</span>
+            {e.body && <span className={`block text-[16px] leading-relaxed text-ink whitespace-pre-line ${e.folder === 'carta' || e.folder === 'momento' ? 'font-display text-[1.12rem]' : ''}`}>{e.body}</span>}
+            <BookPhotos photos={e.photos} />
           </Wrap>
         );
       })}
@@ -167,36 +211,48 @@ function WeekPage({ chapter: c, tone, onOpenEntry }: { chapter: Chapter; tone: B
 const FIRST = 4;
 const LAST = 40;
 const PRINTED_KEY = 'tumtum-livro-impresso';
+const READING_KEY = 'tumtum-livro-lendo';
 
 /** A assinatura de uma página: muda quando ganha lembranças novas (para saber o que ainda não foi impresso). */
 const signature = (c: Chapter) => `${c.week}:${c.entries.length}`;
 
-function readPrinted(): Set<string> {
+function readStored<T>(key: string, fallback: T): T {
   try {
-    return new Set(JSON.parse(localStorage.getItem(PRINTED_KEY) ?? '[]') as string[]);
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
-    return new Set();
+    return fallback;
+  }
+}
+function store(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* sem armazenamento: só não lembra */
   }
 }
 
 /** As páginas prontas que ainda não foram impressas (neste aparelho). */
 const newPages = (book: Chapter[], printed: Set<string>) => book.filter(c => !c.quiet && !c.open && !printed.has(signature(c)));
 
-export function BookView({ book, tone, parents, onOpenEntry, onWrite, onName }: { book: Chapter[]; tone: BabyTone; parents: string; onOpenEntry: (id: string) => void; onWrite?: () => void; onName?: (name: string | null) => Promise<boolean> }) {
+export function BookView({ book, tone, parents, onOpenEntry, onWrite, onNames }: { book: Chapter[]; tone: BabyTone; parents: string; onOpenEntry: (id: string) => void; onWrite?: () => void; onNames?: () => void }) {
   const name = useContext(BabyNameContext);
   const months = useMemo(() => bookMonths(book), [book]);
-  const [reading, setReading] = useState<number | null>(null);
+  // O leitor abre num capítulo (abertura) ou numa semana (onde parou).
+  const [reading, setReading] = useState<{ month: number; week?: number } | null>(null);
+  const [lastRead, setLastRead] = useState<number | null>(() => readStored<number | null>(READING_KEY, null));
   const [choosing, setChoosing] = useState(false);
-  const [printed, setPrinted] = useState(readPrinted);
+  const [printed, setPrinted] = useState(() => new Set(readStored<string[]>(PRINTED_KEY, [])));
   const fresh = newPages(book, printed);
   const written = book.filter(c => !c.quiet);
   const current = book[0]?.week ?? FIRST;
   const filled = new Set(written.map(c => c.week));
   const nudge = book.slice(0, 2).find(c => c.nudge);
+  const resume = lastRead !== null ? months.find(m => m.pages.some(p => p.week === lastRead && (!p.quiet || p.open))) : undefined;
 
   return (
     <div className="space-y-4 max-w-[560px] mx-auto">
-      <header className="rounded-[28px] bg-gradient-to-b from-rosa-soft to-surface px-5 pt-5 pb-5 shadow-soft">
+      <header className="rounded-[28px] bg-gradient-to-b from-rosa-soft to-surface px-5 pt-5 pb-4 shadow-soft">
         <p className="text-[12px] font-extrabold uppercase tracking-wide text-rosa">O livro de {name ?? 'vocês'}</p>
         <h2 className="font-display text-[1.45rem] leading-snug text-ink text-balance">
           {written.length === 0 ? 'A primeira página espera por vocês.' : `Um dia vocês vão ler estas páginas juntos, com ${babyCall(name)} no colo.`}
@@ -207,18 +263,22 @@ export function BookView({ book, tone, parents, onOpenEntry, onWrite, onName }: 
             <span key={w} className={`flex-1 h-3 rounded-full ${filled.has(w) ? 'bg-rosa' : w === current ? 'bg-surface border border-dashed border-rosa' : w < current ? 'bg-rosa/20' : 'bg-line/60'}`} />
           ))}
         </div>
-        {!name && onName && <BabyNameSetting onSave={onName} invite="Já escolheram o nome? Ele vai para a capa do livro" className="mt-3" />}
-        {written.length > 0 && (
-          <button type="button" onClick={() => setChoosing(true)} className="mt-4 w-full flex items-center gap-3 rounded-[20px] bg-rosa text-white px-4 py-3 text-left shadow-soft active:scale-[0.99] transition">
-            <span className="relative w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
-              <Printer className="w-5 h-5" />
-              {fresh.length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-300 ring-2 ring-rosa" aria-hidden />}
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="block font-extrabold leading-tight">Imprimir para o fichário de memórias</span>
-              <span className="block text-[12.5px] text-white/85">{fresh.length > 0 ? 'Páginas novas esperando por vocês' : 'Escolham as páginas que querem guardar'}</span>
-            </span>
-            <ChevronRight className="w-5 h-5 shrink-0" />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {resume && lastRead !== null && (
+            <button type="button" onClick={() => setReading({ month: resume.month, week: lastRead })} className="inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-4 py-2 text-[13.5px] font-extrabold shadow-soft">
+              <BookOpen className="w-4 h-4" /> Continuar da semana {lastRead}
+            </button>
+          )}
+          {written.length > 0 && (
+            <button type="button" onClick={() => setChoosing(true)} className="relative inline-flex items-center gap-1.5 rounded-full bg-surface px-3.5 py-2 text-[13px] font-bold text-ink-soft shadow-soft">
+              <Printer className="w-4 h-4 text-rosa-strong" /> Imprimir para o fichário
+              {fresh.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rosa ring-2 ring-surface" aria-label="Há páginas novas" />}
+            </button>
+          )}
+        </div>
+        {!name && onNames && (
+          <button type="button" onClick={onNames} className="mt-3 block text-left text-[13px] font-bold text-rosa-strong">
+            Qual vai ser o nome? Ele vai para a capa do livro ›
           </button>
         )}
       </header>
@@ -233,12 +293,27 @@ export function BookView({ book, tone, parents, onOpenEntry, onWrite, onName }: 
       <ol className="space-y-3" aria-label="Capítulos">
         {months.map(m => (
           <li key={m.month}>
-            <MonthCard month={m} tone={tone} onOpen={() => setReading(m.month)} />
+            <MonthCard month={m} tone={tone} onOpen={() => setReading({ month: m.month })} />
           </li>
         ))}
       </ol>
 
-      {reading !== null && <BookReader months={months} start={reading} tone={tone} onClose={() => setReading(null)} onOpenEntry={onOpenEntry} />}
+      {reading && (
+        <BookReader
+          months={months}
+          start={reading}
+          tone={tone}
+          onClose={() => setReading(null)}
+          onOpenEntry={id => {
+            setReading(null);
+            onOpenEntry(id);
+          }}
+          onPage={week => {
+            setLastRead(week);
+            store(READING_KEY, week);
+          }}
+        />
+      )}
       {choosing && (
         <PrintPicker
           book={book}
@@ -247,11 +322,7 @@ export function BookView({ book, tone, parents, onOpenEntry, onWrite, onName }: 
           printed={printed}
           onPrinted={done => {
             const next = new Set([...printed, ...done.map(signature)]);
-            try {
-              localStorage.setItem(PRINTED_KEY, JSON.stringify([...next]));
-            } catch {
-              /* sem armazenamento: só não lembra o que já foi impresso */
-            }
+            store(PRINTED_KEY, [...next]);
             setPrinted(next);
           }}
           onClose={() => setChoosing(false)}
@@ -290,26 +361,37 @@ function MonthCard({ month: m, tone, onOpen }: { month: MonthChapter; tone: Baby
 
 type Page = { kind: 'abertura'; month: MonthChapter } | { kind: 'semana'; month: MonthChapter; chapter: Chapter };
 
-/** O livro aberto: folhear (deslizar ou setas) da abertura de um capítulo pelas semanas, até o fim. */
-function BookReader({ months, start, tone, onClose, onOpenEntry }: { months: MonthChapter[]; start: number; tone: BabyTone; onClose: () => void; onOpenEntry: (id: string) => void }) {
+/**
+ * O livro aberto, como num leitor de e-book: a página ocupa a tela toda (sem
+ * moldura), folheia deslizando ou pelas setas, tem sumário para pular para um
+ * capítulo ou semana e lembra onde vocês pararam. Tocar num registro leva a ele.
+ */
+function BookReader({ months, start, tone, onClose, onOpenEntry, onPage }: { months: MonthChapter[]; start: { month: number; week?: number }; tone: BabyTone; onClose: () => void; onOpenEntry: (id: string) => void; onPage: (week: number) => void }) {
   const name = useContext(BabyNameContext);
   const pages = useMemo<Page[]>(
     () => [...months].reverse().flatMap(m => [{ kind: 'abertura' as const, month: m }, ...m.pages.filter(c => !c.quiet || c.open).map(c => ({ kind: 'semana' as const, month: m, chapter: c }))]),
     [months],
   );
-  const [at, setAt] = useState(() => Math.max(0, pages.findIndex(p => p.kind === 'abertura' && p.month.month === start)));
+  const [at, setAt] = useState(() => {
+    const byWeek = start.week === undefined ? -1 : pages.findIndex(p => p.kind === 'semana' && p.chapter.week === start.week);
+    return Math.max(0, byWeek >= 0 ? byWeek : pages.findIndex(p => p.kind === 'abertura' && p.month.month === start.month));
+  });
   const [dir, setDir] = useState<1 | -1>(1);
+  const [contents, setContents] = useState(false);
   const sheet = useRef<HTMLDivElement>(null);
-  const touch = useRef<number | null>(null);
-  const go = (n: number) => {
-    const next = Math.min(pages.length - 1, Math.max(0, at + n));
-    if (next === at) return;
-    setDir(n > 0 ? 1 : -1);
-    setAt(next);
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const page = pages[at];
+  const jump = (next: number) => {
+    const to = Math.min(pages.length - 1, Math.max(0, next));
+    if (to === at) return;
+    setDir(to > at ? 1 : -1);
+    setAt(to);
   };
+  const go = (n: number) => jump(at + n);
   useEffect(() => {
     sheet.current?.scrollTo({ top: 0 });
-  }, [at]);
+    if (page.kind === 'semana') onPage(page.chapter.week);
+  }, [at]); // eslint-disable-line react-hooks/exhaustive-deps -- só quando a página muda
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -319,48 +401,110 @@ function BookReader({ months, start, tone, onClose, onOpenEntry }: { months: Mon
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   });
-  const page = pages[at];
-  const down = (e: PointerEvent) => (touch.current = e.clientX);
+  // Deslizar para o lado folheia (um gesto mais vertical que horizontal é rolagem da página).
+  const down = (e: PointerEvent) => (touch.current = { x: e.clientX, y: e.clientY });
   const up = (e: PointerEvent) => {
-    if (touch.current === null) return;
-    const dx = e.clientX - touch.current;
+    const t = touch.current;
     touch.current = null;
-    if (Math.abs(dx) > 60) go(dx < 0 ? 1 : -1);
+    if (!t) return;
+    const dx = e.clientX - t.x;
+    const dy = e.clientY - t.y;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
   };
+  const where = page.kind === 'abertura' ? `Capítulo ${page.month.month}` : `Semana ${page.chapter.week}`;
 
   return (
-    <div role="dialog" aria-label={`O livro de ${name ?? 'vocês'}`} className="fixed inset-0 z-50 flex flex-col bg-[#2b2326]/92 backdrop-blur-md">
-      <div className="flex items-center gap-2 px-4 pt-[calc(env(safe-area-inset-top,0px)+12px)] pb-2 text-white">
-        <p className="flex-1 min-w-0 text-[12px] font-extrabold uppercase tracking-wide truncate">
+    <div role="dialog" aria-label={`O livro de ${name ?? 'vocês'}`} className="fixed inset-0 z-50 flex flex-col bg-surface text-ink">
+      <header className="flex items-center gap-1 border-b border-line px-2 pt-[calc(env(safe-area-inset-top,0px)+6px)] pb-1.5">
+        <button type="button" onClick={onClose} aria-label="Fechar o livro" className="w-10 h-10 rounded-full flex items-center justify-center text-ink-soft hover:bg-surface-2">
+          <X className="w-5 h-5" />
+        </button>
+        <p className="flex-1 min-w-0 text-center text-[12.5px] font-bold text-ink-soft truncate">
           Capítulo {page.month.month} · {page.month.title}
         </p>
-        <button type="button" onClick={onClose} aria-label="Fechar o livro" className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center">
-          <X className="w-4 h-4" />
+        <button type="button" onClick={() => setContents(true)} aria-label="Sumário" className="w-10 h-10 rounded-full flex items-center justify-center text-ink-soft hover:bg-surface-2">
+          <List className="w-5 h-5" />
         </button>
-      </div>
-      <div className="flex-1 min-h-0 px-3 pb-2 [perspective:1600px]">
-        <div
-          key={at}
-          ref={sheet}
-          onPointerDown={down}
-          onPointerUp={up}
-          className={`tt-pagina ${dir > 0 ? 'tt-pagina-frente' : 'tt-pagina-volta'} h-full overflow-y-auto rounded-[22px] bg-[#fdf9f4] text-ink shadow-[0_20px_60px_rgba(0,0,0,0.35)] px-5 py-6 mx-auto max-w-[560px]`}
-          style={{ touchAction: 'pan-y' }}
-          aria-live="polite"
-        >
-          {page.kind === 'abertura' ? <MonthOpening month={page.month} tone={tone} /> : <WeekPage chapter={page.chapter} tone={tone} onOpenEntry={onOpenEntry} />}
-          <p className="pt-6 text-center text-[12px] text-ink-mute">{at + 1}</p>
+      </header>
+
+      <div className="relative flex-1 min-h-0 [perspective:1600px]">
+        <div key={at} ref={sheet} onPointerDown={down} onPointerUp={up} style={{ touchAction: 'pan-y' }} className={`tt-pagina ${dir > 0 ? 'tt-pagina-frente' : 'tt-pagina-volta'} h-full overflow-y-auto`} aria-live="polite">
+          <div className="mx-auto max-w-[620px] px-6 pt-6 pb-10">
+            {page.kind === 'abertura' ? <MonthOpening month={page.month} tone={tone} /> : <WeekPage chapter={page.chapter} tone={tone} onOpenEntry={onOpenEntry} />}
+            {at < pages.length - 1 && (
+              <button type="button" onClick={() => go(1)} className="mt-8 w-full inline-flex items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-[13.5px] font-bold text-ink-soft">
+                Virar a página <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
-      <div className="flex items-center justify-between gap-3 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+14px)] pt-1 text-white">
-        <button type="button" onClick={() => go(-1)} disabled={at === 0} aria-label="Página anterior" className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center disabled:opacity-30">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <p className="text-[12.5px] font-bold text-white/85 text-center">{page.kind === 'abertura' ? 'Abertura do capítulo' : `Semana ${page.chapter.week}`} · deslize para folhear</p>
-        <button type="button" onClick={() => go(1)} disabled={at === pages.length - 1} aria-label="Próxima página" className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center disabled:opacity-30">
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
+
+      <footer className="border-t border-line px-3 pt-2 pb-[calc(env(safe-area-inset-bottom,0px)+10px)]">
+        {/* Onde você está no livro inteiro, como nos leitores de e-book. */}
+        <div className="h-1 rounded-full bg-surface-2 overflow-hidden" aria-hidden>
+          <div className="h-full bg-rosa transition-all duration-300" style={{ width: `${((at + 1) / pages.length) * 100}%` }} />
+        </div>
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <button type="button" onClick={() => go(-1)} disabled={at === 0} aria-label="Página anterior" className="w-11 h-11 rounded-full flex items-center justify-center text-ink hover:bg-surface-2 disabled:opacity-25">
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <p className="text-[12.5px] text-ink-soft text-center tabular">
+            {where} · página {at + 1} de {pages.length}
+          </p>
+          <button type="button" onClick={() => go(1)} disabled={at === pages.length - 1} aria-label="Próxima página" className="w-11 h-11 rounded-full flex items-center justify-center text-ink hover:bg-surface-2 disabled:opacity-25">
+            <ChevronRight className="w-6 h-6" />
+          </button>
+        </div>
+      </footer>
+
+      {contents && (
+        <div className="absolute inset-0 z-10 flex flex-col bg-surface" role="dialog" aria-label="Sumário do livro">
+          <header className="flex items-center gap-2 border-b border-line px-4 pt-[calc(env(safe-area-inset-top,0px)+10px)] pb-2.5">
+            <p className="flex-1 font-display text-[1.25rem] text-ink">Sumário</p>
+            <button type="button" onClick={() => setContents(false)} aria-label="Fechar o sumário" className="w-10 h-10 rounded-full flex items-center justify-center text-ink-soft hover:bg-surface-2">
+              <X className="w-5 h-5" />
+            </button>
+          </header>
+          <ol className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+            {[...months].reverse().map(m => (
+              <li key={m.month} className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    jump(pages.findIndex(p => p.kind === 'abertura' && p.month.month === m.month));
+                    setContents(false);
+                  }}
+                  className="w-full text-left"
+                >
+                  <span className="block text-[11.5px] font-extrabold uppercase tracking-wide text-rosa">Capítulo {m.month}</span>
+                  <span className="block font-display text-[1.15rem] text-ink">{m.title}</span>
+                </button>
+                <ul className="pl-3 border-l-2 border-line space-y-0.5">
+                  {pages.flatMap((p, i) =>
+                    p.kind === 'semana' && p.month.month === m.month
+                      ? [
+                          <li key={p.chapter.week}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                jump(i);
+                                setContents(false);
+                              }}
+                              className={`w-full text-left py-1 text-[14px] ${i === at ? 'font-bold text-rosa-strong' : 'text-ink-soft'}`}
+                            >
+                              Semana {p.chapter.week} · {p.chapter.personal ? titleOf(p.chapter) : p.chapter.open ? 'sendo escrita' : span(p.chapter)}
+                            </button>
+                          </li>,
+                        ]
+                      : [],
+                  )}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }
@@ -445,12 +589,21 @@ function PrintPicker({ book, tone, parents, printed, onPrinted, onClose }: { boo
   );
 }
 
+/** Espera as fotos carregarem (para nenhuma sair em branco no PDF). */
+async function photosReady(root: HTMLElement | null) {
+  const imgs = [...(root?.querySelectorAll('img') ?? [])];
+  await Promise.all(imgs.map(img => (img.complete ? Promise.resolve() : img.decode().catch(() => undefined))));
+}
+
 /**
  * As páginas escolhidas, prontas para imprimir ou salvar em PDF: capa, a
- * abertura de cada capítulo e uma página por semana. Usa a impressão do aparelho.
+ * abertura de cada capítulo e uma página por semana. Sempre em papel claro
+ * (mesmo com o celular no modo escuro), com as fotos inteiras.
  */
 export function BookPrint({ book, weeks, tone, parents, onPrint, onClose }: { book: Chapter[]; weeks?: Set<number>; tone: BabyTone; parents: string; onPrint?: () => void; onClose: () => void }) {
   const name = useContext(BabyNameContext);
+  const paper = useRef<HTMLElement>(null);
+  const [preparing, setPreparing] = useState(false);
   useEffect(() => {
     const close = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', close);
@@ -466,28 +619,30 @@ export function BookPrint({ book, weeks, tone, parents, onPrint, onClose }: { bo
         <p className="flex-1 min-w-0 text-[13px] text-ink-soft leading-snug">Para guardar em PDF, escolha <b>Salvar como PDF</b> no lugar da impressora.</p>
         <button
           type="button"
-          onClick={() => {
+          disabled={preparing}
+          onClick={async () => {
+            setPreparing(true);
+            await photosReady(paper.current);
+            setPreparing(false);
             onPrint?.();
             window.print();
           }}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-4 py-2 text-[13.5px] font-extrabold shadow-soft"
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-4 py-2 text-[13.5px] font-extrabold shadow-soft disabled:opacity-60"
         >
-          <Printer className="w-4 h-4" /> Imprimir
+          <Printer className="w-4 h-4" /> {preparing ? 'Preparando…' : 'Imprimir'}
         </button>
         <button type="button" onClick={onClose} aria-label="Fechar" className="shrink-0 w-9 h-9 rounded-full bg-surface-2 flex items-center justify-center">
           <X className="w-4 h-4" />
         </button>
       </div>
 
-      <article className="print-area tt-livro mx-auto max-w-[680px] bg-white text-ink px-8 py-10 my-4 rounded-[24px] print:my-0 print:rounded-none print:px-0 print:py-0 space-y-10">
+      <article ref={paper} className="print-area tt-livro tt-claro mx-auto max-w-[680px] bg-surface text-ink px-8 py-10 my-4 print:my-0 print:px-0 print:py-0 space-y-10">
         <section className="tt-livro-capa flex flex-col items-center justify-center text-center gap-4 min-h-[70vh]">
           <BabyArt week={artWeek(last?.week ?? 40)} tone={tone} className="w-56 h-56" />
           <p className="text-[13px] font-extrabold uppercase tracking-[0.2em] text-rosa">O livro de</p>
           <h1 className="font-display text-[2.4rem] leading-tight">{name ?? parents ?? 'vocês'}</h1>
           {name && parents && <p className="text-[15px] text-ink-soft">contado por {parents}</p>}
-          <p className="text-[15px] text-ink-soft">
-            {first === last?.week ? `Semana ${first}` : `Da semana ${first} à semana ${last?.week ?? first}`}
-          </p>
+          <p className="text-[15px] text-ink-soft">{first === last?.week ? `Semana ${first}` : `Da semana ${first} à semana ${last?.week ?? first}`}</p>
         </section>
         {months.map(m => (
           <div key={m.month} className="space-y-10">

@@ -35,6 +35,12 @@ export interface Chapter {
   quiet: boolean;
   /** A semana de hoje: o capítulo ainda está sendo escrito. */
   open: boolean;
+  /** O humor que mais apareceu em cada um, na semana. */
+  moods: Array<{ role: 'mae' | 'pai'; mood: Mood }>;
+  /** Uma frase sobre o humor da semana (ou o convite para contar). */
+  moodNote: string;
+  /** O humor que mais apareceu nos dois (para o resumo do mês). */
+  mood: Mood | null;
   /** O que aconteceu, em palavras ("uma ida ao ultrassom"), para o resumo do mês. */
   things: string[];
   /** O peso afetivo da semana (para comparar meses). */
@@ -81,6 +87,15 @@ function weekMood(checkins: Checkin[], from: string, to: string): Mood | null {
 }
 
 const LIGHT: Mood[] = ['otima', 'bem'];
+
+/** Uma frase de acolhimento para o humor que mais apareceu. */
+const MOOD_NOTE: Record<Mood, string> = {
+  otima: 'Dias leves. Que venham muitos assim.',
+  bem: 'Dias leves. Que venham muitos assim.',
+  cansada: 'O cansaço apareceu: o corpo está trabalhando por dois. Descansar também é cuidar.',
+  enjoada: 'Os enjoos marcaram a semana. Cada dia vencido é uma conquista.',
+  ansiosa: 'A ansiedade deu as caras. Conversar e dividir deixa o coração mais leve.',
+};
 
 /** Um trecho do texto para citar: a primeira frase, sem passar de ~90 letras. */
 function quoteOf(body: string) {
@@ -158,17 +173,21 @@ export function buildBook(input: BookInput): Chapter[] {
 
     const mood = weekMood(input.checkins ?? [], from, to);
     const prevMood = prev?.mood ?? null;
-    let feel = '';
-    if (mood && LIGHT.includes(mood)) feel = prevMood && !LIGHT.includes(prevMood) ? 'E o coração andou mais leve do que na semana passada.' : pick(week, ['O humor andou leve.', 'Foi uma semana de sorrisos.']);
-    else if (mood === 'cansada') feel = hugs ? 'O cansaço apareceu, e vocês cuidaram um do outro.' : 'O cansaço apareceu: que a próxima traga descanso.';
-    else if (mood === 'enjoada') feel = 'Teve enjoo pelo caminho, e também muito carinho.';
-    else if (mood === 'ansiosa') feel = 'Teve ansiedade no caminho; dividir com quem a gente ama alivia.';
-
+    // O humor tem lugar próprio na página: como cada um estava e uma frase sobre a variação.
+    const moods = (['mae', 'pai'] as const).flatMap(role => {
+      const top = weekMood((input.checkins ?? []).filter(c => c.author_role === role), from, to);
+      return top ? [{ role, mood: top }] : [];
+    });
+    let moodNote: string;
+    if (!mood) moodNote = open ? 'Como vocês estão nesta semana? Um toque no humor, no Início, já entra nesta página.' : 'Ninguém contou como estava nesta semana. Um toque no humor, no Início, deixa as próximas páginas mais vivas.';
+    else if (LIGHT.includes(mood) && prevMood && !LIGHT.includes(prevMood)) moodNote = 'O coração ficou mais leve do que na semana passada.';
+    else if (!LIGHT.includes(mood) && prevMood && LIGHT.includes(prevMood)) moodNote = 'Uma semana mais pesada que a anterior. Cuidem um do outro: vai passar.';
+    else moodNote = MOOD_NOTE[mood];
     let story: string;
     if (quiet) story = open ? 'Um capítulo novinho, esperando a primeira lembrança.' : 'Uma semana quieta. Às vezes o melhor é só viver.';
     else {
       const had = things.length ? `${open ? 'Até agora teve' : 'Teve'} ${joinPt(things)}.` : '';
-      story = [pace, had, feel].filter(Boolean).join(' ');
+      story = [pace, had].filter(Boolean).join(' ');
     }
 
     // Um convite gentil a partir do que ainda falta no fichário (até esta semana).
@@ -195,6 +214,9 @@ export function buildBook(input: BookInput): Chapter[] {
       nudge,
       things,
       warmth: w,
+      moods,
+      moodNote,
+      mood,
       quiet,
       open,
     });
@@ -224,6 +246,8 @@ export interface MonthChapter {
   pages: Chapter[];
   cover: Chapter['cover'];
   story: string;
+  /** Como o humor andou no mês (vazio quando não dá para dizer). */
+  moodArc: string;
   quiet: boolean;
   open: boolean;
 }
@@ -254,6 +278,15 @@ export function bookMonths(book: Chapter[]): MonthChapter[] {
     else if (warmth <= prevWarmth * 0.6) pace = 'Um mês mais tranquilo que o anterior, e tudo bem.';
     else pace = pick(month, ['Mais um mês bonito na história de vocês.', 'Um mês no ritmo de vocês.']);
     const had = !quiet && things.length ? `Teve ${joinPt(things)}.` : '';
+    const felt = pages.filter(p => p.mood);
+    const firstMood = felt[0]?.mood ?? null;
+    const lastMood = felt[felt.length - 1]?.mood ?? null;
+    let moodArc = '';
+    if (felt.length >= 2 && firstMood && lastMood) {
+      if (!LIGHT.includes(firstMood) && LIGHT.includes(lastMood)) moodArc = 'Um mês que começou mais pesado e terminou mais leve.';
+      else if (LIGHT.includes(firstMood) && !LIGHT.includes(lastMood)) moodArc = 'Um mês que pediu mais colo no final.';
+      else if (felt.every(p => LIGHT.includes(p.mood!))) moodArc = 'Um mês de coração leve.';
+    }
     months.push({
       month,
       name: `O ${ORDINAL[month] ?? `${month}º`} mês`,
@@ -261,6 +294,7 @@ export function bookMonths(book: Chapter[]): MonthChapter[] {
       pages,
       cover: [...pages].reverse().find(p => p.cover)?.cover ?? null,
       story: [pace, had].filter(Boolean).join(' ') || (best?.story ?? ''),
+      moodArc,
       quiet,
       open,
     });

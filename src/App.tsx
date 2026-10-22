@@ -3,6 +3,8 @@ import { CloudRain, Plus, Sprout } from 'lucide-react';
 import BrandMark from './components/BrandMark';
 import QuickRecord, { type QuickMode } from './components/QuickRecord';
 import DetailSheet from './components/Details';
+import Sheet from './components/Sheet';
+import BabyNames, { type NameActions } from './components/BabyNames';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
@@ -146,6 +148,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [recording, setRecording] = useState<QuickMode[] | null>(null);
   /** Pasta (e ideia) com que o diário abre no registro. */
   const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string }>({});
+  const [namesOpen, setNamesOpen] = useState(false);
   const [detail, setDetail] = useState<DetailTarget | null>(null);
 
   // A cor principal segue a aba (index.css, data-aba); para o pai, o rosa vira azul (data-papel).
@@ -618,6 +621,21 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     patch(d => ({ ...d, babyName: name }));
     return run(() => api.mutate('setBabyName', { name }), 'Não foi possível salvar o nome. Se for a primeira vez, rode a migração db/migrations/025_nome_do_bebe.sql no Neon.', name ? 'Nome guardado' : undefined);
   };
+  // A escolha do nome: ideias, curtidas (aparecem na hora) e a escolha, que vira festa e pode ir para o Mural.
+  const NAMES_MISSING = 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/026_nomes_do_bebe.sql no Neon.';
+  const nameActions: NameActions = {
+    onAdd: name => run(() => api.mutate('addNameIdea', { name }), NAMES_MISSING, 'Ideia guardada'),
+    onLike: (id, on) => {
+      patch(d => ({
+        ...d,
+        nameIdeas: (d.nameIdeas ?? []).map(i => (i.id !== id ? i : { ...i, likes: on ? [...i.likes.filter(l => !l.mine), { user_id: 'eu', author_role: author, mine: true }] : i.likes.filter(l => !l.mine) })),
+      }));
+      return run(() => api.mutate('likeNameIdea', { id, on }), NAMES_MISSING);
+    },
+    onDelete: id => run(() => api.mutate('deleteNameIdea', { id }), NAMES_MISSING),
+    onChoose: name => setBabyName(name),
+    onShareChoice: name => run(() => api.mutate('createEntry', { date: today, body: `Escolhemos o nome: ${name} 💛`, visibility: 'shared', remindOn: null, folder: 'momento' }), 'Não foi possível postar no Mural.', 'Guardado no Mural'),
+  };
   const setBabyTone = (tone: BabyTone) => {
     patch(d => ({ ...d, babyTone: tone }));
     return run(() => api.mutate('setBabyTone', { tone }), 'Não foi possível salvar o tom. Se for a primeira vez, rode a migração db/migrations/024_tom_do_bebe.sql no Neon.');
@@ -744,7 +762,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onToggleTask={toggleTask}
             onOpen={openFromHome}
             book={book}
-            onBabyName={setBabyName}
+            nameIdeas={data.nameIdeas}
+            onOpenNames={() => setNamesOpen(true)}
             onOpenDetail={setDetail}
             onResult={openResult}
             onWrite={() => writeEntry('dia')}
@@ -782,7 +801,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onOpenHealth={() => openCare('saude')}
             book={book}
             babyTone={data.babyTone ?? 'tumtum'}
-            onBabyName={setBabyName}
+            onOpenNames={() => setNamesOpen(true)}
           />
         )}
 
@@ -1018,6 +1037,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           <Plus className="w-[18px] h-[18px]" strokeWidth={3} />
           Registrar
         </button>
+      )}
+      {namesOpen && (
+        <Sheet title="O nome do bebê" subtitle={data.babyName ? 'Escolhido com amor' : 'Uma escolha sem pressa, feita a muitas mãos'} onClose={() => setNamesOpen(false)}>
+          <BabyNames ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple actions={nameActions} />
+        </Sheet>
       )}
       {recording && (
         <QuickRecord

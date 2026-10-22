@@ -1,6 +1,6 @@
 import { Camera, Heart, Lightbulb, Mail, Sun, type LucideIcon } from 'lucide-react';
 import type { Folder, JournalEntry } from '../hooks/useGestationData';
-import { parseLocalDate } from './dates';
+import { parseLocalDate, trimesterOf } from './dates';
 
 // O fichário do diário: cada registro fica numa pasta. A saúde (sintomas,
 // peso e pressão) não entra aqui: fica em Cuidados, junto da equipe médica.
@@ -142,4 +142,20 @@ export function shortDate(iso: string) {
   const d = parseLocalDate(iso);
   const text = d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) });
   return text.replace(/\./g, '').replace(/ de /g, ' ');
+}
+
+export type GroupBy = 'mes' | 'semana' | 'trimestre';
+
+/** Os registros de uma pasta agrupados por mês, semana ou trimestre da gestação, do mais novo ao mais antigo. */
+export function groupEntries(entries: JournalEntry[], by: GroupBy, dumDate: string) {
+  if (by === 'mes') return byMonth(entries);
+  const groups = new Map<number, JournalEntry[]>();
+  for (const e of entries) {
+    const w = weekOn(dumDate, e.entry_date);
+    const key = by === 'semana' ? w : trimesterOf(Math.max(1, w));
+    groups.set(key, [...(groups.get(key) ?? []), e]);
+  }
+  return [...groups.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([key, items]) => ({ key: `${by}-${key}`, label: by === 'semana' ? `Semana ${key}` : `${key}º trimestre`, items }));
 }
