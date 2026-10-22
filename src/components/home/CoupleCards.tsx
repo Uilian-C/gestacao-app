@@ -44,27 +44,35 @@ export function NextAppointment({ consultations, onOpen, onSchedule }: { consult
   }
 
   const at = parseTimestamp(next.scheduled_at);
+  // A folhinha já mostra o dia: aqui fica só o "quando" ("Amanhã, 14:00" ou "Em 3 dias, 14:00").
+  const [first, , hour] = whenText(at, now).split(' · ');
+  const when = hour ? `${first}, ${hour}` : first;
+  // Compacto: a folhinha do dia à esquerda, o essencial numa linha cada, e o como chegar em ícones.
   return (
-    <section aria-label="Próximo compromisso" className="rounded-[28px] bg-verde-soft p-5 space-y-3">
-      <button type="button" onClick={() => onOpen(next)} className="w-full text-left space-y-1" aria-label={`Próximo compromisso: ${appointmentTitle(next)}: ver detalhes`}>
-        <span className="flex items-center justify-between gap-2">
-          <span className="text-[12px] font-extrabold uppercase tracking-wide text-verde-strong">Próximo compromisso</span>
-          <ChevronRight className="w-4 h-4 text-verde-strong" />
+    <section aria-label="Próximo compromisso" className="rounded-[24px] bg-verde-soft p-3.5 space-y-2.5">
+      <button type="button" onClick={() => onOpen(next)} className="w-full flex items-center gap-3 text-left" aria-label={`Próximo compromisso: ${appointmentTitle(next)}: ver detalhes`}>
+        <span className="w-14 shrink-0 rounded-2xl bg-surface py-1.5 text-center leading-tight shadow-soft" aria-hidden>
+          <span className="block text-[10.5px] font-extrabold uppercase text-verde-strong">{at.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
+          <span className="block font-display text-[1.35rem] text-ink tabular">{at.getDate()}</span>
+          <span className="block text-[10px] font-bold uppercase text-ink-mute">{at.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</span>
         </span>
-        <span className="block font-display text-[1.45rem] leading-tight text-ink">{whenText(at, now)}</span>
-        <span className="block text-[15px] font-bold text-ink">
-          <AppointmentIcon kind={kindOf(next)} className="inline w-4 h-4 mr-1 -mt-0.5 text-verde-strong" />
-          {appointmentTitle(next)}
+        <span className="flex-1 min-w-0">
+          <span className="block text-[11px] font-extrabold uppercase tracking-wide text-verde-strong">Próximo compromisso</span>
+          <span className="block text-[15px] font-bold text-ink leading-snug truncate">
+            <AppointmentIcon kind={kindOf(next)} className="inline w-4 h-4 mr-1 -mt-0.5 text-verde-strong" />
+            {appointmentTitle(next)}
+          </span>
+          <span className="block text-[12.5px] text-ink-soft truncate">{[when, next.professional_name].filter(Boolean).join(' · ')}</span>
+          {next.attendees && (
+            <span className="mt-1 flex items-center gap-1.5 text-[12px] text-ink">
+              <WhoAvatars who={next.attendees} className="w-5 h-5 text-[9px]" />
+              {next.attendees === 'casal' ? `Vão ${whoName(people, 'casal')}` : `${whoName(people, next.attendees)} vai`}
+            </span>
+          )}
         </span>
-        {next.professional_name && <span className="block text-sm text-ink-soft">{next.professional_name}</span>}
+        <ChevronRight className="w-4 h-4 text-verde-strong shrink-0" />
       </button>
-      {next.attendees && (
-        <p className="flex items-center gap-2 text-sm text-ink">
-          <WhoAvatars who={next.attendees} />
-          {next.attendees === 'casal' ? `Vão ${whoName(people, 'casal')}` : `${whoName(people, next.attendees)} vai`}
-        </p>
-      )}
-      {next.location && <LocationLinks address={next.location} />}
+      {next.location && <LocationLinks address={next.location} compact />}
     </section>
   );
 }

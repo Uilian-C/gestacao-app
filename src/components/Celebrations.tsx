@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronRight, Lightbulb, Loader2, MapPin, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Check, ChevronDown, ChevronRight, Lightbulb, Loader2, MapPin, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useScrollLock } from '../hooks/useScrollLock';
 import {
   CELEBRATION_KINDS,
@@ -298,31 +298,33 @@ function Dashboard({ celebration: c, onTab, onEditBudget }: { celebration: Celeb
   const people = g.going + g.maybe + g.waiting;
   const suppliers = c.items.filter(i => i.kind === 'fornecedor');
   const closed = suppliers.filter(s => s.status === 'contratado' || s.status === 'pago').length;
+  const guestHint = [g.maybe ? `${g.maybe} talvez` : null, g.waiting ? `${g.waiting} sem resposta` : null].filter(Boolean).join(' · ');
   return (
     <div className="mt-4 space-y-2.5">
       <p className="rounded-2xl bg-surface px-4 py-2.5 flex items-baseline justify-between gap-2">
         <span className="font-display text-[1.35rem] text-rosa-strong leading-tight">{countdown(days)}</span>
         {c.event_at && <span className="text-[12.5px] text-ink-soft">{formatBR(c.event_at.slice(0, 10))}</span>}
       </p>
-      <div className="grid grid-cols-3 gap-2">
-        <Stat label="Tarefas" value={`${done}/${tasks.length}`} ratio={tasks.length ? done / tasks.length : 0} hint={late ? `${late} para já` : done === tasks.length && tasks.length ? 'tudo feito' : 'em dia'} hintTone={late ? 'text-rosa-strong' : 'text-ink-mute'} onClick={() => onTab('tarefa')} />
-        <Stat label="Convidados" value={`${g.going}/${people}`} ratio={people ? g.going / people : 0} hint={g.waiting ? `${g.waiting} sem resposta` : people ? 'todos responderam' : 'nenhum ainda'} onClick={() => onTab('convidado')} />
-        <Stat label="Fornecedores" value={`${closed}/${suppliers.length}`} ratio={suppliers.length ? closed / suppliers.length : 0} hint={suppliers.length - closed ? `${suppliers.length - closed} orçando` : suppliers.length ? 'tudo fechado' : 'nenhum ainda'} onClick={() => onTab('fornecedor')} />
+      <div className="rounded-2xl bg-surface divide-y divide-line overflow-hidden">
+        <Stat label="Tarefas" value={`${done} de ${tasks.length}`} ratio={tasks.length ? done / tasks.length : 0} hint={late ? `${late} para já` : tasks.length && done === tasks.length ? 'tudo feito' : 'em dia'} hintTone={late ? 'text-rosa-strong' : undefined} onClick={() => onTab('tarefa')} />
+        <Stat label="Convidados" value={people ? `${g.going} de ${people}` : '—'} ratio={people ? g.going / people : 0} hint={people ? `confirmados${guestHint ? ` · ${guestHint}` : ''}` : 'ninguém na lista ainda'} onClick={() => onTab('convidado')} />
+        <Stat label="Fornecedores" value={suppliers.length ? `${closed} de ${suppliers.length}` : '—'} ratio={suppliers.length ? closed / suppliers.length : 0} hint={suppliers.length ? `fechados${suppliers.length - closed ? ` · ${suppliers.length - closed} em orçamento` : ''}` : 'nenhum ainda'} onClick={() => onTab('fornecedor')} />
       </div>
       <BudgetCard celebration={c} onEdit={onEditBudget} />
     </div>
   );
 }
 
+/** Uma linha do painel: o nome, o número, a barrinha e o recado (sem cortar nada no celular). */
 function Stat({ label, value, ratio, hint, hintTone = 'text-ink-mute', onClick }: { label: string; value: string; ratio: number; hint: string; hintTone?: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} aria-label={`${label}: ${value}, ${hint}`} className="rounded-2xl bg-surface px-3 py-2.5 text-left transition active:scale-[0.98]">
-      <span className="block text-[11.5px] font-bold text-ink-soft truncate">{label}</span>
-      <span className="block font-display text-[1.25rem] leading-tight text-ink tabular">{value}</span>
-      <span className="mt-1.5 block h-1 rounded-full bg-surface-2 overflow-hidden" aria-hidden>
+    <button type="button" onClick={onClick} aria-label={`${label}: ${value}, ${hint}`} className="w-full grid grid-cols-[1fr_auto] items-baseline gap-x-3 px-4 py-2 text-left transition active:bg-surface-2">
+      <span className="text-[13.5px] font-bold text-ink">{label}</span>
+      <span className="font-display text-[1.05rem] text-ink tabular">{value}</span>
+      <span className="col-span-2 mt-1 block h-1 rounded-full bg-surface-2 overflow-hidden" aria-hidden>
         <span className="block h-full rounded-full bg-rosa transition-[width] duration-500" style={{ width: `${Math.min(100, ratio * 100)}%` }} />
       </span>
-      <span className={`mt-1 block text-[11px] font-semibold truncate ${hintTone}`}>{hint}</span>
+      <span className={`col-span-2 mt-0.5 text-[11.5px] font-semibold ${hintTone}`}>{hint}</span>
     </button>
   );
 }
@@ -486,7 +488,7 @@ function Chips<T extends string>({ label, options, value, onChange }: { label: s
   return (
     <div className="flex flex-wrap gap-1.5" role="group" aria-label={label}>
       {options.map(o => (
-        <button key={o.id} type="button" aria-pressed={value === o.id} onClick={() => onChange(o.id)} className={`rounded-full px-3 py-1.5 text-[12.5px] font-bold transition ${value === o.id ? 'bg-rosa text-white' : 'bg-surface-2 text-ink-soft'}`}>
+        <button key={o.id} type="button" aria-pressed={value === o.id} onClick={() => value !== o.id && onChange(o.id)} className={`rounded-full px-3 py-1.5 text-[12.5px] font-bold transition ${value === o.id ? 'bg-rosa text-white' : 'bg-surface-2 text-ink-soft'}`}>
           {o.label}
         </button>
       ))}
@@ -494,61 +496,99 @@ function Chips<T extends string>({ label, options, value, onChange }: { label: s
   );
 }
 
+/** Quantas pessoas: muda na hora na tela e salva quando para de tocar (sem um envio por toque). */
+function PeopleStepper({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  const [n, setN] = useState(value);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const set = (next: number) => {
+    const v = Math.min(30, Math.max(1, next));
+    setN(v);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => v !== value && onChange(v), 600);
+  };
+  return (
+    <span className="inline-flex items-center gap-3">
+      <span className="text-[13px] font-bold text-ink-soft">Pessoas</span>
+      <span className="inline-flex items-center rounded-full bg-surface-2">
+        <button type="button" aria-label="Uma pessoa a menos" onClick={() => set(n - 1)} className="w-9 h-9 flex items-center justify-center text-ink-soft">
+          <Minus className="w-4 h-4" />
+        </button>
+        <span className="w-7 text-center font-bold text-ink tabular" aria-label="Quantas pessoas" aria-live="polite">
+          {n}
+        </span>
+        <button type="button" aria-label="Uma pessoa a mais" onClick={() => set(n + 1)} className="w-9 h-9 flex items-center justify-center text-ink-soft">
+          <Plus className="w-4 h-4" />
+        </button>
+      </span>
+    </span>
+  );
+}
+
 /**
- * A ficha aberta, para criar ou editar: só os campos que importam para cada
- * tipo, e o apagar (com confirmação) quando é uma ficha que já existe.
+ * Uma ficha nova. Fica logo abaixo do botão (no topo da lista) e, quando o
+ * teclado sobe, rola para continuar à vista. Um toque duplo não cria duas.
  */
-function ItemEditor({ kind, item, eventAt, initialTitle = '', onSave, onCancel, onRemove }: { kind: CelebrationItemKind; item?: CelebrationItem; eventAt: string | null; initialTitle?: string; onSave: (f: ItemFields) => Promise<boolean>; onCancel: () => void; onRemove?: () => Promise<boolean> }) {
+function NewItemForm({ kind, initialTitle = '', onSave, onCancel }: { kind: CelebrationItemKind; initialTitle?: string; onSave: (f: ItemFields) => Promise<boolean>; onCancel: () => void }) {
   const noun = NOUN[kind];
-  const start = item ? itemFieldsOf(item) : null;
-  const relative = item && item.due_offset != null && !item.due_date ? dueOf(item, eventAt) : null;
-  const [title, setTitle] = useState(start?.title ?? initialTitle);
-  const [date, setDate] = useState((item ? dueOf(item, eventAt) : null) ?? '');
-  const [who, setWho] = useState<'mae' | 'pai' | 'casal'>(start?.assignedTo ?? 'casal');
-  const [contact, setContact] = useState(start?.contact ?? '');
-  const [amount, setAmount] = useState<number | null>(start?.amount ?? null);
-  const [status, setStatus] = useState<string>(start?.status ?? (kind === 'fornecedor' ? 'orcado' : kind === 'convidado' ? 'convidado' : ''));
-  const [people, setPeople] = useState(start?.people ?? 1);
-  const [notes, setNotes] = useState(start?.notes ?? '');
+  const [title, setTitle] = useState(initialTitle);
+  const [date, setDate] = useState('');
+  const [who, setWho] = useState<'mae' | 'pai' | 'casal'>('casal');
+  const [contact, setContact] = useState('');
+  const [amount, setAmount] = useState<number | null>(null);
+  const [status, setStatus] = useState<string>(kind === 'fornecedor' ? 'orcado' : kind === 'convidado' ? 'convidado' : '');
+  const [people, setPeople] = useState(1);
+  const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
-  const [removing, setRemoving] = useState(false);
+  const sending = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
-  useEffect(() => titleRef.current?.focus({ preventScroll: true }), []);
+  useEffect(() => {
+    const keep = () => formRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    titleRef.current?.focus({ preventScroll: true });
+    // O teclado leva um instante para abrir: depois disso (e a cada mudança da área visível), o formulário volta à vista.
+    const t = window.setTimeout(keep, 320);
+    window.visualViewport?.addEventListener('resize', keep);
+    return () => {
+      window.clearTimeout(t);
+      window.visualViewport?.removeEventListener('resize', keep);
+    };
+  }, []);
 
   const save = async () => {
+    if (sending.current) return;
     if (!title.trim()) return titleRef.current?.focus();
+    sending.current = true;
     setBusy(true);
-    // O prazo "X dias antes" continua relativo enquanto a data mostrada for a dele.
-    const keepRelative = relative !== null && date === relative;
     const ok = await onSave({
-      ...(start ?? {}),
       title: title.trim(),
       notes: notes.trim() || null,
-      ...(kind === 'tarefa' ? { dueDate: keepRelative ? null : date || null, dueOffset: keepRelative ? start?.dueOffset : null, assignedTo: who, done: start?.done ?? false } : {}),
+      ...(kind === 'tarefa' ? { dueDate: date || null, assignedTo: who } : {}),
       ...(kind === 'fornecedor' ? { contact: contact.trim() || null, amount, status } : {}),
-      ...(kind === 'convidado' ? { contact: contact.trim() || null, people: Math.max(1, people), status } : {}),
+      ...(kind === 'convidado' ? { people, status } : {}),
     });
+    sending.current = false;
     setBusy(false);
     if (ok) onCancel();
   };
 
   return (
     <form
-      aria-label={item ? `Editar ${noun.one}` : noun.add}
-      className="rounded-[22px] bg-surface shadow-soft ring-1 ring-rosa/25 p-3.5 space-y-2.5"
+      ref={formRef}
+      aria-label={noun.add}
+      className="scroll-mt-20 scroll-mb-6 rounded-[22px] bg-surface shadow-soft ring-1 ring-rosa/25 p-3.5 space-y-2.5"
       onSubmit={e => {
         e.preventDefault();
         void save();
       }}
     >
-      <input ref={titleRef} aria-label={noun.title} placeholder={noun.placeholder} value={title} onChange={e => setTitle(e.target.value)} maxLength={120} className={input} />
+      <input ref={titleRef} aria-label={noun.title} placeholder={noun.placeholder} value={title} onChange={e => setTitle(e.target.value)} maxLength={120} enterKeyHint="done" className={input} />
       {kind === 'tarefa' && (
         <>
           <label className="flex items-center gap-2 text-[13px] text-ink-soft">
             <span className="shrink-0 font-bold">Prazo</span>
             <input type="date" aria-label="Prazo" value={date} onChange={e => setDate(e.target.value)} className={`${fit} flex-1 min-w-0 py-2`} />
           </label>
-          {relative && date === relative && item?.due_offset != null && <p className="text-[12px] text-ink-mute -mt-1">{plural(item.due_offset, 'dia', 'dias')} antes da celebração (muda junto com a data)</p>}
           <Chips label="Quem cuida" options={WHO} value={who} onChange={setWho} />
         </>
       )}
@@ -558,12 +598,12 @@ function ItemEditor({ kind, item, eventAt, initialTitle = '', onSave, onCancel, 
             <input aria-label="Contato" placeholder="WhatsApp, Instagram…" value={contact} onChange={e => setContact(e.target.value)} maxLength={120} className={`${input} min-w-0`} />
             <MoneyInput label="Valor" placeholder="R$ 0,00" value={amount} onChange={setAmount} className={`${fit} w-full min-w-0`} />
           </div>
-          <Chips label="Situação" options={(Object.keys(SUPPLIER_STATUS) as SupplierStatus[]).map(id => ({ id, label: SUPPLIER_STATUS[id] }))} value={status as SupplierStatus} onChange={setStatus} />
+          <Chips label="Situação" options={SUPPLIER_OPTIONS} value={status as SupplierStatus} onChange={setStatus} />
         </>
       )}
       {kind === 'convidado' && (
         <>
-          <div className="flex items-center gap-3">
+          <span className="inline-flex items-center gap-3">
             <span className="text-[13px] font-bold text-ink-soft">Pessoas</span>
             <span className="inline-flex items-center rounded-full bg-surface-2">
               <button type="button" aria-label="Uma pessoa a menos" onClick={() => setPeople(n => Math.max(1, n - 1))} className="w-9 h-9 flex items-center justify-center text-ink-soft">
@@ -576,103 +616,120 @@ function ItemEditor({ kind, item, eventAt, initialTitle = '', onSave, onCancel, 
                 <Plus className="w-4 h-4" />
               </button>
             </span>
-          </div>
-          <Chips label="Confirmação" options={(Object.keys(GUEST_STATUS) as GuestStatus[]).map(id => ({ id, label: GUEST_STATUS[id] }))} value={status as GuestStatus} onChange={setStatus} />
+          </span>
+          <Chips label="Confirmação" options={GUEST_OPTIONS} value={status as GuestStatus} onChange={setStatus} />
         </>
       )}
-      <textarea aria-label="Observações" placeholder="Observações (opcional)" value={notes} onChange={e => setNotes(e.target.value)} maxLength={1000} rows={notes ? 2 : 1} className={`${input} resize-none text-[14px]`} />
+      {kind !== 'tarefa' && kind !== 'convidado' && <textarea aria-label="Comentário" placeholder="Comentário (opcional)" value={notes} onChange={e => setNotes(e.target.value)} maxLength={1000} rows={1} className={`${input} resize-none text-[14px]`} />}
       <div className="flex items-center gap-2 pt-0.5">
         <button type="submit" disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-5 py-2 text-[14px] font-extrabold disabled:opacity-60">
-          {busy && <Loader2 className="w-4 h-4 animate-spin" />} {item ? 'Guardar' : 'Adicionar'}
+          {busy && <Loader2 className="w-4 h-4 animate-spin" />} Adicionar
         </button>
         <button type="button" onClick={onCancel} className="rounded-full px-3 py-2 text-[14px] font-bold text-ink-soft">
           Cancelar
         </button>
-        {onRemove && (
-          <span className="ml-auto">
-            {removing ? (
-              <span className="flex items-center gap-2 text-[12.5px]">
-                <span className="text-ink-soft">{noun.remove}</span>
-                <button type="button" onClick={async () => (await onRemove()) && onCancel()} className="font-extrabold text-alert">
-                  Apagar
-                </button>
-                <button type="button" onClick={() => setRemoving(false)} className="font-bold text-ink-soft">
-                  Não
-                </button>
-              </span>
-            ) : (
-              <button type="button" onClick={() => setRemoving(true)} aria-label={`Apagar ${noun.one}`} className="w-9 h-9 rounded-full flex items-center justify-center text-ink-mute hover:bg-surface-2">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-          </span>
-        )}
       </div>
     </form>
   );
 }
 
-/** Uma ficha fechada: leve, com o essencial; tocar abre para editar. */
-function ItemRow({ title, sub, done, onToggle, pill, onEdit }: { title: string; sub?: React.ReactNode; done?: boolean; onToggle?: () => void; pill?: React.ReactNode; onEdit: () => void }) {
+const SUPPLIER_OPTIONS = (Object.keys(SUPPLIER_STATUS) as SupplierStatus[]).map(id => ({ id, label: SUPPLIER_STATUS[id] }));
+const GUEST_OPTIONS = (Object.keys(GUEST_STATUS) as GuestStatus[]).map(id => ({ id, label: GUEST_STATUS[id] }));
+
+/** O comentário de uma ficha: o botão de salvar só aparece quando algo mudou. */
+function CommentBox({ value, onSave }: { value: string | null; onSave: (v: string | null) => Promise<boolean> }) {
+  const [text, setText] = useState(value ?? '');
+  const [busy, setBusy] = useState(false);
+  const dirty = text.trim() !== (value ?? '');
   return (
-    <li className="rounded-2xl bg-surface shadow-soft flex items-center gap-3 px-3.5 py-2.5">
-      {onToggle && (
-        <button type="button" onClick={onToggle} aria-pressed={!!done} aria-label={`${done ? 'Desmarcar' : 'Marcar como feita'}: ${title}`} className={`w-7 h-7 shrink-0 rounded-full border-2 flex items-center justify-center transition ${done ? 'bg-rosa border-rosa text-white' : 'border-ink-mute/60'}`}>
-          {done && <Check className="w-4 h-4" strokeWidth={3} />}
+    <div className="space-y-1.5">
+      <textarea aria-label="Comentário" placeholder="Escrever um comentário…" value={text} onChange={e => setText(e.target.value)} maxLength={1000} rows={text ? 2 : 1} className={`${input} resize-none text-[14px] py-2`} />
+      {dirty && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            await onSave(text.trim() || null);
+            setBusy(false);
+          }}
+          className="inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-4 py-1.5 text-[13px] font-extrabold disabled:opacity-60"
+        >
+          {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Salvar comentário
         </button>
       )}
-      <button type="button" onClick={onEdit} aria-label={`${title}: editar`} className="flex-1 min-w-0 text-left">
-        <span className={`block text-[14.5px] leading-snug ${done ? 'text-ink-mute line-through' : 'text-ink font-semibold'}`}>{title}</span>
-        {sub && <span className="block text-[12px] text-ink-mute">{sub}</span>}
-      </button>
-      {pill}
+    </div>
+  );
+}
+
+/**
+ * Uma ficha: fechada, o essencial; aberta, só os ajustes do dia a dia (que
+ * salvam na hora), o comentário e o apagar com confirmação. O nome não muda.
+ */
+function ItemCard({ item, title, sub, done, onToggle, pill, quick, actions, removeText }: { item: CelebrationItem; title: string; sub?: React.ReactNode; done?: boolean; onToggle?: () => void; pill?: React.ReactNode; quick?: React.ReactNode; actions: CelebrationActions; removeText: string }) {
+  const [open, setOpen] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  return (
+    <li className={`rounded-2xl bg-surface shadow-soft transition ${open ? 'ring-1 ring-rosa/25' : ''}`}>
+      <div className="flex items-center gap-3 px-3.5 py-2.5">
+        {onToggle && (
+          <button type="button" onClick={onToggle} aria-pressed={!!done} aria-label={`${done ? 'Desmarcar' : 'Marcar como feita'}: ${title}`} className={`w-7 h-7 shrink-0 rounded-full border-2 flex items-center justify-center transition ${done ? 'bg-rosa border-rosa text-white' : 'border-ink-mute/60'}`}>
+            {done && <Check className="w-4 h-4" strokeWidth={3} />}
+          </button>
+        )}
+        <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open} aria-label={`${title}: ${open ? 'fechar' : 'abrir'}`} className="flex-1 min-w-0 text-left">
+          <span className={`block text-[14.5px] leading-snug ${done ? 'text-ink-mute line-through' : 'text-ink font-semibold'}`}>{title}</span>
+          {sub && <span className="block text-[12px] text-ink-mute">{sub}</span>}
+        </button>
+        {pill}
+        <ChevronDown className={`w-4 h-4 shrink-0 text-ink-mute transition ${open ? 'rotate-180' : ''}`} aria-hidden />
+      </div>
+      {open && (
+        <div className="border-t border-line px-3.5 py-3 space-y-3">
+          {quick}
+          <CommentBox value={item.notes} onSave={notes => actions.updateItem(item.id, { ...itemFieldsOf(item), notes })} />
+          {removing ? (
+            <span className="flex flex-wrap items-center gap-3 text-[13px]">
+              <span className="text-ink-soft">{removeText}</span>
+              <button type="button" onClick={() => actions.removeItem(item.id)} className="font-extrabold text-alert">
+                Apagar
+              </button>
+              <button type="button" onClick={() => setRemoving(false)} className="font-bold text-ink-soft">
+                Não
+              </button>
+            </span>
+          ) : (
+            <button type="button" onClick={() => setRemoving(true)} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-ink-mute">
+              <Trash2 className="w-3.5 h-3.5" /> Apagar
+            </button>
+          )}
+        </div>
+      )}
     </li>
   );
 }
 
-/** A lista de um tipo de ficha: cada uma abre ali mesmo para editar, e o "+" no fim abre uma nova. */
-function ItemList({ celebration: c, kind, items, actions, row, empty, before }: { celebration: Celebration; kind: CelebrationItemKind; items: CelebrationItem[]; actions: CelebrationActions; row: (i: CelebrationItem, edit: () => void) => React.ReactNode; empty?: React.ReactNode; before?: (pick: (title: string) => void) => React.ReactNode }) {
-  const [editing, setEditing] = useState<string | null>(null);
+/** A lista de um tipo de ficha, com o "+ Nova…" no topo (perto de onde os olhos estão quando o teclado sobe). */
+function ItemList({ celebration: c, kind, actions, children, count, empty, before }: { celebration: Celebration; kind: CelebrationItemKind; actions: CelebrationActions; children: React.ReactNode; count: number; empty?: React.ReactNode; before?: (pick: (title: string) => void) => React.ReactNode }) {
   const [adding, setAdding] = useState<string | null>(null);
   return (
     <section className="space-y-2.5" aria-label={TABS.find(t => t.id === kind)!.label}>
-      {items.length === 0 && empty}
-      {items.length === 0 && adding === null && before?.(t => setAdding(t))}
-      <ul className="space-y-2">
-        {items.map(i =>
-          editing === i.id ? (
-            <li key={i.id}>
-              <ItemEditor kind={kind} item={i} eventAt={c.event_at} onSave={f => actions.updateItem(i.id, f)} onCancel={() => setEditing(null)} onRemove={() => actions.removeItem(i.id)} />
-            </li>
-          ) : (
-            <Fragment key={i.id}>
-              {row(i, () => {
-                setAdding(null);
-                setEditing(i.id);
-              })}
-            </Fragment>
-          ),
-        )}
-      </ul>
       {adding !== null ? (
-        <ItemEditor kind={kind} eventAt={c.event_at} initialTitle={adding} onSave={f => actions.addItem(c.id, kind, f)} onCancel={() => setAdding(null)} />
+        <NewItemForm key={adding} kind={kind} initialTitle={adding} onSave={f => actions.addItem(c.id, kind, f)} onCancel={() => setAdding(null)} />
       ) : (
-        <button
-          type="button"
-          onClick={() => {
-            setEditing(null);
-            setAdding('');
-          }}
-          className="w-full flex items-center justify-center gap-1.5 rounded-2xl border-[1.5px] border-dashed border-rosa/40 py-2.5 text-[13.5px] font-bold text-rosa"
-        >
+        <button type="button" onClick={() => setAdding('')} className="w-full flex items-center justify-center gap-1.5 rounded-2xl border-[1.5px] border-dashed border-rosa/40 py-2.5 text-[13.5px] font-bold text-rosa">
           <Plus className="w-4 h-4" /> {NOUN[kind].add}
         </button>
       )}
+      {count === 0 && empty}
+      {count === 0 && adding === null && before?.(t => setAdding(t))}
+      <ul className="space-y-2">{children}</ul>
     </section>
   );
 }
 
 const pillCls = (on: boolean) => `shrink-0 rounded-full px-2.5 py-1 text-[11px] font-extrabold ${on ? 'bg-rosa-soft text-rosa-strong' : 'bg-surface-2 text-ink-soft'}`;
+const update = (actions: CelebrationActions, i: CelebrationItem, patch: Partial<ItemFields>) => actions.updateItem(i.id, { ...itemFieldsOf(i), ...patch });
 
 function TaskList({ celebration: c, actions }: { celebration: Celebration; actions: CelebrationActions }) {
   const tasks = c.items
@@ -682,31 +739,49 @@ function TaskList({ celebration: c, actions }: { celebration: Celebration; actio
   return (
     <>
       {!c.event_at && <p className="text-[13px] text-ink-soft px-1">Coloquem a data para os prazos aparecerem (eles se ajustam sozinhos se a data mudar).</p>}
-      <ItemList
-        celebration={c}
-        kind="tarefa"
-        items={tasks.map(t => t.item)}
-        actions={actions}
-        row={(t, edit) => {
-          const due = dueOf(t, c.event_at);
+      <ItemList celebration={c} kind="tarefa" actions={actions} count={tasks.length}>
+        {tasks.map(({ item: t, due }) => {
           const late = isLate(t, c.event_at);
+          const relative = t.due_offset != null && !t.due_date ? dueOf(t, c.event_at) : null;
           return (
-            <ItemRow
+            <ItemCard
               key={t.id}
+              item={t}
               title={t.title}
               done={t.done}
-              onToggle={() => actions.updateItem(t.id, { ...itemFieldsOf(t), done: !t.done })}
-              onEdit={edit}
+              actions={actions}
+              removeText={NOUN.tarefa.remove}
+              onToggle={() => update(actions, t, { done: !t.done })}
               sub={
                 <>
                   {late && <span className="font-bold text-rosa-strong">Para já · </span>}
                   {[due && !late ? `até ${formatBR(due)}` : null, WHO.find(w => w.id === t.assigned_to)?.label, t.notes].filter(Boolean).join(' · ')}
                 </>
               }
+              quick={
+                <>
+                  <label className="flex items-center gap-2 text-[13px] text-ink-soft">
+                    <span className="shrink-0 font-bold">Prazo</span>
+                    <input
+                      type="date"
+                      aria-label="Prazo"
+                      value={due ?? ''}
+                      onChange={e => {
+                        const v = e.target.value;
+                        if (v === (due ?? '')) return;
+                        void update(actions, t, { dueDate: v || null, dueOffset: null });
+                      }}
+                      className={`${fit} flex-1 min-w-0 py-2`}
+                    />
+                  </label>
+                  {relative && t.due_offset != null && <p className="text-[12px] text-ink-mute -mt-1.5">{plural(t.due_offset, 'dia', 'dias')} antes da celebração (muda junto com a data)</p>}
+                  <Chips label="Quem cuida" options={WHO} value={t.assigned_to ?? 'casal'} onChange={w => update(actions, t, { assignedTo: w })} />
+                </>
+              }
             />
           );
-        }}
-      />
+        })}
+      </ItemList>
     </>
   );
 }
@@ -719,35 +794,38 @@ const whatsapp = (contact: string | null) => {
 function SupplierList({ celebration: c, actions }: { celebration: Celebration; actions: CelebrationActions }) {
   const suppliers = c.items.filter(i => i.kind === 'fornecedor');
   return (
-    <ItemList
-      celebration={c}
-      kind="fornecedor"
-      items={suppliers}
-      actions={actions}
-      empty={<p className="px-1 text-[13px] text-ink-soft">Bolo, doces, decoração, fotógrafo, espaço… Anotem cada um com o contato e o valor.</p>}
-      row={(s, edit) => {
+    <ItemList celebration={c} kind="fornecedor" actions={actions} count={suppliers.length} empty={<p className="px-1 text-[13px] text-ink-soft">Bolo, doces, decoração, fotógrafo, espaço… Anotem cada um com o contato e o valor.</p>}>
+      {suppliers.map(s => {
         const link = whatsapp(s.contact);
         const status = (s.status ?? 'orcado') as SupplierStatus;
         return (
-          <ItemRow
+          <ItemCard
             key={s.id}
+            item={s}
             title={s.title}
-            onEdit={edit}
-            sub={
+            actions={actions}
+            removeText={NOUN.fornecedor.remove}
+            sub={[s.amount ? brlCents(Number(s.amount)) : null, s.notes].filter(Boolean).join(' · ') || undefined}
+            pill={<span className={pillCls(status !== 'orcado')}>{SUPPLIER_STATUS[status]}</span>}
+            quick={
               <>
-                {[s.amount ? brlCents(Number(s.amount)) : null, s.contact].filter(Boolean).join(' · ')}
-                {link && (
-                  <a href={link} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="ml-1.5 font-bold text-verde-strong">
-                    WhatsApp ›
-                  </a>
+                {s.contact && (
+                  <p className="text-[13.5px] text-ink">
+                    {s.contact}
+                    {link && (
+                      <a href={link} target="_blank" rel="noopener" className="ml-2 font-bold text-verde-strong">
+                        WhatsApp ›
+                      </a>
+                    )}
+                  </p>
                 )}
+                <Chips label="Situação" options={SUPPLIER_OPTIONS} value={status} onChange={st => update(actions, s, { status: st })} />
               </>
             }
-            pill={<span className={pillCls(status !== 'orcado')}>{SUPPLIER_STATUS[status]}</span>}
           />
         );
-      }}
-    />
+      })}
+    </ItemList>
   );
 }
 
@@ -757,20 +835,33 @@ function GuestList({ celebration: c, actions }: { celebration: Celebration; acti
   // Um pacote por convite (quem não vai fica de fora).
   const invited = g.guests.filter(x => x.status !== 'nao_vai');
   const sizes = diaperFor(invited.map(x => x.id));
+  const total = g.going + g.maybe + g.waiting;
   return (
     <>
-      <p className="px-1 text-[13px] text-ink-soft">{g.guests.length === 0 ? 'Anotem quem vocês querem por perto. Cada convite pode levar mais de uma pessoa.' : `${g.going} confirmados · ${g.maybe} talvez · ${g.waiting} sem resposta`}</p>
-      <ItemList
-        celebration={c}
-        kind="convidado"
-        items={g.guests}
-        actions={actions}
-        row={(x, edit) => {
+      <p className="px-1 text-[13px] text-ink-soft">{g.guests.length === 0 ? 'Anotem quem vocês querem por perto. Cada convite pode levar mais de uma pessoa.' : `${plural(total, 'pessoa', 'pessoas')} na lista · ${g.going} confirmadas`}</p>
+      <ItemList celebration={c} kind="convidado" actions={actions} count={g.guests.length}>
+        {g.guests.map(x => {
           const status = (x.status ?? 'convidado') as GuestStatus;
           const size = sizes.get(x.id);
-          return <ItemRow key={x.id} title={x.title} onEdit={edit} sub={[(x.people ?? 1) > 1 ? `${x.people} pessoas` : null, diapers && size ? `fralda ${size}` : null, x.notes].filter(Boolean).join(' · ') || undefined} pill={<span className={pillCls(status === 'vai')}>{GUEST_STATUS[status]}</span>} />;
-        }}
-      />
+          return (
+            <ItemCard
+              key={x.id}
+              item={x}
+              title={x.title}
+              actions={actions}
+              removeText={NOUN.convidado.remove}
+              sub={[(x.people ?? 1) > 1 ? `${x.people} pessoas` : null, diapers && size ? `fralda ${size}` : null, x.notes].filter(Boolean).join(' · ') || undefined}
+              pill={<span className={pillCls(status === 'vai')}>{GUEST_STATUS[status]}</span>}
+              quick={
+                <>
+                  <Chips label="Confirmação" options={GUEST_OPTIONS} value={status} onChange={st => update(actions, x, { status: st })} />
+                  <PeopleStepper value={x.people ?? 1} onChange={n => update(actions, x, { people: n })} />
+                </>
+              }
+            />
+          );
+        })}
+      </ItemList>
       {diapers && invited.length > 0 && <DiaperCalculator packs={invited.length} />}
     </>
   );
@@ -803,8 +894,8 @@ function IdeaList({ celebration: c, actions }: { celebration: Celebration; actio
     <ItemList
       celebration={c}
       kind="ideia"
-      items={ideas}
       actions={actions}
+      count={ideas.length}
       before={pick => (
         <div className="flex flex-wrap gap-1.5 px-1">
           {starters.map(s => (
@@ -815,8 +906,11 @@ function IdeaList({ celebration: c, actions }: { celebration: Celebration; actio
           ))}
         </div>
       )}
-      row={(i, edit) => <ItemRow key={i.id} title={i.title} sub={i.notes ?? undefined} onEdit={edit} />}
-    />
+    >
+      {ideas.map(i => (
+        <ItemCard key={i.id} item={i} title={i.title} sub={i.notes ?? undefined} actions={actions} removeText={NOUN.ideia.remove} />
+      ))}
+    </ItemList>
   );
 }
 

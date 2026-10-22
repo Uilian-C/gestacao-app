@@ -5,7 +5,7 @@ import QuickRecord, { type QuickMode } from './components/QuickRecord';
 import DetailSheet from './components/Details';
 import NameSpace, { NameReveal, type NameActions } from './components/BabyNames';
 import { CelebrationSpace, type CelebrationActions } from './components/Celebrations';
-import type { Celebration } from './lib/celebrations';
+import type { Celebration, CelebrationItem } from './lib/celebrations';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
@@ -665,7 +665,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     remove: id => run(() => api.mutate('deleteCelebration', { id }), PARTY_MISSING, 'Celebração apagada'),
     addItem: (celebrationId, kind, f) => run(() => api.mutate('addCelebrationItem', { celebrationId, kind, ...f }), PARTY_MISSING),
     updateItem: (id, f) => {
-      patch(d => ({ ...d, celebrations: (d.celebrations ?? []).map(c => ({ ...c, items: c.items.map(i => (i.id !== id ? i : { ...i, done: f.done ?? i.done, status: f.status ?? i.status, assigned_to: f.assignedTo ?? i.assigned_to })) })) }));
+      // A ficha muda na hora (as telas mandam sempre a ficha inteira); o servidor confirma em seguida.
+      const next = (i: CelebrationItem): CelebrationItem => ({ ...i, title: f.title, due_date: f.dueDate ?? null, due_offset: f.dueOffset ?? null, assigned_to: f.assignedTo ?? null, done: f.done ?? false, contact: f.contact ?? null, amount: f.amount == null ? null : String(f.amount), status: f.status ?? null, people: f.people ?? null, notes: f.notes ?? null });
+      patch(d => ({ ...d, celebrations: (d.celebrations ?? []).map(c => ({ ...c, items: c.items.map(i => (i.id !== id ? i : next(i))) })) }));
       return run(() => api.mutate('updateCelebrationItem', { id, ...f }), PARTY_MISSING);
     },
     removeItem: id => run(() => api.mutate('deleteCelebrationItem', { id }), PARTY_MISSING),
