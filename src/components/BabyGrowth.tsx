@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Check, ChevronDown, ChevronUp, Palette } from 'lucide-react';
 import { photoUrl } from '../api';
 import { GROWTH, GROWTH_SOURCE, MEASURE_TEXT, lengthText, stageAt, stageShots, weightText } from '../content/growth';
 import { weekInfo } from '../content/weeks';
@@ -32,7 +32,7 @@ interface Props {
   /** Tom do bebê desenhado; o neutro ("tumtum") é o padrão. */
   tone?: BabyTone;
   /** Só o casal escolhe o tom; sem isso (família), o seletor não aparece. */
-  onToneChange?: (tone: BabyTone) => void;
+  onToneChange?: (tone: BabyTone) => Promise<boolean> | void;
 }
 
 const TERM = 40;
@@ -42,7 +42,12 @@ const artSize = (week: number) => Math.round(44 + Math.sqrt(stageAt(week).length
 
 export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry, tone = 'tumtum', onToneChange }: Props) {
   const [open, setOpen] = useState<number | null>(null);
+  // Enquanto o casal escolhe o tom, o bebê já aparece nele; só grava ao salvar.
+  const [preview, setPreview] = useState<BabyTone | null>(null);
+  const shown = preview ?? tone;
   const hereRef = useRef<HTMLLIElement>(null);
+  const listRef = useRef<HTMLOListElement>(null);
+  const track = useTrack(listRef, open);
   useEffect(() => {
     hereRef.current?.scrollIntoView?.({ block: 'center' });
   }, []);
@@ -60,13 +65,16 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
       {/* O bebê de hoje */}
       <section aria-label="O bebê hoje" className="rounded-[28px] bg-gradient-to-b from-surface-2 to-surface px-5 pt-4 pb-5 text-center">
         {parents && <p className="text-[12px] font-bold text-rosa-strong">O bebê de {parents}</p>}
-        <BabyArt week={currentWeek} beat tone={tone} className="w-44 h-44 mx-auto" />
+        <BabyArt week={currentWeek} beat tone={shown} className="w-44 h-44 mx-auto" />
         <p className="text-[12px] font-extrabold uppercase tracking-wide text-rosa">
           Semana {currentWeek} · {info.trimester}º trimestre
         </p>
         <h3 className="font-display text-[1.45rem] leading-tight text-ink mt-0.5 text-balance">{stage.title}</h3>
         <p className="text-sm text-ink-soft mt-1">
-          Do tamanho de {info.fruit} · {info.size} · {info.weight}
+          Do tamanho de {info.fruit}
+          <span className="block tabular">
+            {info.size} · {info.weight}
+          </span>
         </p>
         <div className="mt-4 space-y-1.5 text-left">
           <div className="h-2.5 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Caminho até o colo">
@@ -77,11 +85,19 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
             <span>{left > 0 ? `faltam ${left} ${left === 1 ? 'semana' : 'semanas'} para o colo` : 'a qualquer momento no colo'}</span>
           </p>
         </div>
-        {onToneChange && <TonePicker tone={tone} onChange={onToneChange} />}
+        {onToneChange && <ToneSetting tone={tone} onPreview={setPreview} onSave={onToneChange} />}
       </section>
 
       {/* As fases */}
-      <ol className="relative" aria-label="Crescimento do bebê, semana a semana">
+      <ol ref={listRef} className="relative" aria-label="Crescimento do bebê, semana a semana">
+        {/* Um trilho só, contínuo: rosa da 4ª semana até hoje, clarinho dali até o colo. */}
+        {track && (
+          <li aria-hidden className="absolute pointer-events-none" style={{ left: TRACK_X, top: track.top, height: track.height }}>
+            <span className="absolute inset-y-0 -left-[1.5px] w-[3px] rounded-full bg-line" />
+            <span className="absolute top-0 -left-[1.5px] w-[3px] rounded-full bg-rosa" style={{ height: track.filled }} />
+            <span className="absolute -left-2 -translate-y-1/2 w-4 h-4 rounded-full bg-rosa ring-4 ring-rosa-soft" style={{ top: track.filled }} />
+          </li>
+        )}
         {GROWTH.flatMap((s, i) => {
           const passed = s.week <= currentWeek;
           const isNow = s.week === currentWeek;
@@ -93,7 +109,7 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
             rows.push(
               <li key="hoje" ref={hereRef} className="relative flex items-stretch gap-3">
                 <span className="w-[96px] shrink-0" />
-                <Rail top bottom filledTop filledBottom={false} dot="now" />
+                <span data-hoje className="w-4 shrink-0" aria-hidden />
                 <span className="py-2.5">
                   <span className="inline-block rounded-full bg-rosa px-3 py-1 text-[12px] font-extrabold text-white shadow-soft">
                     Semana {currentWeek} · {hereText}
@@ -107,10 +123,10 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
               <div className="w-[96px] shrink-0 flex items-center justify-center py-1.5">
                 <span style={{ width: artSize(s.week) }} className={`block transition ${passed ? '' : 'opacity-45 saturate-50'}`}>
                   {/* Pulsam só o coração do topo e o da fase em que o bebê está; as outras fases ficam quietas. */}
-                  <BabyArt week={s.week} beat={s.week === stage.week} tone={tone} className="w-full h-auto" />
+                  <BabyArt week={s.week} beat={s.week === stage.week} tone={shown} className="w-full h-auto" />
                 </span>
               </div>
-              <Rail top={i > 0} bottom={i < GROWTH.length - 1} filledTop={passed} filledBottom={(GROWTH[i + 1]?.week ?? 99) <= currentWeek} dot={isNow ? 'now' : passed ? 'passed' : 'next'} />
+              <span data-fase={s.week} data-hoje={isNow || undefined} className="w-4 shrink-0" aria-hidden />
               <div className="flex-1 min-w-0 py-1.5">
                 <div className={`flex items-start gap-2 rounded-[20px] transition ${isNow ? 'bg-rosa-soft ring-2 ring-rosa/50' : passed ? 'bg-surface shadow-soft' : 'bg-surface-2/60'}`}>
                   <button type="button" onClick={() => setOpen(o => (o === s.week ? null : s.week))} aria-expanded={expanded} className="flex-1 min-w-0 text-left px-3.5 py-3">
@@ -152,38 +168,121 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
   );
 }
 
-/** O trilho que liga as fases: rosa até hoje, clarinho dali em diante. */
-function Rail({ top, bottom, filledTop, filledBottom, dot }: { top: boolean; bottom: boolean; filledTop: boolean; filledBottom: boolean; dot: 'now' | 'passed' | 'next' }) {
-  return (
-    <div className="relative w-4 shrink-0 flex justify-center" aria-hidden>
-      {top && <span className={`absolute top-0 h-1/2 w-[3px] ${filledTop ? 'bg-rosa' : 'bg-line'}`} />}
-      {bottom && <span className={`absolute bottom-0 h-1/2 w-[3px] ${filledBottom ? 'bg-rosa' : 'bg-line'}`} />}
-      <span className={`relative self-center rounded-full ${dot === 'now' ? 'w-4 h-4 bg-rosa ring-4 ring-rosa-soft' : dot === 'passed' ? 'w-3 h-3 bg-rosa' : 'w-3 h-3 bg-surface border-2 border-line'}`} />
-    </div>
-  );
+/** Onde fica o trilho na horizontal: depois do desenho (96px) e do espaço (12px), no meio da coluna de 16px. */
+const TRACK_X = 96 + 12 + 8;
+
+/**
+ * Mede o trilho na lista: começa no meio da primeira fase, termina no meio da
+ * última e é preenchido até o meio do marcador de hoje. Refaz a conta quando
+ * a lista muda de tamanho (uma fase aberta, a tela girando).
+ */
+function useTrack(listRef: React.RefObject<HTMLOListElement | null>, dep: unknown) {
+  const [track, setTrack] = useState<{ top: number; height: number; filled: number } | null>(null);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const measure = () => {
+      const base = list.getBoundingClientRect().top;
+      const mid = (el: Element | null | undefined) => (el ? el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2 - base : null);
+      const phases = list.querySelectorAll('[data-fase]');
+      const first = mid(phases[0]);
+      const last = mid(phases[phases.length - 1]);
+      const here = mid(list.querySelector('[data-hoje]'));
+      if (first === null || last === null) return;
+      const filled = Math.min(last, Math.max(first, here ?? first)) - first;
+      setTrack(prev => (prev && prev.top === first && prev.height === last - first && prev.filled === filled ? prev : { top: first, height: last - first, filled }));
+    };
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(list);
+    return () => observer?.disconnect();
+  }, [listRef, dep]);
+  return track;
 }
 
 /**
  * O tom do bebê: o neutro (uma luz, sem cor de pele) ou um dos cinco tons de
- * pele. Discreto, para quem quiser; vale para o espaço todo (a família vê igual).
+ * pele. Fica recolhido num cantinho; ao abrir, o bebê já mostra cada tom, e só
+ * grava ao salvar (vale para o espaço todo: a família vê igual).
  */
-function TonePicker({ tone, onChange }: { tone: BabyTone; onChange: (tone: BabyTone) => void }) {
-  return (
-    <div className="mt-4 flex items-center justify-center gap-2.5" role="radiogroup" aria-label="Tom do bebê">
-      <span className="text-[12px] text-ink-mute">Tom do bebê</span>
-      {(Object.keys(TONES) as BabyTone[]).map(t => (
+function ToneSetting({ tone, onPreview, onSave }: { tone: BabyTone; onPreview: (tone: BabyTone | null) => void; onSave: (tone: BabyTone) => Promise<boolean> | void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(tone);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    if (!saved) return;
+    const timer = window.setTimeout(() => setSaved(false), 2500);
+    return () => window.clearTimeout(timer);
+  }, [saved]);
+  const close = () => {
+    setEditing(false);
+    onPreview(null);
+  };
+
+  if (!editing) {
+    return (
+      <div className="mt-3 flex items-center justify-center gap-2 text-[12.5px]">
         <button
-          key={t}
           type="button"
-          role="radio"
-          aria-checked={tone === t}
-          aria-label={TONE_LABEL[t]}
-          title={TONE_LABEL[t]}
-          onClick={() => onChange(t)}
-          className={`w-7 h-7 rounded-full transition ${tone === t ? 'ring-2 ring-offset-2 ring-offset-surface ring-ink-soft scale-110' : 'hover:scale-110'}`}
-          style={{ background: `radial-gradient(circle at 35% 30%, ${TONES[t].light}, ${TONES[t].mid} 60%, ${TONES[t].deep})` }}
-        />
-      ))}
+          onClick={() => {
+            setDraft(tone);
+            setEditing(true);
+          }}
+          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-ink-mute hover:text-ink hover:bg-surface-2"
+        >
+          <Swatch tone={tone} className="w-4 h-4" /> Tom do bebê <Palette className="w-3.5 h-3.5" />
+        </button>
+        {saved && (
+          <span role="status" className="inline-flex items-center gap-1 font-bold text-ok">
+            <Check className="w-3.5 h-3.5" /> Salvo
+          </span>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-4 rounded-2xl bg-surface px-3 py-3 shadow-soft space-y-3">
+      <p className="text-[12.5px] text-ink-soft">Escolham o tom do bebê. A família vê o mesmo.</p>
+      <div className="flex items-center justify-center gap-2.5" role="radiogroup" aria-label="Tom do bebê">
+        {(Object.keys(TONES) as BabyTone[]).map(t => (
+          <button
+            key={t}
+            type="button"
+            role="radio"
+            aria-checked={draft === t}
+            aria-label={TONE_LABEL[t]}
+            title={TONE_LABEL[t]}
+            onClick={() => {
+              setDraft(t);
+              onPreview(t);
+            }}
+            className={`rounded-full transition ${draft === t ? 'ring-2 ring-offset-2 ring-offset-surface ring-ink-soft scale-110' : 'hover:scale-110'}`}
+          >
+            <Swatch tone={t} className="w-7 h-7" />
+          </button>
+        ))}
+      </div>
+      <div className="flex justify-center gap-2">
+        <button type="button" onClick={close} className="rounded-full px-4 py-2 text-sm font-semibold text-ink-soft hover:bg-surface-2">
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            close();
+            // "Salvo" só quando o servidor confirmar (no erro, o aviso do app explica).
+            if (draft === tone || (await onSave(draft)) !== false) setSaved(true);
+          }}
+          className="rounded-full bg-brand px-5 py-2 text-sm font-bold text-on-accent shadow-soft"
+        >
+          Salvar
+        </button>
+      </div>
     </div>
   );
+}
+
+function Swatch({ tone, className }: { tone: BabyTone; className: string }) {
+  const c = TONES[tone];
+  return <span aria-hidden className={`block rounded-full ${className}`} style={{ background: `radial-gradient(circle at 35% 30%, ${c.light}, ${c.mid} 60%, ${c.deep})` }} />;
 }
