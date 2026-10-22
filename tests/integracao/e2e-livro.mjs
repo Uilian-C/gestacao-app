@@ -54,23 +54,45 @@ await livro.waitFor();
 check(await mae.getByText('Um dia vocês vão ler estas páginas juntos, com o bebê no colo.').isVisible(), 'o livro convida com afeto, sem contagem');
 check(await livro.getByRole('button', { name: /^Capítulo 5: Os primeiros chutinhos/ }).isVisible() && (await livro.getByRole('button', { name: /^Capítulo 4: Ganhando forma/ }).isVisible()), 'cada mês é um capítulo');
 
-// O caderno do nome: anotar com o porquê, conversar, escolher e a revelação com a batida do Tumtum.
+// O fichário do nome: cada nome é uma ficha com o porquê, quem curtiu e a conversa (com data e hora).
 await mae.getByRole('button', { name: /Qual vai ser o nome\? Ele vai para a capa/ }).click();
 const nomes = mae.getByRole('dialog', { name: 'O nome do bebê' });
 await nomes.waitFor();
+check(await mae.evaluate(() => document.body.style.position === 'fixed'), 'a página de fundo fica parada enquanto o fichário do nome está aberto');
 await nomes.getByRole('textbox', { name: 'Sugerir um nome' }).fill('helena');
 await nomes.getByRole('textbox', { name: 'Por que esse nome?' }).fill('Era o nome da bisavó');
 await nomes.getByRole('button', { name: 'Anotar', exact: true }).click();
-const ideia = nomes.getByRole('article', { name: 'Nome: Helena' });
+await nomes.getByRole('button', { name: 'Ficha de Helena: abrir' }).waitFor();
+await nomes.getByRole('textbox', { name: 'Sugerir um nome' }).fill('Alice');
+await nomes.getByRole('button', { name: 'Anotar', exact: true }).click();
+await nomes.getByRole('button', { name: 'Ficha de Alice: abrir' }).waitFor();
+check(await nomes.getByRole('button', { name: 'Ficha de Helena: abrir' }).getByText(/você · hoje, \d{2}:\d{2}/).isVisible(), 'cada ficha mostra quem anotou, a data e a hora');
+await mae.screenshot({ path: `${OUT}nomes.png` });
+
+// Tirar uma ficha sempre pede confirmação.
+await nomes.getByRole('button', { name: 'Ficha de Alice: abrir' }).click();
+await nomes.getByRole('button', { name: 'Tirar esta ficha do fichário' }).click();
+check(await nomes.getByText(/Tirar Alice do fichário\? O porquê e a conversa saem junto\./).isVisible(), 'tirar uma ficha pede confirmação');
+await nomes.getByRole('button', { name: 'Manter' }).click();
+await nomes.getByRole('button', { name: 'Tirar esta ficha do fichário' }).click();
+await nomes.getByRole('button', { name: 'Tirar', exact: true }).click();
+await nomes.getByRole('button', { name: 'Ficha de Helena: abrir' }).waitFor();
+check((await nomes.getByRole('button', { name: 'Ficha de Alice: abrir' }).count()) === 0, 'e só sai depois de confirmar');
+
+// A ficha aberta: o porquê, quem curtiu e a conversa.
+await nomes.getByRole('button', { name: 'Ficha de Helena: abrir' }).click();
+const ideia = nomes.getByRole('article', { name: 'Ficha de Helena' });
 await ideia.waitFor();
-check((await ideia.getByRole('button', { name: 'Descurtir Helena' }).getAttribute('aria-pressed')) === 'true' && (await ideia.getByText('“Era o nome da bisavó”').isVisible()), 'a ideia entra no caderno com o porquê, já curtida por quem anotou');
-await ideia.getByRole('button', { name: 'Comentar' }).click();
+check((await ideia.getByRole('button', { name: 'Descurtir Helena' }).getAttribute('aria-pressed')) === 'true' && (await ideia.getByText('“Era o nome da bisavó”').isVisible()), 'a ficha guarda o porquê, já curtida por quem anotou');
 await ideia.getByRole('textbox', { name: 'Comentar sobre Helena' }).fill('Amo esse nome');
 await ideia.getByRole('button', { name: 'Enviar' }).click();
 await ideia.getByText('Amo esse nome').waitFor();
-check(await ideia.getByRole('button', { name: 'Conversa (1)' }).isVisible(), 'e dá para conversar sobre cada nome');
-await mae.screenshot({ path: `${OUT}nomes.png` });
-await ideia.getByRole('button', { name: 'Escolher este nome' }).click();
+check(await ideia.getByText(/^Você · hoje, \d{2}:\d{2}$/).isVisible(), 'e a conversa, com data e hora de cada comentário');
+await ideia.getByRole('button', { name: 'Apagar', exact: true }).click();
+check(await ideia.getByText('Apagar este comentário?').isVisible(), 'apagar um comentário também pede confirmação');
+await ideia.getByRole('button', { name: 'Manter' }).click();
+await mae.screenshot({ path: `${OUT}nomes-ficha.png`, fullPage: true });
+await ideia.getByRole('button', { name: 'Escolher Helena' }).click();
 await ideia.getByRole('button', { name: 'É esse!' }).click();
 const revelacao = mae.getByRole('dialog', { name: 'Nome escolhido' });
 await revelacao.waitFor();
@@ -80,7 +102,7 @@ await mae.screenshot({ path: `${OUT}nomes-festa.png` });
 await revelacao.getByRole('button', { name: 'Contar no Mural' }).click();
 await revelacao.waitFor({ state: 'hidden' });
 await nomes.getByText('O nome escolhido').waitFor();
-check(await nomes.getByText('A história do nome').isVisible(), 'depois, o caderno vira a história do nome');
+check(await nomes.getByText('A história do nome').isVisible(), 'depois, o fichário vira a história do nome');
 await mae.screenshot({ path: `${OUT}nomes-historia.png` });
 await nomes.getByRole('button', { name: 'Voltar' }).click();
 await mae.getByText('O livro de Helena').waitFor();

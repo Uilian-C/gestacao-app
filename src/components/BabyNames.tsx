@@ -1,21 +1,22 @@
 import { useContext, useEffect, useState } from 'react';
-import { ArrowLeft, Heart, Loader2, MessageCircle, Pencil, Plus, Send, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Heart, Loader2, MessageCircle, Pencil, Plus, Send, Sparkles, Trash2, X } from 'lucide-react';
 import type { FamilyMember, Relative } from '../api';
 import type { BabyTone } from '../content/babyTones';
 import type { NameIdea } from '../hooks/useGestationData';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { BabyNameContext, rankIdeas } from '../lib/baby';
-import { parseTimestamp } from '../lib/dates';
+import { parseTimestamp, stampText } from '../lib/dates';
 import { PeopleContext, RelativesContext, firstName } from '../lib/people';
 import Avatar from './Avatar';
 import BabyArt from './BabyArt';
 import BrandMark from './BrandMark';
 
-// O caderno do nome: um lugar só dele, fora do diário, porque escolher o nome
-// é uma etapa (com começo, meio e fim) e não um registro do dia a dia. Enquanto
-// o casal pensa, cada um (e a família) anota ideias, o porquê de cada uma,
-// curte e conversa. Quando o casal escolhe, o nome é revelado com a batida do
-// Tumtum, vira página do livro e o caderno passa a ser "a história do nome".
-// Quem já chega com o nome decidido registra direto e vai para a revelação.
+// O fichário do nome: um lugar só dele, fora do diário, porque escolher o nome
+// é uma etapa (com começo, meio e fim) e não um registro do dia a dia. Cada
+// nome é uma ficha: quem anotou e quando, o porquê, quem curtiu e a conversa
+// (com data e hora). Tirar uma ficha ou apagar um comentário sempre pede
+// confirmação. Quando o casal escolhe, o nome é revelado com a batida do
+// Tumtum, vira página do livro e o fichário passa a ser "a história do nome".
 
 export interface NameActions {
   onAdd: (name: string, note?: string) => Promise<boolean>;
@@ -39,18 +40,25 @@ function usePerson() {
   return (id: string): FamilyMember | Relative | undefined => members.find(m => m.userId === id) ?? relatives.find(r => r.userId === id);
 }
 
-/** O caderno do nome, em tela cheia (como uma seção própria do app). */
+/** As cores das fichas, como as pastas do fichário do diário. */
+const TABS = ['bg-rosa', 'bg-lilas', 'bg-azul', 'bg-verde', 'bg-coral'];
+
+/** O fichário do nome, em tela cheia (como uma seção própria do app). */
 export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions, onClose, onReveal }: { ideas: NameIdea[]; tone: BabyTone; week: number; couple: boolean; chosenAt?: string | null; actions: NameActions; onClose: () => void; onReveal: (name: string) => void }) {
+  useScrollLock();
   const chosen = useContext(BabyNameContext);
+  const person = usePerson();
   const [changing, setChanging] = useState(false);
   const [registering, setRegistering] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
   const deciding = !chosen || changing;
   const ranked = rankIdeas(ideas);
+  const open = openId ? ideas.find(i => i.id === openId) : undefined;
   useEffect(() => {
-    const close = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const close = (e: KeyboardEvent) => e.key === 'Escape' && (openId ? setOpenId(null) : onClose());
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
-  }, [onClose]);
+  }, [onClose, openId]);
 
   const choose = async (name: string) => {
     if (!actions.onChoose) return false;
@@ -58,71 +66,103 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
     if (ok) {
       setChanging(false);
       setRegistering(false);
+      setOpenId(null);
       onReveal(name);
     }
     return ok;
   };
 
   return (
-    <div role="dialog" aria-label="O nome do bebê" className="fixed inset-0 z-50 overflow-y-auto bg-canvas">
+    <div role="dialog" aria-label="O nome do bebê" className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-canvas">
       <header className="sticky top-0 z-10 flex items-center gap-2 bg-canvas/90 backdrop-blur px-3 pt-[calc(env(safe-area-inset-top,0px)+8px)] pb-2">
-        <button type="button" onClick={onClose} aria-label="Voltar" className="w-10 h-10 rounded-full flex items-center justify-center text-ink-soft hover:bg-surface-2">
+        <button type="button" onClick={() => (open ? setOpenId(null) : onClose())} aria-label={open ? 'Voltar para as fichas' : 'Voltar'} className="w-10 h-10 rounded-full flex items-center justify-center text-ink-soft hover:bg-surface-2">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <p className="flex-1 font-display text-[1.15rem] text-ink">{chosen && !changing ? 'A história do nome' : 'O caderno do nome'}</p>
+        <p className="flex-1 font-display text-[1.15rem] text-ink">{open ? `A ficha de ${open.name}` : chosen && !changing ? 'A história do nome' : 'O fichário do nome'}</p>
       </header>
 
       <div className="mx-auto max-w-[560px] px-4 pb-16 space-y-5">
-        {deciding ? (
-          <section className="rounded-[28px] bg-gradient-to-b from-rosa-soft via-lilas-soft to-surface px-5 pt-6 pb-5 text-center">
-            <BabyArt week={Math.min(40, Math.max(4, week))} beat tone={tone} className="w-28 h-28 mx-auto" />
-            <h2 className="font-display text-[1.7rem] leading-tight text-ink mt-1">Qual vai ser o nome?</h2>
-            <p className="text-[14px] text-ink-soft mt-1 max-w-[400px] mx-auto">
-              {couple ? 'Sem pressa: muitos casais só decidem perto do parto. Anotem as ideias, contem o porquê de cada uma, curtam e conversem. A família pode dar palpite.' : 'Sugira os nomes de que você gosta, conte o porquê e converse com o casal. Quem escolhe são eles.'}
-            </p>
-            <AddIdea onAdd={actions.onAdd} />
-            {couple && actions.onChoose && (
-              <div className="mt-3">
-                {registering ? (
-                  <RegisterName onChoose={choose} onCancel={() => setRegistering(false)} />
-                ) : (
-                  <button type="button" onClick={() => setRegistering(true)} className="text-[13.5px] font-bold text-rosa-strong">
-                    Já decidiram? Registrar o nome escolhido ›
-                  </button>
-                )}
-              </div>
-            )}
-          </section>
+        {open ? (
+          <IdeaFicha idea={open} couple={couple} deciding={deciding} chosen={chosen?.toLowerCase() === open.name.toLowerCase()} actions={actions} onChoose={choose} onDeleted={() => setOpenId(null)} />
         ) : (
-          <section className="rounded-[28px] bg-gradient-to-b from-rosa-soft via-lilas-soft to-surface px-5 pt-6 pb-5 text-center">
-            <BrandMark animated className="w-16 h-16 mx-auto" />
-            <p className="mt-2 text-[12px] font-extrabold uppercase tracking-[0.2em] text-rosa">O nome escolhido</p>
-            <p className="font-display text-[2.6rem] leading-none text-ink mt-1">{chosen}</p>
-            {chosenAt && <p className="text-[13.5px] text-ink-soft mt-2">Escolhido em {parseTimestamp(chosenAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>}
-            <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <button type="button" onClick={() => onReveal(chosen!)} className="inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-[13.5px] font-bold text-rosa-strong shadow-soft">
-                <Sparkles className="w-4 h-4" /> Rever a revelação
-              </button>
-              {couple && (
-                <button type="button" onClick={() => setChanging(true)} className="rounded-full px-4 py-2 text-[13px] font-bold text-ink-soft">
-                  Mudaram de ideia?
-                </button>
-              )}
-            </div>
-          </section>
-        )}
+          <>
+            {deciding ? (
+              <section className="rounded-[28px] bg-gradient-to-b from-rosa-soft via-lilas-soft to-surface px-5 pt-6 pb-5 text-center">
+                <BabyArt week={Math.min(40, Math.max(4, week))} beat tone={tone} className="w-28 h-28 mx-auto" />
+                <h2 className="font-display text-[1.7rem] leading-tight text-ink mt-1">Qual vai ser o nome?</h2>
+                <p className="text-[14px] text-ink-soft mt-1 max-w-[400px] mx-auto">
+                  {couple ? 'Sem pressa: muitos casais só decidem perto do parto. Cada nome vira uma ficha, com o porquê, quem curtiu e a conversa. A família pode dar palpite.' : 'Anote os nomes de que você gosta, conte o porquê e converse com o casal. Quem escolhe são eles.'}
+                </p>
+                <AddIdea onAdd={actions.onAdd} />
+                {couple && actions.onChoose && (
+                  <div className="mt-3">
+                    {registering ? (
+                      <RegisterName onChoose={choose} onCancel={() => setRegistering(false)} />
+                    ) : (
+                      <button type="button" onClick={() => setRegistering(true)} className="text-[13.5px] font-bold text-rosa-strong">
+                        Já decidiram? Registrar o nome escolhido ›
+                      </button>
+                    )}
+                  </div>
+                )}
+              </section>
+            ) : (
+              <section className="rounded-[28px] bg-gradient-to-b from-rosa-soft via-lilas-soft to-surface px-5 pt-6 pb-5 text-center">
+                <BrandMark animated className="w-16 h-16 mx-auto" />
+                <p className="mt-2 text-[12px] font-extrabold uppercase tracking-[0.2em] text-rosa">O nome escolhido</p>
+                <p className="font-display text-[2.6rem] leading-none text-ink mt-1">{chosen}</p>
+                {chosenAt && <p className="text-[13.5px] text-ink-soft mt-2">Escolhido em {parseTimestamp(chosenAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>}
+                <div className="mt-3 flex flex-wrap justify-center gap-2">
+                  <button type="button" onClick={() => onReveal(chosen!)} className="inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-[13.5px] font-bold text-rosa-strong shadow-soft">
+                    <Sparkles className="w-4 h-4" /> Rever a revelação
+                  </button>
+                  {couple && (
+                    <button type="button" onClick={() => setChanging(true)} className="rounded-full px-4 py-2 text-[13px] font-bold text-ink-soft">
+                      Mudaram de ideia?
+                    </button>
+                  )}
+                </div>
+              </section>
+            )}
 
-        {ranked.length > 0 && (
-          <section className="space-y-2.5">
-            <h3 className="px-1 text-[12px] font-extrabold uppercase tracking-wide text-ink-mute">{deciding ? 'As ideias' : 'Os nomes que fizeram parte da escolha'}</h3>
-            <ul className="space-y-2.5" aria-label="Ideias de nome">
-              {ranked.map((idea, i) => (
-                <li key={idea.id}>
-                  <IdeaCard idea={idea} top={i === 0 && idea.likes.length > 1 && deciding} chosen={chosen?.toLowerCase() === idea.name.toLowerCase()} couple={couple} deciding={deciding} actions={actions} onChoose={choose} />
-                </li>
-              ))}
-            </ul>
-          </section>
+            {ranked.length > 0 && (
+              <section className="space-y-2.5">
+                <h3 className="px-1 text-[12px] font-extrabold uppercase tracking-wide text-ink-mute">{deciding ? 'As fichas' : 'Os nomes que fizeram parte da escolha'}</h3>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Fichas de nome">
+                  {ranked.map((idea, i) => {
+                    const by = person(idea.author_id);
+                    const isChosen = chosen?.toLowerCase() === idea.name.toLowerCase();
+                    const talks = idea.comments?.length ?? 0;
+                    return (
+                      <li key={idea.id}>
+                        <button type="button" onClick={() => setOpenId(idea.id)} aria-label={`Ficha de ${idea.name}: abrir`} className={`relative w-full text-left rounded-3xl px-4 pt-4 pb-3 transition active:scale-[0.99] ${isChosen ? 'bg-rosa-soft ring-2 ring-rosa/40' : 'bg-surface shadow-soft'}`}>
+                          <span className={`absolute top-0 left-5 h-1.5 w-12 rounded-b-full ${TABS[i % TABS.length]}`} aria-hidden />
+                          <span className="flex items-baseline gap-2">
+                            <span className="font-display text-[1.45rem] leading-tight text-ink truncate">{idea.name}</span>
+                            {i === 0 && idea.likes.length > 1 && deciding && <span className="shrink-0 text-[10.5px] font-extrabold uppercase text-rosa">favorito</span>}
+                            {isChosen && <span className="shrink-0 text-[10.5px] font-extrabold uppercase text-rosa">o escolhido</span>}
+                          </span>
+                          {idea.note && <span className="block text-[13.5px] italic text-ink-soft line-clamp-1">“{idea.note}”</span>}
+                          <span className="mt-1.5 flex items-center gap-3 text-[12px] text-ink-mute">
+                            <span className="truncate">
+                              {idea.mine ? 'você' : by ? firstName(by.name) : 'família'} · {stampText(idea.created_at)}
+                            </span>
+                            <span className="ml-auto inline-flex items-center gap-1 font-bold text-rosa-strong">
+                              <Heart className="w-3.5 h-3.5 fill-current" /> {idea.likes.length}
+                            </span>
+                            <span className="inline-flex items-center gap-1 font-bold">
+                              <MessageCircle className="w-3.5 h-3.5" /> {talks}
+                            </span>
+                            <ChevronRight className="w-4 h-4 shrink-0" />
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -189,148 +229,196 @@ function RegisterName({ onChoose, onCancel }: { onChoose: (name: string) => Prom
   );
 }
 
-/** Uma ideia: o nome, o porquê, quem curtiu, a conversa e (para o casal) escolher. */
-function IdeaCard({ idea, top, chosen, couple, deciding, actions, onChoose }: { idea: NameIdea; top: boolean; chosen: boolean; couple: boolean; deciding: boolean; actions: NameActions; onChoose: (name: string) => Promise<boolean> }) {
+/** Uma ficha aberta: tudo o que aconteceu com esse nome, com data e hora. */
+function IdeaFicha({ idea, couple, deciding, chosen, actions, onChoose, onDeleted }: { idea: NameIdea; couple: boolean; deciding: boolean; chosen: boolean; actions: NameActions; onChoose: (name: string) => Promise<boolean>; onDeleted: () => void }) {
   const person = usePerson();
   const liked = idea.likes.some(l => l.mine);
   const by = person(idea.author_id);
   const comments = idea.comments ?? [];
-  const [talking, setTalking] = useState(false);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [editing, setEditing] = useState(false);
   const [note, setNote] = useState(idea.note ?? '');
   const [confirm, setConfirm] = useState(false);
   const [choosing, setChoosing] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [dropComment, setDropComment] = useState<string | null>(null);
   const canEdit = couple || idea.mine;
+  const nameOf = (id: string, mine: boolean) => (mine ? 'Você' : person(id) ? firstName(person(id)!.name) : 'Família');
 
   return (
-    <article aria-label={`Nome: ${idea.name}`} className={`rounded-[22px] px-4 py-3 space-y-2 ${chosen ? 'bg-rosa-soft ring-2 ring-rosa/40' : 'bg-surface shadow-soft'}`}>
-      <div className="flex items-center gap-3">
-        <span className="flex-1 min-w-0">
-          <span className="flex items-baseline gap-2">
-            <span className="font-display text-[1.45rem] leading-tight text-ink truncate">{idea.name}</span>
-            {top && <span className="shrink-0 text-[10.5px] font-extrabold uppercase text-rosa">favorito</span>}
-            {chosen && <span className="shrink-0 text-[10.5px] font-extrabold uppercase text-rosa">o escolhido</span>}
-          </span>
-          <span className="flex items-center gap-1.5 text-[12px] text-ink-mute">
-            anotado por {idea.mine ? 'você' : by ? firstName(by.name) : 'alguém da família'}
-            <span className="flex -space-x-1.5">
-              {idea.likes.slice(0, 5).map(l => (
-                <Avatar key={l.user_id} member={person(l.user_id)} role={l.author_role} className="w-5 h-5 text-[8px] ring-2 ring-surface" />
-              ))}
-            </span>
-          </span>
-        </span>
-        <button type="button" onClick={() => actions.onLike(idea.id, !liked)} aria-pressed={liked} aria-label={`${liked ? 'Descurtir' : 'Curtir'} ${idea.name}`} className={`shrink-0 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition active:scale-95 ${liked ? 'bg-rosa text-white' : 'bg-surface-2 text-ink-soft'}`}>
-          <Heart className={`w-4 h-4 ${liked ? 'fill-white' : ''}`} /> {idea.likes.length || ''}
-        </button>
-        {canEdit && deciding && (
-          <button type="button" onClick={() => actions.onDelete(idea.id)} aria-label={`Tirar ${idea.name}`} className="shrink-0 w-8 h-8 rounded-full text-ink-mute hover:bg-surface-2 flex items-center justify-center">
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </div>
+    <article aria-label={`Ficha de ${idea.name}`} className="space-y-4">
+      <section className={`rounded-[28px] px-5 py-5 ${chosen ? 'bg-rosa-soft ring-2 ring-rosa/40' : 'bg-surface shadow-soft'}`}>
+        <p className="font-display text-[2.2rem] leading-none text-ink">{idea.name}</p>
+        <p className="mt-1.5 text-[12.5px] text-ink-mute">
+          Anotado por {idea.mine ? 'você' : by ? firstName(by.name) : 'alguém da família'} · {stampText(idea.created_at)}
+        </p>
 
-      {/* O porquê do nome. */}
-      {editing ? (
+        {/* O porquê do nome. */}
+        <div className="mt-3">
+          {editing ? (
+            <form
+              className="flex gap-2"
+              onSubmit={async e => {
+                e.preventDefault();
+                if (await actions.onNote(idea.id, note.trim() || null)) setEditing(false);
+              }}
+            >
+              <input autoFocus aria-label={`Por que ${idea.name}?`} value={note} onChange={e => setNote(e.target.value)} maxLength={300} placeholder="Significado, homenagem, como surgiu…" className="flex-1 min-w-0 rounded-full bg-surface-2 px-3.5 py-2 text-[14px] text-ink outline-none focus:ring-2 focus:ring-rosa/40" />
+              <button type="submit" className="shrink-0 rounded-full bg-rosa text-white px-3.5 py-2 text-[13px] font-bold">
+                Guardar
+              </button>
+            </form>
+          ) : idea.note ? (
+            <p className="font-display text-[1.1rem] italic text-ink leading-snug">
+              “{idea.note}”
+              {canEdit && (
+                <button type="button" onClick={() => setEditing(true)} aria-label="Editar o porquê" className="ml-1.5 inline-flex align-middle text-ink-mute">
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </p>
+          ) : (
+            canEdit && (
+              <button type="button" onClick={() => setEditing(true)} className="text-[13px] font-bold text-ink-mute">
+                + Por que esse nome?
+              </button>
+            )
+          )}
+        </div>
+
+        {/* Quem curtiu. */}
+        <div className="mt-4 flex items-center gap-3">
+          <button type="button" onClick={() => actions.onLike(idea.id, !liked)} aria-pressed={liked} aria-label={`${liked ? 'Descurtir' : 'Curtir'} ${idea.name}`} className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[14px] font-bold transition active:scale-95 ${liked ? 'bg-rosa text-white' : 'bg-surface-2 text-ink-soft'}`}>
+            <Heart className={`w-4 h-4 ${liked ? 'fill-white' : ''}`} /> {liked ? 'Curtido' : 'Curtir'}
+          </button>
+          {idea.likes.length > 0 && (
+            <span className="flex items-center gap-2 min-w-0">
+              <span className="flex -space-x-1.5">
+                {idea.likes.slice(0, 5).map(l => (
+                  <Avatar key={l.user_id} member={person(l.user_id)} role={l.author_role} className="w-6 h-6 text-[9px] ring-2 ring-surface" />
+                ))}
+              </span>
+              <span className="text-[12.5px] text-ink-soft truncate">{idea.likes.map(l => nameOf(l.user_id, l.mine)).join(', ')}</span>
+            </span>
+          )}
+        </div>
+
+        {couple && actions.onChoose && deciding && (
+          <div className="mt-4">
+            {confirm ? (
+              <div className="flex items-center gap-2 rounded-2xl bg-rosa-soft px-3 py-2.5">
+                <span className="flex-1 text-[13.5px] text-ink">É esse? {idea.name} vai para o livro e para o app todo.</span>
+                <button
+                  type="button"
+                  disabled={choosing}
+                  onClick={async () => {
+                    setChoosing(true);
+                    await onChoose(idea.name);
+                    setChoosing(false);
+                  }}
+                  className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rosa text-white px-3.5 py-1.5 text-[13px] font-extrabold"
+                >
+                  {choosing && <Loader2 className="w-4 h-4 animate-spin" />} É esse!
+                </button>
+                <button type="button" onClick={() => setConfirm(false)} className="shrink-0 text-[13px] font-bold text-ink-soft">
+                  Ainda não
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setConfirm(true)} className="w-full rounded-full border-2 border-rosa/40 py-2.5 text-[14px] font-extrabold text-rosa-strong">
+                Escolher {idea.name}
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* A conversa sobre o nome, com data e hora. */}
+      <section className="rounded-[28px] bg-surface shadow-soft px-5 py-4 space-y-3" aria-label="Conversa">
+        <h3 className="flex items-center gap-1.5 text-[12px] font-extrabold uppercase tracking-wide text-ink-mute">
+          <MessageCircle className="w-4 h-4" /> Conversa
+        </h3>
+        {comments.length === 0 && <p className="text-[13.5px] text-ink-soft">Ninguém comentou ainda. O que vocês acham de {idea.name}?</p>}
+        {comments.map(c => (
+          <div key={c.id} className="flex items-start gap-2.5">
+            <Avatar member={person(c.user_id)} role={c.author_role} className="w-7 h-7 text-[10px]" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] text-ink-mute">
+                <b className="font-bold text-ink-soft">{nameOf(c.user_id, c.mine)}</b> · {stampText(c.created_at)}
+              </p>
+              <p className="text-[14.5px] text-ink leading-snug">{c.body}</p>
+              {c.mine &&
+                (dropComment === c.id ? (
+                  <span className="mt-1 inline-flex items-center gap-2 text-[12.5px]">
+                    <span className="text-ink-soft">Apagar este comentário?</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await actions.onDeleteComment(c.id);
+                        setDropComment(null);
+                      }}
+                      className="font-bold text-alert"
+                    >
+                      Apagar
+                    </button>
+                    <button type="button" onClick={() => setDropComment(null)} className="font-bold text-ink-soft">
+                      Manter
+                    </button>
+                  </span>
+                ) : (
+                  <button type="button" onClick={() => setDropComment(c.id)} className="mt-0.5 text-[12px] font-semibold text-ink-mute">
+                    Apagar
+                  </button>
+                ))}
+            </div>
+          </div>
+        ))}
         <form
-          className="flex gap-2"
+          className="flex gap-2 pt-1"
           onSubmit={async e => {
             e.preventDefault();
-            if (await actions.onNote(idea.id, note.trim() || null)) setEditing(false);
+            if (!draft.trim()) return;
+            setSending(true);
+            const ok = await actions.onComment(idea.id, draft.trim());
+            setSending(false);
+            if (ok) setDraft('');
           }}
         >
-          <input autoFocus aria-label={`Por que ${idea.name}?`} value={note} onChange={e => setNote(e.target.value)} maxLength={300} placeholder="Significado, homenagem, como surgiu…" className="flex-1 min-w-0 rounded-full bg-surface-2 px-3.5 py-2 text-[14px] text-ink outline-none focus:ring-2 focus:ring-rosa/40" />
-          <button type="submit" className="shrink-0 rounded-full bg-rosa text-white px-3.5 py-2 text-[13px] font-bold">
-            Guardar
+          <input aria-label={`Comentar sobre ${idea.name}`} placeholder={`O que você acha de ${idea.name}?`} value={draft} onChange={e => setDraft(e.target.value)} maxLength={500} className="flex-1 min-w-0 rounded-full bg-surface-2 px-3.5 py-2.5 text-[14px] text-ink outline-none focus:ring-2 focus:ring-rosa/40" />
+          <button type="submit" disabled={sending || !draft.trim()} aria-label="Enviar" className="shrink-0 w-10 h-10 rounded-full bg-rosa text-white flex items-center justify-center disabled:opacity-50">
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
         </form>
-      ) : idea.note ? (
-        <p className="text-[14px] italic text-ink-soft leading-snug">
-          “{idea.note}”
-          {canEdit && (
-            <button type="button" onClick={() => setEditing(true)} aria-label="Editar o porquê" className="ml-1.5 inline-flex align-middle text-ink-mute">
-              <Pencil className="w-3.5 h-3.5" />
+      </section>
+
+      {/* Tirar a ficha: longe dos outros botões e sempre com confirmação. */}
+      {canEdit && deciding && !chosen && (
+        <div className="pt-2 text-center">
+          {removing ? (
+            <div className="inline-flex flex-col items-center gap-2 rounded-2xl bg-alert-soft px-4 py-3">
+              <span className="text-[13.5px] text-ink">Tirar {idea.name} do fichário? O porquê e a conversa saem junto.</span>
+              <span className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await actions.onDelete(idea.id);
+                    onDeleted();
+                  }}
+                  className="rounded-full bg-alert text-white px-4 py-1.5 text-[13px] font-extrabold"
+                >
+                  Tirar
+                </button>
+                <button type="button" onClick={() => setRemoving(false)} className="rounded-full px-4 py-1.5 text-[13px] font-bold text-ink-soft">
+                  Manter
+                </button>
+              </span>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setRemoving(true)} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-mute">
+              <Trash2 className="w-3.5 h-3.5" /> Tirar esta ficha do fichário
             </button>
           )}
-        </p>
-      ) : (
-        canEdit &&
-        deciding && (
-          <button type="button" onClick={() => setEditing(true)} className="text-[12.5px] font-bold text-ink-mute">
-            + Por que esse nome?
-          </button>
-        )
-      )}
-
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={() => setTalking(v => !v)} aria-expanded={talking} className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-ink-soft">
-          <MessageCircle className="w-4 h-4" /> {comments.length ? `Conversa (${comments.length})` : 'Comentar'}
-        </button>
-        {couple && actions.onChoose && deciding && !confirm && (
-          <button type="button" onClick={() => setConfirm(true)} className="ml-auto text-[12.5px] font-bold text-rosa-strong">
-            Escolher este nome
-          </button>
-        )}
-      </div>
-
-      {confirm && (
-        <div className="flex items-center gap-2 rounded-xl bg-rosa-soft px-3 py-2">
-          <span className="flex-1 text-[13.5px] text-ink">É esse? {idea.name} vai para o livro e para o app todo.</span>
-          <button
-            type="button"
-            disabled={choosing}
-            onClick={async () => {
-              setChoosing(true);
-              const ok = await onChoose(idea.name);
-              setChoosing(false);
-              if (ok) setConfirm(false);
-            }}
-            className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rosa text-white px-3.5 py-1.5 text-[13px] font-extrabold"
-          >
-            {choosing && <Loader2 className="w-4 h-4 animate-spin" />} É esse!
-          </button>
-          <button type="button" onClick={() => setConfirm(false)} className="shrink-0 text-[13px] font-bold text-ink-soft">
-            Ainda não
-          </button>
-        </div>
-      )}
-
-      {talking && (
-        <div className="space-y-2 border-t border-line pt-2">
-          {comments.map(c => {
-            const who = person(c.user_id);
-            return (
-              <div key={c.id} className="flex items-start gap-2">
-                <Avatar member={who} role={c.author_role} className="w-6 h-6 text-[9px]" />
-                <p className="flex-1 min-w-0 text-[14px] text-ink leading-snug">
-                  <b className="font-bold">{c.mine ? 'Você' : who ? firstName(who.name) : 'Família'}</b> {c.body}
-                </p>
-                {c.mine && (
-                  <button type="button" onClick={() => actions.onDeleteComment(c.id)} aria-label="Apagar comentário" className="shrink-0 text-ink-mute">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-          <form
-            className="flex gap-2"
-            onSubmit={async e => {
-              e.preventDefault();
-              if (!draft.trim()) return;
-              setSending(true);
-              const ok = await actions.onComment(idea.id, draft.trim());
-              setSending(false);
-              if (ok) setDraft('');
-            }}
-          >
-            <input aria-label={`Comentar sobre ${idea.name}`} placeholder={`O que você acha de ${idea.name}?`} value={draft} onChange={e => setDraft(e.target.value)} maxLength={500} className="flex-1 min-w-0 rounded-full bg-surface-2 px-3.5 py-2 text-[14px] text-ink outline-none focus:ring-2 focus:ring-rosa/40" />
-            <button type="submit" disabled={sending || !draft.trim()} aria-label="Enviar" className="shrink-0 w-9 h-9 rounded-full bg-rosa text-white flex items-center justify-center disabled:opacity-50">
-              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </button>
-          </form>
         </div>
       )}
     </article>
@@ -342,9 +430,10 @@ function IdeaCard({ idea, top, chosen, couple, deciding, actions, onChoose }: { 
  * nome aparece no ritmo do coração. Depois, o convite para guardar o momento.
  */
 export function NameReveal({ name, tone, week, onShare, onDone }: { name: string; tone: BabyTone; week: number; onShare?: (name: string) => Promise<boolean>; onDone: () => void }) {
+  useScrollLock();
   const [sharing, setSharing] = useState(false);
   return (
-    <div role="dialog" aria-label="Nome escolhido" className="tt-revelacao fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-rosa-soft via-lilas-soft to-surface px-6 text-center">
+    <div role="dialog" aria-label="Nome escolhido" className="tt-revelacao fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden overscroll-contain bg-gradient-to-b from-rosa-soft via-lilas-soft to-surface px-6 text-center">
       {Array.from({ length: 3 }, (_, i) => (
         <span key={i} className="tt-revelacao-eco absolute left-1/2 top-[38%] w-56 h-56 -ml-28 -mt-28 rounded-full border-2 border-rosa/40" style={{ animationDelay: `${i * 0.5}s` }} aria-hidden />
       ))}
@@ -385,7 +474,7 @@ export function NameTeaser({ ideas, onOpen }: { ideas: NameIdea[]; onOpen: () =>
   return (
     <button type="button" onClick={onOpen} aria-label="Escolhendo o nome do bebê: abrir" className="w-full text-left rounded-[26px] bg-gradient-to-br from-rosa-soft via-lilas-soft to-surface shadow-soft px-5 py-4 transition active:scale-[0.99]">
       <span className="flex items-center gap-2 text-[12px] font-extrabold uppercase tracking-wide text-rosa">
-        <Sparkles className="w-3.5 h-3.5" /> O caderno do nome
+        <Sparkles className="w-3.5 h-3.5" /> O fichário do nome
       </span>
       <span className="block font-display text-[1.35rem] leading-tight text-ink mt-0.5">Qual vai ser o nome?</span>
       {top.length > 0 ? (
@@ -403,9 +492,9 @@ export function NameTeaser({ ideas, onOpen }: { ideas: NameIdea[]; onOpen: () =>
           {ideas.length > 3 && <span className="self-center text-[12px] font-bold text-ink-mute">e mais ideias</span>}
         </span>
       ) : (
-        <span className="block text-[13.5px] text-ink-soft mt-1">Anotem as ideias de nome, o porquê de cada uma, curtam as favoritas e peçam palpite à família.</span>
+        <span className="block text-[13.5px] text-ink-soft mt-1">Cada nome vira uma ficha: o porquê, quem curtiu e a conversa. A família pode dar palpite.</span>
       )}
-      <span className="mt-2 block text-[13px] font-bold text-rosa-strong">{top.length ? 'Abrir o caderno ›' : 'Anotar o primeiro nome ›'}</span>
+      <span className="mt-2 block text-[13px] font-bold text-rosa-strong">{top.length ? 'Abrir o fichário ›' : 'Anotar o primeiro nome ›'}</span>
     </button>
   );
 }
