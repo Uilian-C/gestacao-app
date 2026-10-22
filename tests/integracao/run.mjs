@@ -90,6 +90,7 @@ const tests = [
   ['api-perfil.mjs', false],
   ['api-marcar.mjs', false],
   ['api-familiares.mjs', false],
+  ['api-nomes.mjs', false],
   ['e2e-fluxo.mjs', true],
   ['e2e-momentos.mjs', false],
   ['e2e-registro-rapido.mjs', false],

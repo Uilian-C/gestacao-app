@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JournalEntry } from '../hooks/useGestationData';
-import { bellyWeeks, byMonth, weekOn } from './folders';
+import { bellyWeeks, byMonth, groupEntries, weekOn } from './folders';
 
 const entry = (over: Partial<JournalEntry>): JournalEntry => ({ id: 'e', entry_date: '2026-10-15', body: '', visibility: 'shared', remind_on: null, author_role: 'mae', mine: true, created_at: '', folder: 'momento', photos: [], ...over });
 
@@ -29,5 +29,22 @@ describe('fichário', () => {
     );
     expect(weeks.map(w => w.week)).toEqual([22, 15]);
     expect(weeks[0].items.map(e => e.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('groupEntries', () => {
+  const e = (id: string, entry_date: string): JournalEntry => ({ id, entry_date, body: '', visibility: 'shared', remind_on: null, author_role: 'mae', mine: true, created_at: '', folder: 'dia', photos: [] });
+  const entries = [e('a', '2026-10-20'), e('b', '2026-10-12'), e('c', '2026-07-01')];
+  it('agrupa por semana e por trimestre, do mais novo ao mais antigo', () => {
+    expect(groupEntries(entries, 'semana', '2026-05-21').map(g => [g.label, g.items.map(i => i.id)])).toEqual([
+      ['Semana 21', ['a']],
+      ['Semana 20', ['b']],
+      ['Semana 5', ['c']],
+    ]);
+    expect(groupEntries(entries, 'trimestre', '2026-05-21').map(g => [g.label, g.items.length])).toEqual([
+      ['2º trimestre', 2],
+      ['1º trimestre', 1],
+    ]);
+    expect(groupEntries(entries, 'mes', '2026-05-21').map(g => g.items.length)).toEqual([2, 1]);
   });
 });

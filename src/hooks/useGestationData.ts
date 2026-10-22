@@ -60,6 +60,8 @@ export interface GestationData {
   babyTone?: BabyTone | null;
   /** Nome do bebê (migração 025). */
   babyName?: string | null;
+  /** Ideias de nome do bebê (migração 026); null antes da migração. */
+  nameIdeas?: NameIdea[] | null;
 }
 
 export interface ListItem {
@@ -73,6 +75,17 @@ export interface ListItem {
 
 export type ReactionKind = 'abraco' | 'forca' | 'aqui' | 'festa';
 export type SocialTarget = 'entry' | 'exam' | 'symptom' | 'task';
+
+/** Uma ideia de nome do bebê (migração 026): quem sugeriu e quem curtiu. */
+export interface NameIdea {
+  id: string;
+  name: string;
+  author_role: 'mae' | 'pai' | 'familia';
+  author_id: string;
+  mine: boolean;
+  created_at: string;
+  likes: Array<{ user_id: string; author_role: 'mae' | 'pai' | 'familia'; mine: boolean }>;
+}
 
 export interface Reaction {
   target_type: SocialTarget;

@@ -200,9 +200,9 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
             {e.photos.length > 0 && (
               <div className={`grid gap-2 mb-4 ${e.photos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                 {e.photos.map((p, i) => (
-                  <button key={p.id} type="button" onClick={() => setPhoto(i)} aria-label={`Ver foto ${i + 1} em tela cheia`} className="block overflow-hidden rounded-2xl bg-surface-2">
-                    {/* Uma foto: inteira e nítida (a foto mesmo, não a miniatura). Várias: quadradinhos. */}
-                    <img src={e.photos.length === 1 ? photoUrl(p.id) : photoUrl(p.id, p.thumb)} alt="" decoding="async" className={`w-full ${e.photos.length === 1 ? 'h-auto max-h-[55vh] object-contain' : 'aspect-square object-cover'}`} />
+                  <button key={p.id} type="button" onClick={() => setPhoto(i)} aria-label={`Ver foto ${i + 1} em tela cheia`} className={`block overflow-hidden rounded-2xl ${e.photos.length === 1 ? 'mx-auto w-fit max-w-full' : 'bg-surface-2'}`}>
+                    {/* Uma foto: inteira e nítida, no tamanho dela (sem faixas cinzas dos lados). Várias: quadradinhos. */}
+                    <img src={e.photos.length === 1 ? photoUrl(p.id) : photoUrl(p.id, p.thumb)} alt="" decoding="async" className={e.photos.length === 1 ? 'block w-auto max-w-full h-auto max-h-[55vh]' : 'w-full aspect-square object-cover'} />
                   </button>
                 ))}
               </div>

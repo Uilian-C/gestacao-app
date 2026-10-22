@@ -4,7 +4,7 @@ import { weekInfo } from '../../content/weeks';
 import { WEEK_CARDS_SOURCE, weekCards } from '../../content/weekCards';
 import { ALERT_SIGNS } from '../../content/symptomCatalog';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, parseTimestamp, toISODate, type GestationalAge } from '../../lib/dates';
-import type { Checkin, ExamItem, Hug, JournalEntry, Mood, ThreadComment } from '../../hooks/useGestationData';
+import type { Checkin, ExamItem, Hug, JournalEntry, Mood, NameIdea, ThreadComment } from '../../hooks/useGestationData';
 import type { DetailTarget } from '../../lib/details';
 import { phaseOf } from '../../lib/journey';
 import type { PlanItem } from '../../content/prenatalPlan';
@@ -39,6 +39,7 @@ import { PeopleContext } from '../../lib/people';
 import { BabyNameContext } from '../../lib/baby';
 import type { Chapter } from '../../lib/chapters';
 import { BookTeaser } from '../Book';
+import { NameTeaser } from '../BabyNames';
 
 /** Para onde o Início leva (abas e partes delas). */
 export type HomeTarget = 'diario' | 'mural' | 'livro' | 'humor' | 'barriga' | 'medidas' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
@@ -76,8 +77,10 @@ interface Props {
   onOpen: (target: HomeTarget, planItem?: string) => void;
   /** O livro de vocês (o capítulo sendo escrito aparece no coração do Início). */
   book?: Chapter[];
-  /** Guardar o nome do bebê. */
-  onBabyName?: (name: string | null) => Promise<boolean>;
+  /** As ideias de nome (migração 026); null antes da migração. */
+  nameIdeas?: NameIdea[] | null;
+  /** Abre a escolha do nome. */
+  onOpenNames?: () => void;
   /** Abre os detalhes de um agendamento, tarefa ou registro do diário. */
   onOpenDetail: (target: DetailTarget) => void;
   /** Guardar o resultado de um exame que já aconteceu. */
@@ -234,7 +237,7 @@ export default function HomeTab(props: Props) {
               goal={upcoming ? { week: upcoming.milestone.week, title: upcoming.milestone.title, text: upcoming.milestone.text, when: inDays(upcoming.days) } : undefined}
               tone={props.babyTone}
               onToneChange={props.onBabyTone}
-              onNameChange={props.onBabyName}
+              onNames={props.onOpenNames && (() => (setGrowth(false), props.onOpenNames!()))}
               parents={coupleNames(members.map(m => m.name))}
               belly={bellyShots(props.journal, props.dumDate)}
               onOpenEntry={id => {
@@ -258,6 +261,9 @@ export default function HomeTab(props: Props) {
         )}
         {age.isPostTerm && <p className="mt-3 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
       </section>
+
+      {/* Enquanto não escolheram o nome, ele ganha destaque logo abaixo do bebê; depois, vive no app todo. */}
+      {!babyName && props.nameIdeas && props.onOpenNames && <NameTeaser ideas={props.nameIdeas} onOpen={props.onOpenNames} />}
 
       {todayItems.length > 0 && (
         <section aria-labelledby="hoje-titulo" className="space-y-2.5">

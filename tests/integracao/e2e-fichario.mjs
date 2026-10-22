@@ -88,6 +88,14 @@ await dlg.getByRole('button', { name: 'Guardar carta' }).click();
 await dlg.waitFor({ state: 'hidden', timeout: 10000 });
 check(await p.getByRole('button', { name: 'Carta: ver detalhes' }).isVisible(), 'carta aparece na pasta Cartas');
 check((await folders.getByRole('button', { name: /^Cartas/ }).textContent()).includes('1'), 'aba da pasta mostra a contagem');
+// Dentro da pasta, ver por mês, semana ou trimestre (o grupo mais novo vem aberto).
+await p.getByRole('group', { name: 'Agrupar por' }).getByRole('button', { name: 'Semana' }).click();
+check(await p.getByRole('button', { name: /^Semana 22/ }).isVisible() && (await p.getByRole('button', { name: 'Carta: ver detalhes' }).isVisible()), 'na pasta, dá para ver por semana');
+await p.getByRole('button', { name: /^Semana 22/ }).click();
+check((await p.getByRole('button', { name: 'Carta: ver detalhes' }).count()) === 0, 'e recolher o grupo');
+await p.getByRole('group', { name: 'Agrupar por' }).getByRole('button', { name: 'Trimestre' }).click();
+check(await p.getByRole('button', { name: /^2º trimestre/ }).isVisible(), 'ou por trimestre');
+await p.screenshot({ path: `${OUT}fichario-grupos.png` });
 
 // ---- Mural: tudo junto, a foto grande ----
 await folders.getByRole('button', { name: /^Mural/ }).click();
@@ -99,6 +107,8 @@ await p.screenshot({ path: `${OUT}mural.png`, fullPage: true });
 // ---- Capa e Início ----
 await folders.getByRole('button', { name: /^Fichário/ }).click();
 check((await p.getByRole('button', { name: 'Abrir a pasta Barriguinha' }).textContent()).includes('1 registro'), 'capa mostra a pasta Barriguinha com 1 registro');
+await p.getByRole('button', { name: /Últimos registros/ }).click();
+check((await p.getByRole('button', { name: /Últimos registros/ }).getAttribute('aria-expanded')) === 'false' && (await p.getByRole('button', { name: /^Carta: ver detalhes/ }).count()) === 0, 'os últimos registros podem ser recolhidos');
 await p.getByRole('button', { name: /Sintomas, peso e pressão/ }).click();
 check((await p.getByRole('button', { name: 'Saúde', exact: true }).getAttribute('aria-pressed')) === 'true' && (await p.getByText('Período').isVisible()), 'atalho leva para Cuidados → Saúde');
 await b.close();

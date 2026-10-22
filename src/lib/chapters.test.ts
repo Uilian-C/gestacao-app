@@ -53,7 +53,10 @@ describe('buildBook', () => {
     const busy = [1, 2, 3, 4].map(i => entry({ id: `w${i}`, entry_date: '2026-10-09', folder: 'ideia', body: 'Ideia para o quarto' }));
     const calm = buildBook({ ...base, journal: [...busy, entry({ id: 'x', entry_date: '2026-10-16', body: 'Dia tranquilo' })], checkins: [{ day: '2026-10-17', mood: 'cansada', author_role: 'mae', mine: true }] });
     const w21 = calm.find(c => c.week === 21)!;
-    expect(w21.story).toBe('Mais tranquila que a semana passada: às vezes é disso que precisamos. O cansaço apareceu: que a próxima traga descanso.');
+    expect(w21.story).toBe('Mais tranquila que a semana passada: às vezes é disso que precisamos.');
+    expect(w21.moods).toEqual([{ role: 'mae', mood: 'cansada' }]);
+    expect(w21.moodNote).toBe('O cansaço apareceu: o corpo está trabalhando por dois. Descansar também é cuidar.');
+    expect(calm.find(c => c.week === 20)!.moodNote).toMatch(/^Ninguém contou como estava/);
     expect(calm.find(c => c.week === 20)!.nudge).toBe('A primeira carta para o bebê ainda está esperando por vocês.');
     const more = buildBook({ ...base, journal: [entry({ id: 'y', entry_date: '2026-10-09' }), ...busy.map(e => ({ ...e, entry_date: '2026-10-16' }))] });
     expect(more.find(c => c.week === 21)!.story).toMatch(/^(Uma semana com mais emoções|A semana mais cheia|Vocês viveram mais)/);

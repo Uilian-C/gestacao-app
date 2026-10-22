@@ -1,5 +1,6 @@
 import { query } from './db.js';
 import { visibleTargetSql } from './social.js';
+import { fetchNameIdeas } from './babyNames.js';
 
 // Tudo o que o espaço tem registrado, de uma vez. Usado ao abrir o app (/api/family)
 // e depois de cada gravação (/api/data), sempre filtrado pelo espaço de quem está logado.
@@ -7,6 +8,7 @@ import { visibleTargetSql } from './social.js';
 const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
 
 export async function fetchAll(fid: string, userId: string) {
+  const nameIdeas = fetchNameIdeas(fid, userId);
   const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams, social, photos, planWeeks, checkins] = await Promise.all([
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
@@ -202,6 +204,8 @@ export async function fetchAll(fid: string, userId: string) {
     babyTone: text('baby_tone'),
     /** Nome do bebê (migração 025); null enquanto não escolheram. */
     babyName: text('baby_name'),
+    /** Ideias de nome do bebê (migração 026); null antes da migração. */
+    nameIdeas: await nameIdeas,
     /** A migração 020 já rodou: anotação do combinado com a equipe. */
     planNotesAvailable: f.plan_notes_ready === true,
   };
@@ -214,6 +218,7 @@ export async function fetchAll(fid: string, userId: string) {
  * saúde, exames, agenda, tarefas, humor ou do resto do diário.
  */
 export async function fetchFamilyView(fid: string, userId: string) {
+  const nameIdeas = fetchNameIdeas(fid, userId);
   const [family, journal, photos, social] = await Promise.all([
     query(`SELECT dum_date::text AS dum_date, to_jsonb(f) ->> 'baby_tone' AS baby_tone, to_jsonb(f) ->> 'baby_name' AS baby_name FROM families f WHERE id = $1`, [fid]),
     query(
@@ -246,6 +251,7 @@ export async function fetchFamilyView(fid: string, userId: string) {
     profile: { dumDate: typeof dum === 'string' && dum ? dum : null },
     babyTone: (family[0]?.baby_tone as string | null | undefined) ?? null,
     babyName: (family[0]?.baby_name as string | null | undefined) ?? null,
+    nameIdeas: await nameIdeas,
     journal: journal.map(e => ({ ...e, photos: photos.filter(p => p.entry_id === e.id).map(p => ({ id: p.id, thumb: p.thumb })) })),
     reactions: social?.[0].reactions ?? [],
     threads: social?.[0].threads ?? [],
