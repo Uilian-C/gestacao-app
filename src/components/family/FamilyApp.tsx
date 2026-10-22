@@ -8,7 +8,9 @@ import { FOLDER, bellyShots, weekOn } from '../../lib/folders';
 import { PeopleContext, RelativesContext } from '../../lib/people';
 import { coupleNames } from '../../lib/relatives';
 import Avatar from '../Avatar';
+import BabyArt from '../BabyArt';
 import BabyGrowth, { type BellyShot } from '../BabyGrowth';
+import { stageAt } from '../../content/growth';
 import type { BabyTone } from '../../content/babyTones';
 import BrandMark from '../BrandMark';
 import PushPrompt from '../PushPrompt';
@@ -192,28 +194,27 @@ function BabyWeek({ dumDate, tone, parents, belly, onOpenEntry }: { dumDate: str
   const info = weekInfo(week);
   const due = age.dpp.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
   return (
-    <section aria-label="Semana do bebê" className="rounded-[28px] bg-surface shadow-soft p-5 space-y-3">
-      <div className="flex items-start gap-3">
-        <span className="text-[2.6rem] leading-none" aria-hidden>{info.emoji}</span>
-        <div className="min-w-0">
-          <p className="text-[11px] font-extrabold uppercase tracking-wide text-rosa">{info.trimester}º trimestre</p>
-          <p className="font-display text-[1.5rem] leading-tight text-ink">
-            {age.weeks} semanas{age.days ? ` e ${age.days} ${age.days === 1 ? 'dia' : 'dias'}` : ''}
-          </p>
-          <p className="text-ink-soft">Do tamanho de {info.fruit}</p>
-        </div>
-      </div>
+    <section aria-label="Semana do bebê" className="rounded-[28px] bg-surface shadow-soft p-5 space-y-3 text-center">
+      {/* O mesmo bebê que o casal vê, no tom que eles escolheram. */}
+      <button type="button" onClick={() => setGrowth(true)} aria-label="Abrir a jornada do bebê" className="block mx-auto rounded-full">
+        <BabyArt week={week} beat tone={tone} className="w-48 h-48" />
+      </button>
+      <p className="text-[12px] font-extrabold uppercase tracking-wide text-rosa">
+        {age.weeks} semanas{age.days ? ` e ${age.days} ${age.days === 1 ? 'dia' : 'dias'}` : ''} · {info.trimester}º trimestre
+      </p>
+      <p className="font-display text-[1.5rem] leading-tight text-ink">{stageAt(week).title}</p>
+      <p className="text-ink-soft">Do tamanho de {info.fruit}</p>
       <p className="text-[15px] text-ink">{info.milestone}</p>
-      <div className="flex flex-wrap gap-2 text-[13px]">
+      <div className="flex flex-wrap justify-center gap-2 text-[13px]">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-ink-soft"><Ruler className="w-3.5 h-3.5" /> {info.size}</span>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-ink-soft"><Scale className="w-3.5 h-3.5" /> {info.weight}</span>
         {age.daysToDpp > 0 && <span className="inline-flex items-center rounded-full bg-brand-soft px-3 py-1.5 font-bold text-brand-strong">Faltam {age.daysToDpp} dias · previsão {due}</span>}
       </div>
-      <button type="button" onClick={() => setGrowth(true)} className="inline-flex items-center gap-1 rounded-full bg-rosa-soft px-3.5 py-1.5 text-sm font-bold text-rosa-strong hover:brightness-[0.97]">
-        Ver como o bebê cresce <ChevronRight className="w-4 h-4" />
+      <button type="button" onClick={() => setGrowth(true)} className="w-full flex items-center justify-center gap-1 rounded-[18px] bg-surface-2/80 px-4 py-2.5 text-sm font-bold text-ink hover:bg-surface-2">
+        Jornada do bebê <ChevronRight className="w-4 h-4" />
       </button>
       {growth && (
-        <Sheet title="Como o bebê cresce" subtitle={`Da 4ª à 40ª semana · o bebê está na ${week}ª`} onClose={() => setGrowth(false)}>
+        <Sheet title="Jornada do bebê" subtitle={`Da 4ª à 40ª semana · o bebê está na ${week}ª`} onClose={() => setGrowth(false)}>
           <BabyGrowth
             currentWeek={week}
             hereText="o bebê está aqui"

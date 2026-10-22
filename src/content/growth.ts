@@ -62,3 +62,6 @@ export function stageShots<T extends { week: number }>(shots: T[]): Array<T | un
 
 /** A etapa mais próxima já alcançada (para dar a ideia de tamanho da semana de hoje). */
 export const stageAt = (week: number) => [...GROWTH].reverse().find(s => s.week <= week) ?? GROWTH[0];
+
+/** A próxima fase depois desta semana (nenhuma depois da 40ª). */
+export const nextStage = (week: number) => GROWTH.find(s => s.week > week) ?? null;

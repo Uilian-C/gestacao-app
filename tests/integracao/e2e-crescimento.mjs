@@ -1,4 +1,4 @@
-// "Como o bebê cresce" no Início e a confirmação de que o registro foi salvo.
+// O bebê no Início, a "Jornada do bebê" e a confirmação de que o registro foi salvo.
 import { check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
 
 const b = await launch();
@@ -18,8 +18,22 @@ await mae.evaluate(async jpg => {
 await mae.reload();
 
 // ---- Linha do crescimento ----
-await mae.getByRole('button', { name: /Ver como o bebê cresce/ }).click();
-const sheet = mae.getByRole('dialog', { name: 'Como o bebê cresce' });
+// ---- O bebê no Início ----
+const topo = mae.getByRole('region', { name: 'Semana da gestação' });
+await topo.getByRole('button', { name: /abrir a jornada do bebê/ }).waitFor();
+check(await topo.getByRole('button', { name: 'Semana 22 de 40: abrir a jornada do bebê' }).isVisible(), 'o bebê é o centro do Início');
+check((await topo.locator('.tt-bebe-eco').count()) === 1, 'e o coração dele pulsa');
+check(await topo.getByRole('heading', { name: 'Os primeiros chutinhos' }).isVisible() && (await topo.getByText(/^22 semanas/).isVisible()), 'com a semana e o nome carinhoso da fase');
+check(await topo.getByRole('button', { name: /Jornada do bebê.*Próxima fase em 2 semanas: já ouve a voz de vocês/ }).isVisible(), 'o atalho da jornada já conta quando vem a próxima fase');
+check((await topo.getByRole('group', { name: 'Escolher semana' }).count()) === 0, 'sem a fileira de números das semanas');
+await topo.getByRole('button', { name: 'Próxima semana' }).click();
+check(await topo.getByText('Semana 23').isVisible() && (await topo.getByText(/espiando outra semana/).isVisible()) && (await topo.locator('.tt-bebe-eco').count()) === 0, 'as setinhas espiam outra semana (sem pulsar, porque não é hoje)');
+await topo.getByRole('button', { name: 'Voltar para hoje' }).click();
+check(await topo.getByText(/^22 semanas/).isVisible(), 'e voltam para hoje');
+await mae.screenshot({ path: `${OUT}inicio-bebe.png` });
+
+await topo.getByRole('button', { name: /^Jornada do bebê/ }).click();
+const sheet = mae.getByRole('dialog', { name: 'Jornada do bebê' });
 await sheet.waitFor();
 const hoje = sheet.getByRole('region', { name: 'O bebê hoje' });
 check(await hoje.getByText('O bebê de Ana').isVisible(), 'em cima, o bebê de quem espera');
