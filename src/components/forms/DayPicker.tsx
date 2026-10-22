@@ -58,7 +58,7 @@ export default function DayPicker({ value, onChange, mode = 'past', dumDate, lab
         <span>{label}</span>
         {value && dumDate && <span className="text-xs font-bold text-brand-strong">semana {weekOfDay(dumDate, value)}</span>}
       </legend>
-      <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar">
+      <div className="flex flex-wrap gap-1.5">
         {shortcuts.map(s => (
           <button
             key={s.text}

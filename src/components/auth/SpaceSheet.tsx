@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useScrollLock } from '../../hooks/useScrollLock';
+import { useSheetDrag } from '../../hooks/useSheetDrag';
 import { Camera, Check, Copy, Download, HeartHandshake, ImagePlus, Link2, Loader2, LogOut, MessageCircle, Pencil, Trash2, UserMinus, X } from 'lucide-react';
 import { api, ApiError, type CoupleFamilyState, type FamilyState, type Me } from '../../api';
 import { FileProblem, prepareAvatar } from '../../lib/examFiles';
@@ -35,6 +36,7 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
   const [confirmText, setConfirmText] = useState('');
   const closeRef = useRef<HTMLButtonElement>(null);
   useScrollLock();
+  const { handle, panelStyle, full } = useSheetDrag(onClose);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -132,7 +134,15 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="space-title">
       <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px] touch-none" onClick={onClose} />
-      <div className="relative w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto overscroll-contain bg-canvas rounded-t-[28px] sm:rounded-[28px] shadow-lift p-5 sm:p-7 space-y-5 pb-[calc(env(safe-area-inset-bottom)+20px)]">
+      <div
+        style={panelStyle}
+        className={`relative w-full sm:max-w-lg overflow-y-auto overscroll-contain bg-canvas shadow-lift p-5 pt-3 sm:p-7 space-y-5 pb-[calc(env(safe-area-inset-bottom)+20px)] ${full ? 'h-[100dvh] max-h-[100dvh] rounded-none sm:rounded-[28px] sm:h-auto sm:max-h-[92dvh]' : 'max-h-[92dvh] rounded-t-[28px] sm:rounded-[28px]'}`}
+      >
+        {/* Alça e título: puxar para baixo fecha; para cima, tela cheia. */}
+        <div {...handle} className="sticky -top-3 sm:-top-7 z-20 -mx-5 sm:-mx-7 -mt-3 sm:-mt-7 px-5 sm:px-7 pt-3 sm:pt-7 pb-3 bg-canvas cursor-grab active:cursor-grabbing select-none space-y-3">
+        <div className="sm:hidden" aria-hidden>
+          <div className="w-11 h-1.5 rounded-full bg-line mx-auto" />
+        </div>
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 id="space-title" className="text-[1.35rem]">Nosso espaço</h2>
@@ -141,6 +151,7 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
           <button ref={closeRef} type="button" onClick={onClose} aria-label="Fechar" className="w-9 h-9 rounded-full bg-surface-2 text-ink-soft flex items-center justify-center hover:text-ink">
             <X className="w-4 h-4" />
           </button>
+        </div>
         </div>
 
         <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-3">

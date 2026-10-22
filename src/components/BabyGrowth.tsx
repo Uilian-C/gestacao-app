@@ -33,6 +33,8 @@ interface Props {
   tone?: BabyTone;
   /** Só o casal escolhe o tom; sem isso (família), o seletor não aparece. */
   onToneChange?: (tone: BabyTone) => Promise<boolean> | void;
+  /** Abrir já na fase desta semana (um marco do Início), aberta. */
+  focusWeek?: number;
 }
 
 const TERM = 40;
@@ -40,8 +42,9 @@ const TERM = 40;
 /** Tamanho do desenho em cada fase: cresce com o bebê, sem sumir no começo. */
 const artSize = (week: number) => Math.round(44 + Math.sqrt(stageAt(week).lengthCm / 51.2) * 52);
 
-export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry, tone = 'tumtum', onToneChange }: Props) {
-  const [open, setOpen] = useState<number | null>(null);
+export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry, tone = 'tumtum', onToneChange, focusWeek }: Props) {
+  const focusStage = focusWeek === undefined ? null : stageAt(focusWeek).week;
+  const [open, setOpen] = useState<number | null>(focusStage);
   // Enquanto o casal escolhe o tom, o bebê já aparece nele; só grava ao salvar.
   const [preview, setPreview] = useState<BabyTone | null>(null);
   const shown = preview ?? tone;
@@ -49,7 +52,9 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
   const listRef = useRef<HTMLOListElement>(null);
   const track = useTrack(listRef, open);
   useEffect(() => {
-    hereRef.current?.scrollIntoView?.({ block: 'center' });
+    const focused = focusStage === null ? null : listRef.current?.querySelector(`[data-fase="${focusStage}"]`)?.closest('li');
+    (focused ?? hereRef.current)?.scrollIntoView?.({ block: 'center' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao abrir
   }, []);
 
   const info = weekInfo(Math.min(42, Math.max(4, currentWeek)));

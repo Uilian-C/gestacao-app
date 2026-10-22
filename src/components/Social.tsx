@@ -1,6 +1,7 @@
 import { useContext, useState } from 'react';
 import { BicepsFlexed, HandHeart, Heart, MessageCircle, PartyPopper, Send, Trash2 } from 'lucide-react';
 import type { Reaction, ReactionKind, SocialTarget, ThreadComment } from '../hooks/useGestationData';
+import { stampText } from '../lib/dates';
 import { PeopleContext, RelativesContext, speakerOf } from '../lib/people';
 import Avatar from './Avatar';
 import { MentionBar, MentionText } from './Mentions';
@@ -95,6 +96,7 @@ export function Thread({ comments, busy, onSend, onDelete }: { comments: ThreadC
                 {by.role === 'familia' && <span className="font-semibold text-ink-mute"> · {by.label}</span>}
               </strong>
               <MentionText text={c.body} />
+              {c.created_at && <span className="block text-[11px] text-ink-mute mt-0.5">{stampText(c.created_at)}</span>}
             </span>
             {c.mine && (
               <button type="button" onClick={() => onDelete(c)} aria-label="Apagar comentário" className="p-1 mt-1 text-ink-mute hover:text-alert">

@@ -3,7 +3,7 @@ import { appointmentTitle, hasResult, kindInfo, kindOf, resultOf } from '../lib/
 import { AlertTriangle, Bell, CalendarHeart, Check, CheckCircle2, ChevronRight, Clock, ExternalLink, FileText, HeartHandshake, Lock, NotebookPen, Pencil, RotateCcw, Route, Scale, Trash2, Users } from 'lucide-react';
 import { isAlertSymptom } from '../content/symptomCatalog';
 import { googleCalendarUrl } from '../lib/calendar';
-import { formatBR, isOverdue, localDay, parseLocalDate, parseTimestamp, toISODate } from '../lib/dates';
+import { formatBR, isOverdue, localDay, parseLocalDate, parseTimestamp, stampText, toISODate } from '../lib/dates';
 import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure } from '../lib/health';
 import { INTENSITY } from '../lib/intensity';
 import { normalizeSymptomName, timeOfDayLabel } from '../lib/symptoms';
@@ -126,7 +126,7 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
     const s = detail.item;
     const alert = isAlertSymptom(normalizeSymptomName(s.symptom_name), s.intensity);
     return (
-      <Sheet icon={<NotebookPen />} title={editing ? 'Editar sintoma' : s.symptom_name} subtitle={editing ? null : <span className="flex flex-wrap items-center gap-2">{formatBR(s.log_date)} · semana {s.week_number} <AuthorBadge role={s.created_by} /></span>} onClose={editing ? () => setEditing(false) : onClose}>
+      <Sheet icon={<NotebookPen />} title={editing ? 'Editar sintoma' : s.symptom_name} subtitle={editing ? null : <span className="flex flex-wrap items-center gap-2">{formatBR(s.log_date)} · semana {s.week_number} <AuthorBadge role={s.created_by} />{s.created_at && <span className="w-full text-[11.5px] text-ink-mute">Registrado {stampText(s.created_at)}</span>}</span>} onClose={editing ? () => setEditing(false) : onClose}>
         {editing ? (
           <SymptomForm initial={s} author={h.author} dumDate={h.dumDate} trimester={h.trimester} history={h.symptoms} busy={h.busy} onCreate={async v => saved(await h.onUpdateSymptom(s.id, v))} />
         ) : (
@@ -190,7 +190,7 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
       <Sheet
         icon={<f.Icon />}
         title={editing ? `Editar: ${f.singular.toLowerCase()}` : e.folder === 'barriga' ? `Barriguinha · semana ${week}` : letter ? 'Carta para o bebê' : f.singular}
-        subtitle={editing ? null : <span className="flex flex-wrap items-center gap-1.5"><Avatar member={authorOf(people, e.mine, e.author_role)} role={e.author_role} className="w-5 h-5 text-[9px]" /> <strong className="font-bold text-ink-soft">{nameOfAuthor(people, e.mine, e.author_role)}</strong> · {formatBR(e.entry_date)} · semana {week}</span>}
+        subtitle={editing ? null : <span className="flex flex-wrap items-center gap-1.5"><Avatar member={authorOf(people, e.mine, e.author_role)} role={e.author_role} className="w-5 h-5 text-[9px]" /> <strong className="font-bold text-ink-soft">{nameOfAuthor(people, e.mine, e.author_role)}</strong> · {formatBR(e.entry_date)} · semana {week}{e.created_at && <span className="w-full text-[11.5px] text-ink-mute">Registrado {stampText(e.created_at)}</span>}</span>}
         onClose={editing ? () => setEditing(false) : onClose}
       >
         {editing ? (

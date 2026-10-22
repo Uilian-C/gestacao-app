@@ -29,22 +29,17 @@ function Diary({ on }: IconProps) {
   );
 }
 
+/** O calendário com o dia de hoje: muda todo dia, sem precisar abrir a aba. */
 function Agenda({ on }: IconProps) {
-  const dot = on ? CUT : 'currentColor';
+  const day = new Date().getDate();
   return (
     <svg {...base} stroke="currentColor">
       <rect x="3.5" y="5" width="17" height="16" rx="3.5" fill={on ? 'currentColor' : 'none'} />
       <path d="M8 3v4M16 3v4" />
       <path d="M3.8 10h16.4" stroke={on ? CUT : 'currentColor'} />
-      {[
-        [8.5, 14],
-        [12, 14],
-        [15.5, 14],
-        [8.5, 17.3],
-        [12, 17.3],
-      ].map(([cx, cy]) => (
-        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.05" fill={dot} stroke="none" />
-      ))}
+      <text x="12" y="18.4" textAnchor="middle" fontSize="8.2" fontWeight="800" fontFamily="var(--font-sans)" fill={on ? CUT : 'currentColor'} stroke="none">
+        {day}
+      </text>
     </svg>
   );
 }
@@ -58,15 +53,17 @@ function Care({ on }: IconProps) {
   );
 }
 
+/** O rostinho do bebê da Jornada: olhinhos fechados, bochechas, sorriso e o cachinho. */
 function Birth({ on }: IconProps) {
   const detail = on ? CUT : 'currentColor';
   return (
     <svg {...base} stroke="currentColor">
-      <circle cx="12" cy="13" r="8" fill={on ? 'currentColor' : 'none'} />
-      <path d="M12 5c-.3-1.6.9-2.6 2.3-2.2" />
-      <circle cx="9.3" cy="12.4" r="1" fill={detail} stroke="none" />
-      <circle cx="14.7" cy="12.4" r="1" fill={detail} stroke="none" />
-      <path d="M9.6 15.6a3.3 3.3 0 0 0 4.8 0" stroke={detail} strokeWidth={1.6} />
+      <circle cx="12" cy="13.2" r="7.8" fill={on ? 'currentColor' : 'none'} />
+      <path d="M11.6 5.4c-.6-2.3 2.6-3.2 3.1-1.2.3 1.3-1.3 1.6-1.5.7" />
+      <path d="M8.2 12.6q1.3 1.2 2.6 0M13.2 12.6q1.3 1.2 2.6 0" stroke={detail} strokeWidth={1.5} />
+      <circle cx="8.4" cy="15" r="1" fill={detail} stroke="none" opacity={0.45} />
+      <circle cx="15.6" cy="15" r="1" fill={detail} stroke="none" opacity={0.45} />
+      <path d="M10.9 15.7q1.1 1 2.2 0" stroke={detail} strokeWidth={1.4} />
     </svg>
   );
 }

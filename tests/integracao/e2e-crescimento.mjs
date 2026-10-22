@@ -24,7 +24,15 @@ await topo.getByRole('button', { name: /abrir a jornada do bebê/ }).waitFor();
 check(await topo.getByRole('button', { name: 'Semana 22 de 40: abrir a jornada do bebê' }).isVisible(), 'o bebê é o centro do Início');
 check((await topo.locator('.tt-bebe-eco').count()) === 1, 'e o coração dele pulsa');
 check(await topo.getByRole('heading', { name: 'Os primeiros chutinhos' }).isVisible() && (await topo.getByText(/^22 semanas/).isVisible()), 'com a semana e o nome carinhoso da fase');
-check(await topo.getByRole('button', { name: /Jornada do bebê.*Próxima fase em 2 semanas: já ouve a voz de vocês/ }).isVisible(), 'o atalho da jornada já conta quando vem a próxima fase');
+const marco = topo.getByRole('button', { name: /Próximo marco em 5 semanas e \d dias?: Começa o 3º trimestre\. Ver na jornada do bebê/ });
+check(await marco.isVisible(), 'o próximo marco aparece compacto, com atalho para a jornada');
+const altura = await topo.evaluate(el => el.getBoundingClientRect().height);
+check(altura < 460, `o topo do Início ficou mais curto (${Math.round(altura)}px)`);
+await marco.click();
+const naFase = mae.getByRole('dialog', { name: 'Jornada do bebê' }).getByRole('button', { name: /^28 semanas/ });
+await naFase.waitFor();
+check((await naFase.getAttribute('aria-expanded')) === 'true', 'o marco abre a jornada já na fase dele (28 semanas), aberta');
+await mae.keyboard.press('Escape');
 check((await topo.getByRole('group', { name: 'Escolher semana' }).count()) === 0, 'sem a fileira de números das semanas');
 await topo.getByRole('button', { name: 'Próxima semana' }).click();
 check(await topo.getByText('Semana 23').isVisible() && (await topo.getByText(/espiando outra semana/).isVisible()) && (await topo.locator('.tt-bebe-eco').count()) === 0, 'as setinhas espiam outra semana (sem pulsar, porque não é hoje)');
@@ -32,7 +40,7 @@ await topo.getByRole('button', { name: 'Voltar para hoje' }).click();
 check(await topo.getByText(/^22 semanas/).isVisible(), 'e voltam para hoje');
 await mae.screenshot({ path: `${OUT}inicio-bebe.png` });
 
-await topo.getByRole('button', { name: /^Jornada do bebê/ }).click();
+await topo.getByRole('button', { name: /abrir a jornada do bebê/ }).click();
 const sheet = mae.getByRole('dialog', { name: 'Jornada do bebê' });
 await sheet.waitFor();
 const hoje = sheet.getByRole('region', { name: 'O bebê hoje' });
@@ -74,7 +82,23 @@ await sheet.getByRole('region', { name: 'O bebê hoje' }).scrollIntoViewIfNeeded
 await mae.screenshot({ path: `${OUT}crescimento-topo.png` });
 await linha.getByText('Semana 22 · vocês estão aqui').scrollIntoViewIfNeeded();
 await mae.screenshot({ path: `${OUT}crescimento.png` });
-await mae.keyboard.press('Escape');
+// ---- Arrastar a janela: para cima abre em tela cheia; para baixo fecha ----
+const arrasta = async dy => {
+  const alca = await sheet.getByRole('heading', { name: 'Jornada do bebê' }).boundingBox();
+  await mae.mouse.move(alca.x + 30, alca.y + 8);
+  await mae.mouse.down();
+  await mae.mouse.move(alca.x + 30, alca.y + 8 + dy / 2, { steps: 4 });
+  await mae.mouse.move(alca.x + 30, alca.y + 8 + dy, { steps: 4 });
+  await mae.mouse.up();
+  await mae.waitForTimeout(400);
+};
+await arrasta(-120);
+const alturaJanela = await sheet.evaluate(el => el.querySelector('div.relative').getBoundingClientRect().height);
+check(alturaJanela >= 840, `puxar para cima abre a janela em tela cheia (${Math.round(alturaJanela)}px)`);
+await arrasta(160);
+check(await sheet.isVisible(), 'de tela cheia, puxar para baixo volta ao tamanho normal');
+await arrasta(200);
+check(!(await sheet.isVisible()), 'e puxar para baixo de novo fecha a janela');
 
 // ---- Salvar: o botão mostra que está salvando e um aviso confirma ----
 await mae.getByRole('button', { name: /^Diário/ }).first().click();

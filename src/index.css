@@ -182,8 +182,9 @@
 }
 
 @theme inline {
-  --font-sans: "Nunito Sans", "Segoe UI", system-ui, sans-serif;
-  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  /* Nunito: arredondada e calorosa no texto. Quicksand: títulos leves e acolhedores. */
+  --font-sans: "Nunito", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Quicksand", "Nunito", system-ui, sans-serif;
   --shadow-soft: var(--c-shadow);
   --shadow-lift: var(--c-shadow-lift);
 
@@ -238,6 +239,11 @@
     border-color: var(--c-line);
   }
 
+  /* Um fieldset cresce até caber tudo numa linha (min-width do navegador) e empurrava as janelas para o lado. */
+  fieldset {
+    min-width: 0;
+  }
+
   /* O Chrome do Android aumenta textos por conta própria ("font boosting"); aqui o layout já é feito para o celular. */
   html {
     -webkit-text-size-adjust: 100%;
@@ -257,14 +263,18 @@
     transition: background-color 300ms ease;
   }
 
-  /* Títulos com serifa suave: calor e confiança, sem envelhecer. */
+  /* Títulos arredondados e leves: acolhedores, sem parecer formais. */
   h1,
   h2,
   h3 {
     font-family: var(--font-display);
-    font-weight: 500;
-    letter-spacing: -0.01em;
-    font-optical-sizing: auto;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+  }
+
+  /* Textos em destaque com a fonte dos títulos (frases, números grandes) também ganham peso. */
+  .font-display {
+    font-weight: 600;
   }
 
   /* Ícones de traço fino e uniforme. */

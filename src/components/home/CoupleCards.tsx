@@ -1,8 +1,7 @@
 import { useContext } from 'react';
-import { ArrowRight, CalendarPlus, Check, CheckCircle2, ChevronRight, Clock, Flag } from 'lucide-react';
+import { ArrowRight, CalendarPlus, Check, CheckCircle2, ChevronRight, Clock } from 'lucide-react';
 import { appointmentTitle, kindOf } from '../../lib/appointments';
 import { daysBetween, formatBR, isOverdue, parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
-import { inDays, nextMilestone } from '../../lib/milestones';
 import { PeopleContext, whoName } from '../../lib/people';
 import type { Author, Consultation, PartnerTask } from '../../types';
 import LocationLinks from '../LocationLinks';
@@ -141,34 +140,3 @@ export function SharedTasks({ tasks, role, onToggle, onOpenTask, onAll }: { task
   );
 }
 
-/** A gestação inteira numa barra (com os trimestres) e o próximo marco. */
-export function MilestoneBar({ dumDate, todayIso }: { dumDate: string; todayIso: string }) {
-  const elapsed = daysBetween(parseLocalDate(dumDate), parseLocalDate(todayIso));
-  const pct = Math.min(100, Math.max(0, (elapsed / 280) * 100));
-  const next = nextMilestone(dumDate, todayIso);
-  return (
-    <div className="space-y-2.5">
-      <div className="relative h-2.5 rounded-full bg-surface-2" role="progressbar" aria-label="Quanto da gestação já passou" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
-        <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-rosa to-lilas" style={{ width: `${pct}%` }} />
-        {/* Começo do 2º e do 3º trimestre. */}
-        {[13, 28].map(w => (
-          <span key={w} className="absolute -top-0.5 h-3.5 w-0.5 rounded-full bg-surface" style={{ left: `${(w * 7 * 100) / 280}%` }} aria-hidden />
-        ))}
-      </div>
-      <div className="flex justify-between text-[10px] font-bold uppercase tracking-wide text-ink-mute" aria-hidden>
-        <span>1º tri</span>
-        <span>2º tri</span>
-        <span>3º tri</span>
-      </div>
-      {next && (
-        <p className="flex items-start gap-2 rounded-2xl bg-surface-2/70 px-3.5 py-2.5 text-sm text-ink">
-          <Flag className="w-4 h-4 mt-0.5 text-rosa shrink-0" />
-          <span>
-            <strong>{next.days === 0 ? 'Hoje' : `Próximo marco, ${inDays(next.days)}`}:</strong> {next.milestone.title}.{' '}
-            <span className="text-ink-soft">{next.milestone.text}</span>
-          </span>
-        </p>
-      )}
-    </div>
-  );
-}
