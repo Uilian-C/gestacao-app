@@ -1,5 +1,5 @@
-import { useContext, useEffect, useRef, useState } from 'react';
-import { ArrowRight, Footprints, HandHeart, Pencil, Route, Siren } from 'lucide-react';
+import { useContext, useState } from 'react';
+import { ArrowRight, ChevronLeft, ChevronRight, Footprints, HandHeart, Pencil, Route, Siren } from 'lucide-react';
 import { weekInfo } from '../../content/weeks';
 import { WEEK_CARDS_SOURCE, weekCards } from '../../content/weekCards';
 import { ALERT_SIGNS } from '../../content/symptomCatalog';
@@ -13,11 +13,12 @@ import { appointmentTitle } from '../../lib/appointments';
 import { buildUpcoming } from '../../lib/upcoming';
 import type { Insight } from '../../lib/symptoms';
 import type { Author, Consultation, HealthMetric, PartnerTask, SymptomItem } from '../../types';
+import BabyArt from '../BabyArt';
 import BabyGrowth from '../BabyGrowth';
+import { nextStage, stageAt } from '../../content/growth';
 import type { BabyTone } from '../../content/babyTones';
 import { bellyShots } from '../../lib/folders';
 import { coupleNames } from '../../lib/relatives';
-import BrandMark from '../BrandMark';
 import Sheet from '../Sheet';
 import CheckIn from '../CheckIn';
 import { DumForm } from '../DumForm';
@@ -87,74 +88,16 @@ interface Props {
   onSaveMetric: (m: NewMetric) => Promise<boolean>;
 }
 
-/** Anel da gestação (40 semanas) com o coração batendo no centro e ondas saindo dele. */
-function WeekHeart({ week }: { week: number }) {
-  const r = 92;
-  const c = 2 * Math.PI * r;
-  const frac = Math.min(1, week / 40);
-  return (
-    <div className="relative w-full max-w-[210px] aspect-square mx-auto">
-      <div className="tt-onda absolute inset-0 rounded-full border-2 border-rosa/60" aria-hidden />
-      <div className="tt-onda-2 absolute inset-0 rounded-full border-2 border-azul/50" aria-hidden />
-      <svg viewBox="0 0 210 210" className="absolute inset-0 w-full h-full -rotate-90" role="img" aria-label={`Semana ${week} de 40`}>
-        <defs>
-          <linearGradient id="anel-semana" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0" stopColor="#ff7fa0" />
-            <stop offset="1" stopColor="#2f84d6" />
-          </linearGradient>
-        </defs>
-        <circle cx="105" cy="105" r={r} fill="none" strokeWidth="12" style={{ stroke: 'var(--c-surface-2)' }} />
-        <circle cx="105" cy="105" r={r} fill="none" strokeWidth="12" strokeLinecap="round" stroke="url(#anel-semana)" strokeDasharray={c} strokeDashoffset={c * (1 - frac)} style={{ transition: 'stroke-dashoffset 600ms ease' }} />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <BrandMark animated className="w-14 h-14" />
-        <span className="font-display text-[2.75rem] leading-none text-ink tabular font-semibold">{week}</span>
-        <span className="text-[13px] font-semibold text-ink-mute">semanas</span>
-      </div>
-    </div>
-  );
-}
-
-/** Semanas para deslizar: a escolhida fica no centro, a atual com contorno. */
-function WeekStrip({ selected, current, onSelect }: { selected: number; current: number; onSelect: (w: number) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  // Centraliza a semana escolhida rolando só a faixa (scrollIntoView rolava a página inteira ao trocar de aba).
-  const first = useRef(true);
-  useEffect(() => {
-    const strip = ref.current;
-    const el = strip?.querySelector<HTMLElement>(`[data-semana="${selected}"]`);
-    if (!strip || !el) return;
-    strip.scrollTo({ left: el.offsetLeft - (strip.clientWidth - el.offsetWidth) / 2, behavior: first.current ? 'auto' : 'smooth' });
-    first.current = false;
-  }, [selected]);
-  const weeks = Array.from({ length: LAST_WEEK - FIRST_WEEK + 1 }, (_, i) => FIRST_WEEK + i);
-  return (
-    <div ref={ref} className="relative -mx-5 px-5 flex gap-2 overflow-x-auto no-scrollbar py-1" role="group" aria-label="Escolher semana">
-      {weeks.map(w => {
-        const on = w === selected;
-        return (
-          <button
-            key={w}
-            type="button"
-            data-semana={w}
-            onClick={() => onSelect(w)}
-            aria-pressed={on}
-            aria-label={w === current ? `Semana ${w} (atual)` : `Semana ${w}`}
-            className={`shrink-0 w-11 h-11 rounded-full text-[15px] font-extrabold tabular transition ${on ? 'bg-ink text-canvas' : w === current ? 'bg-surface text-ink ring-2 ring-rosa' : 'bg-surface-2 text-ink-soft hover:text-ink'}`}
-          >
-            {w}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+/** "1 semana", "3 semanas". */
+const weeksText = (n: number) => (n === 1 ? '1 semana' : `${n} semanas`);
 
 export default function HomeTab(props: Props) {
   const { age, selectedWeek, currentWeek, onSelectWeek, insights, onOpen } = props;
   const [editingDum, setEditingDum] = useState(false);
   const [growth, setGrowth] = useState(false);
   const info = weekInfo(selectedWeek);
+  const stage = stageAt(selectedWeek);
+  const upcoming = nextStage(currentWeek);
   const now = new Date();
   const todayIso = toISODate(now);
   const alerts = insights.filter(i => i.tone === 'alerta');
@@ -202,22 +145,46 @@ export default function HomeTab(props: Props) {
       </p>
 
       <section aria-label="Semana da gestação" className="rounded-[32px] bg-surface shadow-soft px-5 pt-6 pb-5 overflow-hidden">
-        <WeekHeart week={selectedWeek} />
-        <div className="text-center mt-4 space-y-1">
-          <p className="text-[13px] font-extrabold tracking-wide uppercase text-rosa">
-            {info.trimester}º trimestre · {gestationMonth(selectedWeek)}º mês{selectedWeek !== currentWeek && ' · outra semana'}
+        {/* O bebê é o centro do Início: tocar nele abre a jornada do bebê. */}
+        <button type="button" onClick={() => setGrowth(true)} aria-label={`Semana ${selectedWeek} de 40: abrir a jornada do bebê`} className="block mx-auto rounded-full focus-visible:outline-offset-4">
+          <BabyArt week={selectedWeek} beat={selectedWeek === currentWeek} tone={props.babyTone} className="w-52 h-52 sm:w-60 sm:h-60" />
+        </button>
+        <div className="flex items-center justify-center gap-1 -mt-1">
+          <button type="button" onClick={() => onSelectWeek(selectedWeek - 1)} disabled={selectedWeek <= FIRST_WEEK} aria-label="Semana anterior" className="w-9 h-9 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2 flex items-center justify-center disabled:opacity-30">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <p className="min-w-[11rem] text-center text-[13px] font-extrabold tracking-wide uppercase text-rosa tabular" aria-live="polite">
+            {selectedWeek === currentWeek ? `${age.weeks} semanas${age.days ? ` e ${age.days} ${age.days === 1 ? 'dia' : 'dias'}` : ''}` : `Semana ${selectedWeek}`}
+            <span className="block text-[11px] font-bold normal-case tracking-normal text-ink-mute">
+              {info.trimester}º trimestre · {gestationMonth(selectedWeek)}º mês{selectedWeek !== currentWeek && ' · espiando outra semana'}
+            </span>
           </p>
-          <h2 className="text-[1.5rem] leading-snug text-ink text-balance">Do tamanho de {info.fruit}</h2>
-          <p className="text-sm text-ink-soft tabular">
-            {info.size} · {info.weight}
-          </p>
-          <p className="text-[15px] text-ink pt-2 text-balance">{info.milestone}</p>
-          <button type="button" onClick={() => setGrowth(true)} className="mt-2 inline-flex items-center gap-1 rounded-full bg-rosa-soft px-3.5 py-1.5 text-sm font-bold text-rosa-strong hover:brightness-[0.97]">
-            Ver como o bebê cresce <ArrowRight className="w-4 h-4" />
+          <button type="button" onClick={() => onSelectWeek(selectedWeek + 1)} disabled={selectedWeek >= LAST_WEEK} aria-label="Próxima semana" className="w-9 h-9 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2 flex items-center justify-center disabled:opacity-30">
+            <ChevronRight className="w-5 h-5" />
           </button>
         </div>
+        <div className="text-center mt-2 space-y-1">
+          <h2 className="font-display text-[1.6rem] leading-tight text-ink text-balance">{stage.title}</h2>
+          <p className="text-sm text-ink-soft tabular">
+            Do tamanho de {info.fruit}
+            <span className="block">
+              {info.size} · {info.weight}
+            </span>
+          </p>
+          <p className="text-[15px] text-ink pt-1.5 text-balance">{info.milestone}</p>
+        </div>
+        <button type="button" onClick={() => setGrowth(true)} className="mt-4 w-full flex items-center gap-3 rounded-[20px] bg-surface-2/80 hover:bg-surface-2 px-4 py-3 text-left transition">
+          <BabyArt week={nextStage(currentWeek)?.week ?? 40} tone={props.babyTone} className="w-11 h-11 shrink-0" />
+          <span className="flex-1 min-w-0">
+            <span className="block font-bold text-ink">Jornada do bebê</span>
+            <span className="block text-[13px] text-ink-soft line-clamp-2">
+              {upcoming ? `Próxima fase em ${weeksText(upcoming.week - currentWeek)}: ${upcoming.title.toLowerCase()}` : 'Da sementinha ao colo, fase a fase'}
+            </span>
+          </span>
+          <ChevronRight className="w-5 h-5 text-ink-mute shrink-0" />
+        </button>
         {growth && (
-          <Sheet title="Como o bebê cresce" subtitle={`Da 4ª à 40ª semana · vocês estão na ${currentWeek}ª`} onClose={() => setGrowth(false)}>
+          <Sheet title="Jornada do bebê" subtitle={`Da 4ª à 40ª semana · vocês estão na ${currentWeek}ª`} onClose={() => setGrowth(false)}>
             <BabyGrowth
               currentWeek={currentWeek}
               tone={props.babyTone}
@@ -231,10 +198,6 @@ export default function HomeTab(props: Props) {
             />
           </Sheet>
         )}
-
-        <div className="mt-5">
-          <WeekStrip selected={selectedWeek} current={currentWeek} onSelect={onSelectWeek} />
-        </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-ink-soft">
           <span className="tabular">

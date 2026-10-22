@@ -11,9 +11,9 @@ const post = (p, path, body) => p.evaluate(async ([path, body]) => (await (await
 // ---- Sozinha, sem nada marcado ----
 await mae.getByText('Nada agendado por enquanto').waitFor({ timeout: 10000 });
 check(true, 'sem agendamento: convite para agendar no lugar do destaque');
-const ring = mae.locator('.tt-onda').first();
-check((await ring.count()) === 1 && (await ring.evaluate(el => getComputedStyle(el).animationName)) !== 'none', 'o coração continua pulsando (ondas animadas)');
-check(await mae.getByRole('img', { name: /Semana 22 de 40/ }).isVisible(), 'anel da semana no centro do Início');
+const eco = mae.locator('.tt-bebe-eco').first();
+check((await eco.count()) === 1 && (await eco.evaluate(el => getComputedStyle(el).animationName)) !== 'none', 'o coração do bebê continua pulsando (eco animado)');
+check(await mae.getByRole('button', { name: /Semana 22 de 40/ }).isVisible(), 'o bebê da semana no centro do Início');
 check(await mae.getByText(/Dia \d+ de 280/).isVisible(), 'mostra o dia da gestação');
 check(await mae.getByRole('progressbar', { name: 'Quanto da gestação já passou' }).isVisible(), 'barra da gestação com os trimestres');
 check(await mae.getByText(/Próximo marco, em [56] semanas.*Começa o 3º trimestre/).isVisible(), 'próximo marco: o 3º trimestre, daqui a umas 6 semanas');
