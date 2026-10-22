@@ -39,6 +39,7 @@ import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
 import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, toISODate, weekOfDay } from './lib/dates';
 import { FOLDER } from './lib/folders';
+import { buildBook } from './lib/chapters';
 import { pressureInsights } from './lib/health';
 import type { NewMetric } from './components/forms/RecordForms';
 import { findPatterns, toEntries } from './lib/symptoms';
@@ -768,6 +769,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onOpen={setDetail}
             onWrite={writeEntry}
             onOpenHealth={() => openCare('saude')}
+            book={buildBook({ dumDate, today: new Date(), journal, reactions: socialAvailable ? reactions : [], threads, hugs: data.hugs ?? [], consultations, exams })}
           />
         )}
 
@@ -997,7 +999,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {recordModes.length > 0 && (
         <button
           type="button"
-          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' || diaryView === 'mural' || diaryView === 'humor' ? undefined : diaryView) : (setEntryStart({}), setRecording(recordModes)))}
+          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' || diaryView === 'mural' || diaryView === 'livro' || diaryView === 'humor' ? undefined : diaryView) : (setEntryStart({}), setRecording(recordModes)))}
           className="tt-registrar no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-8 h-11 pl-3 pr-4 rounded-full text-white text-[14px] font-extrabold flex items-center gap-1.5 transition active:scale-95 hover:brightness-110"
         >
           <Plus className="w-[18px] h-[18px]" strokeWidth={3} />

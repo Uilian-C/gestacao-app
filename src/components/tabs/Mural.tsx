@@ -10,6 +10,8 @@ import { useMention } from '../../lib/useMention';
 import Avatar from '../Avatar';
 import { MentionBar, MentionText } from '../Mentions';
 import type { OnReact } from '../Social';
+import { FreshChapter } from '../Book';
+import type { Chapter } from '../../lib/chapters';
 
 // O Mural do diário: tudo o que vocês guardam, do mais novo ao mais antigo, como
 // uma rede social só de vocês dois. Foto grande, quem postou, abraço e conversa
@@ -34,6 +36,9 @@ interface Props {
   onOpen: (entryId: string) => void;
   /** Sem ele (familiar), não há o campo de escrever. */
   onWrite?: (folder?: Folder) => void;
+  /** O capítulo da semana que acabou de fechar (nos primeiros dias da semana seguinte). */
+  fresh?: Chapter | null;
+  onOpenBook?: () => void;
 }
 
 /** O post foi feito no próprio dia do momento: aí a hora ajuda (registro de um dia passado mostra só a data). */
@@ -68,6 +73,8 @@ export default function Mural(props: Props) {
         <span className="flex-1 min-w-0 rounded-full bg-surface-2 px-4 py-2.5 text-[15px] text-ink-mute truncate">O que vocês querem guardar hoje?</span>
         <PenLine className="w-5 h-5 text-brand shrink-0" aria-hidden />
       </button>}
+
+      {props.fresh && props.onOpenBook && <FreshChapter chapter={props.fresh} onOpenEntry={props.onOpen} onWrite={onWrite && (() => onWrite())} onOpenBook={props.onOpenBook} />}
 
       {props.entries.length === 0 ? (
         <div className="rounded-[26px] bg-surface shadow-soft p-6 text-center space-y-1">
