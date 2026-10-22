@@ -17,6 +17,9 @@ export const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? '';
 /** As pessoas do espaço, para quem mostra autoria (conversas, mural) sem passar de tela em tela. */
 export const PeopleContext = createContext<FamilyMember[]>([]);
 
+/** O post que acabou de entrar no Mural: fica em destaque por alguns segundos. */
+export const FreshEntryContext = createContext<string | null>(null);
+
 /** Os familiares do espaço (migração 023), para mostrar quem comentou ou reagiu. */
 export const RelativesContext = createContext<Relative[]>([]);
 

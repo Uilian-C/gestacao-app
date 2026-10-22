@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
+import { SavingContext } from '../lib/saving';
+import { Loader2 } from 'lucide-react';
 
 // Linguagem visual: superfícies sem borda separadas por sombra leve e respiro,
 // cantos generosos, títulos em serifa e controles em forma de pílula.
@@ -121,9 +123,17 @@ const BUTTON_TONES = {
 };
 
 export function Button({ children, tone = 'primary', type = 'button', onClick, disabled, className = '' }: { children: ReactNode; tone?: keyof typeof BUTTON_TONES; type?: 'button' | 'submit'; onClick?: () => void; disabled?: boolean; className?: string }) {
+  const saving = useContext(SavingContext);
+  const working = type === 'submit' && saving.busy;
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-ink-mute disabled:shadow-none [&_svg]:w-4 [&_svg]:h-4 ${BUTTON_TONES[tone]} ${className}`}>
-      {children}
+    <button type={type} onClick={onClick} disabled={disabled || working} aria-busy={working || undefined} className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-ink-mute disabled:shadow-none [&_svg]:w-4 [&_svg]:h-4 ${BUTTON_TONES[tone]} ${className}`}>
+      {working ? (
+        <>
+          <Loader2 className="animate-spin" /> {saving.label ?? 'Salvando...'}
+        </>
+      ) : (
+        children
+      )}
     </button>
   );
 }

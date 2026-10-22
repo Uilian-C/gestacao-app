@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CloudRain, Loader2, Ruler, Scale } from 'lucide-react';
+import { ChevronRight, CloudRain, Loader2, Ruler, Scale } from 'lucide-react';
 import { api, ApiError, photoUrl, type FamilyState, type Me } from '../../api';
 import type { JournalEntry, Reaction, ReactionKind, ThreadComment } from '../../hooks/useGestationData';
 import { weekInfo } from '../../content/weeks';
@@ -8,6 +8,7 @@ import { FOLDER, weekOn } from '../../lib/folders';
 import { PeopleContext, RelativesContext } from '../../lib/people';
 import { coupleNames } from '../../lib/relatives';
 import Avatar from '../Avatar';
+import BabyGrowth from '../BabyGrowth';
 import BrandMark from '../BrandMark';
 import PushPrompt from '../PushPrompt';
 import Sheet from '../Sheet';
@@ -181,6 +182,7 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
 
 /** A semana do bebê: tamanho, peso, o que acontece e quanto falta. */
 function BabyWeek({ dumDate }: { dumDate: string }) {
+  const [growth, setGrowth] = useState(false);
   const age = gestationalAge(dumDate);
   if (!age) return null;
   const week = clampWeek(age.weeks);
@@ -204,6 +206,14 @@ function BabyWeek({ dumDate }: { dumDate: string }) {
         <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-ink-soft"><Scale className="w-3.5 h-3.5" /> {info.weight}</span>
         {age.daysToDpp > 0 && <span className="inline-flex items-center rounded-full bg-brand-soft px-3 py-1.5 font-bold text-brand-strong">Faltam {age.daysToDpp} dias · previsão {due}</span>}
       </div>
+      <button type="button" onClick={() => setGrowth(true)} className="inline-flex items-center gap-1 rounded-full bg-rosa-soft px-3.5 py-1.5 text-sm font-bold text-rosa-strong hover:brightness-[0.97]">
+        Ver como o bebê cresce <ChevronRight className="w-4 h-4" />
+      </button>
+      {growth && (
+        <Sheet title="Como o bebê cresce" subtitle={`Da 4ª à 40ª semana · o bebê está na ${week}ª`} onClose={() => setGrowth(false)}>
+          <BabyGrowth currentWeek={week} hereText="o bebê está aqui" />
+        </Sheet>
+      )}
     </section>
   );
 }

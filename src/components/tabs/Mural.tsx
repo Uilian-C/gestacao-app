@@ -1,11 +1,11 @@
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { ChevronRight, Heart, Lock, MessageCircle, PenLine, Send, Users } from 'lucide-react';
 import { photoUrl, type FamilyMember, type Relative, type SpaceRole } from '../../api';
 import type { Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { daysBetween, parseLocalDate, toISODate } from '../../lib/dates';
 import { FOLDER, TONE, shortDate, weekOn } from '../../lib/folders';
 import { mentionsMe } from '../../lib/mentions';
-import { PeopleContext, RelativesContext, authorOf, firstName, speakerOf } from '../../lib/people';
+import { FreshEntryContext, PeopleContext, RelativesContext, authorOf, firstName, speakerOf } from '../../lib/people';
 import { useMention } from '../../lib/useMention';
 import Avatar from '../Avatar';
 import { MentionBar, MentionText } from '../Mentions';
@@ -101,6 +101,12 @@ export default function Mural(props: Props) {
 
 function Post({ entry: e, me, members, role, dumDate, reactions, threads, social, onReact, onComment, onOpen }: Props & { entry: JournalEntry; me?: FamilyMember | Relative }) {
   const relatives = useContext(RelativesContext);
+  // O post que acabou de ser guardado: aparece em destaque, e a tela vai até ele.
+  const fresh = useContext(FreshEntryContext) === e.id;
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (fresh) ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  }, [fresh]);
   const f = FOLDER[e.folder];
   const t = TONE[f.tone];
   const who = authorOf(members, e.mine, e.author_role);
@@ -117,7 +123,9 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
 
   return (
     <article
-      className="rounded-[26px] bg-surface shadow-soft overflow-hidden cursor-pointer"
+      ref={ref}
+      data-fresh={fresh || undefined}
+      className={`rounded-[26px] bg-surface shadow-soft overflow-hidden cursor-pointer transition-shadow duration-700 ${fresh ? 'ring-2 ring-brand ring-offset-2 ring-offset-canvas tt-novo' : ''}`}
       aria-label={`${f.singular} de ${name}`}
       // O post inteiro abre os detalhes; abraço, comentário e marcação continuam com o próprio toque.
       onClick={ev => {

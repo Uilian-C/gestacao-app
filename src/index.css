@@ -374,6 +374,18 @@
   100% { transform: scale(1); }
 }
 
+/* Post que acabou de entrar no Mural: chega de leve, em destaque. */
+.tt-novo {
+  animation: tt-novo 0.5s ease-out;
+}
+@keyframes tt-novo {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-novo { animation: none; }
+}
+
 /* ---- Anel da semana no Início: ondas saindo no ritmo do tum-tum ---- */
 .tt-onda {
   animation: tt-onda 1.5s ease-out infinite;
