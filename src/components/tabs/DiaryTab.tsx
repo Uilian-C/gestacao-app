@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, BookHeart, BookOpen, ChevronDown, ChevronUp, ChevronRight, HeartPulse, Images, LayoutList, Lock, Plus, Smile } from 'lucide-react';
+import { Bell, BookHeart, BookOpen, ChevronDown, ChevronUp, PartyPopper, ChevronRight, HeartPulse, Images, LayoutList, Lock, Plus, Smile } from 'lucide-react';
 import { photoUrl, type FamilyMember } from '../../api';
 import type { Checkin, Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { formatBR, toISODate } from '../../lib/dates';
@@ -11,6 +11,8 @@ import { MentionText } from '../Mentions';
 import { SocialCount, type OnReact } from '../Social';
 import Mural from './Mural';
 import { BookView } from '../Book';
+import { CelebrationList, type CelebrationActions } from '../Celebrations';
+import type { Celebration } from '../../lib/celebrations';
 import type { BabyTone } from '../../content/babyTones';
 import { coupleNames } from '../../lib/relatives';
 import { freshChapter, type Chapter } from '../../lib/chapters';
@@ -50,6 +52,10 @@ interface Props {
   book: Chapter[];
   /** O tom do bebê (o desenho de cada capítulo). */
   babyTone: BabyTone;
+  /** Celebrações (migração 028); null antes da migração. */
+  celebrations?: Celebration[] | null;
+  celebrationActions?: CelebrationActions;
+  onOpenCelebration?: (id: string) => void;
   /** Abre a escolha do nome do bebê (vai para a capa do livro). */
   onOpenNames?: () => void;
 }
@@ -94,6 +100,12 @@ export default function DiaryTab(props: Props) {
           onWrite={props.journalAvailable ? () => props.onWrite() : undefined}
           onNames={props.onOpenNames}
         />
+      ) : props.view === 'celebracoes' ? (
+        props.celebrations ? (
+          <CelebrationList celebrations={props.celebrations} actions={props.celebrationActions!} onOpen={props.onOpenCelebration!} />
+        ) : (
+          <p className="rounded-[24px] bg-surface shadow-soft p-5 text-sm text-ink-soft">Para planejar as celebrações, rode a migração db/migrations/028_celebracoes.sql no Neon.</p>
+        )
       ) : props.view === 'tudo' ? (
         <Cover {...props} count={count} social={social} />
       ) : (
@@ -109,10 +121,10 @@ export default function DiaryTab(props: Props) {
  * pastas aparecem embaixo quando o Fichário está aberto.
  */
 function FolderStrip({ value, onChange, count, total, folders }: { value: DiaryView; onChange: (v: DiaryView) => void; count: (f: Folder) => number; total: number; folders: boolean }) {
-  const inFichario = value !== 'mural' && value !== 'livro';
+  const inFichario = value !== 'mural' && value !== 'livro' && value !== 'celebracoes';
   const main = (v: DiaryView, on: boolean, Icon: typeof BookOpen, label: string, extra?: React.ReactNode) => (
-    <button type="button" onClick={() => onChange(v)} aria-current={on ? 'page' : undefined} className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-full py-2 text-[13.5px] font-bold transition ${on ? 'bg-ink text-surface shadow-soft' : 'text-ink-soft'}`}>
-      <Icon className="w-4 h-4" /> {label}
+    <button type="button" onClick={() => onChange(v)} aria-current={on ? 'page' : undefined} className={`flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 rounded-full px-1 py-2 text-[12.5px] sm:text-[13.5px] font-bold transition ${on ? 'bg-ink text-surface shadow-soft' : 'text-ink-soft'}`}>
+      <Icon className="hidden sm:block w-4 h-4" /> {label}
       {extra}
     </button>
   );
@@ -123,6 +135,7 @@ function FolderStrip({ value, onChange, count, total, folders }: { value: DiaryV
         {main('mural', value === 'mural', LayoutList, 'Mural')}
         {main('tudo', inFichario, BookHeart, 'Fichário', total > 0 && <span className="tabular opacity-70">{total}</span>)}
         {main('livro', value === 'livro', BookOpen, 'Livro')}
+        {main('celebracoes', value === 'celebracoes', PartyPopper, 'Celebrações')}
       </div>
       {inFichario && (
         <div className="-mx-4 px-4 flex gap-2 overflow-x-auto no-scrollbar">

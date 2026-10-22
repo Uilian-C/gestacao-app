@@ -40,6 +40,8 @@ import { BabyNameContext } from '../../lib/baby';
 import type { Chapter } from '../../lib/chapters';
 import { BookTeaser } from '../Book';
 import { NameTeaser } from '../BabyNames';
+import { CelebrationTeaser } from '../Celebrations';
+import { upcomingCelebration, type Celebration } from '../../lib/celebrations';
 
 /** Para onde o Início leva (abas e partes delas). */
 export type HomeTarget = 'diario' | 'mural' | 'livro' | 'humor' | 'barriga' | 'medidas' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
@@ -81,6 +83,9 @@ interface Props {
   nameIdeas?: NameIdea[] | null;
   /** Abre a escolha do nome. */
   onOpenNames?: () => void;
+  /** Celebrações (migração 028): a próxima aparece no Início a partir de 60 dias antes. */
+  celebrations?: Celebration[] | null;
+  onOpenCelebration?: (id: string) => void;
   /** Abre os detalhes de um agendamento, tarefa ou registro do diário. */
   onOpenDetail: (target: DetailTarget) => void;
   /** Guardar o resultado de um exame que já aconteceu. */
@@ -117,10 +122,11 @@ export default function HomeTab(props: Props) {
   const next = selectedWeek === currentWeek && age.daysToDpp >= 0 ? nextMilestone(props.dumDate, todayIso) : null;
   const gestationPct = Math.min(100, Math.max(0, ((dayOfPregnancy - 1) / 280) * 100));
 
-  const up = buildUpcoming({ consultations: props.consultations, tasks: props.tasks, journal: props.journal, exams: props.exams, today: now });
+  const up = buildUpcoming({ consultations: props.consultations, tasks: props.tasks, journal: props.journal, exams: props.exams, today: now, celebrations: props.celebrations });
   const lateSteps = props.lateSteps;
   const members = useContext(PeopleContext);
   const babyName = useContext(BabyNameContext);
+  const party = upcomingCelebration(props.celebrations, new Date());
   const summaryRoles = (['mae', 'pai'] as const).filter(r => members.some(m => m.role === r) || props.checkins.some(c => c.author_role === r));
   // A última visita ao Diário, lida uma vez ao abrir o Início.
   const [since] = useState(() => lastSeen(props.userId));
@@ -264,6 +270,7 @@ export default function HomeTab(props: Props) {
 
       {/* Enquanto não escolheram o nome, ele ganha destaque logo abaixo do bebê; depois, vive no app todo. */}
       {!babyName && props.nameIdeas && props.onOpenNames && <NameTeaser ideas={props.nameIdeas} onOpen={props.onOpenNames} />}
+      {party && props.onOpenCelebration && <CelebrationTeaser celebration={party.c} days={party.days} onOpen={() => props.onOpenCelebration!(party.c.id)} />}
 
       {todayItems.length > 0 && (
         <section aria-labelledby="hoje-titulo" className="space-y-2.5">
@@ -272,7 +279,7 @@ export default function HomeTab(props: Props) {
             <span className="text-sm text-ink-mute">{todayItems.length === 1 ? '1 item' : `${todayItems.length} itens`}</span>
           </div>
           {todayItems.map(i => (
-            <Row key={i.id} item={i} today onOpen={() => props.onOpenDetail(i.consultation ? { kind: 'consultation', id: i.consultation.id } : i.task ? { kind: 'task', id: i.task.id } : { kind: 'entry', id: i.entry!.id })} />
+            <Row key={i.id} item={i} today onOpen={() => (i.celebration ? props.onOpenCelebration?.(i.celebration.id) : props.onOpenDetail(i.consultation ? { kind: 'consultation', id: i.consultation.id } : i.task ? { kind: 'task', id: i.task.id } : { kind: 'entry', id: i.entry!.id }))} />
           ))}
         </section>
       )}

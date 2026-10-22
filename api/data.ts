@@ -6,6 +6,7 @@ import { mentioned } from './_lib/mentions.js';
 import { notify, type PushPayload } from './_lib/push.js';
 import { VISIBLE_TARGET } from './_lib/social.js';
 import { deleteFiles } from './_lib/storage.js';
+import { addCelebrationItem, createCelebration, deleteCelebration, deleteCelebrationItem, updateCelebration, updateCelebrationItem } from './_lib/celebrations.js';
 import { addNameIdea, commentNameIdea, deleteNameComment, deleteNameIdea, likeNameIdea, noteNameIdea, setBabyName } from './_lib/babyNames.js';
 
 // Toda consulta filtra por family_id = espaço de quem está logado. O autor dos
@@ -77,6 +78,30 @@ const itemFields = {
 const targetType = z.enum(['entry', 'exam', 'symptom', 'task']);
 const uuid = z.string().uuid();
 
+/** Celebrações (migração 028): o evento e as fichas dele. */
+const optText = (max: number) => z.string().trim().max(max).nullish().transform(v => v || null);
+const celebrationFields = {
+  title: text(80),
+  eventAt: z.string().datetime({ offset: true }).nullish(),
+  location: optText(300),
+  theme: optText(120),
+  colors: z.array(z.string().regex(/^#[0-9a-fA-F]{6}$/)).max(6).optional(),
+  budget: z.number().min(0).max(10_000_000).nullish(),
+  notes: optText(2000),
+};
+const celebrationItemFields = {
+  title: text(120),
+  dueDate: isoDate.nullish(),
+  dueOffset: z.number().int().min(0).max(400).nullish(),
+  assignedTo: z.enum(['mae', 'pai', 'casal']).nullish(),
+  done: z.boolean().optional(),
+  contact: optText(120),
+  amount: z.number().min(0).max(10_000_000).nullish(),
+  status: z.enum(['orcado', 'contratado', 'pago', 'convidado', 'vai', 'nao_vai', 'talvez']).nullish(),
+  people: z.number().int().min(0).max(100).nullish(),
+  notes: optText(1000),
+};
+
 const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('saveDum'), date: isoDate }),
   z.object({ op: z.literal('saveProfile'), preWeightKg: z.number().min(20).max(400), heightCm: z.number().min(40).max(250) }),
@@ -140,6 +165,12 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('noteNameIdea'), id: uuid, note: z.string().trim().max(300).nullable() }),
   z.object({ op: z.literal('commentNameIdea'), id: uuid, body: z.string().trim().min(1).max(500) }),
   z.object({ op: z.literal('deleteNameComment'), id: uuid }),
+  z.object({ op: z.literal('createCelebration'), kind: z.enum(['cha_bebe', 'cha_fraldas', 'cha_revelacao', 'ensaio', 'outra']), ...celebrationFields }),
+  z.object({ op: z.literal('updateCelebration'), id: uuid, ...celebrationFields }),
+  z.object({ op: z.literal('deleteCelebration'), id: uuid }),
+  z.object({ op: z.literal('addCelebrationItem'), celebrationId: uuid, kind: z.enum(['tarefa', 'fornecedor', 'convidado', 'ideia']), ...celebrationItemFields }),
+  z.object({ op: z.literal('updateCelebrationItem'), id: uuid, ...celebrationItemFields }),
+  z.object({ op: z.literal('deleteCelebrationItem'), id: uuid }),
   z.object({ op: z.literal('setBabyName'), name: z.string().trim().max(40).nullable() }),
   z.object({ op: z.literal('setBabyTone'), tone: z.enum(['tumtum', 'tom1', 'tom2', 'tom3', 'tom4', 'tom5']).nullable() }),
   // Check-in do dia (migração 014): o humor de cada um; null apaga.
@@ -498,6 +529,30 @@ async function apply(m: Member, o: Op) {
       return likeNameIdea(fid, m.userId, who, o.id, o.on);
     case 'deleteNameIdea':
       return deleteNameIdea(fid, m.userId, o.id, true);
+    case 'createCelebration': {
+      const { op: _op, kind, ...f } = o;
+      void _op;
+      return createCelebration(fid, m.userId, kind, f);
+    }
+    case 'updateCelebration': {
+      const { op: _op, id: cid, ...f } = o;
+      void _op;
+      return updateCelebration(fid, cid, f);
+    }
+    case 'deleteCelebration':
+      return deleteCelebration(fid, o.id);
+    case 'addCelebrationItem': {
+      const { op: _op, celebrationId, kind, ...f } = o;
+      void _op;
+      return addCelebrationItem(fid, m.userId, celebrationId, kind, f);
+    }
+    case 'updateCelebrationItem': {
+      const { op: _op, id: iid, ...f } = o;
+      void _op;
+      return updateCelebrationItem(fid, iid, f);
+    }
+    case 'deleteCelebrationItem':
+      return deleteCelebrationItem(fid, o.id);
     case 'setBabyName':
       return setBabyName(fid, o.name ? o.name : null).catch(err => {
         if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'O nome do bebê ainda não está ligado no servidor. Rode a migração db/migrations/025_nome_do_bebe.sql no Neon.');
