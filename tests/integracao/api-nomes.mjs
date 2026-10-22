@@ -40,6 +40,16 @@ check(ideas.find(i => i.name === 'Helena').likes.length === 3 && ideas.some(i =>
 check((await ana.call('/api/data', { op: 'setBabyName', name: 'Helena' })).status === 200, 'Ana e Caio escolhem Helena');
 check((await data(avo)).babyName === 'Helena', 'a avó vê o nome escolhido');
 check((await data(caio)).nameIdeas.length === 3, 'e as ideias continuam guardadas');
+// O caderno (migração 027): o porquê de cada nome e a conversa sobre ele.
+check((await ana.call('/api/data', { op: 'noteNameIdea', id: helena.id, note: 'Era o nome da bisavó' })).status === 200, 'Ana anota o porquê de Helena');
+check((await avo.call('/api/data', { op: 'commentNameIdea', id: helena.id, body: 'Que lindo, minha mãe ia amar' })).status === 200, 'a avó comenta no nome');
+await caio.call('/api/data', { op: 'commentNameIdea', id: helena.id, body: 'Eu também gosto muito' });
+const comHelena = (await data(ana)).nameIdeas.find(i => i.name === 'Helena');
+check(comHelena.note === 'Era o nome da bisavó' && comHelena.comments.length === 2 && comHelena.comments[0].author_role === 'familia', 'o casal vê o porquê e a conversa');
+check((await avo.call('/api/data', { op: 'noteNameIdea', id: helena.id, note: 'outra coisa' })).status === 404, 'a família não muda o porquê de um nome que não sugeriu');
+const comentarioCaio = comHelena.comments.find(c => c.author_role === 'pai').id;
+check((await ana.call('/api/data', { op: 'deleteNameComment', id: comentarioCaio })).status === 404, 'cada um apaga só o próprio comentário');
+check((await data(caio)).babyNameAt !== null, 'a data da escolha fica guardada (para a página do nome no livro)');
 const cecilia = ideas.find(i => i.name === 'Cecília');
 check((await caio.call('/api/data', { op: 'deleteNameIdea', id: cecilia.id })).status === 200, 'o casal pode tirar qualquer ideia');
 

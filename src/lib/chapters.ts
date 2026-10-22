@@ -1,4 +1,4 @@
-import type { Checkin, EntryPhoto, ExamItem, Hug, JournalEntry, Mood, Reaction, ThreadComment } from '../hooks/useGestationData';
+import type { Checkin, EntryPhoto, ExamItem, Hug, JournalEntry, Mood, NameIdea, Reaction, ThreadComment } from '../hooks/useGestationData';
 import type { Consultation } from '../types';
 import { stageAt } from '../content/growth';
 import { weekInfo } from '../content/weeks';
@@ -45,6 +45,8 @@ export interface Chapter {
   things: string[];
   /** O peso afetivo da semana (para comparar meses). */
   warmth: number;
+  /** Na semana em que escolheram o nome: a página dele. */
+  named: NamePage | null;
 }
 
 export interface BookInput {
@@ -58,6 +60,22 @@ export interface BookInput {
   exams: ExamItem[];
   /** O humor dos dois (check-in do dia). */
   checkins?: Checkin[];
+  /** O nome escolhido, quando e as ideias (a semana da escolha ganha a página do nome). */
+  babyName?: string | null;
+  babyNameAt?: string | null;
+  nameIdeas?: NameIdea[] | null;
+}
+
+/** A página do nome: o nome, quando, e os nomes que fizeram parte da escolha. */
+export interface NamePage {
+  name: string;
+  at: string;
+  /** As outras ideias, das mais curtidas para as menos. */
+  others: string[];
+  /** O porquê do nome escolhido, se anotaram. */
+  note: string | null;
+  /** A família deu palpite. */
+  family: boolean;
 }
 
 const shift = (iso: string, n: number) => {
@@ -142,9 +160,19 @@ export function buildBook(input: BookInput): Chapter[] {
     const results = input.exams.filter(x => x.visibility !== 'private' && inWeek(x.exam_date.slice(0, 10)));
     const letters = entries.filter(e => e.folder === 'carta');
 
-    const now_ = { entries: entries.length, photos, hugs, talks };
+    // A semana em que escolheram o nome ganha a página dele (e o nome entra na história).
+    const chosenAt = input.babyName && input.babyNameAt ? toISODate(parseTimestamp(input.babyNameAt)) : null;
+    const named: NamePage | null =
+      chosenAt && weekOn(dumDate, chosenAt) === week
+        ? (() => {
+            const ideas = [...(input.nameIdeas ?? [])].sort((a, b) => b.likes.length - a.likes.length);
+            const it = ideas.find(i => i.name.toLowerCase() === input.babyName!.toLowerCase());
+            return { name: input.babyName!, at: input.babyNameAt!, others: ideas.filter(i => i !== it).map(i => i.name), note: it?.note ?? null, family: ideas.some(i => i.author_role === 'familia' || i.likes.some(l => l.author_role === 'familia')) };
+          })()
+        : null;
+    const now_ = { entries: entries.length, photos, hugs, talks: talks + (named ? 3 : 0) };
     const first = (id: string | undefined) => !!id && entries.some(e => e.id === id);
-    const things: string[] = [];
+    const things: string[] = named ? [`a escolha do nome: ${named.name}`] : [];
     if (entries.some(e => e.folder === 'momento')) things.push(pick(week, ['um momento para guardar para sempre', 'um momento daqueles que a gente não esquece']));
     if (first(firstLetter)) things.push('a primeira carta para o bebê');
     else if (letters.length) things.push(letters.length > 1 ? 'cartas para o bebê' : 'uma carta para o bebê');
@@ -204,8 +232,9 @@ export function buildBook(input: BookInput): Chapter[] {
       week,
       from,
       to,
-      title: moment ? quoteOf(moment.body) : stageAt(Math.max(4, week)).title,
-      personal: !!moment,
+      title: named ? `O dia em que escolhemos ${named.name}` : moment ? quoteOf(moment.body) : stageAt(Math.max(4, week)).title,
+      personal: !named && !!moment,
+      named,
       entries,
       cover: withPhoto ? { entryId: withPhoto.id, photo: withPhoto.photos[0] } : null,
       highlight: top ? { entryId: top.id, quote: quoteOf(top.body), hugged: hugsOn(top.id) > 0 } : null,

@@ -466,7 +466,7 @@
 @media print {
   .tt-livro { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .tt-livro-capa { break-after: page; min-height: 0; padding-top: 30vh; }
-  .tt-livro-abertura, .tt-livro-semana { break-before: page; }
+  .tt-livro-abertura, .tt-livro-semana, .tt-livro-nome { break-before: page; }
   .tt-livro-registro { break-inside: auto; }
   /* As fotos inteiras e numa página só: nunca cortadas ao meio nem esticadas. */
   .tt-livro img { break-inside: avoid; page-break-inside: avoid; max-height: 165mm !important; width: auto !important; max-width: 100% !important; height: auto !important; object-fit: contain; }
@@ -522,4 +522,38 @@
   --c-rosa: #3f51c6;
   --c-rosa-strong: #31409e;
   --c-rosa-soft: #e7e9fb;
+}
+
+/*
+  A revelação do nome: o coração do Tumtum aparece e bate (tum-tum), o bebê
+  surge dentro dele e o nome entra no ritmo da batida; ecos saem do coração.
+*/
+@keyframes tt-revelar-coracao {
+  0% { transform: scale(0.3); opacity: 0; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes tt-revelar-nome {
+  0%, 40% { transform: scale(0.6); opacity: 0; }
+  55% { transform: scale(1.14); opacity: 1; }
+  65% { transform: scale(0.98); }
+  75% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes tt-revelar-surgir {
+  0%, 70% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes tt-revelar-eco {
+  0% { transform: scale(0.4); opacity: 0.7; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.tt-revelacao-coracao { animation: tt-revelar-coracao 900ms cubic-bezier(.2, .8, .2, 1) both; }
+.tt-revelacao-bebe { animation: tt-revelar-surgir 1.4s ease-out both; }
+.tt-revelacao-nome { animation: tt-revelar-nome 2.6s ease-out both; }
+.tt-revelacao-texto { animation: tt-revelar-surgir 3.2s ease-out both; }
+.tt-revelacao-eco { animation: tt-revelar-eco 2.4s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .tt-revelacao-coracao, .tt-revelacao-bebe, .tt-revelacao-nome, .tt-revelacao-texto { animation: none; }
+  .tt-revelacao-eco { display: none; }
 }

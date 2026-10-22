@@ -11,6 +11,7 @@ import { FOLDER, shortDate } from '../lib/folders';
 import { MOOD_COLOR, moodLabel, moodOf } from '../lib/moods';
 import { PeopleContext, firstName } from '../lib/people';
 import BabyArt from './BabyArt';
+import BrandMark from './BrandMark';
 import MoodFace from './MoodFace';
 
 // O livro de vocês: cada mês da gestação é um capítulo e cada semana, uma
@@ -206,6 +207,28 @@ function WeekPage({ chapter: c, tone, onOpenEntry }: { chapter: Chapter; tone: B
   );
 }
 
+/** A página do nome: o coração do Tumtum, o nome, o dia, o porquê e os nomes que fizeram parte da escolha. */
+function NamePageView({ page: n, tone, week }: { page: NonNullable<Chapter['named']>; tone: BabyTone; week: number }) {
+  const when = parseTimestamp(n.at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+  return (
+    <section className="tt-livro-nome flex flex-col items-center justify-center text-center gap-3 py-8" aria-label={`A página do nome: ${n.name}`}>
+      <p className="text-[12px] font-extrabold uppercase tracking-[0.25em] text-rosa">A página do nome</p>
+      <div className="relative">
+        <BrandMark className="w-36 h-36" />
+        <BabyArt week={artWeek(week)} tone={tone} className="absolute inset-0 m-auto w-20 h-20" />
+      </div>
+      <p className="font-display text-[3rem] leading-none text-ink">{n.name}</p>
+      <p className="text-[14px] text-ink-soft">Escolhido em {when}, na semana {week}.</p>
+      {n.note && <p className="font-display text-[1.15rem] italic leading-snug text-ink max-w-[420px]">“{n.note}”</p>}
+      {n.others.length > 0 && (
+        <p className="text-[14.5px] leading-relaxed text-ink-soft max-w-[420px]">
+          Antes dele, vocês pensaram em {n.others.length === 1 ? n.others[0] : `${n.others.slice(0, -1).join(', ')} e ${n.others[n.others.length - 1]}`}.{n.family ? ' A família também deu palpite.' : ''}
+        </p>
+      )}
+    </section>
+  );
+}
+
 // ---- Diário → Livro ----
 
 const FIRST = 4;
@@ -263,19 +286,25 @@ export function BookView({ book, tone, parents, onOpenEntry, onWrite, onNames }:
             <span key={w} className={`flex-1 h-3 rounded-full ${filled.has(w) ? 'bg-rosa' : w === current ? 'bg-surface border border-dashed border-rosa' : w < current ? 'bg-rosa/20' : 'bg-line/60'}`} />
           ))}
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {resume && lastRead !== null && (
-            <button type="button" onClick={() => setReading({ month: resume.month, week: lastRead })} className="inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-4 py-2 text-[13.5px] font-extrabold shadow-soft">
-              <BookOpen className="w-4 h-4" /> Continuar da semana {lastRead}
-            </button>
-          )}
-          {written.length > 0 && (
-            <button type="button" onClick={() => setChoosing(true)} className="relative inline-flex items-center gap-1.5 rounded-full bg-surface px-3.5 py-2 text-[13px] font-bold text-ink-soft shadow-soft">
-              <Printer className="w-4 h-4 text-rosa-strong" /> Imprimir para o fichário
-              {fresh.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rosa ring-2 ring-surface" aria-label="Há páginas novas" />}
-            </button>
-          )}
-        </div>
+        {resume && lastRead !== null && (
+          <button type="button" onClick={() => setReading({ month: resume.month, week: lastRead })} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-4 py-2 text-[13.5px] font-extrabold shadow-soft">
+            <BookOpen className="w-4 h-4" /> Continuar da semana {lastRead}
+          </button>
+        )}
+        {/* Para o fichário de papel: com afeto e presença, sem gritar mais que o livro. */}
+        {written.length > 0 && (
+          <button type="button" onClick={() => setChoosing(true)} className="mt-3 w-full flex items-center gap-3 rounded-[20px] bg-surface/80 ring-1 ring-rosa/25 px-3.5 py-3 text-left transition hover:bg-surface active:scale-[0.99]">
+            <span className="relative w-10 h-10 rounded-2xl bg-rosa-soft text-rosa-strong flex items-center justify-center shrink-0">
+              <Printer className="w-5 h-5" />
+              {fresh.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rosa ring-2 ring-surface" aria-hidden />}
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block font-bold text-ink leading-tight">Imprimir para o fichário de memórias</span>
+              <span className="block text-[12.5px] text-ink-soft">{fresh.length > 0 ? 'Páginas novas esperando para ir para o papel' : 'Para guardar no papel, junto com as outras lembranças'}</span>
+            </span>
+            <ChevronRight className="w-5 h-5 text-rosa-strong shrink-0" />
+          </button>
+        )}
         {!name && onNames && (
           <button type="button" onClick={onNames} className="mt-3 block text-left text-[13px] font-bold text-rosa-strong">
             Qual vai ser o nome? Ele vai para a capa do livro ›
@@ -359,7 +388,7 @@ function MonthCard({ month: m, tone, onOpen }: { month: MonthChapter; tone: Baby
   );
 }
 
-type Page = { kind: 'abertura'; month: MonthChapter } | { kind: 'semana'; month: MonthChapter; chapter: Chapter };
+type Page = { kind: 'abertura'; month: MonthChapter } | { kind: 'semana'; month: MonthChapter; chapter: Chapter } | { kind: 'nome'; month: MonthChapter; chapter: Chapter };
 
 /**
  * O livro aberto, como num leitor de e-book: a página ocupa a tela toda (sem
@@ -369,7 +398,12 @@ type Page = { kind: 'abertura'; month: MonthChapter } | { kind: 'semana'; month:
 function BookReader({ months, start, tone, onClose, onOpenEntry, onPage }: { months: MonthChapter[]; start: { month: number; week?: number }; tone: BabyTone; onClose: () => void; onOpenEntry: (id: string) => void; onPage: (week: number) => void }) {
   const name = useContext(BabyNameContext);
   const pages = useMemo<Page[]>(
-    () => [...months].reverse().flatMap(m => [{ kind: 'abertura' as const, month: m }, ...m.pages.filter(c => !c.quiet || c.open).map(c => ({ kind: 'semana' as const, month: m, chapter: c }))]),
+    () =>
+      [...months].reverse().flatMap(m => [
+        { kind: 'abertura' as const, month: m },
+        // A semana em que escolheram o nome ganha, logo depois, a página do nome.
+        ...m.pages.filter(c => !c.quiet || c.open).flatMap(c => [{ kind: 'semana' as const, month: m, chapter: c }, ...(c.named ? [{ kind: 'nome' as const, month: m, chapter: c }] : [])]),
+      ]),
     [months],
   );
   const [at, setAt] = useState(() => {
@@ -411,7 +445,7 @@ function BookReader({ months, start, tone, onClose, onOpenEntry, onPage }: { mon
     const dy = e.clientY - t.y;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
   };
-  const where = page.kind === 'abertura' ? `Capítulo ${page.month.month}` : `Semana ${page.chapter.week}`;
+  const where = page.kind === 'abertura' ? `Capítulo ${page.month.month}` : page.kind === 'nome' ? `O nome · semana ${page.chapter.week}` : `Semana ${page.chapter.week}`;
 
   return (
     <div role="dialog" aria-label={`O livro de ${name ?? 'vocês'}`} className="fixed inset-0 z-50 flex flex-col bg-surface text-ink">
@@ -430,7 +464,7 @@ function BookReader({ months, start, tone, onClose, onOpenEntry, onPage }: { mon
       <div className="relative flex-1 min-h-0 [perspective:1600px]">
         <div key={at} ref={sheet} onPointerDown={down} onPointerUp={up} style={{ touchAction: 'pan-y' }} className={`tt-pagina ${dir > 0 ? 'tt-pagina-frente' : 'tt-pagina-volta'} h-full overflow-y-auto`} aria-live="polite">
           <div className="mx-auto max-w-[620px] px-6 pt-6 pb-10">
-            {page.kind === 'abertura' ? <MonthOpening month={page.month} tone={tone} /> : <WeekPage chapter={page.chapter} tone={tone} onOpenEntry={onOpenEntry} />}
+            {page.kind === 'abertura' ? <MonthOpening month={page.month} tone={tone} /> : page.kind === 'nome' ? <NamePageView page={page.chapter.named!} tone={tone} week={page.chapter.week} /> : <WeekPage chapter={page.chapter} tone={tone} onOpenEntry={onOpenEntry} />}
             {at < pages.length - 1 && (
               <button type="button" onClick={() => go(1)} className="mt-8 w-full inline-flex items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-[13.5px] font-bold text-ink-soft">
                 Virar a página <ChevronRight className="w-4 h-4" />
@@ -648,7 +682,10 @@ export function BookPrint({ book, weeks, tone, parents, onPrint, onClose }: { bo
           <div key={m.month} className="space-y-10">
             <MonthOpening month={m} tone={tone} print />
             {m.pages.map(c => (
-              <WeekPage key={c.week} chapter={c} tone={tone} />
+              <div key={c.week} className="space-y-10">
+                <WeekPage chapter={c} tone={tone} />
+                {c.named && <NamePageView page={c.named} tone={tone} week={c.week} />}
+              </div>
             ))}
           </div>
         ))}
