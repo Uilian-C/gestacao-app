@@ -29,9 +29,29 @@ check(await marco.isVisible(), 'o próximo marco aparece compacto, com atalho pa
 const altura = await topo.evaluate(el => el.getBoundingClientRect().height);
 check(altura < 460, `o topo do Início ficou mais curto (${Math.round(altura)}px)`);
 await marco.click();
-const naFase = mae.getByRole('dialog', { name: 'Jornada do bebê' }).getByRole('button', { name: /^28 semanas/ });
+const jornada = mae.getByRole('dialog', { name: 'Jornada do bebê' });
+const naFase = jornada.getByRole('button', { name: /^Próximo marco · em 5 semanas.*Começa o 3º trimestre.*28 semanas/ });
 await naFase.waitFor();
-check((await naFase.getAttribute('aria-expanded')) === 'true', 'o marco abre a jornada já na fase dele (28 semanas), aberta');
+await mae.waitForTimeout(400);
+// O caminho de hoje até o marco, em lilás, termina exatamente no marco; e os dois cabem juntos na tela.
+const caminho = await jornada.evaluate(dlg => {
+  const list = dlg.querySelector('ol');
+  const lilas = list.querySelector('.bg-lilas\\/70');
+  const marco = list.querySelector('[data-marco]');
+  const hoje = list.querySelector('[data-hoje]');
+  const box = list.closest('.overflow-y-auto').getBoundingClientRect();
+  const mid = el => el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2;
+  const inside = y => y > box.top && y < box.bottom;
+  return {
+    fim: lilas && marco ? Math.abs(lilas.getBoundingClientRect().bottom - mid(marco)) : 999,
+    inicio: lilas && hoje ? Math.abs(lilas.getBoundingClientRect().top - mid(hoje)) : 999,
+    juntos: !!hoje && !!marco && inside(mid(hoje)) && inside(mid(marco)),
+  };
+});
+check(caminho.inicio < 2 && caminho.fim < 2, `o trilho ganha um trecho lilás de hoje até o próximo marco (${Math.round(caminho.inicio)}px / ${Math.round(caminho.fim)}px)`);
+check(caminho.juntos, 'ao abrir pelo marco, hoje e o marco aparecem juntos na tela');
+check((await naFase.getAttribute('aria-expanded')) === 'false', 'sem abrir a fase sozinha: a visão do progresso fica limpa');
+await mae.screenshot({ path: `${OUT}jornada-proximo-marco.png` });
 await mae.keyboard.press('Escape');
 check((await topo.getByRole('group', { name: 'Escolher semana' }).count()) === 0, 'sem a fileira de números das semanas');
 await topo.getByRole('button', { name: 'Próxima semana' }).click();

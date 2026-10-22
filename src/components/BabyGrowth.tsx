@@ -33,8 +33,16 @@ interface Props {
   tone?: BabyTone;
   /** Só o casal escolhe o tom; sem isso (família), o seletor não aparece. */
   onToneChange?: (tone: BabyTone) => Promise<boolean> | void;
-  /** Abrir já na fase desta semana (um marco do Início), aberta. */
-  focusWeek?: number;
+  /** O próximo marco (do Início): aparece na linha e o trilho mostra, em lilás, o caminho de hoje até ele. */
+  goal?: Goal;
+}
+
+export interface Goal {
+  week: number;
+  title: string;
+  text?: string;
+  /** "em 5 semanas e 5 dias". */
+  when: string;
 }
 
 const TERM = 40;
@@ -42,19 +50,28 @@ const TERM = 40;
 /** Tamanho do desenho em cada fase: cresce com o bebê, sem sumir no começo. */
 const artSize = (week: number) => Math.round(44 + Math.sqrt(stageAt(week).lengthCm / 51.2) * 52);
 
-export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry, tone = 'tumtum', onToneChange, focusWeek }: Props) {
-  const focusStage = focusWeek === undefined ? null : stageAt(focusWeek).week;
-  const [open, setOpen] = useState<number | null>(focusStage);
+export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry, tone = 'tumtum', onToneChange, goal }: Props) {
+  const [open, setOpen] = useState<number | null>(null);
   // Enquanto o casal escolhe o tom, o bebê já aparece nele; só grava ao salvar.
   const [preview, setPreview] = useState<BabyTone | null>(null);
   const shown = preview ?? tone;
   const hereRef = useRef<HTMLLIElement>(null);
   const listRef = useRef<HTMLOListElement>(null);
   const track = useTrack(listRef, open);
+  const goalRef = useRef<HTMLLIElement>(null);
   useEffect(() => {
-    const focused = focusStage === null ? null : listRef.current?.querySelector(`[data-fase="${focusStage}"]`)?.closest('li');
-    (focused ?? hereRef.current)?.scrollIntoView?.({ block: 'center' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao abrir
+    const here = hereRef.current;
+    const target = goalRef.current;
+    // Com um marco, a tela mostra os dois juntos: o ponto de hoje e o marco (o meio entre eles no centro).
+    const box = here?.closest('.overflow-y-auto');
+    if (here && target && box) {
+      const top = (el: Element) => el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+      const middle = (top(here) + top(target) + target.getBoundingClientRect().height) / 2;
+      box.scrollTop = Math.max(0, middle - box.clientHeight / 2);
+    } else {
+      here?.scrollIntoView?.({ block: 'center' });
+    }
+    // Só ao abrir.
   }, []);
 
   const info = weekInfo(Math.min(42, Math.max(4, currentWeek)));
@@ -64,6 +81,28 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
   const shots = stageShots(belly);
   // Onde entra o marcador de hoje, quando a semana fica entre duas fases.
   const hereAt = GROWTH.some(s => s.week === currentWeek) ? -1 : GROWTH.findIndex(s => s.week > currentWeek);
+  // O marco na semana de uma fase fica na própria fase; entre duas, ganha uma linha antes da seguinte.
+  const goalStage = goal && GROWTH.some(s => s.week === goal.week) ? goal.week : null;
+  const goalAt = goal && goalStage === null ? GROWTH.findIndex(s => s.week > goal.week) : -1;
+  const goalLine = goal && (
+    <span className="block text-[11.5px] font-extrabold uppercase tracking-wide text-lilas-strong">
+      Próximo marco · {goal.when}
+    </span>
+  );
+  const goalRow = goal && (
+    <li key="marco" ref={goalRef} className="relative flex items-stretch gap-3">
+      <span className="w-[96px] shrink-0" />
+      <span data-marco className="w-4 shrink-0" aria-hidden />
+      <span className="flex-1 min-w-0 py-2">
+        <span className="block rounded-[18px] bg-lilas-soft ring-2 ring-lilas/40 px-3.5 py-2.5">
+          {goalLine}
+          <span className="block text-[12px] font-bold text-ink-soft">Semana {goal.week}</span>
+          <span className="block font-display text-[1.05rem] leading-snug text-ink">{goal.title}</span>
+          {goal.text && <span className="block text-[12.5px] text-ink-soft">{goal.text}</span>}
+        </span>
+      </span>
+    </li>
+  );
 
   return (
     <div className="space-y-5">
@@ -100,6 +139,13 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
           <li aria-hidden className="absolute pointer-events-none" style={{ left: TRACK_X, top: track.top, height: track.height }}>
             <span className="absolute inset-y-0 -left-[1.5px] w-[3px] rounded-full bg-line" />
             <span className="absolute top-0 -left-[1.5px] w-[3px] rounded-full bg-rosa" style={{ height: track.filled }} />
+            {/* Do ponto de hoje até o próximo marco: o que ainda vem, em lilás. */}
+            {track.goal !== null && track.goal > track.filled && (
+              <>
+                <span className="absolute -left-[1.5px] w-[3px] rounded-full bg-lilas/70" style={{ top: track.filled, height: track.goal - track.filled }} />
+                <span className="absolute -left-2 -translate-y-1/2 w-4 h-4 rounded-full bg-lilas ring-4 ring-lilas-soft" style={{ top: track.goal }} />
+              </>
+            )}
             <span className="absolute -left-2 -translate-y-1/2 w-4 h-4 rounded-full bg-rosa ring-4 ring-rosa-soft" style={{ top: track.filled }} />
           </li>
         )}
@@ -109,6 +155,7 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
           const expanded = open === s.week;
           const shot = shots[i];
           const rows = [];
+          const isGoal = goalStage === s.week;
           if (i === hereAt) {
             // A semana de hoje entre duas fases: um marcador, não uma fase a mais.
             rows.push(
@@ -123,18 +170,25 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
               </li>,
             );
           }
+          if (i === goalAt) rows.push(goalRow);
           rows.push(
-            <li key={s.week} ref={isNow ? hereRef : undefined} className="relative flex items-stretch gap-3">
+            <li key={s.week} ref={isNow ? hereRef : isGoal ? goalRef : undefined} className="relative flex items-stretch gap-3">
               <div className="w-[96px] shrink-0 flex items-center justify-center py-1.5">
                 <span style={{ width: artSize(s.week) }} className={`block transition ${passed ? '' : 'opacity-45 saturate-50'}`}>
                   {/* Pulsam só o coração do topo e o da fase em que o bebê está; as outras fases ficam quietas. */}
                   <BabyArt week={s.week} beat={s.week === stage.week} tone={shown} className="w-full h-auto" />
                 </span>
               </div>
-              <span data-fase={s.week} data-hoje={isNow || undefined} className="w-4 shrink-0" aria-hidden />
+              <span data-fase={s.week} data-hoje={isNow || undefined} data-marco={isGoal || undefined} className="w-4 shrink-0" aria-hidden />
               <div className="flex-1 min-w-0 py-1.5">
-                <div className={`flex items-start gap-2 rounded-[20px] transition ${isNow ? 'bg-rosa-soft ring-2 ring-rosa/50' : passed ? 'bg-surface shadow-soft' : 'bg-surface-2/60'}`}>
+                <div className={`flex items-start gap-2 rounded-[20px] transition ${isNow ? 'bg-rosa-soft ring-2 ring-rosa/50' : isGoal ? 'bg-lilas-soft ring-2 ring-lilas/40' : passed ? 'bg-surface shadow-soft' : 'bg-surface-2/60'}`}>
                   <button type="button" onClick={() => setOpen(o => (o === s.week ? null : s.week))} aria-expanded={expanded} className="flex-1 min-w-0 text-left px-3.5 py-3">
+                    {isGoal && goal && (
+                      <span className="block pb-1.5 mb-1.5 border-b border-lilas/25">
+                        {goalLine}
+                        <span className="block text-[13.5px] font-bold text-ink">{goal.title}</span>
+                      </span>
+                    )}
                     <span className={`block text-[11.5px] font-extrabold uppercase tracking-wide ${passed ? 'text-rosa' : 'text-ink-mute'}`}>
                       {s.week} semanas{isNow && ` · ${hereText}`}
                     </span>
@@ -182,7 +236,7 @@ const TRACK_X = 96 + 12 + 8;
  * a lista muda de tamanho (uma fase aberta, a tela girando).
  */
 function useTrack(listRef: React.RefObject<HTMLOListElement | null>, dep: unknown) {
-  const [track, setTrack] = useState<{ top: number; height: number; filled: number } | null>(null);
+  const [track, setTrack] = useState<{ top: number; height: number; filled: number; goal: number | null } | null>(null);
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
@@ -195,7 +249,9 @@ function useTrack(listRef: React.RefObject<HTMLOListElement | null>, dep: unknow
       const here = mid(list.querySelector('[data-hoje]'));
       if (first === null || last === null) return;
       const filled = Math.min(last, Math.max(first, here ?? first)) - first;
-      setTrack(prev => (prev && prev.top === first && prev.height === last - first && prev.filled === filled ? prev : { top: first, height: last - first, filled }));
+      const marco = mid(list.querySelector('[data-marco]'));
+      const goal = marco === null ? null : marco - first;
+      setTrack(prev => (prev && prev.top === first && prev.height === last - first && prev.filled === filled && prev.goal === goal ? prev : { top: first, height: last - first, filled, goal }));
     };
     measure();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);

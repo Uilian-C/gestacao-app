@@ -93,12 +93,7 @@ export default function HomeTab(props: Props) {
   const { age, selectedWeek, currentWeek, onSelectWeek, insights, onOpen } = props;
   const [editingDum, setEditingDum] = useState(false);
   const [growth, setGrowth] = useState(false);
-  // A jornada pode abrir na fase de um marco ("Próximo marco" → a fase dele).
-  const [growthFocus, setGrowthFocus] = useState<number | undefined>(undefined);
-  const openGrowth = (week?: number) => {
-    setGrowthFocus(week);
-    setGrowth(true);
-  };
+  const openGrowth = () => setGrowth(true);
   const info = weekInfo(selectedWeek);
   const stage = stageAt(selectedWeek);
   const now = new Date();
@@ -107,6 +102,8 @@ export default function HomeTab(props: Props) {
   const phase = phaseOf(currentWeek);
   const cards = weekCards(selectedWeek);
   const dayOfPregnancy = daysBetween(parseLocalDate(props.dumDate), parseLocalDate(todayIso)) + 1;
+  // Na jornada, o próximo marco aparece sempre (não só quando se olha a semana de hoje).
+  const upcoming = age.daysToDpp >= 0 ? nextMilestone(props.dumDate, todayIso) : null;
   const next = selectedWeek === currentWeek && age.daysToDpp >= 0 ? nextMilestone(props.dumDate, todayIso) : null;
   const gestationPct = Math.min(100, Math.max(0, ((dayOfPregnancy - 1) / 280) * 100));
 
@@ -152,7 +149,7 @@ export default function HomeTab(props: Props) {
       <section aria-label="Semana da gestação" className="rounded-[32px] bg-surface shadow-soft px-5 pt-6 pb-5 overflow-hidden">
         {/* O bebê ao lado da semana: compacto, e tocar nele abre a jornada do bebê. */}
         <div className="flex items-center gap-3">
-          <button type="button" onClick={() => openGrowth()} aria-label={`Semana ${selectedWeek} de 40: abrir a jornada do bebê`} className="shrink-0 rounded-full -ml-1">
+          <button type="button" onClick={openGrowth} aria-label={`Semana ${selectedWeek} de 40: abrir a jornada do bebê`} className="shrink-0 rounded-full -ml-1">
             <BabyArt week={selectedWeek} beat={selectedWeek === currentWeek} tone={props.babyTone} className="w-32 h-32 sm:w-36 sm:h-36" />
           </button>
           <div className="min-w-0 flex-1">
@@ -206,7 +203,7 @@ export default function HomeTab(props: Props) {
 
         {/* Próximo marco: o que vem aí, com atalho para a fase dele na jornada. */}
         {next ? (
-          <button type="button" onClick={() => openGrowth(next.milestone.week)} aria-label={`Próximo marco ${inDays(next.days)}: ${next.milestone.title}. Ver na jornada do bebê`} className="mt-3 w-full flex items-center gap-3 rounded-[20px] bg-surface-2/80 hover:bg-surface-2 pl-2 pr-3 py-2 text-left transition">
+          <button type="button" onClick={openGrowth} aria-label={`Próximo marco ${inDays(next.days)}: ${next.milestone.title}. Ver na jornada do bebê`} className="mt-3 w-full flex items-center gap-3 rounded-[20px] bg-surface-2/80 hover:bg-surface-2 pl-2 pr-3 py-2 text-left transition">
             <BabyArt week={Math.min(40, next.milestone.week)} tone={props.babyTone} className="w-12 h-12 shrink-0" />
             <span className="flex-1 min-w-0">
               <span className="block text-[12px] font-bold text-rosa">Próximo marco {inDays(next.days)}</span>
@@ -216,7 +213,7 @@ export default function HomeTab(props: Props) {
             <ChevronRight className="w-5 h-5 text-ink-mute shrink-0" />
           </button>
         ) : (
-          <button type="button" onClick={() => openGrowth()} className="mt-3 w-full flex items-center justify-between rounded-[20px] bg-surface-2/80 px-4 py-3 text-left font-bold text-ink">
+          <button type="button" onClick={openGrowth} className="mt-3 w-full flex items-center justify-between rounded-[20px] bg-surface-2/80 px-4 py-3 text-left font-bold text-ink">
             Jornada do bebê <ChevronRight className="w-4 h-4" />
           </button>
         )}
@@ -224,7 +221,7 @@ export default function HomeTab(props: Props) {
           <Sheet title="Jornada do bebê" subtitle={`Da 4ª à 40ª semana · vocês estão na ${currentWeek}ª`} onClose={() => setGrowth(false)}>
             <BabyGrowth
               currentWeek={currentWeek}
-              focusWeek={growthFocus}
+              goal={upcoming ? { week: upcoming.milestone.week, title: upcoming.milestone.title, text: upcoming.milestone.text, when: inDays(upcoming.days) } : undefined}
               tone={props.babyTone}
               onToneChange={props.onBabyTone}
               parents={coupleNames(members.map(m => m.name))}
