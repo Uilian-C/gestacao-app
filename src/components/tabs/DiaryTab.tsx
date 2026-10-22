@@ -38,7 +38,7 @@ interface Props {
   /** Abre os detalhes (com reações, conversa, editar e excluir). */
   onOpen: (target: DetailTarget) => void;
   /** Abre o formulário já na pasta (e com uma ideia para começar). */
-  onWrite: (folder: Folder, idea?: string) => void;
+  onWrite: (folder?: Folder, idea?: string) => void;
   /** Leva para Cuidados → Saúde. */
   onOpenHealth: () => void;
 }
@@ -180,7 +180,7 @@ function Cover({ journal, dumDate, photosAvailable, journalAvailable, onView, on
       )}
 
       {journal.length === 0 && journalAvailable && (
-        <button type="button" onClick={() => onWrite('momento')} className="w-full rounded-3xl border-2 border-dashed border-line p-5 text-left hover:bg-surface transition">
+        <button type="button" onClick={() => onWrite()} className="w-full rounded-3xl border-2 border-dashed border-line p-5 text-left hover:bg-surface transition">
           <span className="flex items-center gap-2 font-extrabold text-rosa-strong">
             <Plus className="w-5 h-5" /> Guardar o primeiro registro
           </span>

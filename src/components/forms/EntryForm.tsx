@@ -5,6 +5,7 @@ import { WORK_RIGHTS, WORK_RIGHTS_SOURCE, WORK_TERMS } from '../../content/workR
 import type { Folder, JournalEntry, Visibility } from '../../hooks/useGestationData';
 import { formatBR, parseLocalDate, toISODate } from '../../lib/dates';
 import { FileProblem, preparePhoto, type PreparedPhoto } from '../../lib/examFiles';
+import { guessFolder } from '../../lib/classify';
 import { FOLDER, FOLDERS, TONE, weekOn } from '../../lib/folders';
 import Guide from '../Guide';
 import DayPicker from './DayPicker';
@@ -18,6 +19,8 @@ import { Button, Segmented } from '../ui';
 
 // Registro do fichário: a pasta, o texto, as fotos (até 4), quem vê e um
 // lembrete opcional. Com `initial`, abre preenchido para editar.
+// Sem pasta escolhida (quem escreve pelo Mural ou pelo Registrar), a pasta
+// acompanha o texto: o Tumtum sugere e a pessoa só toca se quiser trocar.
 
 export interface NewEntry {
   date: string;
@@ -40,12 +43,23 @@ const addDays = (iso: string, n: number) => {
   return toISODate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n));
 };
 
-export function EntryForm({ busy, available, photosAvailable, dumDate, folder: startFolder = 'momento', idea, initial, onSave }: {
+/** Para começar sem pasta: um pouco de cada, e cada ideia já leva a sua pasta. */
+const STARTERS: Array<{ text: string; folder: Folder }> = [
+  { text: 'Hoje me senti…', folder: 'dia' },
+  { text: 'Ouvimos o coração', folder: 'momento' },
+  { text: 'Querido bebê,', folder: 'carta' },
+  { text: 'Nomes que gostamos', folder: 'ideia' },
+  { text: 'Desejo do dia', folder: 'dia' },
+  { text: 'Primeiro chute', folder: 'momento' },
+];
+
+export function EntryForm({ busy, available, photosAvailable, dumDate, folder: startFolder, idea, initial, onSave }: {
   busy: boolean;
   available: boolean;
   /** A migração 012 já rodou (pastas e fotos). */
   photosAvailable: boolean;
   dumDate: string;
+  /** A pasta já escolhida (de dentro de uma pasta do Fichário); sem ela, a pasta acompanha o texto. */
   folder?: Folder;
   /** Texto para começar (vindo de uma ideia da pasta). */
   idea?: string;
@@ -53,7 +67,7 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
   onSave: (e: NewEntry) => Promise<boolean>;
 }) {
   const today = toISODate(new Date());
-  const [folder, setFolder] = useState<Folder>(initial?.folder ?? (photosAvailable ? startFolder : 'momento'));
+  const [picked, setFolder] = useState<Folder | null>(initial?.folder ?? (photosAvailable ? (startFolder ?? null) : 'momento'));
   const [body, setBody] = useState(initial?.body ?? idea ?? '');
   const [date, setDate] = useState(initial?.entry_date ?? today);
   const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? 'shared');
@@ -71,15 +85,20 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
   const picker = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
   const strip = useRef<HTMLDivElement>(null);
+  const previews = useRef<string[]>([]);
+  useEffect(() => () => previews.current.forEach(u => URL.revokeObjectURL(u)), []);
+
+  const auto = picked === null;
+  const folder: Folder = picked ?? guessFolder(body, photos.length > 0);
+  // Antes de escrever, nenhuma pasta acesa: ela aparece com o texto.
+  const lit = auto && body.trim() === '' ? null : folder;
+  const info = FOLDER[folder];
   // A pasta escolhida aparece inteira na fileira (sem scrollIntoView, que mexe na página toda).
   useEffect(() => {
     const el = strip.current?.querySelector<HTMLElement>('[aria-checked="true"]');
     if (strip.current && el) strip.current.scrollTo({ left: Math.max(0, el.offsetLeft - 16), behavior: 'smooth' });
-  }, [folder]);
-  const previews = useRef<string[]>([]);
-  useEffect(() => () => previews.current.forEach(u => URL.revokeObjectURL(u)), []);
+  }, [lit]);
 
-  const info = FOLDER[folder];
   const tone = TONE[info.tone];
   const kept = (initial?.photos ?? []).filter(p => !removed.includes(p.id));
   const room = MAX_PHOTOS - kept.length - photos.length;
@@ -159,7 +178,7 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
       {photosAvailable ? (
         <div ref={strip} className="relative -mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" role="radiogroup" aria-label="Pasta">
           {FOLDERS.map(f => {
-            const on = f.id === folder;
+            const on = f.id === lit;
             return (
               <button
                 key={f.id}
@@ -177,6 +196,17 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
       ) : (
         <p className="text-xs text-ink-mute">Pastas e fotos do diário aparecem depois da migração 012 no Neon.</p>
       )}
+      {photosAvailable && auto && (
+        <p className="-mt-2 text-[12px] text-ink-mute" aria-live="polite">
+          {lit ? (
+            <>
+              Vai para <b className={tone.text}>{info.label}</b> pelo que você escreveu. Toque em outra pasta para trocar.
+            </>
+          ) : (
+            'Escreva à vontade: a pasta se ajusta ao que você contar.'
+          )}
+        </p>
+      )}
 
       {belly && photosAvailable && (
         <>
@@ -191,7 +221,7 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
           aria-label={belly ? 'Legenda' : 'O que aconteceu?'}
           rows={belly ? 2 : folder === 'carta' ? 6 : 4}
           className={`${inputClass} resize-none ${folder === 'carta' ? 'font-display text-[1.05rem] leading-relaxed' : ''}`}
-          placeholder={info.placeholder}
+          placeholder={auto ? 'O que vocês querem guardar hoje?' : info.placeholder}
           value={body}
           onChange={e => {
             setBody(e.target.value);
@@ -203,9 +233,18 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
         {/* Marcar a outra pessoa (só no que os dois veem). */}
         {visibility !== 'private' && <MentionBar suggestions={suggestions} unmarked={unmarked} onPick={insert} always />}
         <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" aria-label="Ideias">
-          {info.ideas.map(i => (
-            <button key={i} type="button" onClick={() => setBody(b => (b.trim() ? b : i))} className="shrink-0 rounded-full px-3 py-1 text-[13px] bg-surface-2 text-ink-soft hover:text-ink">
-              {i}
+          {(auto ? STARTERS : info.ideas.map(text => ({ text, folder }))).map(i => (
+            <button
+              key={i.text}
+              type="button"
+              onClick={() => {
+                if (body.trim()) return;
+                setBody(i.text);
+                if (auto) setFolder(i.folder);
+              }}
+              className="shrink-0 rounded-full px-3 py-1 text-[13px] bg-surface-2 text-ink-soft hover:text-ink"
+            >
+              {i.text}
             </button>
           ))}
         </div>

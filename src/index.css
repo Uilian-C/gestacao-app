@@ -454,3 +454,10 @@
 @media (prefers-reduced-motion: reduce) {
   .tt-registrar, .tt-registrar::after { animation: none; }
 }
+
+/* Trilho do que ainda vem (jornada do bebê): bolinhas espaçadas, na cor do texto. */
+.tt-pontilhado {
+  background-image: radial-gradient(circle, currentColor 1.5px, transparent 1.7px);
+  background-size: 3px 8px;
+  background-repeat: repeat-y;
+}

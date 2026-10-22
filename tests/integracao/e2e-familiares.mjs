@@ -51,7 +51,7 @@ const novo = async (texto, quem) => {
   await mae.getByRole('button', { name: 'Registrar', exact: true }).click();
   await mae.getByLabel('O que aconteceu?').fill(texto);
   await mae.getByRole('group', { name: 'Quem vê' }).getByRole('button', { name: quem }).click();
-  await mae.getByRole('button', { name: /Guardar momento/ }).click();
+  await mae.getByRole('button', { name: /^Guardar/ }).click();
   await mae.waitForTimeout(1000);
 };
 await mae.getByRole('button', { name: 'Registrar', exact: true }).click();

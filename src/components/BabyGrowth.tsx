@@ -94,7 +94,7 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
       <span className="w-[96px] shrink-0" />
       <span data-marco className="w-4 shrink-0" aria-hidden />
       <span className="flex-1 min-w-0 py-2">
-        <span className="block rounded-[18px] bg-lilas-soft ring-2 ring-lilas/40 px-3.5 py-2.5">
+        <span className="block rounded-[18px] bg-surface border-2 border-dashed border-lilas/35 px-3.5 py-2.5">
           {goalLine}
           <span className="block text-[12px] font-bold text-ink-soft">Semana {goal.week}</span>
           <span className="block font-display text-[1.05rem] leading-snug text-ink">{goal.title}</span>
@@ -139,11 +139,13 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
           <li aria-hidden className="absolute pointer-events-none" style={{ left: TRACK_X, top: track.top, height: track.height }}>
             <span className="absolute inset-y-0 -left-[1.5px] w-[3px] rounded-full bg-line" />
             <span className="absolute top-0 -left-[1.5px] w-[3px] rounded-full bg-rosa" style={{ height: track.filled }} />
-            {/* Do ponto de hoje até o próximo marco: o que ainda vem, em lilás. */}
+            {/* Do ponto de hoje até o próximo marco: o que ainda vem, pontilhado e clarinho (não se confunde com o caminho já feito). */}
             {track.goal !== null && track.goal > track.filled && (
               <>
-                <span className="absolute -left-[1.5px] w-[3px] rounded-full bg-lilas/70" style={{ top: track.filled, height: track.goal - track.filled }} />
-                <span className="absolute -left-2 -translate-y-1/2 w-4 h-4 rounded-full bg-lilas ring-4 ring-lilas-soft" style={{ top: track.goal }} />
+                <span data-caminho className="absolute -left-[1.5px] w-[3px] bg-surface" style={{ top: track.filled, height: track.goal - track.filled }}>
+                  <span className="absolute inset-0 tt-pontilhado text-lilas/45" />
+                </span>
+                <span className="absolute -left-[7px] -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-surface border-2 border-lilas/60" style={{ top: track.goal }} />
               </>
             )}
             <span className="absolute -left-2 -translate-y-1/2 w-4 h-4 rounded-full bg-rosa ring-4 ring-rosa-soft" style={{ top: track.filled }} />
@@ -181,10 +183,10 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
               </div>
               <span data-fase={s.week} data-hoje={isNow || undefined} data-marco={isGoal || undefined} className="w-4 shrink-0" aria-hidden />
               <div className="flex-1 min-w-0 py-1.5">
-                <div className={`flex items-start gap-2 rounded-[20px] transition ${isNow ? 'bg-rosa-soft ring-2 ring-rosa/50' : isGoal ? 'bg-lilas-soft ring-2 ring-lilas/40' : passed ? 'bg-surface shadow-soft' : 'bg-surface-2/60'}`}>
+                <div className={`flex items-start gap-2 rounded-[20px] transition ${isNow ? 'bg-rosa-soft ring-2 ring-rosa/50' : isGoal ? 'bg-surface outline-2 outline-dashed outline-lilas/45' : passed ? 'bg-surface shadow-soft' : 'bg-surface-2/60'}`}>
                   <button type="button" onClick={() => setOpen(o => (o === s.week ? null : s.week))} aria-expanded={expanded} className="flex-1 min-w-0 text-left px-3.5 py-3">
                     {isGoal && goal && (
-                      <span className="block pb-1.5 mb-1.5 border-b border-lilas/25">
+                      <span className="block pb-1.5 mb-1.5 border-b border-dashed border-lilas/30">
                         {goalLine}
                         <span className="block text-[13.5px] font-bold text-ink">{goal.title}</span>
                       </span>

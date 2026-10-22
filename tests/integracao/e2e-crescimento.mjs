@@ -36,7 +36,7 @@ await mae.waitForTimeout(400);
 // O caminho de hoje até o marco, em lilás, termina exatamente no marco; e os dois cabem juntos na tela.
 const caminho = await jornada.evaluate(dlg => {
   const list = dlg.querySelector('ol');
-  const lilas = list.querySelector('.bg-lilas\\/70');
+  const lilas = list.querySelector('[data-caminho]');
   const marco = list.querySelector('[data-marco]');
   const hoje = list.querySelector('[data-hoje]');
   const box = list.closest('.overflow-y-auto').getBoundingClientRect();
@@ -48,7 +48,7 @@ const caminho = await jornada.evaluate(dlg => {
     juntos: !!hoje && !!marco && inside(mid(hoje)) && inside(mid(marco)),
   };
 });
-check(caminho.inicio < 2 && caminho.fim < 2, `o trilho ganha um trecho lilás de hoje até o próximo marco (${Math.round(caminho.inicio)}px / ${Math.round(caminho.fim)}px)`);
+check(caminho.inicio < 2 && caminho.fim < 2, `o caminho até o próximo marco é pontilhado, de hoje até o marco (${Math.round(caminho.inicio)}px / ${Math.round(caminho.fim)}px)`);
 check(caminho.juntos, 'ao abrir pelo marco, hoje e o marco aparecem juntos na tela');
 check((await naFase.getAttribute('aria-expanded')) === 'false', 'sem abrir a fase sozinha: a visão do progresso fica limpa');
 await mae.screenshot({ path: `${OUT}jornada-proximo-marco.png` });
