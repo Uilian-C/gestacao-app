@@ -9,8 +9,7 @@ import AuthorBadge from '../AuthorBadge';
 import { MentionText } from '../Mentions';
 import { SocialCount, type OnReact } from '../Social';
 import Mural from './Mural';
-import { useState } from 'react';
-import { BookPrint, BookView } from '../Book';
+import { BookView } from '../Book';
 import type { BabyTone } from '../../content/babyTones';
 import { coupleNames } from '../../lib/relatives';
 import { freshChapter, type Chapter } from '../../lib/chapters';
@@ -50,11 +49,12 @@ interface Props {
   book: Chapter[];
   /** O tom do bebê (o desenho de cada capítulo). */
   babyTone: BabyTone;
+  /** Guardar o nome do bebê (vai para a capa do livro). */
+  onBabyName?: (name: string | null) => Promise<boolean>;
 }
 
 export default function DiaryTab(props: Props) {
   const entries = props.journal;
-  const [printing, setPrinting] = useState(false);
   const count = (f: Folder) => entries.filter(e => e.folder === f).length;
   const social = (e: JournalEntry) => ({
     reactions: props.reactions.filter(r => r.target_type === 'entry' && r.target_id === e.id).length,
@@ -85,10 +85,14 @@ export default function DiaryTab(props: Props) {
           onOpenBook={() => props.onView('livro')}
         />
       ) : props.view === 'livro' ? (
-        <>
-          <BookView book={props.book} tone={props.babyTone} onOpenEntry={id => props.onOpen({ kind: 'entry', id })} onWrite={props.journalAvailable ? () => props.onWrite() : undefined} onPrint={() => setPrinting(true)} />
-          {printing && <BookPrint book={props.book} tone={props.babyTone} parents={coupleNames(props.members.map(m => m.name))} onClose={() => setPrinting(false)} />}
-        </>
+        <BookView
+          book={props.book}
+          tone={props.babyTone}
+          parents={coupleNames(props.members.map(m => m.name))}
+          onOpenEntry={id => props.onOpen({ kind: 'entry', id })}
+          onWrite={props.journalAvailable ? () => props.onWrite() : undefined}
+          onName={props.onBabyName}
+        />
       ) : props.view === 'tudo' ? (
         <Cover {...props} count={count} social={social} />
       ) : (
@@ -98,33 +102,45 @@ export default function DiaryTab(props: Props) {
   );
 }
 
-/** As abas do diário: o Mural, o Fichário e uma por pasta, deslizando para o lado no celular. */
+/**
+ * O topo do Diário: três lugares só. O Mural (a linha do tempo), o Fichário
+ * (achar fácil, por pasta, com o humor) e o Livro (a história de vocês). As
+ * pastas aparecem embaixo quando o Fichário está aberto.
+ */
 function FolderStrip({ value, onChange, count, total, folders }: { value: DiaryView; onChange: (v: DiaryView) => void; count: (f: Folder) => number; total: number; folders: boolean }) {
-  const tab = 'shrink-0 inline-flex items-center gap-1.5 rounded-full pl-3 pr-3.5 py-2 text-[13px] font-bold transition';
+  const inFichario = value !== 'mural' && value !== 'livro';
+  const main = (v: DiaryView, on: boolean, Icon: typeof BookOpen, label: string, extra?: React.ReactNode) => (
+    <button type="button" onClick={() => onChange(v)} aria-current={on ? 'page' : undefined} className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-full py-2 text-[13.5px] font-bold transition ${on ? 'bg-ink text-surface shadow-soft' : 'text-ink-soft'}`}>
+      <Icon className="w-4 h-4" /> {label}
+      {extra}
+    </button>
+  );
+  const chip = 'shrink-0 inline-flex items-center gap-1.5 rounded-full pl-3 pr-3.5 py-1.5 text-[13px] font-bold transition';
   return (
-    <nav className="-mx-4 px-4 flex gap-2 overflow-x-auto no-scrollbar" aria-label="Pastas do diário">
-      <button type="button" onClick={() => onChange('mural')} aria-current={value === 'mural' ? 'page' : undefined} className={`${tab} ${value === 'mural' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
-        <LayoutList className="w-4 h-4" /> Mural
-      </button>
-      <button type="button" onClick={() => onChange('livro')} aria-current={value === 'livro' ? 'page' : undefined} className={`${tab} ${value === 'livro' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
-        <BookOpen className="w-4 h-4" /> Livro
-      </button>
-      <button type="button" onClick={() => onChange('tudo')} aria-current={value === 'tudo' ? 'page' : undefined} className={`${tab} ${value === 'tudo' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
-        <BookHeart className="w-4 h-4" /> Fichário <span className="tabular opacity-70">{total}</span>
-      </button>
-      <button type="button" onClick={() => onChange('humor')} aria-current={value === 'humor' ? 'page' : undefined} className={`${tab} ${value === 'humor' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
-        <Smile className="w-4 h-4" /> Humor
-      </button>
-      {folders && FOLDERS.map(f => {
-        const on = value === f.id;
-        const t = TONE[f.tone];
-        return (
-          <button key={f.id} type="button" onClick={() => onChange(f.id)} aria-current={on ? 'page' : undefined} className={`${tab} ${on ? t.solid : `${t.soft} ${t.text}`}`}>
-            <f.Icon className="w-4 h-4" /> {f.label}
-            {count(f.id) > 0 && <span className="tabular opacity-70">{count(f.id)}</span>}
+    <nav className="space-y-2.5" aria-label="Pastas do diário">
+      <div className="flex gap-1 rounded-full bg-surface shadow-soft p-1">
+        {main('mural', value === 'mural', LayoutList, 'Mural')}
+        {main('tudo', inFichario, BookHeart, 'Fichário', total > 0 && <span className="tabular opacity-70">{total}</span>)}
+        {main('livro', value === 'livro', BookOpen, 'Livro')}
+      </div>
+      {inFichario && (
+        <div className="-mx-4 px-4 flex gap-2 overflow-x-auto no-scrollbar">
+          <button type="button" onClick={() => onChange('humor')} aria-current={value === 'humor' ? 'page' : undefined} className={`${chip} ${value === 'humor' ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
+            <Smile className="w-4 h-4" /> Humor
           </button>
-        );
-      })}
+          {folders &&
+            FOLDERS.map(f => {
+              const on = value === f.id;
+              const t = TONE[f.tone];
+              return (
+                <button key={f.id} type="button" onClick={() => onChange(on ? 'tudo' : f.id)} aria-current={on ? 'page' : undefined} className={`${chip} ${on ? t.solid : `${t.soft} ${t.text}`}`}>
+                  <f.Icon className="w-4 h-4" /> {f.label}
+                  {count(f.id) > 0 && <span className="tabular opacity-70">{count(f.id)}</span>}
+                </button>
+              );
+            })}
+        </div>
+      )}
     </nav>
   );
 }

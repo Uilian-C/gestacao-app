@@ -133,6 +133,7 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('comment'), targetType: z.enum(['entry', 'exam']), targetId: uuid, body: text(1000) }),
   z.object({ op: z.literal('deleteComment'), id: uuid }),
   // Tom do bebê desenhado (migração 024); null volta ao tom neutro.
+  z.object({ op: z.literal('setBabyName'), name: z.string().trim().max(40).nullable() }),
   z.object({ op: z.literal('setBabyTone'), tone: z.enum(['tumtum', 'tom1', 'tom2', 'tom3', 'tom4', 'tom5']).nullable() }),
   // Check-in do dia (migração 014): o humor de cada um; null apaga.
   z.object({ op: z.literal('checkin'), day: isoDate, mood: z.enum(['otima', 'bem', 'cansada', 'enjoada', 'ansiosa']).nullable() }),
@@ -478,6 +479,11 @@ async function apply(m: Member, o: Op) {
          RETURNING (xmax = 0) AS inserted`,
         [fid, m.userId, who, o.day, o.mood],
       ).catch(checkinMissing);
+    case 'setBabyName':
+      return query('UPDATE families SET baby_name = $2 WHERE id = $1', [fid, o.name ? o.name : null]).catch(err => {
+        if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'O nome do bebê ainda não está ligado no servidor. Rode a migração db/migrations/025_nome_do_bebe.sql no Neon.');
+        throw err;
+      });
     case 'setBabyTone':
       return query('UPDATE families SET baby_tone = $2 WHERE id = $1', [fid, o.tone === 'tumtum' ? null : o.tone]).catch(err => {
         if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'O tom do bebê ainda não está ligado no servidor. Rode a migração db/migrations/024_tom_do_bebe.sql no Neon.');

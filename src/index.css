@@ -466,6 +466,21 @@
 @media print {
   .tt-livro { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .tt-livro-capa { break-after: page; min-height: 0; padding-top: 30vh; }
-  section.tt-livro-capitulo { break-before: page; border-top: 0; }
+  .tt-livro-abertura, .tt-livro-semana { break-before: page; }
   .tt-livro-registro, .tt-livro img { break-inside: avoid; }
+}
+
+/* O livro aberto: a página vira para o lado, como papel. */
+@keyframes tt-virar-frente {
+  from { transform: rotateY(-14deg) translateX(40%); opacity: 0; transform-origin: left center; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes tt-virar-volta {
+  from { transform: rotateY(14deg) translateX(-40%); opacity: 0; transform-origin: right center; }
+  to { transform: none; opacity: 1; }
+}
+.tt-pagina-frente { animation: tt-virar-frente 380ms cubic-bezier(.2, .8, .2, 1); }
+.tt-pagina-volta { animation: tt-virar-volta 380ms cubic-bezier(.2, .8, .2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .tt-pagina-frente, .tt-pagina-volta { animation: none; }
 }

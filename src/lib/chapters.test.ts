@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JournalEntry } from '../hooks/useGestationData';
-import { buildBook, freshChapter, joinPt } from './chapters';
+import { bookMonths, buildBook, freshChapter, joinPt } from './chapters';
 
 // DUM 2026-05-21: a semana 22 vai de 2026-10-22 a 2026-10-28.
 const DUM = '2026-05-21';
@@ -67,5 +67,16 @@ describe('buildBook', () => {
   it('o capítulo que fechou aparece no Mural só nos primeiros dias da semana seguinte', () => {
     expect(freshChapter(book, DUM, new Date(2026, 9, 23))?.week).toBe(21);
     expect(freshChapter(book, DUM, new Date(2026, 9, 26))).toBeNull();
+  });
+
+  it('agrupa as semanas em capítulos por mês, do mais novo ao mais antigo', () => {
+    const months = bookMonths(buildBook({ ...base, journal: [entry({ id: 'm', entry_date: '2026-09-12', folder: 'momento', body: 'Contamos para a família' }), ...journal] }));
+    expect(months.map(m => [m.month, m.pages.map(p => p.week)])).toEqual([
+      [5, [18, 19, 20, 21, 22]],
+      [4, [16, 17]],
+    ]);
+    expect(months[0]).toMatchObject({ name: 'O quinto mês', title: 'Os primeiros chutinhos', open: true });
+    expect(months[1].story).toBe('Um mês cheio de histórias. Teve um momento para guardar para sempre.');
+    expect(months[1].story).not.toMatch(/\d/);
   });
 });
