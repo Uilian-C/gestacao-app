@@ -5,12 +5,21 @@ import { TONES, type BabyTone } from '../content/babyTones';
 // bebê" (Lorenz) que desperta o carinho de quem olha — cabeça grande e
 // redonda, testa alta, bochechas coradas, olhinhos fechados e serenos, formas
 // macias e sem contorno duro. Por padrão é uma luz lilás, sem cor de pele, em
-// que todo casal se vê; o casal pode escolher um tom de pele. Fica dentro de uma bolha
-// clarinha (a barriga), abraçado pelo eco do símbolo do Tumtum.
+// que todo casal se vê; o casal pode escolher um tom de pele. Fica dentro de
+// uma bolha em forma de coração, abraçado pelo eco do símbolo do Tumtum: a
+// assinatura do app.
 //
 // Ele muda com a gestação: uma sementinha luminosa (até a 7ª
 // semana), um feijãozinho de carinha grande (8ª a 11ª) e, a partir da 12ª, o
 // bebê encolhido que vai ganhando bochecha, dobrinha e um cachinho de cabelo.
+
+/**
+ * A bolha em forma de coração: gordinho, de pontas macias, como um balão. As
+ * metades começam no meio de cima e terminam no meio de baixo (para o eco).
+ */
+const HEART_LEFT = 'M60 34 C53 20 40 13 28 17 C12 22 6 42 12 60 C18 80 42 100 60 104';
+const HEART_RIGHT = 'M60 34 C67 20 80 13 92 17 C108 22 114 42 108 60 C102 80 78 100 60 104';
+const HEART = `${HEART_LEFT} C78 100 102 80 108 60 C114 42 108 22 92 17 C80 13 67 20 60 34 Z`;
 
 /**
  * O eco do Tumtum: as ondas do símbolo (rosa de um lado, azul do outro, do
@@ -30,13 +39,16 @@ function Echo({ id, beat }: { id: string; beat: boolean }) {
           <stop offset="1" stopColor="#2f84d6" />
         </linearGradient>
       </defs>
-      <g className={beat ? 'tt-bebe-eco' : undefined} opacity={0.32} strokeWidth={3}>
-        <path d="M30.2 17.4 A52 52 0 0 0 30.2 102.6" stroke={`url(#${id}r)`} />
-        <path d="M89.8 17.4 A52 52 0 0 1 89.8 102.6" stroke={`url(#${id}b)`} />
+      {/* As ondas seguem o contorno do coração, abertas em cima e embaixo, como no símbolo */}
+      <g className={beat ? 'tt-bebe-eco' : undefined} opacity={0.34} strokeWidth={3}>
+        <g transform="translate(60 62) scale(1.12) translate(-60 -62)">
+          <path d={HEART_LEFT} stroke={`url(#${id}r)`} pathLength={100} strokeDasharray="84 100" strokeDashoffset={-8} />
+          <path d={HEART_RIGHT} stroke={`url(#${id}b)`} pathLength={100} strokeDasharray="84 100" strokeDashoffset={-8} />
+        </g>
       </g>
-      <g className={beat ? 'tt-bebe-batida' : undefined} opacity={0.5} strokeWidth={3.4}>
-        <path d="M41 19.2 A45 45 0 0 0 41 100.8" stroke={`url(#${id}r)`} />
-        <path d="M79 19.2 A45 45 0 0 1 79 100.8" stroke={`url(#${id}b)`} />
+      <g className={beat ? 'tt-bebe-batida' : undefined} opacity={0.6} strokeWidth={3.4}>
+        <path d={HEART_LEFT} stroke={`url(#${id}r)`} pathLength={100} strokeDasharray="88 100" strokeDashoffset={-6} />
+        <path d={HEART_RIGHT} stroke={`url(#${id}b)`} pathLength={100} strokeDasharray="88 100" strokeDashoffset={-6} />
       </g>
     </g>
   );
@@ -64,7 +76,7 @@ export default function BabyArt({ week, beat = false, tone = 'tumtum', className
   const glow = `brilho-${id}`;
 
   return (
-    <svg viewBox="0 0 120 120" className={className} aria-hidden>
+    <svg viewBox="-8 -6 136 132" className={className} aria-hidden>
       <defs>
         <radialGradient id={skin} cx="38%" cy="32%" r="75%">
           <stop offset="0%" stopColor={SKIN.light} />
@@ -75,10 +87,9 @@ export default function BabyArt({ week, beat = false, tone = 'tumtum', className
           <stop offset="0%" stopColor={SKIN.mid} />
           <stop offset="100%" stopColor={SKIN.deep} />
         </radialGradient>
-        <radialGradient id={bubble} cx="50%" cy="45%" r="55%">
+        <radialGradient id={bubble} cx="42%" cy="38%" r="70%">
           <stop offset="0%" style={{ stopColor: 'var(--c-surface)' }} />
-          <stop offset="78%" style={{ stopColor: 'var(--c-surface-2)' }} />
-          <stop offset="100%" style={{ stopColor: 'var(--c-surface-2)', stopOpacity: 0 }} />
+          <stop offset="100%" style={{ stopColor: 'var(--c-surface-2)' }} />
         </radialGradient>
         <radialGradient id={glow} cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="#fff6ef" />
@@ -88,9 +99,14 @@ export default function BabyArt({ week, beat = false, tone = 'tumtum', className
       </defs>
 
       {/* A bolha: a barriga, aconchegante */}
-      <circle cx={60} cy={60} r={58} fill={`url(#${bubble})`} />
+      {/* A bolha: um coração macio, com o brilho de uma bolha de sabão */}
+      <path d={HEART} fill={`url(#${bubble})`} />
       <Echo id={`eco-${id}`} beat={beat} />
+      <ellipse cx={30} cy={30} rx={9} ry={5} transform="rotate(-35 30 30)" fill="#fff" opacity={0.55} />
+      <circle cx={41} cy={22.5} r={2.2} fill="#fff" opacity={0.5} />
 
+      {/* O bebê, um pouco menor, para caber no coração */}
+      <g transform="translate(60 61) scale(0.74) translate(-60 -60)">
       {week < 8 ? (
         // Sementinha: uma luz quente com o coração já batendo.
         <g>
@@ -130,6 +146,7 @@ export default function BabyArt({ week, beat = false, tone = 'tumtum', className
           {week >= 32 && <path d="M40 77.5 q2.5 1.2 5 -0.4" fill="none" stroke={SKIN.deep} strokeWidth={1.2} strokeLinecap="round" />}
         </g>
       )}
+      </g>
     </svg>
   );
 }
