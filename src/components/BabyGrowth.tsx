@@ -106,7 +106,8 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
             <li key={s.week} ref={isNow ? hereRef : undefined} className="relative flex items-stretch gap-3">
               <div className="w-[96px] shrink-0 flex items-center justify-center py-1.5">
                 <span style={{ width: artSize(s.week) }} className={`block transition ${passed ? '' : 'opacity-45 saturate-50'}`}>
-                  <BabyArt week={s.week} beat={isNow} tone={tone} className="w-full h-auto" />
+                  {/* Só o coração de hoje (no topo) pulsa: as fases ficam quietas, sem poluir a linha. */}
+                  <BabyArt week={s.week} tone={tone} className="w-full h-auto" />
                 </span>
               </div>
               <Rail top={i > 0} bottom={i < GROWTH.length - 1} filledTop={passed} filledBottom={(GROWTH[i + 1]?.week ?? 99) <= currentWeek} dot={isNow ? 'now' : passed ? 'passed' : 'next'} />

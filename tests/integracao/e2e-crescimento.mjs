@@ -26,6 +26,7 @@ check(await hoje.getByText('O bebê de Ana').isVisible(), 'em cima, o bebê de q
 check(await hoje.getByText('Os primeiros chutinhos').isVisible() && (await hoje.getByText('55% do caminho').isVisible()), 'com o nome carinhoso da fase e o caminho até o colo');
 check(await hoje.getByText('faltam 18 semanas para o colo').isVisible(), 'e quanto falta');
 const linha = sheet.getByRole('list', { name: /Crescimento do bebê/ });
+check((await sheet.locator('.tt-bebe-eco').count()) === 1 && (await linha.locator('.tt-bebe-eco, .tt-bebe-batida').count()) === 0, 'só o coração de hoje pulsa; as fases da linha ficam quietas');
 check((await linha.getByRole('listitem').count()) === 11, 'a linha tem as 10 fases e o marcador de hoje');
 check(await linha.getByText('Semana 22 · vocês estão aqui').isVisible(), 'a semana de hoje fica marcada entre as fases');
 const fase = linha.getByRole('button', { name: /^32 semanas/ });

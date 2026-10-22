@@ -19,6 +19,9 @@ import { TONES, type BabyTone } from '../content/babyTones';
  */
 const HEART_LEFT = 'M60 34 C53 20 40 13 28 17 C12 22 6 42 12 60 C18 80 42 100 60 104';
 const HEART_RIGHT = 'M60 34 C67 20 80 13 92 17 C108 22 114 42 108 60 C102 80 78 100 60 104';
+/** Inclinação do coração (graus): leve, só para acompanhar o bebê. */
+const TILT = -8;
+
 const HEART = `${HEART_LEFT} C78 100 102 80 108 60 C114 42 108 22 92 17 C80 13 67 20 60 34 Z`;
 
 /**
@@ -100,10 +103,13 @@ export default function BabyArt({ week, beat = false, tone = 'tumtum', className
 
       {/* A bolha: a barriga, aconchegante */}
       {/* A bolha: um coração macio, com o brilho de uma bolha de sabão */}
-      <path d={HEART} fill={`url(#${bubble})`} />
-      <Echo id={`eco-${id}`} beat={beat} />
-      <ellipse cx={30} cy={30} rx={9} ry={5} transform="rotate(-35 30 30)" fill="#fff" opacity={0.55} />
-      <circle cx={41} cy={22.5} r={2.2} fill="#fff" opacity={0.5} />
+      {/* Levemente inclinado, acompanhando o corpinho encolhido */}
+      <g transform={`rotate(${TILT} 60 62)`}>
+        <path d={HEART} fill={`url(#${bubble})`} />
+        <Echo id={`eco-${id}`} beat={beat} />
+        <ellipse cx={30} cy={30} rx={9} ry={5} transform="rotate(-35 30 30)" fill="#fff" opacity={0.55} />
+        <circle cx={41} cy={22.5} r={2.2} fill="#fff" opacity={0.5} />
+      </g>
 
       {/* O bebê, um pouco menor, para caber no coração */}
       <g transform="translate(60 61) scale(0.74) translate(-60 -60)">
