@@ -1,5 +1,5 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertTriangle, Bell, FileCheck2, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, Heart, ListPlus, NotebookPen, PartyPopper, Stethoscope } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Bell, FileCheck2, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, Heart, ListPlus, NotebookPen, PartyPopper, Stethoscope } from 'lucide-react';
 import { CALENDAR_FILTERS, buildCalendar, dayDots, gestationDay, gestationMonths, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, matchesFilter, toIcs, type CalendarEvent, type CalendarFilter, type CalendarMoment, type CalendarResult, type DayRecords, type GestationDay } from '../../lib/calendar';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, toISODate } from '../../lib/dates';
 import type { Consultation, HealthMetric, PartnerTask, SymptomItem, Tab } from '../../types';
@@ -16,6 +16,7 @@ import AppointmentIcon from '../AppointmentIcon';
 import { TaskForm, type NewTask } from './TasksTab';
 import type { Celebration } from '../../lib/celebrations';
 import Sheet from '../Sheet';
+import { useScrollLock } from '../../hooks/useScrollLock';
 import BabyArt from '../BabyArt';
 import { weekInfo } from '../../content/weeks';
 import { gestationMonth } from '../../lib/ficha';
@@ -97,7 +98,7 @@ const inBand = (g: GestationDay | null): g is GestationDay => !!g && g.daysToDpp
 export default function CalendarTab(props: Props) {
   const today = parseLocalDate(toISODate(new Date()));
   const todayIso = toISODate(today);
-  const [view, setViewState] = useState<View>(() => (props.focusDay ? 'mes' : remembered(VIEW_KEY, ['mes', 'semana', 'ano'] as const, 'mes')));
+  const [view, setViewState] = useState<View>(() => (props.focusDay ? 'mes' : remembered(VIEW_KEY, ['mes', 'semana'] as const, 'mes')));
   const [filter, setFilterState] = useState<CalendarFilter>(() => remembered(FILTER_KEY, CALENDAR_FILTERS.map(f => f.id), 'tudo'));
   const [week, setWeek] = useState(props.currentWeek);
   const [openDay, setOpenDay] = useState<string | null>(props.focusDay ?? null);
@@ -108,7 +109,11 @@ export default function CalendarTab(props: Props) {
     focusUsed.current?.();
   }, []);
 
+  // O Ano abre em tela cheia, por cima (sai pela seta ou puxando para baixo) e volta para onde estava.
+  const [yearOpen, setYearOpen] = useState(false);
   const setView = (v: View) => {
+    if (v === 'ano') return setYearOpen(true);
+    setYearOpen(false);
     setViewState(v);
     remember(VIEW_KEY, v);
   };
@@ -126,7 +131,7 @@ export default function CalendarTab(props: Props) {
 
   const goToday = () => {
     setWeek(props.currentWeek);
-    if (view === 'semana') return;
+    if (view === 'semana' && !yearOpen) return;
     goMonth(monthKey(todayIso), true);
   };
 
@@ -155,7 +160,7 @@ export default function CalendarTab(props: Props) {
       {/* A barra do calendário fica parada no alto; só os meses rolam, dentro do próprio espaço (as abas da Agenda continuam à vista). */}
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <Segmented label="Visualização" size="sm" value={view} onChange={setView} options={[{ value: 'mes', label: 'Mês' }, { value: 'semana', label: 'Semana' }, { value: 'ano', label: 'Ano' }]} />
+          <Segmented label="Visualização" size="sm" value={yearOpen ? 'ano' : view} onChange={setView} options={[{ value: 'mes', label: 'Mês' }, { value: 'semana', label: 'Semana' }, { value: 'ano', label: 'Ano' }]} />
           <button type="button" onClick={goToday} className="inline-flex items-center gap-1.5 rounded-full bg-surface shadow-soft px-3.5 py-1.5 text-[13px] font-bold text-brand-strong">
             <CalendarDays className="w-4 h-4" strokeWidth={1.75} /> Hoje
           </button>
@@ -165,7 +170,6 @@ export default function CalendarTab(props: Props) {
 
       {view === 'mes' && <MonthsView months={months} target={target} dumDate={props.dumDate} todayIso={todayIso} openDay={openDay} onSelect={setOpenDay} events={cal.events} records={cal.records} checkins={props.checkins} filter={filter} footer={<ExportButton onClick={exportIcs} />} />}
 
-      {view === 'ano' && <YearView target={target} months={months} dumDate={props.dumDate} todayIso={todayIso} events={cal.events} records={cal.records} filter={filter} onDay={setOpenDay} onMonth={key => goMonth(key, false)} footer={<ExportButton onClick={exportIcs} />} />}
 
       {view === 'semana' && (
         <section className="space-y-3" aria-label="Semana da gestação">
@@ -188,6 +192,12 @@ export default function CalendarTab(props: Props) {
       )}
 
       {view === 'semana' && <ExportButton onClick={exportIcs} />}
+
+      {yearOpen && (
+        <YearScreen onClose={() => setYearOpen(false)} onToday={goToday} filters={<FilterChips value={filter} onChange={setFilter} />}>
+          <YearView full target={target} months={months} dumDate={props.dumDate} todayIso={todayIso} events={cal.events} records={cal.records} filter={filter} onDay={setOpenDay} onMonth={key => goMonth(key, false)} footer={<ExportButton onClick={exportIcs} />} />
+        </YearScreen>
+      )}
 
       {openDay && (
         <DaySheet
@@ -292,9 +302,10 @@ function MonthsView({ months, target, footer, ...rest }: { months: Array<{ year:
  * A caixa que rola ocupa o resto da tela (entre a barra do calendário e o menu
  * de baixo). Assim a página não se move: o cabeçalho e as abas da Agenda ficam.
  */
-function useFillHeight() {
+function useFillHeight(enabled = true) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
+    if (!enabled) return;
     const fit = () => {
       const el = ref.current;
       if (!el) return;
@@ -305,7 +316,7 @@ function useFillHeight() {
     fit();
     window.addEventListener('resize', fit);
     return () => window.removeEventListener('resize', fit);
-  }, []);
+  }, [enabled]);
   return ref;
 }
 
@@ -410,20 +421,81 @@ function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events,
 }
 
 /**
+ * O Ano em tela cheia, por cima de tudo: a gestação inteira de relance. Sai
+ * pela seta, pelo Esc ou puxando para baixo (quando já está no alto).
+ */
+function YearScreen({ onClose, onToday, filters, children }: { onClose: () => void; onToday: () => void; filters: React.ReactNode; children: React.ReactNode }) {
+  useScrollLock();
+  const [dy, setDy] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const start = useRef<number | null>(null);
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current();
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
+  const atTop = (el: HTMLElement) => (el.querySelector<HTMLElement>('[aria-label="Anos da gestação"]')?.scrollTop ?? 0) <= 0;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="O ano da gestação"
+      className="fixed inset-0 z-50 bg-canvas flex flex-col"
+      style={{ transform: dy ? `translateY(${dy}px)` : undefined, transition: dragging ? 'none' : 'transform .22s ease-out' }}
+      onTouchStart={e => {
+        start.current = atTop(e.currentTarget) ? e.touches[0].clientY : null;
+        setDragging(start.current !== null);
+      }}
+      onTouchMove={e => {
+        if (start.current === null) return;
+        const d = e.touches[0].clientY - start.current;
+        setDy(d > 0 ? d * 0.6 : 0);
+      }}
+      onTouchEnd={() => {
+        const close = dy > 90;
+        start.current = null;
+        setDragging(false);
+        setDy(0);
+        if (close) onClose();
+      }}
+    >
+      <header className="px-4 pt-[calc(env(safe-area-inset-top,0px)+6px)] pb-3 space-y-2 bg-canvas border-b border-line/60">
+        <div className="sm:hidden w-11 h-1.5 rounded-full bg-line mx-auto" aria-hidden />
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onClose} aria-label="Voltar" className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-ink-soft hover:bg-surface-2">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h2 className="flex-1 font-display text-[1.25rem] text-ink">A gestação de relance</h2>
+          <button type="button" onClick={onToday} className="inline-flex items-center gap-1.5 rounded-full bg-surface shadow-soft px-3.5 py-1.5 text-[13px] font-bold text-brand-strong">
+            <CalendarDays className="w-4 h-4" strokeWidth={1.75} /> Hoje
+          </button>
+        </div>
+        {filters}
+      </header>
+      <div className="flex-1 min-h-0 px-4">{children}</div>
+    </div>
+  );
+}
+
+/**
  * O Ano: os doze meses de cada ano da gestação de uma vez, com os dias da
  * gestação na cor do trimestre, o coração na data provável e um pontinho onde
  * há algo marcado. Tocar no mês leva ao Mês; tocar no dia abre a folha dele.
  */
-function YearView({ target, months, dumDate, todayIso, events, records, filter, onDay, onMonth, footer }: { target: { key: string; n: number }; months: Array<{ year: number; month: number }>; dumDate: string; todayIso: string; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; filter: CalendarFilter; onDay: (iso: string) => void; onMonth: (key: string) => void; footer: React.ReactNode }) {
+function YearView({ full = false, target, months, dumDate, todayIso, events, records, filter, onDay, onMonth, footer }: { full?: boolean; target: { key: string; n: number }; months: Array<{ year: number; month: number }>; dumDate: string; todayIso: string; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; filter: CalendarFilter; onDay: (iso: string) => void; onMonth: (key: string) => void; footer: React.ReactNode }) {
   const years = [...new Set(months.map(m => m.year))];
   const showHealth = filter === 'tudo' || filter === 'saude';
-  const box = useFillHeight();
+  const box = useFillHeight(!full);
   useLayoutEffect(() => {
     const el = box.current?.querySelector<HTMLElement>(`[data-mes="${monthKey(todayIso)}"]`);
     if (el && box.current) box.current.scrollTo({ top: el.offsetTop - box.current.clientHeight / 2 + el.offsetHeight / 2 });
   }, [target, box, todayIso]);
   return (
-    <div ref={box} className="relative -mx-4 px-4 overflow-y-auto overscroll-contain space-y-8 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Anos da gestação">
+    <div ref={box} className={`relative -mx-4 px-4 overflow-y-auto overscroll-contain space-y-8 pb-4 ${full ? 'h-full pb-[calc(env(safe-area-inset-bottom)+24px)]' : ''} [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`} aria-label="Anos da gestação">
       {years.map(year => (
         <section key={year} aria-label={`Ano de ${year}`} className="space-y-4">
           <h3 className="font-display text-[1.8rem] text-center text-ink">{year}</h3>
