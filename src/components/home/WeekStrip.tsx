@@ -1,4 +1,4 @@
-import { CalendarDays } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { buildCalendar, dayDots, gestationDay, type CalendarMoment, type CalendarResult } from '../../lib/calendar';
 import type { Celebration } from '../../lib/celebrations';
@@ -7,12 +7,13 @@ import type { Consultation, PartnerTask } from '../../types';
 
 // O atalho do Início para o calendário: a data de hoje e a semana em sete
 // bolinhas, com um ponto onde há algo marcado e um fio na cor do trimestre.
-// Tocar num dia abre o calendário já com a folha daquele dia.
+// Tocar num dia abre o calendário já com a folha daquele dia; "Calendário"
+// abre o calendário no mês de hoje, sem abrir nenhum dia.
 
 const LETTERS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const TRI_LINE = { 1: 'bg-rosa', 2: 'bg-lilas', 3: 'bg-azul' } as const;
 
-export default function WeekStrip({ now, dumDate, consultations, tasks, journal, results, celebrations, note, onOpen }: { now: Date; dumDate: string; consultations: Consultation[]; tasks: PartnerTask[]; journal: CalendarMoment[]; results: CalendarResult[]; celebrations?: Celebration[] | null; note?: ReactNode; onOpen: (day: string) => void }) {
+export default function WeekStrip({ now, dumDate, consultations, tasks, journal, results, celebrations, note, onOpen }: { now: Date; dumDate: string; consultations: Consultation[]; tasks: PartnerTask[]; journal: CalendarMoment[]; results: CalendarResult[]; celebrations?: Celebration[] | null; note?: ReactNode; onOpen: (day: string | null) => void }) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const todayIso = toISODate(today);
   const days = Array.from({ length: 7 }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay() + i));
@@ -20,12 +21,9 @@ export default function WeekStrip({ now, dumDate, consultations, tasks, journal,
   return (
     <section aria-label="Esta semana no calendário" className="-mt-2 space-y-2">
       <div className="flex items-center justify-between gap-2 px-1">
-        <p className="min-w-0 text-sm text-ink-soft first-letter:uppercase">
-          {now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-          {note}
-        </p>
-        <button type="button" onClick={() => onOpen(todayIso)} className="shrink-0 inline-flex items-center gap-1 text-[12.5px] font-bold text-brand-strong">
-          <CalendarDays className="w-4 h-4" /> Calendário
+        <p className="min-w-0 truncate text-sm text-ink-soft first-letter:uppercase">{now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        <button type="button" onClick={() => onOpen(null)} className="shrink-0 inline-flex items-center text-[12.5px] font-bold text-brand-strong">
+          Calendário <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
         </button>
       </div>
       <div className="grid grid-cols-7 gap-1 rounded-[22px] bg-surface shadow-soft p-1.5">
@@ -54,6 +52,7 @@ export default function WeekStrip({ now, dumDate, consultations, tasks, journal,
           );
         })}
       </div>
+      {note && <p className="px-1 text-[12.5px] text-ink-mute truncate">{note}</p>}
     </section>
   );
 }

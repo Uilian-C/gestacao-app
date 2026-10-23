@@ -23,7 +23,18 @@ check((await strip.getByRole('button', { name: /abrir no calendário$/ }).count(
 await p.screenshot({ path: `${OUT}calendario-inicio.png` });
 const label2 = await p.evaluate(n => { const d = new Date(Date.now() + n * 86_400_000); return d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }); }, 2);
 const inWeek = await p.evaluate(() => new Date(Date.now() + 2 * 86_400_000).getDay() > new Date().getDay());
-const alvo = inWeek ? strip.getByRole('button', { name: new RegExp(`^${label2}`) }) : strip.getByRole('button', { name: 'Calendário' });
+// "Calendário" abre o calendário, sem abrir nenhum dia.
+await strip.getByRole('button', { name: 'Calendário', exact: true }).click();
+await p.getByRole('group', { name: 'Filtrar o calendário' }).waitFor();
+check((await p.getByRole('dialog').count()) === 0, '"Calendário" abre o calendário, sem abrir um dia');
+check(await p.getByRole('button', { name: /^Próximos/ }).isVisible() && (await p.getByRole('button', { name: /^Jornada/ }).isVisible()), 'as abas da Agenda continuam à vista');
+// O menu Agenda volta para "Próximos".
+await p.getByRole('button', { name: /^Início/ }).first().click();
+await p.getByRole('button', { name: /^Agenda/ }).first().click();
+check((await p.getByRole('button', { name: /^Próximos/ }).getAttribute('aria-pressed')) === 'true' || (await p.getByRole('button', { name: /^Próximos/ }).getAttribute('aria-selected')) === 'true' || (await p.getByRole('group', { name: 'Filtrar o calendário' }).count()) === 0, 'o menu Agenda abre em Próximos');
+// Tocar num dia do Início abre a folha daquele dia.
+await p.getByRole('button', { name: /^Início/ }).first().click();
+const alvo = inWeek ? strip.getByRole('button', { name: new RegExp(`^${label2}`) }) : strip.getByRole('button', { name: /, hoje: abrir no calendário$/ });
 await alvo.click();
 const folha = p.getByRole('dialog');
 await folha.waitFor();
@@ -48,10 +59,12 @@ check(meses >= 10, `o Mês mostra a gestação inteira, mês a mês (${meses} me
 check(await p.getByRole('gridcell', { name: /data provável do parto/ }).count() === 1, 'a data provável do parto tem o seu coração');
 await p.screenshot({ path: `${OUT}calendario-mes.png` });
 
-// A barra fica presa no topo ao rolar.
+// Os meses rolam dentro do próprio espaço: a página não se move e as abas ficam.
+await p.getByLabel('Meses da gestação').hover();
 await p.mouse.wheel(0, 1800);
-await p.waitForTimeout(300);
-check(await p.getByRole('group', { name: 'Filtrar o calendário' }).isVisible(), 'os filtros continuam à mão ao rolar');
+await p.waitForTimeout(400);
+check(await p.getByRole('group', { name: 'Filtrar o calendário' }).isVisible() && (await p.getByRole('button', { name: /^Próximos/ }).isVisible()), 'ao rolar os meses, a barra e as abas da Agenda continuam à vista');
+check((await p.evaluate(() => window.scrollY)) < 5, 'e a página não se move');
 await p.screenshot({ path: `${OUT}calendario-mes-rolando.png` });
 
 // ---- Filtros: um de cada vez ----

@@ -85,7 +85,7 @@ interface Props {
   /** Abre a escolha do nome. */
   onOpenNames?: () => void;
   /** Abre o calendário (Agenda) já na folha de um dia. */
-  onOpenCalendar?: (day: string) => void;
+  onOpenCalendar?: (day: string | null) => void;
   /** Celebrações (migração 028): a próxima aparece no Início a partir de 60 dias antes. */
   celebrations?: Celebration[] | null;
   onOpenCelebration?: (id: string) => void;
@@ -162,7 +162,7 @@ export default function HomeTab(props: Props) {
       )}
 
       {props.onOpenCalendar ? (
-        <WeekStrip now={now} dumDate={props.dumDate} consultations={props.consultations} tasks={props.tasks} journal={props.journal} results={props.exams} celebrations={props.celebrations} onOpen={props.onOpenCalendar} note={props.partnerName && partnerToday && <> · {props.partnerName} já passou por aqui hoje</>} />
+        <WeekStrip now={now} dumDate={props.dumDate} consultations={props.consultations} tasks={props.tasks} journal={props.journal} results={props.exams} celebrations={props.celebrations} onOpen={props.onOpenCalendar} note={props.partnerName && partnerToday && <>{props.partnerName} já passou por aqui hoje 💛</>} />
       ) : (
         <p className="-mt-2 px-1 text-sm text-ink-soft first-letter:uppercase">
           {now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
