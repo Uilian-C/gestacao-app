@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCalendar, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, monthGrid, toIcs } from './calendar';
+import { buildCalendar, dayDots, gestationDay, gestationMonths, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, matchesFilter, monthGrid, toIcs, type CalendarEvent } from './calendar';
 import { parseLocalDate, toISODate } from './dates';
 import type { Consultation, HealthMetric, PartnerTask, SymptomItem } from '../types';
 
@@ -118,5 +118,32 @@ describe('agendamentos e resultados no calendário', () => {
     const day = cal.events.get('2026-10-13')!;
     expect(day.filter(x => x.kind === 'exame')).toHaveLength(0);
     expect(day.find(x => x.kind === 'consulta')!.detail).toContain('resultado guardado');
+  });
+});
+
+describe('calendário fluido', () => {
+  const ev = (over: Partial<CalendarEvent>): CalendarEvent => ({ id: Math.random().toString(), kind: 'consulta', date: '2026-10-23', title: 'x', ...over });
+  it('filtros: um tipo de cada vez', () => {
+    expect(matchesFilter(ev({ kind: 'exame' }), 'consultas')).toBe(true);
+    expect(matchesFilter(ev({ kind: 'tarefa' }), 'consultas')).toBe(false);
+    expect(matchesFilter(ev({ kind: 'momento' }), 'saude')).toBe(false);
+    expect(matchesFilter(ev({ kind: 'celebracao' }), 'tudo')).toBe(true);
+  });
+  it('um ponto por tipo, no máximo três', () => {
+    const list = [ev({}), ev({}), ev({ kind: 'tarefa' }), ev({ kind: 'momento' }), ev({ kind: 'marco' })];
+    expect(dayDots(list, 'tudo')).toEqual({ dots: ['bg-brand', 'bg-ink-mute', 'bg-casal'], more: 1 });
+    expect(dayDots(list, 'consultas').dots).toEqual(['bg-brand']);
+  });
+  it('os meses vão da DUM até depois da DPP', () => {
+    const months = gestationMonths('2026-05-15', new Date(2026, 9, 23));
+    expect(months[0]).toEqual({ year: 2026, month: 4 });
+    expect(months.at(-1)).toEqual({ year: 2027, month: 2 });
+  });
+  it('o dia na gestação', () => {
+    expect(gestationDay('2026-05-15', '2026-05-14')).toBeNull();
+    expect(gestationDay('2026-05-15', '2026-05-15')).toMatchObject({ weeks: 0, dayOfPregnancy: 1, weekStart: true, trimester: 1 });
+    const d = gestationDay('2026-05-15', '2026-10-23')!;
+    expect(d).toMatchObject({ weeks: 23, days: 0, trimester: 2, weekStart: true });
+    expect(gestationDay('2026-05-15', '2027-02-19')).toMatchObject({ isDpp: true, weeks: 40, daysToDpp: 0, trimester: 3 });
   });
 });

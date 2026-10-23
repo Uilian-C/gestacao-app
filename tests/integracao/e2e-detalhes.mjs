@@ -97,8 +97,8 @@ const day = await p.evaluate(() => {
   d.setDate(d.getDate() + 2);
   return { label: d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }), nextMonth: d.getMonth() !== month };
 });
-if (day.nextMonth) await p.getByRole('button', { name: 'Próximo mês' }).click();
-await p.getByRole('gridcell', { name: new RegExp(`^${day.label}`) }).or(p.getByRole('button', { name: new RegExp(`^${day.label}`) })).first().click();
+await p.getByRole('button', { name: 'Mês', exact: true }).click();
+await p.getByRole('gridcell', { name: new RegExp(`^${day.label}(,|$)`) }).first().click();
 await p.getByRole('button', { name: /Obstetra/ }).first().click();
 check(await dlg.getByText('Dra. Marina').isVisible(), 'consulta abre pelo calendário');
 await p.keyboard.press('Escape');

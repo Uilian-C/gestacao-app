@@ -128,8 +128,10 @@ const hojeCal = await mae.evaluate(() => new Date().toLocaleDateString('pt-BR', 
 const celula = mae.getByRole('gridcell', { name: new RegExp(`^${hojeCal}.*humor: Ana cansada, Caio ótimo`) });
 await celula.waitFor({ timeout: 10000 });
 check(true, 'o calendário da Agenda mostra o humor dos dois no dia');
+await celula.click();
 check(await mae.getByLabel('Humor do dia').getByText(/Ana, cansada/).isVisible(), 'e o detalhe do dia diz como vocês estavam');
 await mae.screenshot({ path: `${OUT}agenda-humor.png`, fullPage: true });
+await mae.keyboard.press('Escape');
 
 // O post do humor da Ana também aparece no "Vocês dois hoje"; "Ver o mural" leva ao Mural.
 await mae.getByRole('button', { name: /^Início/ }).first().click();

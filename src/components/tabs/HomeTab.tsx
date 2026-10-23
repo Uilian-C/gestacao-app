@@ -27,6 +27,7 @@ import PushPrompt from '../PushPrompt';
 import BellyCard from '../home/BellyCard';
 import QuickHealth from '../home/QuickHealth';
 import WeekSummaryCard from '../home/WeekSummaryCard';
+import WeekStrip from '../home/WeekStrip';
 import { showsWeekSummary, weekSummary } from '../../lib/weekSummary';
 import type { NewMetric } from '../forms/RecordForms';
 import { Card, LinkButton, SectionTitle } from '../ui';
@@ -83,6 +84,8 @@ interface Props {
   nameIdeas?: NameIdea[] | null;
   /** Abre a escolha do nome. */
   onOpenNames?: () => void;
+  /** Abre o calendário (Agenda) já na folha de um dia. */
+  onOpenCalendar?: (day: string) => void;
   /** Celebrações (migração 028): a próxima aparece no Início a partir de 60 dias antes. */
   celebrations?: Celebration[] | null;
   onOpenCelebration?: (id: string) => void;
@@ -158,10 +161,14 @@ export default function HomeTab(props: Props) {
         </Card>
       )}
 
-      <p className="-mt-2 px-1 text-sm text-ink-soft first-letter:uppercase">
-        {now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-        {props.partnerName && partnerToday && <> · {props.partnerName} já passou por aqui hoje</>}
-      </p>
+      {props.onOpenCalendar ? (
+        <WeekStrip now={now} dumDate={props.dumDate} consultations={props.consultations} tasks={props.tasks} journal={props.journal} results={props.exams} celebrations={props.celebrations} onOpen={props.onOpenCalendar} note={props.partnerName && partnerToday && <> · {props.partnerName} já passou por aqui hoje</>} />
+      ) : (
+        <p className="-mt-2 px-1 text-sm text-ink-soft first-letter:uppercase">
+          {now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          {props.partnerName && partnerToday && <> · {props.partnerName} já passou por aqui hoje</>}
+        </p>
+      )}
 
       <section aria-label="Semana da gestação" className="rounded-[32px] bg-surface shadow-soft px-5 pt-6 pb-5 overflow-hidden">
         {/* O bebê ao lado da semana: compacto, e tocar nele abre a jornada do bebê. */}

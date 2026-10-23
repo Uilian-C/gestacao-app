@@ -1,6 +1,6 @@
-import { useContext, useRef, useState } from 'react';
-import { AlertTriangle, Bell, FileCheck2, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, Heart, ListPlus, NotebookPen, PartyPopper, Stethoscope } from 'lucide-react';
-import { buildCalendar, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, monthGrid, toIcs, type CalendarEvent, type CalendarMoment, type CalendarResult, type DayRecords } from '../../lib/calendar';
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AlertTriangle, Bell, FileCheck2, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, Heart, ListPlus, NotebookPen, PartyPopper, Stethoscope } from 'lucide-react';
+import { CALENDAR_FILTERS, buildCalendar, dayDots, gestationDay, gestationMonths, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, matchesFilter, toIcs, type CalendarEvent, type CalendarFilter, type CalendarMoment, type CalendarResult, type DayRecords, type GestationDay } from '../../lib/calendar';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, toISODate } from '../../lib/dates';
 import type { Consultation, HealthMetric, PartnerTask, SymptomItem, Tab } from '../../types';
 import AuthorBadge from '../AuthorBadge';
@@ -9,12 +9,25 @@ import type { Checkin } from '../../hooks/useGestationData';
 import { MOOD_COLOR, moodLabel, moodOf } from '../../lib/moods';
 import { PeopleContext, firstName, memberWithRole } from '../../lib/people';
 import IntensityDots from '../IntensityDots';
-import { Button, Card, Pill, Segmented } from '../ui';
+import { Button, Card, Segmented } from '../ui';
 import type { DetailTarget } from '../../lib/details';
 import { ScheduleForm, type NewConsultation } from './ConsultationsTab';
 import AppointmentIcon from '../AppointmentIcon';
 import { TaskForm, type NewTask } from './TasksTab';
 import type { Celebration } from '../../lib/celebrations';
+import Sheet from '../Sheet';
+import BabyArt from '../BabyArt';
+import { weekInfo } from '../../content/weeks';
+import { gestationMonth } from '../../lib/ficha';
+
+// O calendário do Tumtum: o lugar de tudo o que tem data, sem virar uma salada.
+// Três jeitos de ver: o Mês (rolando de um mês para o outro, como uma agenda de
+// papel), a Semana da gestação e o Ano inteiro. A gestação aparece como uma
+// faixa suave na cor de cada trimestre, com o número da semana no dia em que
+// ela começa e um coração na data provável do parto. Cada dia mostra só um
+// ponto por tipo (no máximo três) e os filtros deixam ver uma coisa de cada
+// vez. Tocar num dia abre a folha dele: como estava a gestação, o bebê, o que
+// estava marcado, a saúde, o humor e os atalhos para agendar ou criar tarefa.
 
 interface Props {
   dumDate: string;
@@ -35,46 +48,84 @@ interface Props {
   onOpen: OpenTarget;
   /** Resultados guardados (exames e ultrassons), que entram no dia em que foram feitos. */
   results: CalendarResult[];
-  /** Humor de cada um (check-in do dia): bolinhas no rodapé do dia e linha no detalhe. */
+  /** Humor de cada um (check-in do dia): tracinhos no pé do dia e linha na folha do dia. */
   checkins: Checkin[];
   /** Celebrações (chá de bebê...): o dia da festa e os prazos das tarefas. */
   celebrations?: Celebration[] | null;
   onOpenCelebration?: (id: string) => void;
+  /** Um dia para abrir já de cara (o atalho do Início). */
+  focusDay?: string | null;
+  onFocusUsed?: () => void;
 }
 
 /** O que um evento abre: os detalhes (agendamento, tarefa, momento) ou o resultado guardado. */
 export type OpenTarget = (target: DetailTarget | { kind: 'exam'; id: string }) => void;
 
-const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
-const KIND_STYLE: Record<CalendarEvent['kind'], string> = {
-  consulta: 'bg-brand-soft text-brand-strong',
-  exame: 'bg-verde-soft text-verde-strong',
-  tarefa: 'bg-surface-2 text-ink-soft',
-  marco: 'bg-warm-soft text-warm',
-  momento: 'bg-casal-soft text-casal',
-  celebracao: 'bg-rosa-soft text-rosa',
+type View = 'mes' | 'semana' | 'ano';
+const VIEW_KEY = 'tumtum-calendario-vista';
+const FILTER_KEY = 'tumtum-calendario-filtro';
+const remembered = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
+  try {
+    const v = localStorage.getItem(key) as T | null;
+    return v && allowed.includes(v) ? v : fallback;
+  } catch {
+    return fallback;
+  }
 };
+const remember = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* sem armazenamento: só não lembra da escolha */
+  }
+};
+
+const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const WEEK_LETTERS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+/** As cores de cada trimestre: rosa, lilás e azul, como a barra da gestação no Início. */
+const TRI_BAND = { 1: 'bg-rosa-soft', 2: 'bg-lilas-soft', 3: 'bg-azul-soft' } as const;
+const TRI_TEXT = { 1: 'text-rosa-strong', 2: 'text-lilas-strong', 3: 'text-azul-strong' } as const;
+const TRI_DOT = { 1: 'bg-rosa', 2: 'bg-lilas', 3: 'bg-azul' } as const;
+const monthKey = (iso: string) => iso.slice(0, 7);
+const keyOf = (year: number, month: number) => `${year}-${String(month + 1).padStart(2, '0')}`;
+const monthName = (year: number, month: number) => new Date(year, month, 1).toLocaleDateString('pt-BR', { month: 'long' });
+/** Dentro da faixa da gestação (da DUM à data provável do parto). */
+const inBand = (g: GestationDay | null): g is GestationDay => !!g && g.daysToDpp >= 0;
 
 export default function CalendarTab(props: Props) {
   const today = parseLocalDate(toISODate(new Date()));
   const todayIso = toISODate(today);
-  const [view, setView] = useState<'mes' | 'semana'>('mes');
-  const [cursor, setCursor] = useState(() => ({ year: today.getFullYear(), month: today.getMonth() }));
+  const [view, setViewState] = useState<View>(() => (props.focusDay ? 'mes' : remembered(VIEW_KEY, ['mes', 'semana', 'ano'] as const, 'mes')));
+  const [filter, setFilterState] = useState<CalendarFilter>(() => remembered(FILTER_KEY, CALENDAR_FILTERS.map(f => f.id), 'tudo'));
   const [week, setWeek] = useState(props.currentWeek);
-  const [selected, setSelectedState] = useState(todayIso);
-  const panelRef = useRef<HTMLDivElement>(null);
-  // Ao tocar num dia, leva até o detalhe dele (que fica logo abaixo do calendário).
-  const setSelected = (day: string) => {
-    setSelectedState(day);
-    requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  const [openDay, setOpenDay] = useState<string | null>(props.focusDay ?? null);
+  // Para onde o Mês rola: o mês de hoje (ou do dia pedido) ao abrir; "Hoje" e o Ano mudam o alvo.
+  const [target, setTarget] = useState(() => ({ key: monthKey(props.focusDay ?? todayIso), smooth: false, n: 0 }));
+  const focusUsed = useRef(props.onFocusUsed);
+  useEffect(() => {
+    focusUsed.current?.();
+  }, []);
+
+  const setView = (v: View) => {
+    setViewState(v);
+    remember(VIEW_KEY, v);
+  };
+  const setFilter = (f: CalendarFilter) => {
+    setFilterState(f);
+    remember(FILTER_KEY, f);
+  };
+  const goMonth = (key: string, smooth: boolean) => {
+    setView('mes');
+    setTarget(t => ({ key, smooth, n: t.n + 1 }));
   };
 
   const cal = buildCalendar({ dumDate: props.dumDate, consultations: props.consultations, results: props.results, tasks: props.tasks, symptoms: props.symptoms, metrics: props.metrics, journal: props.journal, celebrations: props.celebrations, today });
+  const months = gestationMonths(props.dumDate, today);
 
   const goToday = () => {
-    setCursor({ year: today.getFullYear(), month: today.getMonth() });
     setWeek(props.currentWeek);
-    setSelectedState(todayIso);
+    if (view === 'semana') return;
+    goMonth(monthKey(todayIso), true);
   };
 
   const exportIcs = () => {
@@ -88,79 +139,60 @@ export default function CalendarTab(props: Props) {
     props.onNotify('Arquivo de agenda baixado. Abra no celular para importar no Google Agenda ou no calendário do iPhone.');
   };
 
-  const monthLabel = new Date(cursor.year, cursor.month, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   const weekDays = gestationalWeekDays(props.dumDate, week);
   const weekLabel = `${weekDays[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} a ${weekDays[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`;
-
-  const move = (delta: number) => {
-    if (view === 'mes') {
-      const d = new Date(cursor.year, cursor.month + delta, 1);
-      setCursor({ year: d.getFullYear(), month: d.getMonth() });
-    } else {
-      setWeek(w => Math.min(LAST_WEEK, Math.max(FIRST_WEEK, w + delta)));
-    }
+  // Abrir algo a partir da folha do dia fecha a folha (os detalhes abrem por cima, sem duas janelas).
+  const fromSheet = <A extends unknown[]>(fn: ((...a: A) => void) | undefined) => (fn ? (...a: A) => (setOpenDay(null), fn(...a)) : undefined);
+  const onToggleTaskId = (id: string) => {
+    const t = props.tasks.find(x => x.id === id);
+    if (t) props.onToggleTask(t);
   };
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[1.2rem] text-ink first-letter:uppercase">{view === 'mes' ? monthLabel : `Semana ${week} da gestação`}</h2>
-          {view === 'semana' && <p className="text-sm text-ink-mute">{weekLabel}</p>}
+    <div className="space-y-4">
+      {/* A barra do calendário fica presa no topo: trocar a visão, filtrar e voltar para hoje sem rolar de volta. */}
+      <div className="sticky top-0 md:top-[61px] z-20 -mx-4 px-4 pt-2 pb-1.5 bg-canvas/95 backdrop-blur space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <Segmented label="Visualização" size="sm" value={view} onChange={setView} options={[{ value: 'mes', label: 'Mês' }, { value: 'semana', label: 'Semana' }, { value: 'ano', label: 'Ano' }]} />
+          <button type="button" onClick={goToday} className="inline-flex items-center gap-1.5 rounded-full bg-surface shadow-soft px-3.5 py-1.5 text-[13px] font-bold text-brand-strong">
+            <CalendarDays className="w-4 h-4" /> Hoje
+          </button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Segmented label="Visualização" size="sm" value={view} onChange={setView} options={[{ value: 'mes', label: 'Mês' }, { value: 'semana', label: 'Semana' }]} />
-          <div className="flex items-center gap-1">
-            <button onClick={() => move(-1)} aria-label={view === 'mes' ? 'Mês anterior' : 'Semana anterior'} className="p-2 rounded-full hover:bg-surface-2 text-ink-soft">
+        <FilterChips value={filter} onChange={setFilter} />
+        {view === 'mes' && (
+          <div className="grid grid-cols-7 text-center text-[11px] font-extrabold text-ink-mute pt-0.5" aria-hidden>
+            {WEEK_LETTERS.map((l, i) => (
+              <span key={i}>{l}</span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {view === 'mes' && <MonthsView months={months} target={target} dumDate={props.dumDate} todayIso={todayIso} openDay={openDay} onSelect={setOpenDay} events={cal.events} records={cal.records} checkins={props.checkins} filter={filter} />}
+
+      {view === 'ano' && <YearView months={months} dumDate={props.dumDate} todayIso={todayIso} events={cal.events} records={cal.records} filter={filter} onDay={setOpenDay} onMonth={key => goMonth(key, false)} />}
+
+      {view === 'semana' && (
+        <section className="space-y-3" aria-label="Semana da gestação">
+          <div className="flex items-center justify-between gap-2">
+            <button onClick={() => setWeek(w => Math.max(FIRST_WEEK, w - 1))} aria-label="Semana anterior" className="w-9 h-9 rounded-full hover:bg-surface-2 text-ink-soft flex items-center justify-center">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <Button tone="ghost" onClick={goToday} className="!px-3 !py-1.5">Hoje</Button>
-            <button onClick={() => move(1)} aria-label={view === 'mes' ? 'Próximo mês' : 'Próxima semana'} className="p-2 rounded-full hover:bg-surface-2 text-ink-soft">
+            <div className="text-center">
+              <h2 className="text-[1.2rem] text-ink">Semana {week} da gestação</h2>
+              <p className="text-sm text-ink-mute">{weekLabel}</p>
+            </div>
+            <button onClick={() => setWeek(w => Math.min(LAST_WEEK, w + 1))} aria-label="Próxima semana" className="w-9 h-9 rounded-full hover:bg-surface-2 text-ink-soft flex items-center justify-center">
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
-        </div>
-      </div>
+          <Card className="!p-2 md:!p-3">
+            <WeekView days={weekDays} todayIso={todayIso} selected={openDay ?? ''} onSelect={setOpenDay} events={filterEvents(cal.events, filter)} records={filter === 'tudo' || filter === 'saude' ? cal.records : new Map()} checkins={filter === 'tudo' || filter === 'saude' ? props.checkins : []} onToggleTask={onToggleTaskId} onOpen={props.onOpen} onOpenCelebration={props.onOpenCelebration} />
+          </Card>
+        </section>
+      )}
 
-      <Legend />
-
-      <div className="space-y-5">
-        <Card className="!p-3 md:!p-4">
-          {view === 'mes' ? (
-            <MonthView year={cursor.year} month={cursor.month} dumDate={props.dumDate} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} checkins={props.checkins} />
-          ) : (
-            <WeekView days={weekDays} todayIso={todayIso} selected={selected} onSelect={setSelected} events={cal.events} records={cal.records} checkins={props.checkins} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} onOpen={props.onOpen} onOpenCelebration={props.onOpenCelebration} />
-          )}
-        </Card>
-
-        <div ref={panelRef} className="scroll-mb-24">
-        <DayPanel
-          key={selected}
-          day={selected}
-          dumDate={props.dumDate}
-          todayIso={todayIso}
-          events={cal.events.get(selected) ?? []}
-          records={cal.records.get(selected)}
-          checkins={props.checkins.filter(c => c.day === selected)}
-          consultations={props.consultations}
-          tasks={props.tasks}
-          busy={props.busy}
-          migrationPending={props.migrationPending}
-          onCreateConsultation={props.onCreateConsultation}
-          onCreateTask={props.onCreateTask}
-          onToggleTask={props.onToggleTask}
-          onNavigate={props.onNavigate}
-          onOpen={props.onOpen}
-          onOpenCelebration={props.onOpenCelebration}
-        />
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onClick={exportIcs}
-        className="w-full flex items-center gap-3 rounded-[24px] bg-surface shadow-soft px-5 py-4 text-left hover:bg-surface-2 transition"
-      >
+      <button type="button" onClick={exportIcs} className="w-full flex items-center gap-3 rounded-[24px] bg-surface shadow-soft px-5 py-4 text-left hover:bg-surface-2 transition">
         <CalendarPlus className="w-5 h-5 text-brand shrink-0" />
         <span className="flex-1 min-w-0">
           <span className="block text-sm font-semibold text-ink">Levar para a agenda do celular</span>
@@ -168,58 +200,60 @@ export default function CalendarTab(props: Props) {
         </span>
         <Download className="w-4 h-4 text-ink-mute shrink-0" />
       </button>
+
+      {openDay && (
+        <DaySheet
+          key={openDay}
+          day={openDay}
+          dumDate={props.dumDate}
+          todayIso={todayIso}
+          events={cal.events.get(openDay) ?? []}
+          records={cal.records.get(openDay)}
+          checkins={props.checkins.filter(c => c.day === openDay)}
+          consultations={props.consultations}
+          tasks={props.tasks}
+          busy={props.busy}
+          migrationPending={props.migrationPending}
+          onCreateConsultation={props.onCreateConsultation}
+          onCreateTask={props.onCreateTask}
+          onToggleTask={props.onToggleTask}
+          onNavigate={fromSheet(props.onNavigate)!}
+          onOpen={fromSheet(props.onOpen)!}
+          onOpenCelebration={fromSheet(props.onOpenCelebration)}
+          onClose={() => setOpenDay(null)}
+        />
+      )}
     </div>
   );
 }
 
-function Legend() {
-  const item = (cls: string, label: string) => (
-    <span className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
-      <span className={`w-3 h-3 rounded-full ${cls}`} />
-      {label}
-    </span>
-  );
+const filterEvents = (events: Map<string, CalendarEvent[]>, filter: CalendarFilter) => (filter === 'tudo' ? events : new Map([...events].map(([k, list]) => [k, list.filter(e => matchesFilter(e, filter))])));
+
+/** Os filtros, numa fileira que corre para o lado: um de cada vez. */
+function FilterChips({ value, onChange }: { value: CalendarFilter; onChange: (f: CalendarFilter) => void }) {
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-      {item('bg-brand', 'Consulta, exame ou vacina marcados')}
-      {item('bg-verde', 'Resultado guardado')}
-      {item('bg-ink-mute', 'Tarefa com prazo')}
-      {item('bg-warm', 'Marco do pré-natal')}
-      {item('bg-casal', 'Momento ou lembrete')}
-      {item('bg-alert', 'Atrasado ou alerta')}
-      <span className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
-        <span className="w-3 h-3 rounded-full border-2" style={{ borderColor: 'var(--c-int-3)' }} />
-        Dia com registro de saúde
-      </span>
-      <span className="inline-flex items-center gap-1.5 text-xs text-ink-soft">
-        <span className="inline-flex gap-0.5" aria-hidden>
-          <span className="w-2 h-1 rounded-full bg-ok" />
-          <span className="w-2 h-1 rounded-full bg-warn" />
-        </span>
-        Humor de cada um (no pé do dia)
-      </span>
+    <div role="group" aria-label="Filtrar o calendário" className="-mx-4 px-4 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {CALENDAR_FILTERS.map(f => {
+        const on = value === f.id;
+        return (
+          <button key={f.id} type="button" aria-pressed={on} onClick={() => onChange(f.id)} className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold transition ${on ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
+            {f.dot && <span className={`w-2 h-2 rounded-full ${f.dot}`} aria-hidden />}
+            {f.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function dotClass(e: CalendarEvent) {
-  if (e.overdue) return 'bg-alert';
-  if (e.kind === 'consulta') return 'bg-brand';
-  if (e.kind === 'exame') return 'bg-verde';
-  if (e.kind === 'marco') return 'bg-warm';
-  if (e.kind === 'momento') return 'bg-casal';
-  if (e.kind === 'celebracao') return e.done ? 'bg-line' : 'bg-rosa';
-  return e.done ? 'bg-line' : 'bg-ink-mute';
-}
-
-/** Humor do dia em bolinhas (mãe à esquerda, pai à direita), discretas para não disputar com os compromissos. */
+/** Humor do dia em tracinhos (mãe à esquerda, pai à direita), discretos para não disputar com os compromissos. */
 function MoodDots({ list }: { list: Checkin[] }) {
   if (list.length === 0) return null;
   return (
-    <span className="mt-auto flex justify-center gap-0.5" aria-hidden>
+    <span className="flex justify-center gap-0.5" aria-hidden>
       {(['mae', 'pai'] as const).map(r => {
         const c = list.find(x => x.author_role === r);
-        return c ? <span key={r} className={`w-2.5 md:w-3 h-1.5 rounded-full ${MOOD_COLOR[c.mood].bg}`} /> : null;
+        return c ? <span key={r} className={`w-2 h-1 rounded-full ${MOOD_COLOR[c.mood].bg}`} /> : null;
       })}
     </span>
   );
@@ -236,69 +270,193 @@ function useNameOf() {
   };
 }
 
-function MonthView({ year, month, dumDate, todayIso, selected, onSelect, events, records, checkins }: { year: number; month: number; dumDate: string; todayIso: string; selected: string; onSelect: (d: string) => void; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; checkins: Checkin[] }) {
-  const weeks = monthGrid(year, month);
-  const nameOf = useNameOf();
+const ageText = (g: GestationDay) => `${g.weeks} ${g.weeks === 1 ? 'semana' : 'semanas'}${g.days ? ` e ${g.days} ${g.days === 1 ? 'dia' : 'dias'}` : ''}`;
+
+/**
+ * O Mês: os meses da gestação um embaixo do outro, rolando sem botões (como
+ * virar as páginas de uma agenda). Os dias da semana ficam presos no topo.
+ */
+function MonthsView({ months, target, ...rest }: { months: Array<{ year: number; month: number }>; target: { key: string; smooth: boolean; n: number } } & Omit<MonthProps, 'year' | 'month'>) {
+  useLayoutEffect(() => {
+    const go = () => document.getElementById(`mes-${target.key}`)?.scrollIntoView({ block: 'start', behavior: target.smooth ? 'smooth' : 'auto' });
+    go();
+    // A troca de aba volta a página ao topo no quadro seguinte: rola de novo depois dela.
+    const raf = requestAnimationFrame(go);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
   return (
-    <div role="grid" aria-label="Calendário do mês">
-      <div className="grid grid-cols-[28px_repeat(7,minmax(0,1fr))] md:grid-cols-[36px_repeat(7,minmax(0,1fr))] gap-1 mb-1" role="row">
-        <span className="text-[10px] font-semibold text-ink-mute self-end text-center" aria-hidden>sem</span>
-        {WEEKDAYS.map(d => <span key={d} className="text-xs font-semibold text-ink-mute text-center " role="columnheader">{d}</span>)}
+    <div>
+      <div className="space-y-7 pt-1">
+        {months.map(m => (
+          <MonthBlock key={keyOf(m.year, m.month)} year={m.year} month={m.month} {...rest} />
+        ))}
       </div>
-      {weeks.map(days => {
-        const gw = gestationalWeekOf(dumDate, days[3]);
-        return (
-          <div key={toISODate(days[0])} className="grid grid-cols-[28px_repeat(7,minmax(0,1fr))] md:grid-cols-[36px_repeat(7,minmax(0,1fr))] gap-1 mb-1" role="row">
-            <span className="text-[11px] font-semibold text-ink-mute flex items-center justify-center tabular" title={`Semana ${gw} da gestação`}>{gw >= 0 && gw <= 42 ? gw : ''}</span>
-            {days.map(d => {
+    </div>
+  );
+}
+
+interface MonthProps {
+  year: number;
+  month: number;
+  dumDate: string;
+  todayIso: string;
+  openDay: string | null;
+  onSelect: (iso: string) => void;
+  events: Map<string, CalendarEvent[]>;
+  records: Map<string, DayRecords>;
+  checkins: Checkin[];
+  filter: CalendarFilter;
+}
+
+function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events, records, checkins, filter }: MonthProps) {
+  const nameOf = useNameOf();
+  const name = monthName(year, month);
+  const total = new Date(year, month + 1, 0).getDate();
+  const cells: Array<Date | null> = [...Array<null>(new Date(year, month, 1).getDay()).fill(null), ...Array.from({ length: total }, (_, i) => new Date(year, month, i + 1))];
+  while (cells.length % 7) cells.push(null);
+  const rows = Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
+  // O subtítulo: que semanas da gestação o mês cobre (ou o mês do nascimento).
+  const gs = cells.filter((d): d is Date => !!d).map(d => gestationDay(dumDate, toISODate(d))).filter(inBand);
+  const sub = gs.some(g => g.isDpp) ? 'mês do nascimento' : gs.length ? `semanas ${gs[0].weeks} a ${gs[gs.length - 1].weeks} · ${gs[gs.length - 1].trimester}º trimestre` : '';
+  const showHealth = filter === 'tudo' || filter === 'saude';
+
+  return (
+    <section id={`mes-${keyOf(year, month)}`} aria-label={`${name} de ${year}`} className="scroll-mt-[8.5rem] md:scroll-mt-[12.5rem]">
+      <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">
+        <h3 className="font-display text-[1.35rem] text-ink first-letter:uppercase">
+          {name} <span className="text-[0.95rem] text-ink-mute">{year}</span>
+        </h3>
+        {sub && <span className="text-[12px] font-semibold text-ink-mute">{sub}</span>}
+      </div>
+      <div role="grid" aria-label={`Calendário de ${name} de ${year}`}>
+        {rows.map((row, ri) => (
+          <div key={ri} role="row" className="grid grid-cols-7">
+            {row.map((d, ci) => {
+              if (!d) return <span key={ci} role="presentation" />;
               const iso = toISODate(d);
+              const g = gestationDay(dumDate, iso);
+              const band = inBand(g);
+              const prev = ci > 0 && row[ci - 1] ? inBand(gestationDay(dumDate, toISODate(row[ci - 1]!))) : false;
+              const next = ci < 6 && row[ci + 1] ? inBand(gestationDay(dumDate, toISODate(row[ci + 1]!))) : false;
               const list = events.get(iso) ?? [];
-              const rec = records.get(iso);
-              const inMonth = d.getMonth() === month;
+              const shown = list.filter(e => matchesFilter(e, filter));
+              const { dots, more } = dayDots(list, filter);
+              const rec = showHealth ? records.get(iso) : undefined;
+              const moods = showHealth ? checkins.filter(c => c.day === iso) : [];
               const isToday = iso === todayIso;
-              const isSelected = iso === selected;
-              const major = list.find(e => e.kind === 'marco' && e.major);
-              const moods = checkins.filter(c => c.day === iso);
+              const isOpen = iso === openDay;
               return (
                 <button
                   key={iso}
+                  type="button"
                   role="gridcell"
-                  aria-selected={isSelected}
-                  aria-label={`${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}${list.length ? `, ${list.length} ${list.length === 1 ? 'evento' : 'eventos'}` : ''}${rec ? ', com registro de saúde' : ''}${moodsText(moods, nameOf)}`}
+                  aria-selected={isOpen}
+                  aria-label={`${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}${isToday ? ', hoje' : ''}${band ? `, ${ageText(g)}` : ''}${g?.isDpp ? ', data provável do parto' : ''}${shown.length ? `, ${shown.length} ${shown.length === 1 ? 'evento' : 'eventos'}` : ''}${rec ? ', com registro de saúde' : ''}${moodsText(moods, nameOf)}`}
                   onClick={() => onSelect(iso)}
-                  className={`relative min-w-0 min-h-14 md:min-h-24 rounded-xl p-0.5 md:p-1.5 text-left flex flex-col gap-1 transition border ${isSelected ? 'border-brand bg-brand-soft/60' : 'border-transparent hover:bg-surface-2'} ${inMonth ? '' : 'opacity-45'}`}
+                  className="relative h-[3.9rem] flex flex-col items-center pt-1 outline-none group"
                 >
-                  <span className="flex items-center justify-between gap-0.5">
-                    <span className={`text-xs md:text-sm font-semibold tabular w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${isToday ? 'bg-brand text-on-accent' : 'text-ink'}`}>{d.getDate()}</span>
-                    {rec && (
-                      <span
-                        className={`w-2.5 h-2.5 rounded-full border-2 ${rec.bpHigh ? 'bg-alert border-alert' : ''}`}
-                        style={rec.bpHigh ? undefined : { borderColor: `var(--c-int-${Math.max(1, rec.maxIntensity)})` }}
-                        aria-hidden
-                      />
-                    )}
+                  {band && <span aria-hidden className={`absolute top-1 h-9 ${TRI_BAND[g.trimester]} ${prev ? 'left-0' : 'left-1 rounded-l-full'} ${next ? 'right-0' : 'right-1 rounded-r-full'}`} />}
+                  <span
+                    className={`relative w-9 h-9 rounded-full flex items-center justify-center text-[15px] font-semibold tabular transition group-focus-visible:ring-2 group-focus-visible:ring-brand ${
+                      isToday ? 'bg-brand text-on-accent shadow-soft' : g?.isDpp ? 'bg-rosa text-white shadow-soft' : isOpen ? 'bg-surface text-ink ring-2 ring-brand' : 'text-ink group-hover:bg-surface/70'
+                    }`}
+                  >
+                    {d.getDate()}
+                    {g?.isDpp && <Heart className="absolute -top-1 -right-1 w-3.5 h-3.5 fill-rosa text-surface" aria-hidden />}
                   </span>
-                  {major && <span className="hidden md:block text-[10px] font-semibold text-warm leading-tight truncate">{major.title}</span>}
-                  {/* Celular: pontos. Computador: os primeiros títulos. */}
-                  <span className="flex flex-wrap gap-0.5 md:hidden">
-                    {list.slice(0, 4).map(e => <span key={e.id} className={`w-1.5 h-1.5 rounded-full ${dotClass(e)}`} />)}
-                  </span>
-                  <span className="hidden md:flex flex-col gap-0.5 min-w-0">
-                    {list.filter(e => e !== major).slice(0, 2).map(e => (
-                      <span key={e.id} className={`text-[11px] leading-tight px-1.5 py-0.5 rounded-md truncate ${e.overdue ? 'bg-alert-soft text-alert' : KIND_STYLE[e.kind]} ${e.done ? 'line-through opacity-60' : ''}`}>
-                        {e.time && <span className="font-semibold">{e.time} </span>}
-                        {e.title}
-                      </span>
+                  {band && g.weekStart && !isToday && !g.isDpp && <span className={`absolute top-0 left-0.5 text-[9px] font-extrabold leading-none ${TRI_TEXT[g.trimester]}`} aria-hidden>{g.weeks}s</span>}
+                  <span className="mt-1 flex items-center gap-[3px] h-1.5" aria-hidden>
+                    {dots.map(c => (
+                      <span key={c} className={`w-1.5 h-1.5 rounded-full ${c}`} />
                     ))}
-                    {list.filter(e => e !== major).length > 2 && <span className="text-[10px] text-ink-mute">+{list.filter(e => e !== major).length - 2}</span>}
+                    {more > 0 && <span className="w-1 h-1 rounded-full bg-ink-mute/50" />}
+                    {rec && <span className={`w-1.5 h-1.5 rounded-full border ${rec.bpHigh ? 'bg-alert border-alert' : 'border-int-3'}`} />}
                   </span>
-                  <MoodDots list={moods} />
+                  <span className="mt-0.5">
+                    <MoodDots list={moods} />
+                  </span>
                 </button>
               );
             })}
           </div>
-        );
-      })}
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * O Ano: os doze meses de cada ano da gestação de uma vez, com os dias da
+ * gestação na cor do trimestre, o coração na data provável e um pontinho onde
+ * há algo marcado. Tocar no mês leva ao Mês; tocar no dia abre a folha dele.
+ */
+function YearView({ months, dumDate, todayIso, events, records, filter, onDay, onMonth }: { months: Array<{ year: number; month: number }>; dumDate: string; todayIso: string; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; filter: CalendarFilter; onDay: (iso: string) => void; onMonth: (key: string) => void }) {
+  const years = [...new Set(months.map(m => m.year))];
+  const showHealth = filter === 'tudo' || filter === 'saude';
+  const todayRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    todayRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }, []);
+  return (
+    <div className="space-y-8">
+      {years.map(year => (
+        <section key={year} aria-label={`Ano de ${year}`} className="space-y-4">
+          <h3 className="font-display text-[1.8rem] text-center text-ink">{year}</h3>
+          <div className="grid grid-cols-3 gap-x-2 gap-y-5 md:grid-cols-4 md:gap-x-4">
+            {Array.from({ length: 12 }, (_, month) => {
+              const total = new Date(year, month + 1, 0).getDate();
+              const lead = new Date(year, month, 1).getDay();
+              const isThisMonth = monthKey(todayIso) === keyOf(year, month);
+              return (
+                <div key={month} ref={isThisMonth ? (el => void (todayRef.current = el)) : undefined}>
+                  <button type="button" onClick={() => onMonth(keyOf(year, month))} className={`w-full text-center text-[13px] mb-1 first-letter:uppercase ${isThisMonth ? 'font-extrabold text-ink' : 'font-bold text-ink-soft'}`}>
+                    {monthName(year, month)}
+                  </button>
+                  <div className="grid grid-cols-7 gap-y-px text-center">
+                    {Array.from({ length: lead }, (_, i) => (
+                      <span key={`v${i}`} />
+                    ))}
+                    {Array.from({ length: total }, (_, i) => {
+                      const iso = toISODate(new Date(year, month, i + 1));
+                      const g = gestationDay(dumDate, iso);
+                      const band = inBand(g);
+                      const isToday = iso === todayIso;
+                      const marked = dayDots(events.get(iso) ?? [], filter).dots.length > 0 || (showHealth && records.has(iso));
+                      return (
+                        <button
+                          key={iso}
+                          type="button"
+                          onClick={() => onDay(iso)}
+                          aria-label={`${parseLocalDate(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}${g?.isDpp ? ', data provável do parto' : ''}`}
+                          className={`relative mx-auto w-[18px] h-[18px] rounded-full text-[10px] min-[380px]:text-[10.5px] leading-[18px] tabular ${
+                            isToday ? 'bg-brand text-on-accent font-extrabold' : g?.isDpp ? 'bg-rosa text-white font-extrabold' : band ? `${TRI_TEXT[g.trimester]} font-semibold` : 'text-ink-mute/70'
+                          }`}
+                        >
+                          {i + 1}
+                          {marked && !isToday && <span className="absolute -bottom-[2px] left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full bg-current" aria-hidden />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+      <p className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-[12px] text-ink-soft" aria-label="Legenda">
+        {([1, 2, 3] as const).map(t => (
+          <span key={t} className="inline-flex items-center gap-1.5">
+            <span className={`w-2.5 h-2.5 rounded-full ${TRI_DOT[t]}`} /> {t}º trimestre
+          </span>
+        ))}
+        <span className="inline-flex items-center gap-1.5">
+          <Heart className="w-3 h-3 fill-rosa text-rosa" /> Data provável do parto
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-1 h-1 rounded-full bg-ink-soft" /> Algo marcado
+        </span>
+      </p>
     </div>
   );
 }
@@ -425,7 +583,32 @@ function DayMoods({ list, compact = false }: { list: Checkin[]; compact?: boolea
   );
 }
 
-function DayPanel(props: {
+/** O alto da folha do dia: como estava a gestação, na cor do trimestre, com o bebê daquela semana. */
+function GestationCard({ dumDate, day }: { dumDate: string; day: string }) {
+  const g = gestationDay(dumDate, day);
+  if (!g) return <p className="rounded-[22px] bg-surface-2 px-4 py-3 text-[13.5px] text-ink-soft">{daysBetween(parseLocalDate(dumDate), parseLocalDate(day)) < 0 ? 'Antes do começo da gestação.' : 'Depois da gestação.'}</p>;
+  const info = weekInfo(Math.min(LAST_WEEK, Math.max(FIRST_WEEK, g.weeks)));
+  const toBirth = g.isDpp ? 'Data provável do parto' : g.daysToDpp > 0 ? `${g.daysToDpp} ${g.daysToDpp === 1 ? 'dia' : 'dias'} para o nascimento` : `${-g.daysToDpp} ${g.daysToDpp === -1 ? 'dia' : 'dias'} depois da data provável`;
+  return (
+    <section aria-label="A gestação neste dia" className={`rounded-[22px] ${TRI_BAND[g.trimester]} px-4 py-3 flex items-center gap-3`}>
+      <BabyArt week={Math.min(LAST_WEEK, Math.max(FIRST_WEEK, g.weeks))} className="w-16 h-16 shrink-0" />
+      <div className="min-w-0">
+        <p className={`text-[11.5px] font-extrabold uppercase tracking-wide ${TRI_TEXT[g.trimester]}`}>
+          {g.trimester}º trimestre · {gestationMonth(g.weeks)}º mês
+        </p>
+        <p className="font-display text-[1.3rem] leading-tight text-ink">{ageText(g)}</p>
+        <p className="text-[12.5px] text-ink-soft">
+          {g.isDpp && <Heart className="inline w-3.5 h-3.5 mr-1 -mt-0.5 fill-rosa text-rosa" />}
+          {toBirth}
+          {g.weeks >= FIRST_WEEK && ` · do tamanho de ${info.fruit}`}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/** A folha do dia: sobe de baixo ao tocar num dia, com tudo o que tem data nele (todos os tipos, sem filtro). */
+function DaySheet(props: {
   day: string;
   dumDate: string;
   todayIso: string;
@@ -443,6 +626,7 @@ function DayPanel(props: {
   onNavigate: (tab: Tab) => void;
   onOpen: OpenTarget;
   onOpenCelebration?: (id: string) => void;
+  onClose: () => void;
 }) {
   const [adding, setAdding] = useState<'consulta' | 'tarefa' | null>(null);
   const date = parseLocalDate(props.day);
@@ -450,84 +634,96 @@ function DayPanel(props: {
   const isPast = daysBetween(parseLocalDate(props.todayIso), date) < 0;
   const isToday = props.day === props.todayIso;
   const consultationOf = (e: CalendarEvent) => props.consultations.find(c => c.id === e.sourceId);
+  const weekday = date.toLocaleDateString('pt-BR', { weekday: 'long' });
 
   return (
-    <Card className="space-y-4">
-      <div>
-        <p className="text-sm text-ink-mute first-letter:uppercase">{date.toLocaleDateString('pt-BR', { weekday: 'long' })}{isToday ? ' · hoje' : ''}</p>
-        <h3 className="text-xl font-semibold text-ink">{date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</h3>
-        {gw >= 0 && gw <= 42 && <Pill tone="warm">semana {gw} da gestação</Pill>}
+    <Sheet title={date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })} subtitle={<span className="first-letter:uppercase inline-block">{`${weekday}${isToday ? ' · hoje' : ''}`}</span>} onClose={props.onClose}>
+      <div className="space-y-4">
+        <GestationCard dumDate={props.dumDate} day={props.day} />
+
+        {props.events.length === 0 && !props.records && props.checkins.length === 0 && <p className="text-sm text-ink-mute px-1">Nada marcado neste dia.</p>}
+        <DayMoods list={props.checkins} />
+
+        {props.events.length > 0 && (
+          <ul className="space-y-3" aria-label="O que tem neste dia">
+            {props.events.map(e => {
+              const c = e.kind === 'consulta' ? consultationOf(e) : undefined;
+              return (
+                <li key={e.id} className="space-y-1.5">
+                  <EventLine
+                    event={e}
+                    onToggleTask={id => {
+                      const t = props.tasks.find(x => x.id === id);
+                      if (t) props.onToggleTask(t);
+                    }}
+                    onOpen={props.onOpen}
+                    onOpenCelebration={props.onOpenCelebration}
+                  />
+                  {e.author && (
+                    <span className="ml-6">
+                      <AuthorBadge role={e.author} prefix={e.kind === 'tarefa' ? 'Resp.:' : 'Por'} />
+                    </span>
+                  )}
+                  {c && (
+                    <a href={googleCalendarUrl(c)} target="_blank" rel="noopener noreferrer" className="ml-6 inline-flex items-center gap-1 text-xs font-semibold text-brand underline underline-offset-2">
+                      <ExternalLink className="w-3 h-3" /> Adicionar ao Google Agenda
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {props.records && (
+          <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
+            <p className="text-xs font-semibold text-ink-mute">Saúde</p>
+            {props.records.symptoms.map(s => (
+              <div key={s.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-ink">{s.symptom_name}</span>
+                <span className="flex items-center gap-2">
+                  <IntensityDots value={s.intensity} />
+                  <AuthorBadge role={s.created_by} />
+                </span>
+              </div>
+            ))}
+            {props.records.metrics.length > 0 && <RecordLine records={{ ...props.records, symptoms: [] }} />}
+          </div>
+        )}
+
+        {adding === 'consulta' && <ScheduleForm busy={props.busy} startOpen initialDate={props.day} onCreate={props.onCreateConsultation} onClose={() => setAdding(null)} />}
+        {adding === 'tarefa' && (
+          <TaskForm
+            selectedWeek={Math.max(FIRST_WEEK, gw)}
+            busy={props.busy}
+            initialDueDate={props.day}
+            onCancel={() => setAdding(null)}
+            onCreate={async t => {
+              const ok = await props.onCreateTask({ ...t, week: Math.min(LAST_WEEK, Math.max(FIRST_WEEK, gw)) });
+              if (ok) setAdding(null);
+              return ok;
+            }}
+          />
+        )}
+
+        {adding === null && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {!props.migrationPending && !isPast && (
+              <Button tone="soft" onClick={() => setAdding('consulta')} className="!px-3 !py-2">
+                <Stethoscope className="w-4 h-4" /> Agendar
+              </Button>
+            )}
+            <Button tone="soft" onClick={() => setAdding('tarefa')} className="!px-3 !py-2">
+              <ListPlus className="w-4 h-4" /> Tarefa
+            </Button>
+            {isToday && (
+              <Button tone="ghost" onClick={() => props.onNavigate('diario')} className="!px-3 !py-2">
+                <NotebookPen className="w-4 h-4" /> Registrar no diário
+              </Button>
+            )}
+          </div>
+        )}
       </div>
-
-      {props.events.length === 0 && !props.records && props.checkins.length === 0 && <p className="text-sm text-ink-mute">Nada marcado neste dia.</p>}
-      <DayMoods list={props.checkins} />
-
-      {props.events.length > 0 && (
-        <ul className="space-y-3">
-          {props.events.map(e => {
-            const c = e.kind === 'consulta' ? consultationOf(e) : undefined;
-            return (
-              <li key={e.id} className="space-y-1.5">
-                <EventLine event={e} onToggleTask={id => { const t = props.tasks.find(x => x.id === id); if (t) props.onToggleTask(t); }} onOpen={props.onOpen} onOpenCelebration={props.onOpenCelebration} />
-                {e.author && <span className="ml-6"><AuthorBadge role={e.author} prefix={e.kind === 'tarefa' ? 'Resp.:' : 'Por'} /></span>}
-                {c && (
-                  <a href={googleCalendarUrl(c)} target="_blank" rel="noopener noreferrer" className="ml-6 inline-flex items-center gap-1 text-xs font-semibold text-brand underline underline-offset-2">
-                    <ExternalLink className="w-3 h-3" /> Adicionar ao Google Agenda
-                  </a>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {props.records && (
-        <div className="rounded-2xl bg-surface-2 p-3 space-y-2">
-          <p className="text-xs font-semibold text-ink-mute">Saúde</p>
-          {props.records.symptoms.map(s => (
-            <div key={s.id} className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-ink">{s.symptom_name}</span>
-              <span className="flex items-center gap-2"><IntensityDots value={s.intensity} /><AuthorBadge role={s.created_by} /></span>
-            </div>
-          ))}
-          {props.records.metrics.length > 0 && <RecordLine records={{ ...props.records, symptoms: [] }} />}
-        </div>
-      )}
-
-      {adding === 'consulta' && (
-        <ScheduleForm busy={props.busy} startOpen initialDate={props.day} onCreate={props.onCreateConsultation} onClose={() => setAdding(null)} />
-      )}
-      {adding === 'tarefa' && (
-        <TaskForm
-          selectedWeek={Math.max(FIRST_WEEK, gw)}
-          busy={props.busy}
-          initialDueDate={props.day}
-          onCancel={() => setAdding(null)}
-          onCreate={async t => {
-            const ok = await props.onCreateTask({ ...t, week: Math.min(LAST_WEEK, Math.max(FIRST_WEEK, gw)) });
-            if (ok) setAdding(null);
-            return ok;
-          }}
-        />
-      )}
-
-      {adding === null && (
-        <div className="flex flex-wrap gap-2 pt-1">
-          {!props.migrationPending && !isPast && (
-            <Button tone="soft" onClick={() => setAdding('consulta')} className="!px-3 !py-2">
-              <Stethoscope className="w-4 h-4" /> Agendar
-            </Button>
-          )}
-          <Button tone="soft" onClick={() => setAdding('tarefa')} className="!px-3 !py-2">
-            <ListPlus className="w-4 h-4" /> Tarefa
-          </Button>
-          {isToday && (
-            <Button tone="ghost" onClick={() => props.onNavigate('diario')} className="!px-3 !py-2">
-              <NotebookPen className="w-4 h-4" /> Registrar no diário
-            </Button>
-          )}
-        </div>
-      )}
-    </Card>
+    </Sheet>
   );
 }
