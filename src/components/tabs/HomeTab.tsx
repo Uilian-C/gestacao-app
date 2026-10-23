@@ -28,6 +28,9 @@ import BellyCard from '../home/BellyCard';
 import QuickHealth from '../home/QuickHealth';
 import WeekSummaryCard from '../home/WeekSummaryCard';
 import WeekStrip from '../home/WeekStrip';
+import FirstDays from '../home/FirstDays';
+import type { MissionId } from '../../lib/firstDays';
+import { BOOK_SEEN_KEY } from '../Book';
 import { showsWeekSummary, weekSummary } from '../../lib/weekSummary';
 import type { NewMetric } from '../forms/RecordForms';
 import { Card, LinkButton, SectionTitle } from '../ui';
@@ -86,6 +89,11 @@ interface Props {
   onOpenNames?: () => void;
   /** Abre o calendário (Agenda) já na folha de um dia. */
   onOpenCalendar?: (day: string | null) => void;
+  /** "Primeiros 7 dias": o dia em que começou (ou nulo, se o casal escondeu). */
+  firstDays?: string | null;
+  onHideFirstDays?: () => void;
+  onInvite?: () => void;
+  onWriteLetter?: () => void;
   /** Celebrações (migração 028): a próxima aparece no Início a partir de 60 dias antes. */
   celebrations?: Celebration[] | null;
   onOpenCelebration?: (id: string) => void;
@@ -129,6 +137,34 @@ export default function HomeTab(props: Props) {
   const lateSteps = props.lateSteps;
   const members = useContext(PeopleContext);
   const babyName = useContext(BabyNameContext);
+  // As missões dos primeiros dias se marcam sozinhas, pelo que já aconteceu de verdade.
+  const bookSeen = (() => {
+    try {
+      return !!localStorage.getItem(BOOK_SEEN_KEY);
+    } catch {
+      return false;
+    }
+  })();
+  const missionsDone = new Set<MissionId>(
+    [
+      !!props.partnerName && 'convidar',
+      props.checkins.some(c => c.mine) && 'checkin',
+      props.consultations.length > 0 && 'consulta',
+      bellyShots(props.journal, props.dumDate).length > 0 && 'barriga',
+      (!!babyName || (props.nameIdeas?.length ?? 0) > 0) && 'nome',
+      props.journal.some(e => e.folder === 'carta') && 'carta',
+      bookSeen && 'livro',
+    ].filter(Boolean) as MissionId[],
+  );
+  const doMission = (id: MissionId) => {
+    if (id === 'convidar') return props.onInvite?.();
+    if (id === 'checkin') return document.getElementById('checkin-titulo')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (id === 'consulta') return onOpen('agenda');
+    if (id === 'barriga') return props.onBellyPhoto();
+    if (id === 'nome') return props.onOpenNames?.();
+    if (id === 'carta') return props.onWriteLetter?.();
+    onOpen('livro');
+  };
   const party = upcomingCelebration(props.celebrations, new Date());
   const summaryRoles = (['mae', 'pai'] as const).filter(r => members.some(m => m.role === r) || props.checkins.some(c => c.author_role === r));
   // A última visita ao Diário, lida uma vez ao abrir o Início.
@@ -276,6 +312,8 @@ export default function HomeTab(props: Props) {
       </section>
 
       {/* Enquanto não escolheram o nome, ele ganha destaque logo abaixo do bebê; depois, vive no app todo. */}
+      {props.firstDays && props.onHideFirstDays && <FirstDays done={missionsDone} start={props.firstDays} todayIso={todayIso} onAction={doMission} onHide={props.onHideFirstDays} />}
+
       {!babyName && props.nameIdeas && props.onOpenNames && <NameTeaser ideas={props.nameIdeas} onOpen={props.onOpenNames} />}
       {party && props.onOpenCelebration && <CelebrationTeaser celebration={party.c} days={party.days} onOpen={() => props.onOpenCelebration!(party.c.id)} />}
 

@@ -1,6 +1,6 @@
 // Formulários: sintoma, medição, tarefa e diário com o dia escolhido (hoje,
 // ontem ou outro dia); a semana segue o dia. Editar também troca o dia.
-import { check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
+import { check, finish, launch, OUT, phone, quickAccount, DUM_22 } from './lib.mjs';
 
 const b = await launch();
 const p = await phone(b);
@@ -9,7 +9,7 @@ const dlg = p.getByRole('dialog');
 const plus = p.getByRole('button', { name: 'Registrar', exact: true });
 const api = () => p.evaluate(async () => (await fetch('/api/data')).json());
 const iso = n => p.evaluate(n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); }, n);
-const weekOf = d => p.evaluate(d => Math.floor((new Date(`${d}T00:00:00`) - new Date('2026-05-15T00:00:00')) / (7 * 86400000)), d);
+const weekOf = d => p.evaluate(([d, dum]) => Math.floor((new Date(`${d}T00:00:00`) - new Date(`${dum}T00:00:00`)) / (7 * 86400000)), [d, DUM_22]);
 
 // ---- Sintoma de ontem ----
 await plus.click();

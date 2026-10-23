@@ -87,7 +87,14 @@ export async function phone(browser, options = {}) {
 }
 
 /** Cria conta, aceita os termos, cria o espaço e define a DUM, pela API de dentro da página. */
-export async function quickAccount(page, { name = 'Ana', role = 'mae', dum = '2026-05-15' } = {}) {
+/** A DUM padrão dos testes: sempre 22 semanas e 3 dias atrás (os testes contam com a semana 22, seja qual for o dia em que rodam). */
+export const DUM_22 = (() => {
+  const d = new Date();
+  d.setDate(d.getDate() - (22 * 7 + 3));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+})();
+
+export async function quickAccount(page, { name = 'Ana', role = 'mae', dum = DUM_22 } = {}) {
   await page.goto(BASE);
   const call = (path, body) =>
     page.evaluate(

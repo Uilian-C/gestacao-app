@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { CircleHelp, Plus } from 'lucide-react';
 import Avatar from './Avatar';
 import BrandMark from './BrandMark';
 import type { FamilyMember } from '../api';
@@ -8,12 +8,14 @@ interface Props {
   members: FamilyMember[];
   greeting: string;
   onOpenSpace: () => void;
+  /** Abre a Central de Ajuda. */
+  onHelp?: () => void;
   /** Nas abas que não são o Início: cabeçalho fino, com o nome da aba e a semana. */
   title?: string;
   week?: number | null;
 }
 
-export default function Header({ firstName, members, greeting, onOpenSpace, title, week }: Props) {
+export default function Header({ firstName, members, greeting, onOpenSpace, onHelp, title, week }: Props) {
   return (
     <header className="no-print bg-canvas transition-colors duration-300">
       <div className={`max-w-5xl mx-auto px-4 md:px-6 flex items-center justify-between gap-3 ${title ? 'pt-4 pb-2' : 'pt-5 pb-3'}`}>
@@ -43,6 +45,12 @@ export default function Header({ firstName, members, greeting, onOpenSpace, titl
           </div>
         )}
 
+        <div className="flex items-center gap-1.5 shrink-0">
+        {onHelp && (
+          <button type="button" onClick={onHelp} aria-label="Ajuda" className="w-10 h-10 rounded-full flex items-center justify-center text-ink-mute hover:text-ink hover:bg-surface transition">
+            <CircleHelp className="w-[22px] h-[22px]" strokeWidth={1.75} />
+          </button>
+        )}
         {/* Quem participa do espaço; abre convites, papel e saída da conta. */}
         <button
           type="button"
@@ -62,6 +70,7 @@ export default function Header({ firstName, members, greeting, onOpenSpace, titl
           </span>
           <span className="hidden sm:inline">{members.length < 2 ? 'Convidar' : 'Nosso espaço'}</span>
         </button>
+        </div>
       </div>
     </header>
   );

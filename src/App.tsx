@@ -13,6 +13,8 @@ import { takeTabFromUrl, takeViewFromUrl } from './lib/pwa';
 import { api, ApiError, type CoupleFamilyState, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
 import Header from './components/Header';
+import HelpCenter from './components/HelpCenter';
+import type { HelpTarget } from './content/help';
 import FichaBar, { type FichaInput } from './components/FichaBar';
 import Nav from './components/Nav';
 import Toast, { type ToastMessage } from './components/Toast';
@@ -124,6 +126,8 @@ interface AppProps {
   onSignOut: () => void;
 }
 
+const FIRST_DAYS_KEY = 'tumtum-primeiros-dias';
+
 export default function App({ me, family, onFamilyChange, onAccessLost, onSignOut }: AppProps) {
   const { data, loadState, refresh, replace, patch, retry } = useGestationData(onAccessLost, me.data);
   const author = family.role;
@@ -152,6 +156,25 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   /** Pasta (e ideia) com que o diário abre no registro. */
   const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string }>({});
   const [namesOpen, setNamesOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  // "Primeiros 7 dias": quando começou (neste aparelho) e se o casal pediu para esconder.
+  const [firstDaysPrefs, setFirstDaysPrefs] = useState<{ start: string; hidden: boolean }>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(FIRST_DAYS_KEY) ?? 'null') as { start?: string; hidden?: boolean } | null;
+      if (saved?.start) return { start: saved.start, hidden: !!saved.hidden };
+    } catch {
+      /* sem armazenamento: começa hoje */
+    }
+    return { start: toISODate(new Date()), hidden: false };
+  });
+  const saveFirstDays = (next: { start: string; hidden: boolean }) => {
+    setFirstDaysPrefs(next);
+    try {
+      localStorage.setItem(FIRST_DAYS_KEY, JSON.stringify(next));
+    } catch {
+      /* sem armazenamento: só não lembra */
+    }
+  };
   /** A celebração aberta (Diário → Celebrações, Início ou Agenda). */
   const [celebrationOpen, setCelebrationOpen] = useState<string | null>(null);
   // A revelação do nome: para quem escolhe, na hora; para quem não estava (o parceiro, a família), na próxima vez que abre o app.
@@ -507,6 +530,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       members={family.members}
       greeting={greetingFor(now.getHours())}
       onOpenSpace={() => setSpaceOpen(true)}
+      onHelp={() => setHelpOpen(true)}
       title={activeTab === 'inicio' || !age ? undefined : TITLE[activeTab]}
       week={age ? currentWeek : null}
     />
@@ -685,6 +709,23 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   // "Quer contar no Mural?" depois do check-in: vira um registro do dia a dia, para os dois.
   const shareMood = (body: string) =>
     run(() => api.mutate('createEntry', { date: today, body, visibility: 'shared', remindOn: null, folder: 'dia' }), 'Não foi possível postar no Mural.', 'Postado no Mural');
+  // "Ir para lá" da Central de Ajuda: fecha a ajuda e leva à tela certa.
+  const goHelp = (target: HelpTarget) => {
+    setHelpOpen(false);
+    if (target === 'espaco') return setSpaceOpen(true);
+    if (target === 'nomes') return setNamesOpen(true);
+    if (target === 'parto') return navigate('parto');
+    if (target === 'calendario') {
+      setCalendarFocus(null);
+      setAgendaView('calendario');
+      return navigate('agenda');
+    }
+    if (target === 'celebracoes') {
+      setDiaryView('celebracoes');
+      return navigate('diario');
+    }
+    openFromHome(target);
+  };
   const openFromHome = (target: HomeTarget, planItem?: string) => {
     if (target === 'diario') return navigate('diario');
     if (target === 'mural' || target === 'humor' || target === 'barriga' || target === 'livro') {
@@ -777,6 +818,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
         {activeTab === 'inicio' && (
           <HomeTab
+            firstDays={firstDaysPrefs.hidden ? null : firstDaysPrefs.start}
+            onHideFirstDays={() => saveFirstDays({ ...firstDaysPrefs, hidden: true })}
+            onInvite={() => setSpaceOpen(true)}
+            onWriteLetter={() => writeEntry('carta')}
             onOpenCalendar={day => {
               setCalendarFocus(day);
               setAgendaView('calendario');
@@ -1179,6 +1224,17 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
       <Toast toast={toast} onClose={() => setToast(null)} />
       {spaceSheet}
+      {helpOpen && (
+        <HelpCenter
+          onClose={() => setHelpOpen(false)}
+          onGo={goHelp}
+          onFirstDays={() => {
+            saveFirstDays({ ...firstDaysPrefs, hidden: false });
+            setHelpOpen(false);
+            navigate('inicio');
+          }}
+        />
+      )}
     </div>
     </TimedRemindersReady.Provider>
     </TaskRemindersReady.Provider>

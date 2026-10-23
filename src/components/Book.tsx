@@ -236,6 +236,7 @@ const FIRST = 4;
 const LAST = 40;
 const PRINTED_KEY = 'tumtum-livro-impresso';
 const READING_KEY = 'tumtum-livro-lendo';
+export const BOOK_SEEN_KEY = 'tumtum-livro-visto';
 
 /** A assinatura de uma página: muda quando ganha lembranças novas (para saber o que ainda não foi impresso). */
 const signature = (c: Chapter) => `${c.week}:${c.entries.length}`;
@@ -262,6 +263,8 @@ const newPages = (book: Chapter[], printed: Set<string>) => book.filter(c => !c.
 export function BookView({ book, tone, parents, onOpenEntry, onWrite, onNames }: { book: Chapter[]; tone: BabyTone; parents: string; onOpenEntry: (id: string) => void; onWrite?: () => void; onNames?: () => void }) {
   const name = useContext(BabyNameContext);
   const months = useMemo(() => bookMonths(book), [book]);
+  // Para o "Primeiros 7 dias": o livro já foi aberto neste aparelho.
+  useEffect(() => store(BOOK_SEEN_KEY, true), []);
   // O leitor abre num capítulo (abertura) ou numa semana (onde parou).
   const [reading, setReading] = useState<{ month: number; week?: number } | null>(null);
   const [lastRead, setLastRead] = useState<number | null>(() => readStored<number | null>(READING_KEY, null));
