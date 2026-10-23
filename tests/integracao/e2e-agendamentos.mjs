@@ -42,13 +42,14 @@ check(await p.getByText(/Falta guardar 1 resultado: Ultrassom morfológico/).isV
 // ---- Agenda: o ultrassom e o hemograma no calendário ----
 await tab('Agenda');
 await p.getByRole('button', { name: 'Calendário', exact: true }).click();
+await p.getByRole('button', { name: 'Mês', exact: true }).click();
 await p.getByRole('gridcell').first().waitFor();
 const dayLabel = d => p.evaluate(d => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }); }, d);
 const openDay = async d => {
   const label = await dayLabel(d);
-  const cell = p.getByRole('gridcell', { name: new RegExp(`^${label}`) }).or(p.getByRole('button', { name: new RegExp(`^${label}`) })).first();
-  if (!(await cell.isVisible())) await p.getByRole('button', { name: 'Mês anterior' }).click();
-  await cell.click();
+  // A folha de um dia aberta cobre o calendário: fecha antes de tocar em outro.
+  if (await p.getByRole('dialog').count()) await p.getByRole('dialog').getByRole('button', { name: 'Fechar' }).click();
+  await p.getByRole('gridcell', { name: new RegExp(`^${label}(,|$)`) }).first().click();
   await p.waitForTimeout(400);
 };
 await openDay(yesterday);

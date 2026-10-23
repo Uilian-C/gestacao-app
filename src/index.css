@@ -228,6 +228,7 @@
   --color-warn-soft: var(--c-warn-soft);
   --color-ok: var(--c-ok);
   --color-ok-soft: var(--c-ok-soft);
+  --color-int-3: var(--c-int-3);
 }
 
 @layer base {

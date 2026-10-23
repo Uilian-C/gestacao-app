@@ -229,3 +229,85 @@ export function toIcs(events: CalendarEvent[], consultations: Consultation[], no
   lines.push('END:VCALENDAR');
   return lines.join('\r\n');
 }
+
+/* ---------- O calendário fluido: filtros, meses e o dia na gestação ---------- */
+
+export type CalendarFilter = 'tudo' | 'consultas' | 'tarefas' | 'diario' | 'celebracoes' | 'marcos' | 'saude';
+
+/** Os filtros: um de cada vez, para o calendário nunca virar uma salada. */
+export const CALENDAR_FILTERS: Array<{ id: CalendarFilter; label: string; dot: string }> = [
+  { id: 'tudo', label: 'Tudo', dot: '' },
+  { id: 'consultas', label: 'Consultas e exames', dot: 'bg-brand' },
+  { id: 'tarefas', label: 'Tarefas', dot: 'bg-ink-mute' },
+  { id: 'diario', label: 'Diário', dot: 'bg-casal' },
+  { id: 'celebracoes', label: 'Celebrações', dot: 'bg-rosa' },
+  { id: 'marcos', label: 'Marcos', dot: 'bg-warm' },
+  { id: 'saude', label: 'Saúde e humor', dot: 'bg-int-3' },
+];
+
+const FILTER_KINDS: Record<Exclude<CalendarFilter, 'tudo' | 'saude'>, EventKind[]> = {
+  consultas: ['consulta', 'exame'],
+  tarefas: ['tarefa'],
+  diario: ['momento'],
+  celebracoes: ['celebracao'],
+  marcos: ['marco'],
+};
+
+/** O evento entra no filtro? (Saúde e humor não são eventos: ficam com os registros do dia.) */
+export function matchesFilter(e: CalendarEvent, filter: CalendarFilter): boolean {
+  if (filter === 'tudo') return true;
+  if (filter === 'saude') return false;
+  return FILTER_KINDS[filter].includes(e.kind);
+}
+
+/** O ponto de cada tipo de evento, na cor dele (atrasado em vermelho, feito apagado). */
+export function dotClass(e: CalendarEvent): string {
+  if (e.overdue) return 'bg-alert';
+  if (e.kind === 'consulta') return 'bg-brand';
+  if (e.kind === 'exame') return 'bg-verde';
+  if (e.kind === 'marco') return 'bg-warm';
+  if (e.kind === 'momento') return 'bg-casal';
+  if (e.kind === 'celebracao') return e.done ? 'bg-line' : 'bg-rosa';
+  return e.done ? 'bg-line' : 'bg-ink-mute';
+}
+
+/** Os pontos de um dia: um por tipo (não um por evento), no máximo três. */
+export function dayDots(list: CalendarEvent[], filter: CalendarFilter, max = 3): { dots: string[]; more: number } {
+  const seen = new Set<string>();
+  for (const e of list) if (matchesFilter(e, filter)) seen.add(dotClass(e));
+  const all = [...seen];
+  return { dots: all.slice(0, max), more: Math.max(0, all.length - max) };
+}
+
+/** Os meses do calendário: do mês da DUM até o mês depois da DPP (e sempre o mês de hoje). */
+export function gestationMonths(dumDate: string, today = new Date()): Array<{ year: number; month: number }> {
+  const dum = parseLocalDate(dumDate);
+  const dpp = addDays(dum, 280);
+  const first = new Date(Math.min(new Date(dum.getFullYear(), dum.getMonth(), 1).getTime(), new Date(today.getFullYear(), today.getMonth(), 1).getTime()));
+  const last = new Date(Math.max(new Date(dpp.getFullYear(), dpp.getMonth() + 1, 1).getTime(), new Date(today.getFullYear(), today.getMonth(), 1).getTime()));
+  const out: Array<{ year: number; month: number }> = [];
+  for (let d = first; d <= last; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) out.push({ year: d.getFullYear(), month: d.getMonth() });
+  return out;
+}
+
+export interface GestationDay {
+  /** Semanas e dias completos naquele dia. */
+  weeks: number;
+  days: number;
+  /** 1 a 280 (ou mais, depois da DPP). */
+  dayOfPregnancy: number;
+  trimester: 1 | 2 | 3;
+  /** Dias até a DPP (negativo depois dela). */
+  daysToDpp: number;
+  isDpp: boolean;
+  /** Primeiro dia de uma semana da gestação. */
+  weekStart: boolean;
+}
+
+/** Como estava a gestação num dia: nulo antes da DUM ou bem depois da DPP (42 semanas). */
+export function gestationDay(dumDate: string, iso: string): GestationDay | null {
+  const total = daysBetween(parseLocalDate(dumDate), parseLocalDate(iso));
+  if (total < 0 || total > 42 * 7) return null;
+  const weeks = Math.floor(total / 7);
+  return { weeks, days: total % 7, dayOfPregnancy: total + 1, trimester: weeks <= 13 ? 1 : weeks <= 27 ? 2 : 3, daysToDpp: 280 - total, isDpp: total === 280, weekStart: total % 7 === 0 };
+}

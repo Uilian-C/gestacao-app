@@ -133,6 +133,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [report, setReport] = useState<ReportRequest | null>(null);
   const [diaryView, setDiaryView] = useState<DiaryView>('mural');
   const [healthView, setHealthView] = useState<HealthView>('registros');
+  // O dia que o atalho do Início pediu para abrir no calendário.
+  const [calendarFocus, setCalendarFocus] = useState<string | null>(null);
   const [agendaView, setAgendaView] = useState<AgendaView>(() => {
     const v = takeViewFromUrl();
     return v === 'calendario' || v === 'tarefas' || v === 'jornada' ? v : 'proximos';
@@ -771,6 +773,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
         {activeTab === 'inicio' && (
           <HomeTab
+            onOpenCalendar={day => {
+              setCalendarFocus(day);
+              setAgendaView('calendario');
+              navigate('agenda');
+            }}
             babyTone={data.babyTone ?? 'tumtum'}
             onBabyTone={setBabyTone}
             age={age}
@@ -880,6 +887,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             )}
             {agendaView === 'calendario' && (
               <CalendarTab
+                focusDay={calendarFocus}
+                onFocusUsed={() => setCalendarFocus(null)}
                 celebrations={data.celebrations}
                 onOpenCelebration={setCelebrationOpen}
                 dumDate={dumDate}
