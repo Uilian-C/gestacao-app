@@ -85,6 +85,8 @@ const WEEK_LETTERS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 /** As cores de cada trimestre: rosa, lilás e azul, como a barra da gestação no Início. */
 const TRI_BAND = { 1: 'bg-rosa-soft', 2: 'bg-lilas-soft', 3: 'bg-azul-soft' } as const;
 const TRI_TEXT = { 1: 'text-rosa-strong', 2: 'text-lilas-strong', 3: 'text-azul-strong' } as const;
+/** Os números dos dias da gestação: a cor do trimestre, clarinha (no Mês e no Ano). */
+const TRI_DAY = { 1: 'text-rosa/80', 2: 'text-lilas/80', 3: 'text-azul/80' } as const;
 const TRI_DOT = { 1: 'bg-rosa', 2: 'bg-lilas', 3: 'bg-azul' } as const;
 const monthKey = (iso: string) => iso.slice(0, 7);
 const keyOf = (year: number, month: number) => `${year}-${String(month + 1).padStart(2, '0')}`;
@@ -361,8 +363,6 @@ function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events,
               const iso = toISODate(d);
               const g = gestationDay(dumDate, iso);
               const band = inBand(g);
-              const prev = ci > 0 && row[ci - 1] ? inBand(gestationDay(dumDate, toISODate(row[ci - 1]!))) : false;
-              const next = ci < 6 && row[ci + 1] ? inBand(gestationDay(dumDate, toISODate(row[ci + 1]!))) : false;
               const list = events.get(iso) ?? [];
               const shown = list.filter(e => matchesFilter(e, filter));
               const { dots, more } = dayDots(list, filter);
@@ -380,10 +380,9 @@ function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events,
                   onClick={() => onSelect(iso)}
                   className="relative h-[3.9rem] flex flex-col items-center pt-1 outline-none group"
                 >
-                  {band && <span aria-hidden className={`absolute top-[43px] h-[2px] opacity-35 ${TRI_DOT[g.trimester]} ${prev ? 'left-0' : 'left-2 rounded-l-full'} ${next ? 'right-0' : 'right-2 rounded-r-full'}`} />}
                   <span
                     className={`relative w-9 h-9 rounded-full flex items-center justify-center text-[15px] font-semibold tabular transition group-focus-visible:ring-2 group-focus-visible:ring-brand ${
-                      isToday ? 'bg-brand text-on-accent shadow-soft' : g?.isDpp ? 'bg-rosa text-white shadow-soft' : isOpen ? 'bg-surface text-ink ring-2 ring-brand' : 'text-ink group-hover:bg-surface/70'
+                      isToday ? 'bg-brand text-on-accent shadow-soft' : g?.isDpp ? 'bg-rosa text-white shadow-soft' : isOpen ? 'bg-surface text-ink ring-2 ring-brand' : `${band ? TRI_DAY[g.trimester] : 'text-ink-soft'} group-hover:bg-surface/70`
                     }`}
                   >
                     {d.getDate()}
@@ -455,7 +454,7 @@ function YearView({ target, months, dumDate, todayIso, events, records, filter, 
                           onClick={() => onDay(iso)}
                           aria-label={`${parseLocalDate(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}${g?.isDpp ? ', data provável do parto' : ''}`}
                           className={`relative mx-auto w-[18px] h-[18px] rounded-full text-[10px] min-[380px]:text-[10.5px] leading-[18px] tabular ${
-                            isToday ? 'bg-brand text-on-accent font-extrabold' : g?.isDpp ? 'bg-rosa text-white font-extrabold' : band ? `${TRI_TEXT[g.trimester]} font-medium` : 'text-ink-mute/60'
+                            isToday ? 'bg-brand text-on-accent font-extrabold' : g?.isDpp ? 'bg-rosa text-white font-extrabold' : band ? `${TRI_DAY[g.trimester]} font-medium` : 'text-ink-mute/50'
                           }`}
                         >
                           {i + 1}
