@@ -195,7 +195,7 @@ export default function CalendarTab(props: Props) {
 
       {yearOpen && (
         <YearScreen onClose={() => setYearOpen(false)} onToday={goToday} filters={<FilterChips value={filter} onChange={setFilter} />}>
-          <YearView full target={target} months={months} dumDate={props.dumDate} todayIso={todayIso} events={cal.events} records={cal.records} filter={filter} onDay={setOpenDay} onMonth={key => goMonth(key, false)} footer={<ExportButton onClick={exportIcs} />} />
+          <YearView full target={target} months={months} dumDate={props.dumDate} todayIso={todayIso} events={cal.events} records={cal.records} filter={filter} onMonth={key => goMonth(key, false)} footer={<ExportButton onClick={exportIcs} />} />
         </YearScreen>
       )}
 
@@ -484,9 +484,9 @@ function YearScreen({ onClose, onToday, filters, children }: { onClose: () => vo
 /**
  * O Ano: os doze meses de cada ano da gestação de uma vez, com os dias da
  * gestação na cor do trimestre, o coração na data provável e um pontinho onde
- * há algo marcado. Tocar no mês leva ao Mês; tocar no dia abre a folha dele.
+ * há algo marcado. Tocar em qualquer parte do mês abre o Mês nele; o dia se abre ali.
  */
-function YearView({ full = false, target, months, dumDate, todayIso, events, records, filter, onDay, onMonth, footer }: { full?: boolean; target: { key: string; n: number }; months: Array<{ year: number; month: number }>; dumDate: string; todayIso: string; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; filter: CalendarFilter; onDay: (iso: string) => void; onMonth: (key: string) => void; footer: React.ReactNode }) {
+function YearView({ full = false, target, months, dumDate, todayIso, events, records, filter, onMonth, footer }: { full?: boolean; target: { key: string; n: number }; months: Array<{ year: number; month: number }>; dumDate: string; todayIso: string; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; filter: CalendarFilter; onMonth: (key: string) => void; footer: React.ReactNode }) {
   const years = [...new Set(months.map(m => m.year))];
   const showHealth = filter === 'tudo' || filter === 'saude';
   const box = useFillHeight(!full);
@@ -505,11 +505,17 @@ function YearView({ full = false, target, months, dumDate, todayIso, events, rec
               const lead = new Date(year, month, 1).getDay();
               const isThisMonth = monthKey(todayIso) === keyOf(year, month);
               return (
-                <div key={month} data-mes={keyOf(year, month)}>
-                  <button type="button" onClick={() => onMonth(keyOf(year, month))} className={`w-full text-center text-[13px] mb-1 first-letter:uppercase ${isThisMonth ? 'font-extrabold text-ink' : 'font-bold text-ink-soft'}`}>
-                    {monthName(year, month)}
-                  </button>
-                  <div className="grid grid-cols-7 gap-y-px text-center">
+                <button
+                  key={month}
+                  type="button"
+                  data-mes={keyOf(year, month)}
+                  onClick={() => onMonth(keyOf(year, month))}
+                  aria-label={`Abrir ${monthName(year, month)} de ${year}`}
+                  className="block w-full rounded-2xl p-1 -m-1 text-center transition hover:bg-surface/70 active:scale-[0.97] active:bg-surface"
+                >
+                  <span className={`block text-[13px] mb-1 first-letter:uppercase ${isThisMonth ? 'font-extrabold text-ink' : 'font-bold text-ink-soft'}`}>{monthName(year, month)}</span>
+                  {/* Os dias são só para ver: o mês inteiro é um toque só (o dia se abre no Mês). */}
+                  <span className="grid grid-cols-7 gap-y-px" aria-hidden>
                     {Array.from({ length: lead }, (_, i) => (
                       <span key={`v${i}`} />
                     ))}
@@ -520,22 +526,20 @@ function YearView({ full = false, target, months, dumDate, todayIso, events, rec
                       const isToday = iso === todayIso;
                       const marked = dayDots(events.get(iso) ?? [], filter).dots.length > 0 || (showHealth && records.has(iso));
                       return (
-                        <button
+                        <span
                           key={iso}
-                          type="button"
-                          onClick={() => onDay(iso)}
-                          aria-label={`${parseLocalDate(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}${g?.isDpp ? ', data provável do parto' : ''}`}
+                          data-dpp={g?.isDpp ? '' : undefined}
                           className={`relative mx-auto w-[18px] h-[18px] rounded-full text-[10px] min-[380px]:text-[10.5px] leading-[18px] tabular ${
                             isToday ? 'bg-brand text-on-accent font-extrabold' : g?.isDpp ? 'bg-rosa text-white font-extrabold' : band ? `${TRI_DAY[g.trimester]} font-medium` : 'text-ink-mute/50'
                           }`}
                         >
                           {i + 1}
-                          {marked && !isToday && <span className="absolute -bottom-[2px] left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full bg-current" aria-hidden />}
-                        </button>
+                          {marked && !isToday && <span className="absolute -bottom-[2px] left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full bg-current" />}
+                        </span>
                       );
                     })}
-                  </div>
-                </div>
+                  </span>
+                </button>
               );
             })}
           </div>
