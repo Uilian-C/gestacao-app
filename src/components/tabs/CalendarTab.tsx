@@ -150,27 +150,20 @@ export default function CalendarTab(props: Props) {
 
   return (
     <div className="space-y-4">
-      {/* A barra do calendário fica presa no topo: trocar a visão, filtrar e voltar para hoje sem rolar de volta. */}
-      <div className="sticky top-0 md:top-[61px] z-20 -mx-4 px-4 pt-2 pb-1.5 bg-canvas/95 backdrop-blur space-y-2">
+      {/* A barra do calendário fica parada no alto; só os meses rolam, dentro do próprio espaço (as abas da Agenda continuam à vista). */}
+      <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <Segmented label="Visualização" size="sm" value={view} onChange={setView} options={[{ value: 'mes', label: 'Mês' }, { value: 'semana', label: 'Semana' }, { value: 'ano', label: 'Ano' }]} />
           <button type="button" onClick={goToday} className="inline-flex items-center gap-1.5 rounded-full bg-surface shadow-soft px-3.5 py-1.5 text-[13px] font-bold text-brand-strong">
-            <CalendarDays className="w-4 h-4" /> Hoje
+            <CalendarDays className="w-4 h-4" strokeWidth={1.75} /> Hoje
           </button>
         </div>
         <FilterChips value={filter} onChange={setFilter} />
-        {view === 'mes' && (
-          <div className="grid grid-cols-7 text-center text-[11px] font-extrabold text-ink-mute pt-0.5" aria-hidden>
-            {WEEK_LETTERS.map((l, i) => (
-              <span key={i}>{l}</span>
-            ))}
-          </div>
-        )}
       </div>
 
-      {view === 'mes' && <MonthsView months={months} target={target} dumDate={props.dumDate} todayIso={todayIso} openDay={openDay} onSelect={setOpenDay} events={cal.events} records={cal.records} checkins={props.checkins} filter={filter} />}
+      {view === 'mes' && <MonthsView months={months} target={target} dumDate={props.dumDate} todayIso={todayIso} openDay={openDay} onSelect={setOpenDay} events={cal.events} records={cal.records} checkins={props.checkins} filter={filter} footer={<ExportButton onClick={exportIcs} />} />}
 
-      {view === 'ano' && <YearView months={months} dumDate={props.dumDate} todayIso={todayIso} events={cal.events} records={cal.records} filter={filter} onDay={setOpenDay} onMonth={key => goMonth(key, false)} />}
+      {view === 'ano' && <YearView target={target} months={months} dumDate={props.dumDate} todayIso={todayIso} events={cal.events} records={cal.records} filter={filter} onDay={setOpenDay} onMonth={key => goMonth(key, false)} footer={<ExportButton onClick={exportIcs} />} />}
 
       {view === 'semana' && (
         <section className="space-y-3" aria-label="Semana da gestação">
@@ -192,14 +185,7 @@ export default function CalendarTab(props: Props) {
         </section>
       )}
 
-      <button type="button" onClick={exportIcs} className="w-full flex items-center gap-3 rounded-[24px] bg-surface shadow-soft px-5 py-4 text-left hover:bg-surface-2 transition">
-        <CalendarPlus className="w-5 h-5 text-brand shrink-0" />
-        <span className="flex-1 min-w-0">
-          <span className="block text-sm font-semibold text-ink">Levar para a agenda do celular</span>
-          <span className="block text-xs text-ink-mute">Consultas, prazos e marcos no Google Agenda ou no iPhone</span>
-        </span>
-        <Download className="w-4 h-4 text-ink-mute shrink-0" />
-      </button>
+      {view === 'semana' && <ExportButton onClick={exportIcs} />}
 
       {openDay && (
         <DaySheet
@@ -276,22 +262,61 @@ const ageText = (g: GestationDay) => `${g.weeks} ${g.weeks === 1 ? 'semana' : 's
  * O Mês: os meses da gestação um embaixo do outro, rolando sem botões (como
  * virar as páginas de uma agenda). Os dias da semana ficam presos no topo.
  */
-function MonthsView({ months, target, ...rest }: { months: Array<{ year: number; month: number }>; target: { key: string; smooth: boolean; n: number } } & Omit<MonthProps, 'year' | 'month'>) {
+function MonthsView({ months, target, footer, ...rest }: { months: Array<{ year: number; month: number }>; target: { key: string; smooth: boolean; n: number }; footer: React.ReactNode } & Omit<MonthProps, 'year' | 'month'>) {
+  const box = useFillHeight();
   useLayoutEffect(() => {
-    const go = () => document.getElementById(`mes-${target.key}`)?.scrollIntoView({ block: 'start', behavior: target.smooth ? 'smooth' : 'auto' });
-    go();
-    // A troca de aba volta a página ao topo no quadro seguinte: rola de novo depois dela.
-    const raf = requestAnimationFrame(go);
-    return () => cancelAnimationFrame(raf);
-  }, [target]);
+    const el = box.current?.querySelector<HTMLElement>(`#mes-${target.key}`);
+    // 30px: a linha dos dias da semana, presa no alto da caixa.
+    if (el && box.current) box.current.scrollTo({ top: el.offsetTop - 30, behavior: target.smooth ? 'smooth' : 'auto' });
+  }, [target, box]);
   return (
-    <div>
-      <div className="space-y-7 pt-1">
+    <div ref={box} className="relative -mx-4 px-4 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Meses da gestação">
+      <div className="sticky top-0 z-10 -mx-4 px-4 py-1.5 bg-canvas/95 backdrop-blur grid grid-cols-7 text-center text-[11px] font-extrabold text-ink-mute" aria-hidden>
+        {WEEK_LETTERS.map((l, i) => (
+          <span key={i}>{l}</span>
+        ))}
+      </div>
+      <div className="space-y-7 pt-1 pb-4">
         {months.map(m => (
           <MonthBlock key={keyOf(m.year, m.month)} year={m.year} month={m.month} {...rest} />
         ))}
+        {footer}
       </div>
     </div>
+  );
+}
+
+/**
+ * A caixa que rola ocupa o resto da tela (entre a barra do calendário e o menu
+ * de baixo). Assim a página não se move: o cabeçalho e as abas da Agenda ficam.
+ */
+function useFillHeight() {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const fit = () => {
+      const el = ref.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const bottom = window.innerWidth >= 768 ? 24 : 100;
+      el.style.height = `${Math.max(320, window.innerHeight - top - bottom)}px`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, []);
+  return ref;
+}
+
+function ExportButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="w-full flex items-center gap-3 rounded-[24px] bg-surface shadow-soft px-5 py-4 text-left hover:bg-surface-2 transition">
+      <CalendarPlus className="w-5 h-5 text-brand shrink-0" strokeWidth={1.75} />
+      <span className="flex-1 min-w-0">
+        <span className="block text-sm font-semibold text-ink">Levar para a agenda do celular</span>
+        <span className="block text-xs text-ink-mute">Consultas, prazos e marcos no Google Agenda ou no iPhone</span>
+      </span>
+      <Download className="w-4 h-4 text-ink-mute shrink-0" />
+    </button>
   );
 }
 
@@ -321,7 +346,7 @@ function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events,
   const showHealth = filter === 'tudo' || filter === 'saude';
 
   return (
-    <section id={`mes-${keyOf(year, month)}`} aria-label={`${name} de ${year}`} className="scroll-mt-[8.5rem] md:scroll-mt-[12.5rem]">
+    <section id={`mes-${keyOf(year, month)}`} aria-label={`${name} de ${year}`} className="">
       <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">
         <h3 className="font-display text-[1.35rem] text-ink first-letter:uppercase">
           {name} <span className="text-[0.95rem] text-ink-mute">{year}</span>
@@ -355,7 +380,7 @@ function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events,
                   onClick={() => onSelect(iso)}
                   className="relative h-[3.9rem] flex flex-col items-center pt-1 outline-none group"
                 >
-                  {band && <span aria-hidden className={`absolute top-1 h-9 ${TRI_BAND[g.trimester]} ${prev ? 'left-0' : 'left-1 rounded-l-full'} ${next ? 'right-0' : 'right-1 rounded-r-full'}`} />}
+                  {band && <span aria-hidden className={`absolute top-[43px] h-[2px] opacity-35 ${TRI_DOT[g.trimester]} ${prev ? 'left-0' : 'left-2 rounded-l-full'} ${next ? 'right-0' : 'right-2 rounded-r-full'}`} />}
                   <span
                     className={`relative w-9 h-9 rounded-full flex items-center justify-center text-[15px] font-semibold tabular transition group-focus-visible:ring-2 group-focus-visible:ring-brand ${
                       isToday ? 'bg-brand text-on-accent shadow-soft' : g?.isDpp ? 'bg-rosa text-white shadow-soft' : isOpen ? 'bg-surface text-ink ring-2 ring-brand' : 'text-ink group-hover:bg-surface/70'
@@ -364,8 +389,8 @@ function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events,
                     {d.getDate()}
                     {g?.isDpp && <Heart className="absolute -top-1 -right-1 w-3.5 h-3.5 fill-rosa text-surface" aria-hidden />}
                   </span>
-                  {band && g.weekStart && !isToday && !g.isDpp && <span className={`absolute top-0 left-0.5 text-[9px] font-extrabold leading-none ${TRI_TEXT[g.trimester]}`} aria-hidden>{g.weeks}s</span>}
-                  <span className="mt-1 flex items-center gap-[3px] h-1.5" aria-hidden>
+                  {band && g.weekStart && !isToday && !g.isDpp && <span className={`absolute top-0 left-1 text-[9px] font-bold leading-none opacity-70 ${TRI_TEXT[g.trimester]}`} aria-hidden>{g.weeks}s</span>}
+                  <span className="mt-2 flex items-center gap-[3px] h-1.5" aria-hidden>
                     {dots.map(c => (
                       <span key={c} className={`w-1.5 h-1.5 rounded-full ${c}`} />
                     ))}
@@ -390,15 +415,16 @@ function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events,
  * gestação na cor do trimestre, o coração na data provável e um pontinho onde
  * há algo marcado. Tocar no mês leva ao Mês; tocar no dia abre a folha dele.
  */
-function YearView({ months, dumDate, todayIso, events, records, filter, onDay, onMonth }: { months: Array<{ year: number; month: number }>; dumDate: string; todayIso: string; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; filter: CalendarFilter; onDay: (iso: string) => void; onMonth: (key: string) => void }) {
+function YearView({ target, months, dumDate, todayIso, events, records, filter, onDay, onMonth, footer }: { target: { key: string; n: number }; months: Array<{ year: number; month: number }>; dumDate: string; todayIso: string; events: Map<string, CalendarEvent[]>; records: Map<string, DayRecords>; filter: CalendarFilter; onDay: (iso: string) => void; onMonth: (key: string) => void; footer: React.ReactNode }) {
   const years = [...new Set(months.map(m => m.year))];
   const showHealth = filter === 'tudo' || filter === 'saude';
-  const todayRef = useRef<HTMLElement>(null);
+  const box = useFillHeight();
   useLayoutEffect(() => {
-    todayRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
-  }, []);
+    const el = box.current?.querySelector<HTMLElement>(`[data-mes="${monthKey(todayIso)}"]`);
+    if (el && box.current) box.current.scrollTo({ top: el.offsetTop - box.current.clientHeight / 2 + el.offsetHeight / 2 });
+  }, [target, box, todayIso]);
   return (
-    <div className="space-y-8">
+    <div ref={box} className="relative -mx-4 px-4 overflow-y-auto overscroll-contain space-y-8 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Anos da gestação">
       {years.map(year => (
         <section key={year} aria-label={`Ano de ${year}`} className="space-y-4">
           <h3 className="font-display text-[1.8rem] text-center text-ink">{year}</h3>
@@ -408,7 +434,7 @@ function YearView({ months, dumDate, todayIso, events, records, filter, onDay, o
               const lead = new Date(year, month, 1).getDay();
               const isThisMonth = monthKey(todayIso) === keyOf(year, month);
               return (
-                <div key={month} ref={isThisMonth ? (el => void (todayRef.current = el)) : undefined}>
+                <div key={month} data-mes={keyOf(year, month)}>
                   <button type="button" onClick={() => onMonth(keyOf(year, month))} className={`w-full text-center text-[13px] mb-1 first-letter:uppercase ${isThisMonth ? 'font-extrabold text-ink' : 'font-bold text-ink-soft'}`}>
                     {monthName(year, month)}
                   </button>
@@ -429,7 +455,7 @@ function YearView({ months, dumDate, todayIso, events, records, filter, onDay, o
                           onClick={() => onDay(iso)}
                           aria-label={`${parseLocalDate(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}${g?.isDpp ? ', data provável do parto' : ''}`}
                           className={`relative mx-auto w-[18px] h-[18px] rounded-full text-[10px] min-[380px]:text-[10.5px] leading-[18px] tabular ${
-                            isToday ? 'bg-brand text-on-accent font-extrabold' : g?.isDpp ? 'bg-rosa text-white font-extrabold' : band ? `${TRI_TEXT[g.trimester]} font-semibold` : 'text-ink-mute/70'
+                            isToday ? 'bg-brand text-on-accent font-extrabold' : g?.isDpp ? 'bg-rosa text-white font-extrabold' : band ? `${TRI_TEXT[g.trimester]} font-medium` : 'text-ink-mute/60'
                           }`}
                         >
                           {i + 1}
@@ -457,6 +483,7 @@ function YearView({ months, dumDate, todayIso, events, records, filter, onDay, o
           <span className="w-1 h-1 rounded-full bg-ink-soft" /> Algo marcado
         </span>
       </p>
+      {footer}
     </div>
   );
 }

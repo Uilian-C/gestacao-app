@@ -750,7 +750,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {(activeTab === 'inicio' || activeTab === 'cuidados') && <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />}
       <Nav
         active={activeTab}
-        onChange={navigate}
+        onChange={tab => {
+          // O menu Agenda sempre começa em "Próximos"; o calendário se abre pelo atalho do Início ou pela aba dele.
+          if (tab === 'agenda' && activeTab !== 'agenda') setAgendaView('proximos');
+          navigate(tab);
+        }}
         badges={{
           agenda: overdueTasks,
           cuidados: questions.filter(q => !q.doctor_answer).length,
