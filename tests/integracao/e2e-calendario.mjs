@@ -81,28 +81,23 @@ const telaAno = p.getByRole('dialog', { name: 'O ano da gestação' });
 await telaAno.waitFor();
 const caixaAno = await telaAno.boundingBox();
 check(caixaAno && caixaAno.y === 0 && caixaAno.height >= 840, 'o Ano abre em tela cheia');
-check(await telaAno.getByRole('button', { name: /data provável do parto/ }).count() === 1, 'o Ano marca a data provável do parto');
+check((await telaAno.locator('[data-dpp]').count()) === 1, 'o Ano marca a data provável do parto');
 check(await telaAno.getByLabel('Legenda').getByText('2º trimestre').isVisible(), 'com a legenda dos trimestres');
 await p.screenshot({ path: `${OUT}calendario-ano.png` });
-// Tocar num dia abre a folha dele por cima do Ano; fechar volta ao Ano.
-await telaAno.getByRole('button', { name: /data provável do parto/ }).click();
-await p.getByRole('region', { name: 'A gestação neste dia' }).waitFor();
-check(await p.getByText('Data provável do parto').first().isVisible(), 'tocar no dia do Ano abre a folha dele');
-await p.getByRole('button', { name: 'Fechar' }).click();
-await p.getByRole('region', { name: 'A gestação neste dia' }).waitFor({ state: 'detached' });
-check(await telaAno.isVisible(), 'e ao fechar a folha, o Ano continua lá');
 // A seta volta para o calendário.
 await telaAno.getByRole('button', { name: 'Voltar' }).click();
 await telaAno.waitFor({ state: 'detached' });
 check(await p.getByRole('button', { name: /^Próximos/ }).isVisible() && (await p.getByRole('button', { name: 'Mês', exact: true }).getAttribute('aria-pressed')) === 'true', 'a seta de voltar sai do Ano e volta para o Mês');
-// Tocar no nome do mês leva ao Mês.
+// Tocar em qualquer parte do mês (até num dia) abre o Mês nele, sem abrir um dia.
 await p.getByRole('button', { name: 'Ano', exact: true }).click();
 await telaAno.waitFor();
-const nomeMes = await p.evaluate(() => new Date().toLocaleDateString('pt-BR', { month: 'long' }));
-await telaAno.getByRole('button', { name: new RegExp(`^${nomeMes}$`, 'i') }).first().click();
+const nomeMes = await p.evaluate(() => new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(' de ', ' de '));
+const mesAtual = telaAno.getByRole('button', { name: new RegExp(`^Abrir ${nomeMes}$`, 'i') });
+const caixaMes = await mesAtual.boundingBox();
+await p.mouse.click(caixaMes.x + caixaMes.width * 0.7, caixaMes.y + caixaMes.height * 0.75);
 await telaAno.waitFor({ state: 'detached' });
 await hoje.waitFor();
-check((await p.getByRole('button', { name: 'Mês', exact: true }).getAttribute('aria-pressed')) === 'true', 'tocar no mês do Ano abre o Mês');
+check((await p.getByRole('dialog').count()) === 0 && (await p.getByRole('button', { name: 'Mês', exact: true }).getAttribute('aria-pressed')) === 'true', 'tocar nos dias de um mês do Ano abre o Mês nele (sem abrir um dia)');
 
 // ---- Semana da gestação continua ----
 await p.getByRole('button', { name: 'Semana', exact: true }).click();
