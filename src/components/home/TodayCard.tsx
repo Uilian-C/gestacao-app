@@ -58,7 +58,7 @@ export default function TodayCard({ rows, onAgenda }: { rows: TodayRow[]; onAgen
                 </span>
                 <span className="flex-1 min-w-0">
                   <span className={`block text-[12px] font-extrabold truncate ${TONES[r.tone].text}`}>{r.kicker}</span>
-                  <span className="block font-bold text-ink leading-snug line-clamp-2">{r.title}</span>
+                  <span className="font-bold text-ink leading-snug line-clamp-2">{r.title}</span>
                   {r.sub && <span className="block text-[12.5px] text-ink-soft truncate">{r.sub}</span>}
                 </span>
                 {r.action ? <span className={`shrink-0 rounded-full px-3 py-1.5 text-[12.5px] font-extrabold ${TONES[r.tone].tile}`}>{r.action}</span> : !r.onDismiss && <ChevronRight className="w-4 h-4 shrink-0 text-ink-mute" />}

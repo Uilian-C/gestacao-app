@@ -292,27 +292,28 @@ export default function HomeTab(props: Props) {
         <h2 id="nesta-semana" className="px-1 text-[1.3rem] text-ink">
           {selectedWeek === currentWeek ? 'Nesta semana' : `Na semana ${selectedWeek}`}
         </h2>
-        <ul className="-mx-4 px-4 flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1">
-          {summary && <WeekCard tone="bg-gradient-to-br from-rosa-soft to-azul-soft" label="Resumo da semana" labelTone="text-rosa-strong" icon={<Sparkles />} title={summaryHeadline(summary)} text="Como vocês estiveram, o que aconteceu e o que vem aí." onClick={() => setSheet('resumo')} />}
-          <WeekCard tone="bg-rosa-soft" label="O bebê" labelTone="text-rosa-strong" icon={<Baby />} title={info.milestone} text={`Mede ${info.size} e pesa ${info.weight}.`} onClick={openGrowth} />
-          {upcoming && <WeekCard tone="bg-lilas-soft" label={`Próximo marco ${inDays(upcoming.days)}`} labelTone="text-lilas-strong" icon={<Flag />} title={upcoming.milestone.title} text={upcoming.milestone.text} ariaLabel={`Próximo marco ${inDays(upcoming.days)}: ${upcoming.milestone.title}. Ver na jornada do bebê`} onClick={openGrowth} />}
+        <ul className="-mx-4 px-4 flex gap-2.5 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1">
+          {summary && <WeekCard tone="bg-gradient-to-br from-rosa-soft to-azul-soft" label="Resumo da semana" labelTone="text-rosa-strong" icon={<Sparkles />} title={summaryHeadline(summary)} onClick={() => setSheet('resumo')} />}
+          <WeekCard tone="bg-rosa-soft" label="O bebê" labelTone="text-rosa-strong" icon={<Baby />} title={info.milestone} onClick={openGrowth} />
+          {upcoming && <WeekCard tone="bg-lilas-soft" label="Próximo marco" labelTone="text-lilas-strong" icon={<Flag />} title={upcoming.milestone.title} meta={inDays(upcoming.days)} ariaLabel={`Próximo marco ${inDays(upcoming.days)}: ${upcoming.milestone.title}. Ver na jornada do bebê`} onClick={openGrowth} />}
           {dadFirst && <WeekCard tone="bg-azul-soft" label="Para o pai" labelTone="text-azul-strong" icon={<HandHeart />} title={cards.partner.title} text={cards.partner.text} />}
           <WeekCard tone="bg-coral-soft" label="Seu corpo" labelTone="text-coral-strong" icon={<Footprints />} title={cards.body.title} text={cards.body.text} />
           {!dadFirst && <WeekCard tone="bg-azul-soft" label="Para o pai" labelTone="text-azul-strong" icon={<HandHeart />} title={cards.partner.title} text={cards.partner.text} />}
           {props.bellyAvailable && (
             <WeekCard
               tone="bg-lilas-soft"
-              label={`Barriguinha · semana ${currentWeek}`}
+              label="Barriguinha"
               labelTone="text-lilas-strong"
               icon={<Camera />}
               title={bellyDone ? 'A foto desta semana está guardada' : 'Falta a foto desta semana'}
-              text={belly.length ? `${belly.length} ${belly.length === 1 ? 'semana' : 'semanas'} na evolução da barriga.` : 'Uma foto por semana, sempre do mesmo jeito: o app monta a evolução.'}
+              meta={belly.length ? `${belly.length} ${belly.length === 1 ? 'semana' : 'semanas'} na evolução` : `Semana ${currentWeek}`}
               photo={belly[0]?.photo && photoUrl(belly[0].photo.id, true)}
+              ariaLabel={`Barriguinha da semana ${currentWeek}: ${bellyDone ? 'ver a evolução' : 'tirar a foto'}`}
               onClick={bellyDone ? () => onOpen('barriga') : props.onBellyPhoto}
             />
           )}
-          {chapter && <WeekCard tone="bg-gradient-to-br from-rosa-soft to-lilas-soft" label={`O livro de ${babyName ?? 'vocês'}`} labelTone="text-rosa-strong" icon={<BookOpen />} title={freshPage ? 'Uma página nova foi escrita' : `Capítulo ${chapter.month} · ${chapter.title}`} text="Tudo o que vocês vivem vira história, capítulo por capítulo." ariaLabel={`O livro de ${babyName ?? 'vocês'}: abrir`} onClick={() => onOpen('livro')} />}
-          <WeekCard tone="bg-verde-soft" label={`Fase: ${phase.title}`} labelTone="text-verde-strong" icon={<Route />} title={phase.visits} text={phase.focus} onClick={() => onOpen('jornada')} />
+          {chapter && <WeekCard tone="bg-gradient-to-br from-rosa-soft to-lilas-soft" label="O livro" labelTone="text-rosa-strong" icon={<BookOpen />} title={freshPage ? 'Uma página nova foi escrita' : chapter.title} meta={`Capítulo ${chapter.month}`} ariaLabel={`O livro de ${babyName ?? 'vocês'}: abrir`} onClick={() => onOpen('livro')} />}
+          <WeekCard tone="bg-verde-soft" label="Jornada" labelTone="text-verde-strong" icon={<Route />} title={phase.title} meta={phase.visits} onClick={() => onOpen('jornada')} />
         </ul>
         <p className="px-1 text-[11px] text-ink-mute">Referência: {WEEK_CARDS_SOURCE}. Cada gestação é única.</p>
       </section>
@@ -367,30 +368,25 @@ export default function HomeTab(props: Props) {
   );
 }
 
-function WeekCard({ tone, label, labelTone, icon, title, text, photo, ariaLabel, onClick }: { tone: string; label: string; labelTone: string; icon: React.ReactNode; title: string; text: string; photo?: string; ariaLabel?: string; onClick?: () => void }) {
-  const inner = (
-    <>
-      <span className={`flex items-center gap-1.5 text-[12px] font-extrabold uppercase tracking-wide [&_svg]:w-4 [&_svg]:h-4 ${labelTone}`}>
-        {icon} <span className="truncate">{label}</span>
-      </span>
-      <span className="flex gap-3">
-        <span className="flex-1 min-w-0 space-y-1.5">
-          <span className="block font-display text-[1.1rem] leading-snug text-ink line-clamp-3">{title}</span>
-          <span className="block text-sm text-ink-soft line-clamp-4">{text}</span>
-        </span>
-        {photo && <img src={photo} alt="" loading="lazy" className="w-14 aspect-[3/4] shrink-0 rounded-xl object-cover" />}
-      </span>
-      {onClick && <ChevronRight className={`mt-auto ml-auto w-4 h-4 shrink-0 ${labelTone}`} aria-hidden />}
-    </>
-  );
+// Um cartão pequeno do carrossel: ícone, rótulo, título curto e um detalhe.
+// Quem não leva a outro lugar (corpo, pai) abre o texto inteiro numa folha.
+function WeekCard({ tone, label, labelTone, icon, title, text, meta, photo, ariaLabel, onClick }: { tone: string; label: string; labelTone: string; icon: React.ReactNode; title: string; text?: string; meta?: string; photo?: string; ariaLabel?: string; onClick?: () => void }) {
+  const [open, setOpen] = useState(false);
   return (
-    <li className={`snap-start shrink-0 w-[72%] max-w-[250px] rounded-[24px] ${tone}`}>
-      {onClick ? (
-        <button type="button" onClick={onClick} aria-label={ariaLabel} className="w-full h-full text-left p-4 flex flex-col gap-2">
-          {inner}
-        </button>
-      ) : (
-        <div className="p-4 flex flex-col gap-2 h-full">{inner}</div>
+    <li className={`snap-start shrink-0 w-[156px] h-[160px] overflow-hidden rounded-[22px] ${tone}`}>
+      <button type="button" onClick={onClick ?? (() => setOpen(true))} aria-label={ariaLabel} className="w-full h-full text-left p-3.5 flex flex-col gap-1.5 transition active:scale-[0.98]">
+        <span className="flex shrink-0 items-start justify-between gap-2">
+          <span className={`w-8 h-8 rounded-full bg-surface/70 flex items-center justify-center shrink-0 [&_svg]:w-4 [&_svg]:h-4 ${labelTone}`}>{icon}</span>
+          {photo && <img src={photo} alt="" loading="lazy" className="w-8 h-10 rounded-lg object-cover" />}
+        </span>
+        <span className={`block shrink-0 text-[11px] font-extrabold uppercase tracking-wide truncate ${labelTone}`}>{label}</span>
+        <span className={`font-display text-[15px] leading-snug text-ink ${meta ? 'line-clamp-2' : 'line-clamp-3'}`}>{title}</span>
+        {meta && <span className="mt-auto block shrink-0 text-[12px] text-ink-soft truncate">{meta}</span>}
+      </button>
+      {open && text && (
+        <Sheet title={title} subtitle={label} onClose={() => setOpen(false)}>
+          <p className="text-[15px] leading-relaxed text-ink">{text}</p>
+        </Sheet>
       )}
     </li>
   );

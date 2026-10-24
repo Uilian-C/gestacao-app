@@ -19,8 +19,8 @@ const photo = Buffer.from(
 
 const nesta = p.locator('section[aria-labelledby="nesta-semana"]');
 await nesta.waitFor();
-const card = nesta.getByRole('button', { name: /Barriguinha · semana \d+/i });
-const week = Number((await card.textContent()).match(/semana (\d+)/i)[1]);
+const card = nesta.getByRole('button', { name: /^Barriguinha da semana \d+/ });
+const week = Number((await card.getAttribute('aria-label')).match(/semana (\d+)/)[1]);
 check(week > 0, `cartão da barriguinha na semana ${week}, no carrossel "Nesta semana"`);
 check(await card.getByText('Falta a foto desta semana').isVisible(), 'sem a foto da semana, o cartão convida a tirar');
 

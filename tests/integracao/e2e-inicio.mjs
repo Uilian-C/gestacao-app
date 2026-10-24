@@ -20,7 +20,12 @@ check((await mae.getByRole('button', { name: /Ficha/ }).count()) === 0, 'a ficha
 check((await hoje.getByRole('listitem').count()) <= 3, '"Para hoje" mostra no máximo 3 linhas');
 check(await hoje.getByText(/^Primeiros 7 dias · \d de 7$/).isVisible(), 'conta nova: a missão dos primeiros dias entra no "Para hoje"');
 const semanaCards = mae.locator('section[aria-labelledby="nesta-semana"]');
-check(await semanaCards.getByText(/Próximo marco em [56] semanas/).isVisible() && (await semanaCards.getByText('Começa o 3º trimestre').isVisible()), 'próximo marco no carrossel: o 3º trimestre, daqui a umas 6 semanas');
+check((await semanaCards.getByRole('button', { name: /^Próximo marco em [56] semanas.*: Começa o 3º trimestre/ }).count()) === 1, 'próximo marco no carrossel: o 3º trimestre, daqui a umas 6 semanas');
+await semanaCards.getByRole('button', { name: /Seu corpo/ }).click();
+const folha = mae.getByRole('dialog');
+await folha.waitFor();
+check(((await folha.locator('p').last().textContent()) ?? '').length > 30, 'cartão compacto: o texto inteiro abre num toque');
+await mae.keyboard.press('Escape');
 check((await mae.getByText('Quando procurar a maternidade').count()) === 0, 'sem alerta, os sinais de alerta não ocupam o Início');
 check((await mae.getByText('Saúde rápida').count()) === 0, 'a saúde rápida saiu do Início (o botão Registrar cobre)');
 check(await mae.getByRole('heading', { name: 'Como você está hoje?' }).isVisible(), 'sem parceiro, o check-in pergunta só por ela');
