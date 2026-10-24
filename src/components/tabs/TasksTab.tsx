@@ -1,7 +1,8 @@
 import { useContext, useState } from 'react';
-import { Bell, CheckCircle2, ChevronDown, ChevronRight, Clock, Plus, Sparkles } from 'lucide-react';
+import { Bell, CalendarDays, CheckCircle2, ChevronDown, Flag, Plus, Sparkles } from 'lucide-react';
+import { ProgressHeart, RestDoodle } from '../agenda/Doodles';
 import { suggestionsFor, type TaskSuggestion } from '../../content/taskSuggestions';
-import { formatBR, isOverdue, parseLocalDate, toISODate } from '../../lib/dates';
+import { formatBR, parseLocalDate, toISODate } from '../../lib/dates';
 import type { Assignee, PartnerTask, Priority } from '../../types';
 import WhoPicker, { WhoAvatars } from '../WhoPicker';
 import { PeopleContext, TaskRemindersReady, TimedRemindersReady, whoName } from '../../lib/people';
@@ -9,7 +10,7 @@ import { reminderAt, reminderTime } from '../../lib/reminders';
 import ReminderPicker from '../forms/ReminderPicker';
 import { inputClass } from '../styles';
 import DayPicker from '../forms/DayPicker';
-import { Button, Chip, Field, Pill, Segmented } from '../ui';
+import { Button, Chip, Field, Segmented } from '../ui';
 
 type AssigneeFilter = 'todos' | Assignee;
 
@@ -37,150 +38,265 @@ interface Props {
   onOpen: (task: PartnerTask) => void;
 }
 
-const PRIORITY_TONE: Record<Priority, 'neutral' | 'warn' | 'alert'> = { Baixa: 'neutral', Média: 'warn', Alta: 'alert' };
 
-export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCreate, onToggle, onOpen }: Props) {
+// Os grupos por quando, como numa lista de afazeres: o que passou do prazo
+// primeiro, depois hoje, amanhã, a semana, o que vem depois e o que não tem data.
+type GroupId = 'atrasadas' | 'hoje' | 'amanha' | 'semana' | 'depois' | 'sem-data';
+const GROUPS: Array<{ id: GroupId; title: string; tone: string }> = [
+  { id: 'atrasadas', title: 'Atrasadas', tone: 'text-alert' },
+  { id: 'hoje', title: 'Hoje', tone: 'text-verde-strong' },
+  { id: 'amanha', title: 'Amanhã', tone: 'text-lilas-strong' },
+  { id: 'semana', title: 'Nos próximos dias', tone: 'text-azul-strong' },
+  { id: 'depois', title: 'Mais para frente', tone: 'text-ink-soft' },
+  { id: 'sem-data', title: 'Sem data', tone: 'text-ink-soft' },
+];
+
+const addDays = (iso: string, n: number) => {
+  const d = parseLocalDate(iso);
+  return toISODate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n));
+};
+
+function groupOf(t: PartnerTask, today: string): GroupId {
+  const due = t.due_date?.slice(0, 10);
+  if (!due) return 'sem-data';
+  if (due < today) return 'atrasadas';
+  if (due === today) return 'hoje';
+  if (due === addDays(today, 1)) return 'amanha';
+  return due <= addDays(today, 7) ? 'semana' : 'depois';
+}
+
+export default function TasksTab({ tasks, currentWeek, busy, onCreate, onToggle, onOpen }: Props) {
   const people = useContext(PeopleContext);
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('todos');
-  const [formOpen, setFormOpen] = useState(false);
   const [ideas, setIdeas] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  const today = toISODate(new Date());
 
   const byAssignee = tasks.filter(t => assigneeFilter === 'todos' || t.assigned_to === assigneeFilter);
-  const pending = byAssignee.filter(t => !t.is_completed).sort((a, b) => Number(isOverdue(b.due_date)) - Number(isOverdue(a.due_date)) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || a.week_number - b.week_number);
+  const pending = byAssignee.filter(t => !t.is_completed).sort((a, b) => (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
   const completed = byAssignee.filter(t => t.is_completed);
   const total = byAssignee.length;
-  const overdue = pending.filter(t => isOverdue(t.due_date)).length;
-  const rate = total > 0 ? Math.round((completed.length / total) * 100) : 0;
+  const overdue = pending.filter(t => groupOf(t, today) === 'atrasadas').length;
   const suggestions = suggestionsFor(currentWeek, tasks.map(t => t.task_title));
+  const groups = GROUPS.map(g => ({ ...g, items: pending.filter(t => groupOf(t, today) === g.id) })).filter(g => g.items.length > 0);
 
   const addSuggestion = (s: TaskSuggestion) => onCreate({ title: s.title, assignee: s.assignee, priority: s.priority, dueDate: '', notes: s.notes ?? '', week: Math.max(s.week, currentWeek) });
 
   return (
-    <div className="space-y-4">
-      {/* De quem e quanto já foi: uma linha e a barra fina. */}
-      <div className="space-y-3">
-        <Segmented
-          label="Responsável"
-          size="sm"
-          full
-          value={assigneeFilter}
-          onChange={setAssigneeFilter}
-          options={[
-            { value: 'todos', label: 'Todos' },
-            { value: 'mae', label: whoName(people, 'mae') },
-            { value: 'pai', label: whoName(people, 'pai') },
-            { value: 'casal', label: 'Os dois' },
-          ]}
-        />
-        {total > 0 && (
-          <div className="px-1 space-y-1.5">
-            <p className="text-[13px] text-ink-soft">
-              <strong className="text-ink tabular">{completed.length}</strong> de <span className="tabular">{total}</span> concluídas
-              {overdue > 0 && <span className="text-alert font-semibold"> · {overdue} {overdue === 1 ? 'atrasada' : 'atrasadas'}</span>}
-            </p>
-            <div className="h-1 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={rate} aria-valuemin={0} aria-valuemax={100} aria-label="Tarefas concluídas">
-              <div className="h-full rounded-full bg-azul transition-all" style={{ width: `${rate}%` }} />
-            </div>
-          </div>
-        )}
+    <div className="space-y-5">
+      {/* O andamento num anel com coração, e de quem são as tarefas. */}
+      <div className="flex items-center gap-3 px-1">
+        <ProgressHeart value={total ? completed.length / total : 0} />
+        <div className="min-w-0">
+          <p className="font-display text-[1.2rem] leading-tight text-ink">{total === 0 ? 'Os preparativos de vocês' : completed.length === total ? 'Tudo feito por aqui' : `${completed.length} de ${total} feitas`}</p>
+          <p className="text-[13px] text-ink-soft">{overdue > 0 ? <span className="text-alert font-semibold">{overdue} {overdue === 1 ? 'passou do prazo' : 'passaram do prazo'}</span> : pending.length ? `${pending.length} para fazer` : 'Dividam as tarefas: cada uma tem quem cuida.'}</p>
+        </div>
       </div>
+      <Segmented
+        label="Responsável"
+        size="sm"
+        full
+        value={assigneeFilter}
+        onChange={setAssigneeFilter}
+        options={[
+          { value: 'todos', label: 'Todos' },
+          { value: 'mae', label: whoName(people, 'mae') },
+          { value: 'pai', label: whoName(people, 'pai') },
+          { value: 'casal', label: 'Os dois' },
+        ]}
+      />
 
-      {formOpen ? (
-        <TaskForm selectedWeek={selectedWeek} busy={busy} onCancel={() => setFormOpen(false)} onCreate={async t => { const ok = await onCreate(t); if (ok) setFormOpen(false); return ok; }} />
-      ) : (
-        <Button tone="soft" onClick={() => setFormOpen(true)}>
-          <Plus className="w-4 h-4" /> Nova tarefa
-        </Button>
-      )}
+      <QuickAdd busy={busy} assignee={assigneeFilter === 'todos' ? 'casal' : assigneeFilter} onCreate={onCreate} />
 
-      {pending.length === 0 ? (
-        <p className="px-1 text-[14px] text-ink-soft">{total ? 'Nada pendente por aqui. 💛' : 'Dividam os preparativos: cada tarefa tem quem cuida e, se quiserem, prazo e lembrete.'}</p>
+      {groups.length === 0 ? (
+        <div className="flex flex-col items-center text-center px-6 py-4">
+          <RestDoodle />
+          <p className="mt-2 font-display text-[1.15rem] text-ink">{total ? 'Tudo em dia' : 'Nenhuma tarefa ainda'}</p>
+          <p className="text-[13.5px] text-ink-soft">{total ? 'Hora de descansar juntos. 💛' : 'Comecem pelas ideias para esta fase, logo abaixo.'}</p>
+        </div>
       ) : (
-        <ul aria-label="Tarefas pendentes" className="rounded-[24px] bg-surface/80 divide-y divide-line/60">
-          {pending.map(t => (
-            <TaskRow key={t.id} task={t} onToggle={onToggle} onOpen={onOpen} />
-          ))}
-        </ul>
+        groups.map(g => (
+          <section key={g.id} aria-label={g.title} className="space-y-1.5">
+            <h2 className={`px-1 flex items-baseline gap-2 text-[13px] font-extrabold font-sans ${g.tone}`}>
+              {g.title} <span className="text-ink-mute font-bold">{g.items.length}</span>
+            </h2>
+            <ul className="rounded-[24px] bg-surface/80 divide-y divide-line/60">
+              {g.items.map(t => (
+                <TaskRow key={t.id} task={t} today={today} onToggle={onToggle} onOpen={onOpen} />
+              ))}
+            </ul>
+          </section>
+        ))
       )}
 
       {/* O resto, recolhido: as ideias da fase e o que já foi feito. */}
-      <div className="rounded-[24px] bg-surface/80 divide-y divide-line/60">
-        {suggestions.length > 0 && (
-          <div>
-            <button type="button" onClick={() => setIdeas(v => !v)} aria-expanded={ideas} className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
-              <Sparkles className="w-5 h-5 text-azul-strong shrink-0" />
-              <span className="flex-1 font-semibold text-ink">Ideias para esta fase ({suggestions.length})</span>
-              <ChevronDown className={`w-4 h-4 text-ink-mute transition-transform ${ideas ? 'rotate-180' : ''}`} />
-            </button>
-            {ideas && (
-              <div className="px-4 pb-4 space-y-2">
-                <p className="text-[13px] text-ink-soft">Marcos comuns do pré-natal nesta altura. Toque para virar tarefa.</p>
-                <div className="flex flex-wrap gap-2">
-                  {suggestions.map(s => (
-                    <Chip key={s.title} onClick={() => addSuggestion(s)}>
-                      <span className="inline-flex items-center gap-1">
-                        <Plus className="w-3.5 h-3.5" />
-                        {s.title}
-                      </span>
-                    </Chip>
-                  ))}
+      {(suggestions.length > 0 || completed.length > 0) && (
+        <div className="rounded-[24px] bg-surface/80 divide-y divide-line/60">
+          {suggestions.length > 0 && (
+            <div>
+              <button type="button" onClick={() => setIdeas(v => !v)} aria-expanded={ideas} className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
+                <Sparkles className="w-5 h-5 text-azul-strong shrink-0" />
+                <span className="flex-1 font-semibold text-ink">Ideias para esta fase ({suggestions.length})</span>
+                <ChevronDown className={`w-4 h-4 text-ink-mute transition-transform ${ideas ? 'rotate-180' : ''}`} />
+              </button>
+              {ideas && (
+                <div className="px-4 pb-4 space-y-2">
+                  <p className="text-[13px] text-ink-soft">Marcos comuns do pré-natal nesta altura. Toque para virar tarefa.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestions.map(s => (
+                      <Chip key={s.title} onClick={() => addSuggestion(s)}>
+                        <span className="inline-flex items-center gap-1">
+                          <Plus className="w-3.5 h-3.5" />
+                          {s.title}
+                        </span>
+                      </Chip>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-        {completed.length > 0 && (
-          <div>
-            <button type="button" onClick={() => setShowDone(v => !v)} aria-expanded={showDone} className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
-              <CheckCircle2 className="w-5 h-5 text-ok shrink-0" />
-              <span className="flex-1 font-semibold text-ink">Concluídas ({completed.length})</span>
-              <ChevronDown className={`w-4 h-4 text-ink-mute transition-transform ${showDone ? 'rotate-180' : ''}`} />
-            </button>
-            {showDone && (
-              <ul aria-label="Tarefas concluídas" className="divide-y divide-line/60 border-t border-line/60">
-                {completed.map(t => (
-                  <TaskRow key={t.id} task={t} onToggle={onToggle} onOpen={onOpen} />
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
+              )}
+            </div>
+          )}
+          {completed.length > 0 && (
+            <div>
+              <button type="button" onClick={() => setShowDone(v => !v)} aria-expanded={showDone} className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
+                <CheckCircle2 className="w-5 h-5 text-ok shrink-0" />
+                <span className="flex-1 font-semibold text-ink">Concluídas ({completed.length})</span>
+                <ChevronDown className={`w-4 h-4 text-ink-mute transition-transform ${showDone ? 'rotate-180' : ''}`} />
+              </button>
+              {showDone && (
+                <ul aria-label="Tarefas concluídas" className="divide-y divide-line/60 border-t border-line/60">
+                  {completed.map(t => (
+                    <TaskRow key={t.id} task={t} today={today} onToggle={onToggle} onOpen={onOpen} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-/** Uma tarefa numa linha: concluir à esquerda, o resto abre os detalhes. */
-function TaskRow({ task: t, onToggle, onOpen }: { task: PartnerTask; onToggle: (t: PartnerTask) => void; onOpen: (t: PartnerTask) => void }) {
+const PRIORITY_RANK: Record<Priority, number> = { Alta: 0, Média: 1, Baixa: 2 };
+// A bolinha de concluir mostra a prioridade pela cor (como nas listas de afazeres).
+const RING: Record<Priority, string> = { Alta: 'border-rosa bg-rosa-soft', Média: 'border-azul/70 bg-azul-soft/50', Baixa: 'border-ink-mute/60' };
+
+/** O prazo como uma etiqueta colorida: atrasada, hoje, amanhã, o dia da semana ou a data. */
+function dueLabel(due: string, today: string): { text: string; tone: string } {
+  if (due < today) return { text: formatBR(due).slice(0, 5), tone: 'text-alert' };
+  if (due === today) return { text: 'Hoje', tone: 'text-verde-strong' };
+  if (due === addDays(today, 1)) return { text: 'Amanhã', tone: 'text-lilas-strong' };
+  const d = parseLocalDate(due);
+  if (due <= addDays(today, 7)) return { text: d.toLocaleDateString('pt-BR', { weekday: 'long' }).replace(/^./, c => c.toUpperCase()), tone: 'text-azul-strong' };
+  return { text: d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }).replace('.', ''), tone: 'text-ink-soft' };
+}
+
+/** Uma tarefa numa linha: a bolinha conclui (com um pulinho), o resto abre os detalhes. */
+function TaskRow({ task: t, today, onToggle, onOpen }: { task: PartnerTask; today: string; onToggle: (t: PartnerTask) => void; onOpen: (t: PartnerTask) => void }) {
   const people = useContext(PeopleContext);
-  const late = !t.is_completed && isOverdue(t.due_date);
+  const [closing, setClosing] = useState(false);
+  const done = t.is_completed || closing;
+  const due = t.due_date?.slice(0, 10);
+  const label = due ? dueLabel(due, today) : null;
+  const toggle = () => {
+    if (t.is_completed) return onToggle(t);
+    // Um instante para ver o "feito" antes de a tarefa sair da lista.
+    setClosing(true);
+    window.setTimeout(() => onToggle(t), 420);
+  };
   return (
-    <li className="flex items-start gap-3 px-4 py-3">
-      <button onClick={() => onToggle(t)} aria-label={t.is_completed ? `Reabrir "${t.task_title}"` : `Concluir "${t.task_title}"`} className="mt-0.5 shrink-0">
-        {t.is_completed ? <CheckCircle2 className="w-6 h-6 text-ok" /> : <span className={`block w-6 h-6 rounded-full border-2 ${late ? 'border-alert' : 'border-ink-mute'} hover:border-azul`} />}
+    <li className={`flex items-start gap-3 px-4 py-3 transition-opacity duration-300 ${closing ? 'opacity-50' : ''}`}>
+      <button onClick={toggle} aria-label={t.is_completed ? `Reabrir "${t.task_title}"` : `Concluir "${t.task_title}"`} className="mt-0.5 shrink-0">
+        {done ? (
+          <CheckCircle2 className="w-[22px] h-[22px] text-ok animate-[tt-pop_400ms_ease-out]" />
+        ) : (
+          <span className={`block w-[22px] h-[22px] rounded-full border-2 transition hover:scale-110 ${RING[t.priority] ?? RING.Média}`} />
+        )}
       </button>
       <button type="button" onClick={() => onOpen(t)} className="flex-1 min-w-0 text-left" aria-label={`${t.task_title}: ver detalhes`}>
-        <span className={`block font-semibold leading-snug ${t.is_completed ? 'line-through text-ink-mute' : 'text-ink'}`}>{t.task_title}</span>
-        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-ink-mute">
-          <span className="inline-flex items-center gap-1.5 font-semibold text-ink-soft">
-            <WhoAvatars who={t.assigned_to} className="w-5 h-5 text-[9px]" /> {whoName(people, t.assigned_to)}
+        <span className={`block leading-snug ${done ? 'line-through text-ink-mute' : 'text-ink'}`}>{t.task_title}</span>
+        {(label || t.notes || (t.remind_on && !t.is_completed)) && (
+          <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-ink-mute">
+            {label && !t.is_completed && (
+              <span className={`inline-flex items-center gap-1 font-semibold ${label.tone}`}>
+                <CalendarDays className="w-3.5 h-3.5" /> {label.text}
+              </span>
+            )}
+            {t.remind_on && !t.is_completed && t.remind_on.slice(0, 10) >= today && <Bell className="w-3.5 h-3.5" aria-label="com lembrete" />}
+            {t.notes && <span className="truncate max-w-[12rem]">{t.notes}</span>}
           </span>
-          {t.priority === 'Alta' && !t.is_completed && <Pill tone={PRIORITY_TONE.Alta}>Alta</Pill>}
-          {t.due_date && !t.is_completed && (
-            <span className={`flex items-center gap-1 font-semibold ${late ? 'text-alert' : ''}`}>
-              <Clock className="w-3.5 h-3.5" /> {late ? 'atrasada desde' : 'até'} {formatBR(t.due_date)}
-            </span>
-          )}
-          {t.remind_on && !t.is_completed && t.remind_on.slice(0, 10) >= toISODate(new Date()) && (
-            <span className="flex items-center gap-1">
-              <Bell className="w-3.5 h-3.5" /> {formatBR(t.remind_on)}
-            </span>
-          )}
-        </span>
+        )}
       </button>
-      <ChevronRight className="w-4 h-4 text-ink-mute shrink-0 self-center" />
+      <span className="shrink-0 self-center flex items-center gap-2" title={whoName(people, t.assigned_to)}>
+        <WhoAvatars who={t.assigned_to} className="w-6 h-6 text-[10px]" />
+      </span>
     </li>
+  );
+}
+
+/** Adicionar rápido: o nome, quando e quem, sem sair da lista (fica aberto para a próxima). */
+function QuickAdd({ busy, assignee: initialWho, onCreate }: { busy: boolean; assignee: Assignee; onCreate: (t: NewTask) => Promise<boolean> }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [due, setDue] = useState('');
+  const [who, setWho] = useState<Assignee>(initialWho);
+  const [priority, setPriority] = useState<Priority>('Média');
+  const today = toISODate(new Date());
+  const saturday = addDays(today, (6 - new Date().getDay() + 7) % 7 || 7);
+  const choices = [
+    { iso: today, text: 'Hoje' },
+    { iso: addDays(today, 1), text: 'Amanhã' },
+    { iso: saturday, text: 'Sábado' },
+    { iso: '', text: 'Sem data' },
+  ];
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="w-full flex items-center gap-3 px-4 py-1 text-left text-[15px] text-ink-soft hover:text-ink">
+        <span className="w-[22px] h-[22px] rounded-full bg-azul text-white flex items-center justify-center">
+          <Plus className="w-4 h-4" strokeWidth={3} />
+        </span>
+        Adicionar tarefa
+      </button>
+    );
+  }
+  return (
+    <form
+      aria-label="Nova tarefa"
+      className="rounded-[24px] bg-surface/80 p-4 space-y-3"
+      onSubmit={async e => {
+        e.preventDefault();
+        if (!title.trim()) return;
+        if (await onCreate({ title: title.trim(), assignee: who, priority, dueDate: due, notes: '' })) setTitle('');
+      }}
+    >
+      <input aria-label="Tarefa" autoFocus className="w-full bg-transparent text-[1.05rem] text-ink placeholder:text-ink-mute outline-none" placeholder="Ex.: Comprar o carrinho" value={title} onChange={e => setTitle(e.target.value)} maxLength={300} />
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Prazo">
+        {choices.map(c => (
+          <button key={c.text} type="button" aria-pressed={due === c.iso} onClick={() => setDue(c.iso)} className={`rounded-full px-3 py-1 text-[12.5px] font-bold transition ${due === c.iso ? 'bg-azul text-white' : 'bg-surface-2 text-ink-soft'}`}>
+            {c.text}
+          </button>
+        ))}
+        <label className={`relative rounded-full px-3 py-1 text-[12.5px] font-bold ${due && !choices.some(c => c.iso === due) ? 'bg-azul text-white' : 'bg-surface-2 text-ink-soft'}`}>
+          {due && !choices.some(c => c.iso === due) ? formatBR(due).slice(0, 5) : 'Outro dia'}
+          <input type="date" aria-label="Outro dia" min={today} value={due} onChange={e => setDue(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
+        </label>
+      </div>
+      <WhoPicker label="Quem cuida" value={who} onChange={setWho} />
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={() => setPriority(p => (p === 'Alta' ? 'Média' : 'Alta'))} aria-pressed={priority === 'Alta'} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold ${priority === 'Alta' ? 'bg-rosa-soft text-rosa-strong' : 'text-ink-mute'}`}>
+          <Flag className="w-3.5 h-3.5" /> Importante
+        </button>
+        <div className="flex gap-2">
+          <Button tone="ghost" onClick={() => (setOpen(false), setTitle(''))}>
+            Fechar
+          </Button>
+          <Button type="submit" disabled={busy || !title.trim()}>
+            Adicionar
+          </Button>
+        </div>
+      </div>
+    </form>
   );
 }
 
