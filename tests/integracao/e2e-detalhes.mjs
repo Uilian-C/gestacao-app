@@ -87,7 +87,7 @@ await p.screenshot({ path: `${OUT}detalhe-tarefa.png` });
 await dlg.getByRole('button', { name: 'Marcar como feita' }).click();
 await p.waitForTimeout(800);
 check(!(await dlg.isVisible()), 'marcar como feita fecha a janela');
-await p.getByRole('button', { name: 'Concluídas' }).click();
+await p.getByRole('button', { name: /^Concluídas \(/ }).click();
 check(await p.getByRole('button', { name: 'Montar o berço e o trocador: ver detalhes' }).isVisible(), 'tarefa aparece nas concluídas');
 
 // ---- Calendário: tocar na consulta abre os detalhes ----

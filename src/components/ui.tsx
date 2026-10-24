@@ -1,9 +1,30 @@
-import { useContext, type ReactNode } from 'react';
+import { useContext, useState, type ReactNode } from 'react';
 import { SavingContext } from '../lib/saving';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2 } from 'lucide-react';
 
-// Linguagem visual: superfícies sem borda separadas por sombra leve e respiro,
+// Linguagem visual: superfícies sem borda e sem sombra, separadas pelo tom e pelo respiro,
 // cantos generosos, títulos em serifa e controles em forma de pílula.
+
+/**
+ * Um bloco que recolhe: o título e um resumo sempre à vista, o conteúdo a um
+ * toque. Para o que é bom ter, mas não precisa ocupar a tela o tempo todo.
+ */
+export function Fold({ icon, title, summary, defaultOpen = false, children }: { icon?: ReactNode; title: string; summary?: ReactNode; defaultOpen?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section aria-label={title} className="rounded-[28px] bg-surface/80">
+      <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open} className="w-full flex items-center gap-3 px-5 py-4 text-left">
+        {icon && <span className="w-9 h-9 rounded-2xl bg-brand-soft text-brand-strong flex items-center justify-center shrink-0 [&_svg]:w-[18px] [&_svg]:h-[18px]">{icon}</span>}
+        <span className="flex-1 min-w-0">
+          <span className="block font-display text-[1.1rem] leading-tight text-ink">{title}</span>
+          {summary && <span className="block text-[12.5px] text-ink-soft truncate mt-0.5">{summary}</span>}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-ink-mute shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="px-5 pb-5">{children}</div>}
+    </section>
+  );
+}
 
 export function Card({ children, className = '', tone = 'surface' }: { children: ReactNode; className?: string; tone?: 'surface' | 'warm' | 'brand' | 'alert' }) {
   const tones = {

@@ -10,7 +10,7 @@ import AuthorBadge from '../AuthorBadge';
 import { BloodPressureChart, CategoryHeatmap, Sparkline, SymptomTrendChart, TimeOfDayBars, WeightChart, type WeightPoint } from '../charts/charts';
 import { InsightList } from '../InsightList';
 import { inputClass } from '../styles';
-import { Button, Card, EmptyState, Field, Pill, Segmented, SectionTitle } from '../ui';
+import { Button, Card, EmptyState, Field, Fold, Pill, Segmented, SectionTitle } from '../ui';
 
 type PeriodId = '4sem' | 'trimestre' | 'tudo';
 
@@ -77,7 +77,6 @@ export default function DashboardTab(props: Props) {
   }
   const heatCells = new Map([...heatAcc.entries()].map(([k, v]) => [k, { avg: v.sum / v.count, count: v.count }]));
 
-  const periodLabel = periodId === '4sem' ? 'últimas 4 semanas' : periodId === 'trimestre' ? `${age.trimester}º trimestre` : 'toda a gestação';
 
 
   return (
@@ -111,22 +110,28 @@ export default function DashboardTab(props: Props) {
             </p>
           )}
 
-          {insights.length > 0 && (
-            <Card>
-              <SectionTitle icon={<Lightbulb className="w-5 h-5" />} title="O que os registros mostram" subtitle={`Padrões nas ${periodLabel}.`} />
-              <InsightList insights={insights} onSelect={i => setSelectedKey(i.symptomKey ?? null)} />
-            </Card>
+          {/* O mapa primeiro (a gestação de relance); o resto recolhe para não pesar. */}
+          {inPeriodEntries.length > 0 && (
+            <Fold icon={<Grid3x3 />} title="Mapa da gestação" summary="Intensidade por tipo de sintoma, semana a semana" defaultOpen>
+              <CategoryHeatmap cells={heatCells} categories={SYMPTOM_CATEGORIES} weekFrom={weekFrom} weekTo={weekTo} />
+            </Fold>
           )}
 
-          <SymptomTable stats={stats} selectedKey={selectedKey} onSelect={setSelectedKey} />
+          {insights.length > 0 && (
+            <Fold icon={<Lightbulb />} title="O que os registros mostram" summary={insights.length === 1 ? insights[0].title : `${insights[0].title} e mais ${insights.length - 1}`} defaultOpen>
+              <InsightList insights={insights} onSelect={i => setSelectedKey(i.symptomKey ?? null)} />
+            </Fold>
+          )}
 
-          {selected && <SymptomDetail stats={selected} comments={comments} weekFrom={weekFrom} weekTo={weekTo} onClose={() => setSelectedKey(null)} />}
-
-          {inPeriodEntries.length > 0 && (
-            <Card>
-              <SectionTitle icon={<Grid3x3 className="w-5 h-5" />} title="Mapa da gestação" subtitle="Intensidade média por tipo de sintoma em cada semana." />
-              <CategoryHeatmap cells={heatCells} categories={SYMPTOM_CATEGORIES} weekFrom={weekFrom} weekTo={weekTo} />
-            </Card>
+          {stats.length > 0 && (
+            <Fold icon={<Activity />} title="Frequência e tendência" summary={`${stats.length} ${stats.length === 1 ? 'sintoma' : 'sintomas'} · toque num para ver a evolução`} defaultOpen={!!selectedKey}>
+              <SymptomTable stats={stats} selectedKey={selectedKey} onSelect={setSelectedKey} />
+              {selected && (
+                <div className="mt-4">
+                  <SymptomDetail stats={selected} comments={comments} weekFrom={weekFrom} weekTo={weekTo} onClose={() => setSelectedKey(null)} />
+                </div>
+              )}
+            </Fold>
           )}
 
           <section aria-label="Registros de sintomas" className="space-y-3">
@@ -152,38 +157,30 @@ export default function DashboardTab(props: Props) {
 
 function SymptomTable({ stats, selectedKey, onSelect }: { stats: SymptomStats[]; selectedKey: string | null; onSelect: (k: string | null) => void }) {
   return (
-    <Card>
-      <SectionTitle icon={<Activity className="w-5 h-5" />} title="Frequência e tendência" subtitle="Toque em um sintoma para ver a evolução." />
-      {stats.length === 0 ? (
-        <EmptyState icon={<Activity />} title="Nenhum sintoma no período">Use o botão “Registrar”, aqui em Cuidados. Os registros aparecem aqui com frequência, intensidade e tendência.</EmptyState>
-      ) : (
-        <ul className="divide-y divide-line">
-          {stats.map(s => (
-            <li key={s.key}>
-              <button
-                type="button"
-                onClick={() => onSelect(s.key === selectedKey ? null : s.key)}
-                aria-expanded={s.key === selectedKey}
-                className={`w-full flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-xl text-left transition ${s.key === selectedKey ? 'bg-brand-soft' : 'hover:bg-surface-2'}`}
-              >
-                <span className="flex-1 min-w-0">
-                  <span className="font-semibold text-ink block truncate">{s.name}</span>
-                  <span className="text-xs text-ink-mute">
-                    {s.count}× · média {fmt(s.avgIntensity)} · {s.category}
-                    {s.isAlert ? ' · alerta' : ''}
-                  </span>
-                </span>
-                <Sparkline values={s.byWeek.map(w => w.avg)} />
-                {s.trend && <Pill tone={TREND[s.trend].tone}>{TREND[s.trend].icon}{TREND[s.trend].label}</Pill>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
+    <ul className="divide-y divide-line">
+      {stats.map(s => (
+        <li key={s.key}>
+          <button
+            type="button"
+            onClick={() => onSelect(s.key === selectedKey ? null : s.key)}
+            aria-expanded={s.key === selectedKey}
+            className={`w-full flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-xl text-left transition ${s.key === selectedKey ? 'bg-brand-soft' : 'hover:bg-surface-2'}`}
+          >
+            <span className="flex-1 min-w-0">
+              <span className="font-semibold text-ink block truncate">{s.name}</span>
+              <span className="text-xs text-ink-mute">
+                {s.count}× · média {fmt(s.avgIntensity)} · {s.category}
+                {s.isAlert ? ' · alerta' : ''}
+              </span>
+            </span>
+            <Sparkline values={s.byWeek.map(w => w.avg)} />
+            {s.trend && <Pill tone={TREND[s.trend].tone}>{TREND[s.trend].icon}{TREND[s.trend].label}</Pill>}
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
-
 
 function SymptomDetail({ stats: s, comments, weekFrom, weekTo, onClose }: { stats: SymptomStats; comments: PartnerComment[]; weekFrom: number; weekTo: number; onClose: () => void }) {
   const care = careNotesFor(s, comments);
@@ -275,13 +272,15 @@ function WeightSection({ profile, metrics, migrationPending, busy, onSaveProfile
   const status = cls && last ? gainStatus(last.value, last.week, cls) : null;
 
   return (
-    <Card>
-      <SectionTitle
-        icon={<Scale className="w-5 h-5" />}
-        title="Ganho de peso"
-        subtitle={hasProfile ? `IMC antes da gravidez: ${fmt(bmi(profile.preWeightKg!, profile.heightCm!))} (${BMI_LABEL[cls!].toLowerCase()})` : 'Informe o peso de antes da gravidez e a altura para ver a faixa recomendada.'}
-        action={!migrationPending && hasProfile ? <button onClick={() => setEditing(v => !v)} className="text-sm font-semibold text-ink-mute underline underline-offset-2">editar</button> : undefined}
-      />
+    <Fold icon={<Scale />} title="Ganho de peso" summary={last ? `${fmt(last.kg)} kg na semana ${last.week}${status ? ` · ${GAIN_STATUS_LABEL[status].toLowerCase()}` : ''}` : 'Nenhum peso registrado ainda'} defaultOpen>
+      <p className="text-[13px] text-ink-soft mb-3">
+        {hasProfile ? `IMC antes da gravidez: ${fmt(bmi(profile.preWeightKg!, profile.heightCm!))} (${BMI_LABEL[cls!].toLowerCase()}).` : 'Informe o peso de antes da gravidez e a altura para ver a faixa recomendada.'}
+        {!migrationPending && hasProfile && (
+          <button onClick={() => setEditing(v => !v)} className="ml-1.5 text-[13px] font-semibold text-ink-mute underline underline-offset-2">
+            editar
+          </button>
+        )}
+      </p>
       {(!hasProfile || editing) && !migrationPending && (
         <ProfileForm initial={profile} busy={busy} onSave={async (w, h) => { if (await onSaveProfile(w, h)) setEditing(false); }} />
       )}
@@ -304,7 +303,7 @@ function WeightSection({ profile, metrics, migrationPending, busy, onSaveProfile
           )}
         </div>
       )}
-    </Card>
+    </Fold>
   );
 }
 
@@ -343,12 +342,7 @@ function PressureSection({ metrics }: { metrics: HealthMetric[] }) {
   const readings = metrics.filter(m => m.systolic_bp !== null && m.diastolic_bp !== null);
   const high = readings.filter(m => isHighBloodPressure(m.systolic_bp, m.diastolic_bp));
   return (
-    <Card>
-      <SectionTitle
-        icon={<HeartPulse className="w-5 h-5" />}
-        title="Pressão arterial"
-        subtitle={readings.length ? `${readings.length} ${readings.length === 1 ? 'medição' : 'medições'}${high.length ? ` · ${high.length} acima de 140/90` : ' · nenhuma acima de 140/90'}` : undefined}
-      />
+    <Fold icon={<HeartPulse />} title="Pressão arterial" summary={readings.length ? `${readings.length} ${readings.length === 1 ? 'medição' : 'medições'}${high.length ? ` · ${high.length} acima de 140/90` : ' · nenhuma acima de 140/90'}` : 'Nenhuma pressão registrada ainda'} defaultOpen={high.length > 0}>
       {readings.length === 0 ? (
         <EmptyState icon={<HeartPulse />} title="Nenhuma pressão registrada">Medições em casa ou na consulta: use “Registrar peso ou pressão”, logo acima.</EmptyState>
       ) : (
@@ -380,6 +374,6 @@ function PressureSection({ metrics }: { metrics: HealthMetric[] }) {
           </details>
         </>
       )}
-    </Card>
+    </Fold>
   );
 }

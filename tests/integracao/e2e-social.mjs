@@ -120,6 +120,7 @@ check(true, 'item próprio renomeado');
 
 // ---- Jornada: item próprio (Cuidados → Jornada) ----
 await openCare(mae, 'Jornada');
+await mae.getByRole('button', { name: /^A equipe pediu algo a mais\?/ }).click();
 const own = mae.getByRole('region', { name: 'Itens de vocês' });
 await own.scrollIntoViewIfNeeded();
 await own.getByRole('button', { name: 'Adicionar item' }).click();

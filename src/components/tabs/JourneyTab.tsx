@@ -13,7 +13,7 @@ import { PhaseGuide } from '../journey/Journey';
 import { GestationStrip, PlanVsDoneChart } from '../charts/JourneyProgress';
 import Sheet from '../Sheet';
 import { inputClass } from '../styles';
-import { Button } from '../ui';
+import { Button, Fold } from '../ui';
 import { ScheduleForm, type NewConsultation } from './ConsultationsTab';
 
 // Cuidados → Jornada: o roteiro do pré-natal para quem nunca passou por um.
@@ -219,14 +219,13 @@ export default function JourneyTab(props: Props) {
       </section>
 
       {props.listsAvailable && (
-        <section aria-label="Itens de vocês" className="rounded-[26px] bg-surface/80 p-4 space-y-1">
-          <h3 className="flex items-center gap-2 text-[1.05rem] text-ink">
-            <ListChecks className="w-5 h-5 text-brand" /> A equipe pediu algo a mais?
-          </h3>
-          <p className="text-sm text-ink-soft">Um exame, uma vacina ou uma consulta com outro especialista: ele entra na jornada, na semana que vocês escolherem.</p>
-          <AddItem placeholder="Ex.: Ecocardiograma fetal" withWeek disabled={props.busy} onAdd={props.onAddStep} />
-          <HiddenItems items={props.hidden} onShow={id => props.onHide(id, false)} />
-        </section>
+        <Fold icon={<ListChecks />} title="A equipe pediu algo a mais?" summary="Um exame, uma vacina ou uma consulta que não está na lista">
+          <section aria-label="Itens de vocês" className="space-y-1">
+            <p className="text-sm text-ink-soft">Ele entra na jornada, na semana que vocês escolherem.</p>
+            <AddItem placeholder="Ex.: Ecocardiograma fetal" withWeek disabled={props.busy} onAdd={props.onAddStep} />
+            <HiddenItems items={props.hidden} onShow={id => props.onHide(id, false)} />
+          </section>
+        </Fold>
       )}
 
       <PhaseGuide currentWeek={currentWeek} />
