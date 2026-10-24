@@ -17,32 +17,33 @@ const photo = Buffer.from(
   'base64',
 );
 
-const card = p.getByRole('region', { name: 'Barriguinha da semana' });
-await card.waitFor();
-const week = Number((await card.textContent()).match(/semana (\d+)/)[1]);
-check(week > 0, `cartão da barriguinha na semana ${week}`);
-check(await card.getByRole('button', { name: 'Tirar foto' }).isVisible(), 'sem a foto da semana, o cartão convida a tirar');
+const nesta = p.locator('section[aria-labelledby="nesta-semana"]');
+await nesta.waitFor();
+const card = nesta.getByRole('button', { name: /Barriguinha · semana \d+/i });
+const week = Number((await card.textContent()).match(/semana (\d+)/i)[1]);
+check(week > 0, `cartão da barriguinha na semana ${week}, no carrossel "Nesta semana"`);
+check(await card.getByText('Falta a foto desta semana').isVisible(), 'sem a foto da semana, o cartão convida a tirar');
 
-// Ordem: o casal antes da agenda e das tarefas; o guia da semana mais embaixo.
+// Ordem das 4 áreas: o bebê, "Para hoje", o casal e o carrossel.
 const order = await p.evaluate(() => {
   const at = sel => { const el = document.querySelector(sel); return el ? el.getBoundingClientRect().top + window.scrollY : null; };
-  return { casal: at('[aria-labelledby="checkin-titulo"]'), barriga: at('[aria-label="Barriguinha da semana"]'), nesta: at('#nesta-semana') };
+  return { bebe: at('[aria-label="Semana da gestação"]'), hoje: at('[aria-labelledby="hoje-titulo"]'), casal: at('[aria-labelledby="checkin-titulo"]'), nesta: at('#nesta-semana') };
 });
-check(order.casal !== null && order.casal < order.barriga && order.barriga < order.nesta, 'cartão do casal → barriguinha → ... → "Nesta semana"');
+check(order.bebe < order.hoje && order.hoje < order.casal && order.casal < order.nesta, 'bebê → "Para hoje" → casal → "Nesta semana"');
 
-await card.getByRole('button', { name: 'Tirar foto' }).click();
+await card.click();
 check((await dlg.getByRole('radio', { name: /Barriguinha/ }).getAttribute('aria-checked')) === 'true', 'o cartão abre o formulário na pasta Barriguinha');
 await dlg.getByLabel('Escolher fotos').setInputFiles({ name: 'barriga.png', mimeType: 'image/png', buffer: photo });
 await dlg.getByRole('button', { name: 'Tirar esta foto' }).waitFor({ timeout: 15000 });
 await dlg.getByRole('button', { name: 'Guardar foto' }).click();
 await dlg.waitFor({ state: 'hidden', timeout: 15000 });
-await p.getByRole('button', { name: `Barriguinha na semana ${week}: ver` }).waitFor({ timeout: 10000 });
-check((await card.getByRole('button', { name: 'Tirar foto' }).count()) === 0, 'com a foto guardada, o convite some e fica a faixa da evolução');
+await card.getByText('A foto desta semana está guardada').waitFor({ timeout: 10000 });
+check(await card.locator('img').count() === 1, 'com a foto guardada, o cartão mostra a foto e conta a evolução');
 await p.screenshot({ path: `${OUT}inicio-barriga.png`, fullPage: true });
 
-await card.getByRole('button', { name: /Ver a evolução/ }).click();
+await card.click();
 await p.getByRole('list', { name: 'Fotos da barriga por semana' }).waitFor();
-check(true, '"Ver a evolução" abre a pasta Barriguinha no Diário');
+check(true, 'depois da foto, o cartão abre a pasta Barriguinha no Diário');
 
 await b.close();
 finish();

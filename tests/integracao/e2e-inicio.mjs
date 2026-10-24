@@ -1,6 +1,6 @@
-// Início como painel do casal: o coração continua batendo, os marcos da
-// gestação, "Vocês dois hoje" (check-in com confirmação e abraço), o próximo
-// compromisso em destaque, as novidades do Mural e as tarefas de cada um.
+// Início em 4 áreas: como está o bebê (o coração continua batendo), "Para hoje"
+// (no máximo 3 linhas, na ordem do que importa), "Vocês dois" (check-in com
+// confirmação e abraço, sem os posts do Mural) e o carrossel "Nesta semana".
 import { BASE, check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
 
 const b = await launch();
@@ -9,15 +9,22 @@ await quickAccount(mae, { name: 'Ana' });
 const post = (p, path, body) => p.evaluate(async ([path, body]) => (await (await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json()), [path, body]);
 
 // ---- Sozinha, sem nada marcado ----
-await mae.getByText('Nada agendado por enquanto').waitFor({ timeout: 10000 });
-check(true, 'sem agendamento: convite para agendar no lugar do destaque');
+const hoje = mae.locator('section[aria-labelledby="hoje-titulo"]');
+await hoje.waitFor({ timeout: 10000 });
 const eco = mae.locator('.tt-bebe-eco').first();
 check((await eco.count()) === 1 && (await eco.evaluate(el => getComputedStyle(el).animationName)) !== 'none', 'o coração do bebê continua pulsando (eco animado)');
-check(await mae.getByRole('button', { name: /Semana 22 de 40/ }).isVisible(), 'o bebê da semana no centro do Início');
-check(await mae.getByText(/Dia \d+ de 280/).isVisible(), 'mostra o dia da gestação');
+check(await mae.getByRole('button', { name: /Semana 22 de 40/ }).isVisible(), 'o bebê da semana no topo do Início');
+check(await mae.getByText(/Faltam \d+ dias · dia \d+ de 280/).isVisible(), 'quanto falta e o dia da gestação');
 check(await mae.getByRole('progressbar', { name: 'Quanto da gestação já passou' }).isVisible(), 'barra da gestação com os trimestres');
-check(await mae.getByRole('button', { name: /Próximo marco em [56] semanas.*Começa o 3º trimestre/ }).isVisible(), 'próximo marco: o 3º trimestre, daqui a umas 6 semanas');
+check((await mae.getByRole('button', { name: /Ficha/ }).count()) === 0, 'a ficha não se repete no Início (vive em Cuidados)');
+check((await hoje.getByRole('listitem').count()) <= 3, '"Para hoje" mostra no máximo 3 linhas');
+check(await hoje.getByText(/^Primeiros 7 dias · \d de 7$/).isVisible(), 'conta nova: a missão dos primeiros dias entra no "Para hoje"');
+const semanaCards = mae.locator('section[aria-labelledby="nesta-semana"]');
+check(await semanaCards.getByText(/Próximo marco em [56] semanas/).isVisible() && (await semanaCards.getByText('Começa o 3º trimestre').isVisible()), 'próximo marco no carrossel: o 3º trimestre, daqui a umas 6 semanas');
+check((await mae.getByText('Quando procurar a maternidade').count()) === 0, 'sem alerta, os sinais de alerta não ocupam o Início');
+check((await mae.getByText('Saúde rápida').count()) === 0, 'a saúde rápida saiu do Início (o botão Registrar cobre)');
 check(await mae.getByRole('heading', { name: 'Como você está hoje?' }).isVisible(), 'sem parceiro, o check-in pergunta só por ela');
+await mae.screenshot({ path: `${OUT}inicio-novo.png`, fullPage: true });
 
 // ---- Parceiro, agenda, tarefas e diário ----
 const code = (await post(mae, '/api/family', { op: 'invite' })).code;
@@ -40,30 +47,20 @@ await task('Marcar a fisioterapia', 'mae', await iso(-2));
 await post(pai, '/api/data', { op: 'createEntry', date: await iso(-1), body: 'Senti você mexer pela primeira vez, @Ana!', visibility: 'shared', remindOn: null, folder: 'momento' });
 await mae.reload();
 
-const hero = mae.getByRole('region', { name: 'Próximo compromisso' });
-await hero.waitFor();
-check(await hero.getByText(/^(Hoje|Amanhã), \d\d:\d\d/).isVisible() && (await hero.getByText(/Ultrassom morfológico/).isVisible()), 'próximo compromisso em destaque: quando e o quê');
-check(await hero.getByText('Vão Ana e Caio').isVisible(), 'com quem vai');
-check(await hero.getByText('Av. Paulista, 1000, São Paulo').isVisible(), 'e o endereço com o caminho');
-check((await mae.locator('section[aria-labelledby="hoje-titulo"]').getByText('Ultrassom morfológico').count()) === 0, 'o destaque não se repete em "Hoje"');
-const week = mae.locator('section[aria-labelledby="semana-titulo"]');
-check(await week.getByText('Vacina dTpa').isVisible() && (await week.getByText(/Obstetra/).count()) === 0, 'próximos 7 dias: a vacina, e não a consulta daqui a 20 dias');
+await hoje.waitFor();
+const ultra = hoje.getByRole('button', { name: /Ultrassom morfológico/ });
+check(await ultra.getByText(/^(Hoje|Amanhã) · \d\d:\d\d · Ultrassom$/).isVisible(), '"Para hoje": o ultrassom de daqui a pouco, com a hora');
+check(await hoje.getByRole('button', { name: /Marcar a fisioterapia/ }).getByText('Tarefa atrasada').isVisible(), 'e a tarefa atrasada');
+check((await hoje.getByText('Vacina dTpa').count()) === 0 && (await hoje.getByText('Montar o berço').count()) === 0, 'o que é de outro dia fica na Agenda');
+check((await hoje.getByRole('listitem').count()) === 3 && (await hoje.getByRole('button', { name: /^e mais \d+ ite/ }).isVisible()), 'três linhas e "e mais" leva à agenda');
+check((await hoje.getByRole('listitem').nth(0).textContent()).includes('Ultrassom'), 'o compromisso vem antes da tarefa atrasada');
+await hoje.getByRole('button', { name: /Marcar a fisioterapia/ }).click();
+check(await mae.getByRole('dialog').getByText('Marcar a fisioterapia').first().isVisible(), 'tocar na linha abre os detalhes');
+await mae.keyboard.press('Escape');
 
 const juntos = mae.locator('section[aria-labelledby="checkin-titulo"]');
-const postCaio = juntos.getByRole('button', { name: /^Momento de Caio: abrir/ });
-check(await postCaio.isVisible() && (await postCaio.getByText(/Senti você mexer/).isVisible()), '"Vocês dois hoje" traz o post do Caio no Mural');
-check(await postCaio.getByText('marcou você').isVisible(), 'e mostra que ele marcou a Ana');
-check(await juntos.getByRole('button', { name: 'Ver o mural' }).isVisible(), 'com o atalho "Ver o mural"');
-
-const tasks = mae.locator('section[aria-labelledby="tarefas-casal"]');
-check(await tasks.getByText(/Caio · 1/).isVisible() && (await tasks.getByText(/Ana · 1/).isVisible()) && (await tasks.getByText(/Os dois · 1/).isVisible()), 'tarefas: quantas faltam para cada um');
-check(await tasks.getByText('1 atrasada').isVisible(), 'e quantas estão atrasadas');
-const mine = tasks.getByRole('button', { name: /^Concluir/ });
-check((await mine.count()) === 2 && (await mine.first().getAttribute('aria-label')) === 'Concluir "Marcar a fisioterapia"', 'suas próximas: a atrasada primeiro (sem a do Caio)');
-await mine.first().click();
-await tasks.getByText('Marcar a fisioterapia').waitFor({ state: 'hidden', timeout: 10000 });
-check(await tasks.getByText(/Ana · 0/).isVisible(), 'concluir pelo Início tira da lista');
-check(await mae.getByText('Para o pai', { exact: true }).isVisible() && (await mae.getByText('Seu corpo', { exact: true }).isVisible()), 'cartões da semana: corpo e dica para o pai');
+check((await juntos.getByText(/Senti você mexer/).count()) === 0 && (await juntos.getByRole('button', { name: 'Ver o mural' }).count()) === 0, '"Vocês dois" fica só com o check-in e o abraço (os posts vivem no Diário)');
+check(await semanaCards.getByText('Para o pai', { exact: true }).isVisible() && (await semanaCards.getByText('Seu corpo', { exact: true }).isVisible()), 'cartões da semana: corpo e dica para o pai');
 
 // ---- Vocês dois hoje ----
 const card = mae.locator('section[aria-labelledby="checkin-titulo"]');
@@ -133,10 +130,8 @@ check(await mae.getByLabel('Humor do dia').getByText(/Ana, cansada/).isVisible()
 await mae.screenshot({ path: `${OUT}agenda-humor.png`, fullPage: true });
 await mae.keyboard.press('Escape');
 
-// O post do humor da Ana também aparece no "Vocês dois hoje"; "Ver o mural" leva ao Mural.
+// Os posts não voltam para o Início: ficam no Mural.
 await mae.getByRole('button', { name: /^Início/ }).first().click();
-check(await juntos.getByRole('button', { name: /^Dia a dia de Ana: abrir/ }).isVisible(), 'o post do humor aparece no "Vocês dois hoje"');
-await juntos.getByRole('button', { name: 'Ver o mural' }).click();
-check(await mae.getByRole('button', { name: /O que vocês querem guardar hoje/ }).isVisible(), '"Ver o mural" abre o Mural');
+check((await juntos.getByRole('button', { name: /^Dia a dia de Ana: abrir/ }).count()) === 0, 'o post do humor fica no Mural, não no Início');
 await b.close();
 finish();

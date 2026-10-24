@@ -3,29 +3,35 @@ import { BellRing, Loader2, X } from 'lucide-react';
 import { usePush } from '../hooks/usePush';
 import { IosInstallSteps, OpenInChrome } from './NotificationSettings';
 import { Button } from './ui';
+import { dismissPush, offersPush, pushDismissed } from '../lib/pushInvite';
 
-const KEY = 'nossa-gestacao:convite-notificacoes';
-
-function dismissed() {
-  try {
-    return localStorage.getItem(KEY) === 'fechado';
-  } catch {
-    return false;
-  }
+/** O jeito de ativar neste aparelho: o botão, ou o passo a passo (iPhone, outro navegador). */
+export function PushSteps({ push, relative = false }: { push: ReturnType<typeof usePush>; relative?: boolean }) {
+  const { state, busy, error, enable } = push;
+  return (
+    <>
+      {state.phase === 'ios-instalar' ? (
+        <IosInstallSteps />
+      ) : state.phase === 'outro-navegador' ? (
+        <OpenInChrome />
+      ) : (
+        <Button onClick={enable} disabled={busy}>
+          {busy ? <Loader2 className="animate-spin" /> : <BellRing />} {relative ? 'Ativar avisos' : 'Ativar lembretes'}
+        </Button>
+      )}
+      {error && <p className="text-sm text-alert" role="alert">{error}</p>}
+    </>
+  );
 }
 
-/** Convite no Início para ligar os lembretes neste aparelho. Some de vez ao ativar ou fechar. */
+/** Convite (Início da família) para ligar os avisos neste aparelho. Some de vez ao ativar ou fechar. */
 export default function PushPrompt({ relative = false }: { relative?: boolean }) {
-  const [hidden, setHidden] = useState(dismissed);
-  const { state, busy, error, enable } = usePush();
-  if (hidden || (state.phase !== 'desligado' && state.phase !== 'ios-instalar' && state.phase !== 'outro-navegador')) return null;
+  const [hidden, setHidden] = useState(pushDismissed);
+  const push = usePush();
+  if (hidden || !offersPush(push.state.phase)) return null;
 
   const close = () => {
-    try {
-      localStorage.setItem(KEY, 'fechado');
-    } catch {
-      // Sem armazenamento: volta a aparecer na próxima abertura.
-    }
+    dismissPush();
     setHidden(true);
   };
 
@@ -47,16 +53,7 @@ export default function PushPrompt({ relative = false }: { relative?: boolean })
           </p>
         </div>
       </div>
-      {state.phase === 'ios-instalar' ? (
-        <IosInstallSteps />
-      ) : state.phase === 'outro-navegador' ? (
-        <OpenInChrome />
-      ) : (
-        <Button onClick={enable} disabled={busy}>
-          {busy ? <Loader2 className="animate-spin" /> : <BellRing />} {relative ? 'Ativar avisos' : 'Ativar lembretes'}
-        </Button>
-      )}
-      {error && <p className="text-sm text-alert" role="alert">{error}</p>}
+      <PushSteps push={push} relative={relative} />
     </div>
   );
 }

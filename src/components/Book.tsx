@@ -5,7 +5,7 @@ import type { BabyTone } from '../content/babyTones';
 import { stageAt } from '../content/growth';
 import type { JournalEntry } from '../hooks/useGestationData';
 import { BabyNameContext, babyCall } from '../lib/baby';
-import { bookMonths, freshChapter, type Chapter, type MonthChapter } from '../lib/chapters';
+import { bookMonths, type Chapter, type MonthChapter } from '../lib/chapters';
 import { formatBR, hhmmOf, parseLocalDate, parseTimestamp, toISODate } from '../lib/dates';
 import { FOLDER, shortDate } from '../lib/folders';
 import { MOOD_COLOR, moodLabel, moodOf } from '../lib/moods';
@@ -701,27 +701,3 @@ export function BookPrint({ book, weeks, tone, parents, onPrint, onClose }: { bo
 }
 
 /** No coração do Início: o capítulo que está sendo escrito (e o aviso de página nova), levando ao livro. */
-export function BookTeaser({ book, dumDate, onOpen }: { book: Chapter[]; dumDate: string; onOpen: () => void }) {
-  const name = useContext(BabyNameContext);
-  const m = bookMonths(book)[0];
-  const fresh = freshChapter(book, dumDate, new Date());
-  if (!m) return null;
-  return (
-    <button type="button" onClick={onOpen} aria-label={`O livro de ${name ?? 'vocês'}: abrir`} className="mt-2 w-full flex items-center gap-3 rounded-[20px] bg-gradient-to-r from-rosa-soft to-lilas-soft/70 px-3 py-2.5 text-left transition active:scale-[0.99]">
-      <span className="relative w-10 h-10 rounded-2xl bg-surface flex items-center justify-center shrink-0 shadow-soft">
-        <BookOpen className="w-5 h-5 text-rosa-strong" />
-        {fresh && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-amber-300 ring-2 ring-surface animate-pulse" aria-hidden />}
-      </span>
-      <span className="flex-1 min-w-0">
-        <span className="block text-[12px] font-bold text-rosa">O livro de {name ?? 'vocês'}</span>
-        <span className="block font-bold text-ink leading-snug truncate">{fresh ? 'Uma página nova foi escrita' : `Capítulo ${m.month} · ${m.title}`}</span>
-        <span className="flex items-center gap-1 pt-1" aria-hidden>
-          {m.pages.map(p => (
-            <span key={p.week} className={`h-1.5 w-4 rounded-full ${p.open ? 'border border-dashed border-rosa' : p.quiet ? 'bg-surface' : 'bg-rosa'}`} />
-          ))}
-        </span>
-      </span>
-      <ChevronRight className="w-5 h-5 text-ink-mute shrink-0" />
-    </button>
-  );
-}

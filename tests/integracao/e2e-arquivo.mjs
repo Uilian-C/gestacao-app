@@ -11,7 +11,8 @@ const iphone = async ua => {
     delete window.PushManager;
   });
   await quickAccount(p);
-  await p.getByText('Lembretes no celular').waitFor();
+  await p.locator('section[aria-labelledby="hoje-titulo"]').getByRole('button', { name: /Lembretes no celular/ }).click();
+  await p.getByRole('dialog', { name: 'Lembretes no celular' }).waitFor();
   return p;
 };
 
@@ -20,7 +21,8 @@ let p = await iphone(IPHONE);
 check(await p.getByText(/não se baixa pela App Store/).isVisible(), 'iPhone: explica que o app é instalado pelo Safari');
 check(await p.getByText('Adicionar à Tela de Início').first().isVisible(), 'iPhone: passo a passo do Safari');
 check((await p.getByText(/16\.4/).count()) === 0, 'iPhone atualizado: sem aviso de versão');
-await p.screenshot({ path: `${OUT}iphone-inicio.png`, fullPage: true });
+await p.screenshot({ path: `${OUT}iphone-inicio.png` });
+await p.keyboard.press('Escape');
 await p.locator('header button').last().click();
 await p.getByText('Notificações no celular').scrollIntoViewIfNeeded();
 check(await p.getByRole('button', { name: 'Instalar no iPhone' }).isVisible(), 'Nosso espaço: botão "Instalar no iPhone"');

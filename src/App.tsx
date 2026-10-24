@@ -788,7 +788,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     <TimedRemindersReady.Provider value={data.timedRemindersAvailable ?? false}>
     <div className="min-h-screen bg-canvas text-ink pb-32 md:pb-12">
       {header}
-      {(activeTab === 'inicio' || activeTab === 'cuidados') && <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />}
+      {activeTab === 'cuidados' && <FichaBar profile={profile} metrics={metrics} busy={busy} onSave={saveFicha} />}
       <Nav
         active={activeTab}
         onChange={tab => {
@@ -845,13 +845,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             checkins={data.checkins ?? []}
             checkinAvailable={data.checkinAvailable ?? false}
             hugs={data.hugs ?? []}
-            threads={threads}
-            userId={me.user.id}
-            busy={busy}
             onCheckin={checkin}
             onHug={hug}
             onShareMood={data.journalAvailable ? shareMood : undefined}
-            onToggleTask={toggleTask}
             onOpen={openFromHome}
             book={book}
             nameIdeas={data.nameIdeas}
@@ -860,14 +856,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onOpenCelebration={setCelebrationOpen}
             onOpenDetail={setDetail}
             onResult={openResult}
-            onWrite={() => writeEntry('dia')}
             lateSteps={lateSteps}
             bellyAvailable={!!data.journalAvailable && (data.photosAvailable ?? false)}
             onBellyPhoto={() => writeEntry('barriga')}
-            metrics={metrics}
             symptoms={symptoms}
-            preWeightKg={data.profile.preWeightKg}
-            onSaveMetric={createMetric}
           />
         )}
 

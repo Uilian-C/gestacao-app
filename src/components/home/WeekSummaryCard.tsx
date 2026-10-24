@@ -1,49 +1,27 @@
-import { useContext, useState } from 'react';
-import { CalendarDays, Camera, ChevronRight, HeartPulse, Sparkles, Stethoscope, X } from 'lucide-react';
+import { useContext } from 'react';
+import { CalendarDays, Camera, ChevronRight, HeartPulse, Sparkles, Stethoscope } from 'lucide-react';
 import { firstName, memberWithRole, PeopleContext } from '../../lib/people';
 import { moodLabel } from '../../lib/moods';
 import { parseLocalDate } from '../../lib/dates';
 import { summaryHeadline, type WeekSummary } from '../../lib/weekSummary';
 import Avatar from '../Avatar';
 
-// Início, no domingo e na segunda: o resumo da semana do casal. Fecha com o X
-// (fica fechado até a semana seguinte, só neste aparelho).
-
-const KEY = 'tumtum:resumo-fechado';
-const closedFor = () => {
-  try {
-    return localStorage.getItem(KEY);
-  } catch {
-    return null;
-  }
-};
+// Início, no domingo e na segunda: o resumo da semana do casal (abre pelo
+// cartão do carrossel "Nesta semana").
 
 const ddmm = (iso: string) => parseLocalDate(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
 export default function WeekSummaryCard({ summary, week, onMood, onMural }: { summary: WeekSummary; week: number; onMood: () => void; onMural: () => void }) {
   const people = useContext(PeopleContext);
-  const [closed, setClosed] = useState(() => closedFor() === summary.to);
-  if (closed) return null;
   const nameOf = (role: 'mae' | 'pai') => {
     const m = memberWithRole(people, role);
     return m ? firstName(m.name) : role === 'mae' ? 'Mãe' : 'Pai';
-  };
-  const close = () => {
-    try {
-      localStorage.setItem(KEY, summary.to);
-    } catch {
-      // Sem armazenamento: fecha só agora.
-    }
-    setClosed(true);
   };
   const next = [summary.next.appointments && `${summary.next.appointments} ${summary.next.appointments === 1 ? 'compromisso' : 'compromissos'}`, summary.next.tasks && `${summary.next.tasks} ${summary.next.tasks === 1 ? 'tarefa' : 'tarefas'} com prazo`].filter(Boolean);
 
   return (
     <section aria-label="Resumo da semana" className="relative rounded-[28px] bg-gradient-to-br from-rosa-soft to-azul-soft p-5 space-y-3.5">
-      <button type="button" onClick={close} aria-label="Fechar o resumo da semana" className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-ink-mute hover:text-ink hover:bg-surface/60">
-        <X className="w-4 h-4" />
-      </button>
-      <div className="pr-8">
+      <div>
         <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-ink-soft">
           <Sparkles className="w-3.5 h-3.5" /> Resumo da semana · {ddmm(summary.from)} a {ddmm(summary.to)}
         </p>
