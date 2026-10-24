@@ -27,7 +27,7 @@ check(await topo.getByRole('heading', { name: 'Os primeiros chutinhos' }).isVisi
 const marco = mae.locator('section[aria-labelledby="nesta-semana"]').getByRole('button', { name: /Próximo marco em 5 semanas e \d dias?: Começa o 3º trimestre\. Ver na jornada do bebê/ });
 check((await marco.count()) === 1, 'o próximo marco é um cartão de "Nesta semana", com atalho para a jornada');
 const altura = await topo.evaluate(el => el.getBoundingClientRect().height);
-check(altura < 340, `o cartão do bebê ficou mais curto (${Math.round(altura)}px)`);
+check(altura < 420, `o bebê ocupa pouco mais que meia tela (${Math.round(altura)}px)`);
 await marco.scrollIntoViewIfNeeded();
 await marco.click();
 const jornada = mae.getByRole('dialog', { name: 'Jornada do bebê' });

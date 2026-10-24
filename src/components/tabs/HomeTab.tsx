@@ -7,7 +7,6 @@ import type { Checkin, ExamItem, Hug, JournalEntry, Mood, NameIdea } from '../..
 import type { DetailTarget } from '../../lib/details';
 import { phaseOf } from '../../lib/journey';
 import type { PlanItem } from '../../content/prenatalPlan';
-import { gestationMonth } from '../../lib/ficha';
 import { appointmentTitle } from '../../lib/appointments';
 import { buildUpcoming } from '../../lib/upcoming';
 import type { Insight } from '../../lib/symptoms';
@@ -200,74 +199,68 @@ export default function HomeTab(props: Props) {
   const dadFirst = props.role === 'pai';
 
   return (
-    <div className="space-y-6">
-      {/* 1. Como está o bebê: o dia, a semana no calendário e o bebê (a saudação já está no cabeçalho). */}
-      <div className="space-y-3">
+    <div className="space-y-8">
+      {/* 1. O bebê: o dia, a semana no calendário e o bebê no centro, sem caixa, sobre um halo suave. */}
+      <div className="space-y-4">
         {props.onOpenCalendar ? (
           <WeekStrip now={now} dumDate={props.dumDate} consultations={props.consultations} tasks={props.tasks} journal={props.journal} results={props.exams} celebrations={props.celebrations} onOpen={props.onOpenCalendar} />
         ) : (
           <p className="px-1 text-sm text-ink-soft first-letter:uppercase">{now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         )}
 
-        <section aria-label="Semana da gestação" className="rounded-[32px] bg-surface shadow-soft px-5 pt-5 pb-4 overflow-hidden">
-          {/* O bebê ao lado da semana: tocar nele abre a jornada do bebê. */}
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={openGrowth} aria-label={`Semana ${selectedWeek} de 40: abrir a jornada do bebê`} className="shrink-0 rounded-full -ml-1">
-              <BabyArt week={selectedWeek} beat={selectedWeek === currentWeek} tone={props.babyTone} className="w-32 h-32 sm:w-36 sm:h-36" />
+        <section aria-label="Semana da gestação" className="relative text-center">
+          <div aria-hidden className="pointer-events-none absolute left-1/2 -top-6 -translate-x-1/2 w-[340px] h-[280px] rounded-full bg-[radial-gradient(closest-side,var(--color-rosa-soft),var(--color-lilas-soft)_60%,transparent)] opacity-80 blur-2xl" />
+          <div className="relative flex items-center justify-center gap-1">
+            <button type="button" onClick={() => onSelectWeek(selectedWeek - 1)} disabled={selectedWeek <= FIRST_WEEK} aria-label="Semana anterior" className="w-9 h-9 rounded-full text-ink-mute hover:text-ink hover:bg-surface/60 flex items-center justify-center disabled:opacity-30">
+              <ChevronLeft className="w-5 h-5" />
             </button>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-0.5 -ml-2">
-                <button type="button" onClick={() => onSelectWeek(selectedWeek - 1)} disabled={selectedWeek <= FIRST_WEEK} aria-label="Semana anterior" className="w-8 h-8 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2 flex items-center justify-center disabled:opacity-30">
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <p className="text-[13px] font-extrabold text-rosa tabular whitespace-nowrap" aria-live="polite">
-                  {selectedWeek === currentWeek ? `${age.weeks} semanas${age.days ? ` e ${age.days} ${age.days === 1 ? 'dia' : 'dias'}` : ''}` : `Semana ${selectedWeek}`}
-                </p>
-                <button type="button" onClick={() => onSelectWeek(selectedWeek + 1)} disabled={selectedWeek >= LAST_WEEK} aria-label="Próxima semana" className="w-8 h-8 rounded-full text-ink-mute hover:text-ink hover:bg-surface-2 flex items-center justify-center disabled:opacity-30">
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-              {babyName && <p className="font-display text-[1.05rem] leading-none text-rosa-strong mb-1">{babyName}</p>}
-              <h2 className="font-display text-[1.35rem] leading-tight text-ink text-balance">{stage.title}</h2>
-              <p className="mt-1 text-[13px] text-ink-soft">
-                Do tamanho de {info.fruit}
-                <span className="block tabular text-ink-mute">
-                  {info.trimester}º tri · {gestationMonth(selectedWeek)}º mês{selectedWeek !== currentWeek ? ' · espiando outra semana' : ` · ${info.weight}`}
-                </span>
-              </p>
-            </div>
+            <button type="button" onClick={openGrowth} aria-label={`Semana ${selectedWeek} de 40: abrir a jornada do bebê`} className="rounded-full">
+              <BabyArt week={selectedWeek} beat={selectedWeek === currentWeek} tone={props.babyTone} className="w-40 h-40 sm:w-44 sm:h-44" />
+            </button>
+            <button type="button" onClick={() => onSelectWeek(selectedWeek + 1)} disabled={selectedWeek >= LAST_WEEK} aria-label="Próxima semana" className="w-9 h-9 rounded-full text-ink-mute hover:text-ink hover:bg-surface/60 flex items-center justify-center disabled:opacity-30">
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="relative mt-1 space-y-1">
+            <p className="text-[13px] font-extrabold text-rosa tabular" aria-live="polite">
+              {selectedWeek === currentWeek ? `${age.weeks} semanas${age.days ? ` e ${age.days} ${age.days === 1 ? 'dia' : 'dias'}` : ''}` : `Semana ${selectedWeek}`}
+            </p>
+            {babyName && <p className="font-display text-[1.1rem] leading-none text-rosa-strong">{babyName}</p>}
+            <h2 className="font-display text-[1.65rem] leading-tight text-ink text-balance">{stage.title}</h2>
+            <p className="text-[14px] text-ink-soft">
+              Do tamanho de {info.fruit}
+              {selectedWeek !== currentWeek && <span className="text-ink-mute"> · espiando outra semana</span>}
+            </p>
           </div>
 
-          {/* A gestação inteira numa barra fina, com o dia e quanto falta. */}
-          <div className="mt-3 space-y-1.5">
-            <div className="relative h-1.5 rounded-full bg-surface-2" role="progressbar" aria-label="Quanto da gestação já passou" aria-valuenow={Math.round(gestationPct)} aria-valuemin={0} aria-valuemax={100}>
+          {/* A gestação inteira numa linha fina, com quanto falta. */}
+          <div className="relative mx-auto mt-4 max-w-[280px] space-y-1.5">
+            <div className="relative h-1 rounded-full bg-surface-2" role="progressbar" aria-label="Quanto da gestação já passou" aria-valuenow={Math.round(gestationPct)} aria-valuemin={0} aria-valuemax={100}>
               <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-rosa to-lilas" style={{ width: `${gestationPct}%` }} />
               {[13, 28].map(w => (
-                <span key={w} className="absolute -top-0.5 h-2.5 w-0.5 rounded-full bg-surface" style={{ left: `${(w * 7 * 100) / 280}%` }} aria-hidden />
+                <span key={w} className="absolute -top-0.5 h-2 w-0.5 rounded-full bg-canvas" style={{ left: `${(w * 7 * 100) / 280}%` }} aria-hidden />
               ))}
             </div>
-            <div className="flex items-center justify-between gap-2 text-[13px] text-ink-soft">
-              <span className="tabular">
+            <div className="flex items-center justify-center gap-1 text-[12.5px] text-ink-mute tabular">
+              <span>
                 {age.daysToDpp >= 0 ? (
                   <>
-                    Faltam <strong className="text-ink">{age.daysToDpp} dias</strong> · dia {dayOfPregnancy} de 280
+                    Faltam <strong className="text-ink-soft">{age.daysToDpp} dias</strong> · dia {dayOfPregnancy} de 280
                   </>
                 ) : (
                   <>DPP foi em {age.dpp.toLocaleDateString('pt-BR')}</>
                 )}
               </span>
-              <span className="flex items-center gap-1">
-                {selectedWeek !== currentWeek && <LinkButton onClick={() => onSelectWeek(currentWeek)}>Voltar para hoje</LinkButton>}
-                <button onClick={() => setEditingDum(v => !v)} aria-label="Alterar a DUM" className="w-8 h-8 rounded-full hover:bg-surface-2 text-ink-mute flex items-center justify-center">
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-              </span>
+              <button onClick={() => setEditingDum(v => !v)} aria-label="Alterar a DUM" className="w-7 h-7 rounded-full hover:bg-surface/60 flex items-center justify-center">
+                <Pencil className="w-3 h-3" />
+              </button>
             </div>
+            {selectedWeek !== currentWeek && <LinkButton onClick={() => onSelectWeek(currentWeek)}>Voltar para hoje</LinkButton>}
           </div>
-          {props.partnerName && partnerToday && <p className="mt-2 text-[12.5px] text-ink-mute truncate">{props.partnerName} já passou por aqui hoje 💛</p>}
+          {props.partnerName && partnerToday && <p className="relative mt-1 text-[12.5px] text-ink-mute">{props.partnerName} já passou por aqui hoje 💛</p>}
 
           {editingDum && (
-            <div className="mt-3">
+            <div className="relative mt-3 text-left">
               <DumForm
                 initial={props.dumDate}
                 onCancel={() => setEditingDum(false)}
@@ -277,15 +270,15 @@ export default function HomeTab(props: Props) {
               />
             </div>
           )}
-          {age.isPostTerm && <p className="mt-3 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
+          {age.isPostTerm && <p className="relative mt-3 text-left text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
         </section>
       </div>
 
-      {/* 2. Para hoje: no máximo três linhas, o resto na Agenda. */}
-      <TodayCard rows={rows} onAgenda={() => onOpen('agenda')} />
-
-      {/* 3. Vocês dois: o check-in e o abraço (os posts vivem no Diário). */}
+      {/* 2. Como você está: logo depois de ver o bebê, um toque para contar (e o abraço). */}
       {props.checkinAvailable && <CheckIn role={props.role} checkins={props.checkins} hugs={props.hugs} onCheckin={props.onCheckin} onHug={props.onHug} onShare={props.onShareMood} onMonth={() => onOpen('humor')} />}
+
+      {/* 3. Para hoje: no máximo três linhas, o resto na Agenda. */}
+      <TodayCard rows={rows} onAgenda={() => onOpen('agenda')} />
 
       {/* 4. Nesta semana: um carrossel para quem quer saber mais. */}
       <section aria-labelledby="nesta-semana" className="space-y-2.5">

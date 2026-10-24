@@ -46,7 +46,7 @@ export default function MoodTab({ checkins, journal, dumDate, onOpenEntry }: { c
     return (
       <div className="max-w-[560px] mx-auto rounded-[26px] bg-surface shadow-soft p-6 text-center space-y-1">
         <p className="font-display text-[1.25rem] text-ink">Como vocês estão, semana a semana</p>
-        <p className="text-sm text-ink-soft">Marquem como estão no Início, no cartão "Vocês dois hoje". Aqui aparece a linha do humor de cada um ao longo da gestação.</p>
+        <p className="text-sm text-ink-soft">Marquem como estão no Início, no cartão "Como vocês estão hoje?". Aqui aparece a linha do humor de cada um ao longo da gestação.</p>
       </div>
     );
   }

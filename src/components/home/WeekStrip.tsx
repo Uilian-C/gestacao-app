@@ -26,7 +26,7 @@ export default function WeekStrip({ now, dumDate, consultations, tasks, journal,
           Calendário <ChevronRight className="w-3.5 h-3.5" strokeWidth={2} />
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1 rounded-[22px] bg-surface shadow-soft p-1.5">
+      <div className="grid grid-cols-7 gap-1">
         {days.map((d, i) => {
           const iso = toISODate(d);
           const isToday = iso === todayIso;
@@ -38,7 +38,7 @@ export default function WeekStrip({ now, dumDate, consultations, tasks, journal,
               type="button"
               onClick={() => onOpen(iso)}
               aria-label={`${d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}${isToday ? ', hoje' : ''}: abrir no calendário`}
-              className={`relative flex flex-col items-center rounded-2xl pt-1.5 pb-2 transition active:scale-95 ${isToday ? 'bg-brand text-on-accent shadow-soft' : 'text-ink hover:bg-surface-2'}`}
+              className={`relative flex flex-col items-center rounded-2xl pt-1.5 pb-2 transition active:scale-95 ${isToday ? 'bg-brand text-on-accent shadow-soft' : 'text-ink hover:bg-surface/70'}`}
             >
               <span className={`text-[10.5px] font-extrabold ${isToday ? 'opacity-90' : 'text-ink-mute'}`}>{LETTERS[i]}</span>
               <span className="text-[15px] font-semibold tabular leading-tight">{d.getDate()}</span>

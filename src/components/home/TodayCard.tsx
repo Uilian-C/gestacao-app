@@ -37,7 +37,7 @@ export default function TodayCard({ rows, onAgenda }: { rows: TodayRow[]; onAgen
   const shown = rows.slice(0, TODAY_LIMIT);
   const more = rows.length - shown.length;
   return (
-    <section aria-labelledby="hoje-titulo" className="rounded-[28px] bg-surface shadow-soft px-3 pt-4 pb-2">
+    <section aria-labelledby="hoje-titulo" className="rounded-[28px] bg-surface/80 px-3 pt-4 pb-2">
       <div className="flex items-baseline justify-between gap-3 px-2 pb-1">
         <h2 id="hoje-titulo" className="text-[1.2rem] text-ink">
           Para hoje

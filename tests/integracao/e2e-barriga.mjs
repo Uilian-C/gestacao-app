@@ -24,12 +24,12 @@ const week = Number((await card.getAttribute('aria-label')).match(/semana (\d+)/
 check(week > 0, `cartão da barriguinha na semana ${week}, no carrossel "Nesta semana"`);
 check(await card.getByText('Falta a foto desta semana').isVisible(), 'sem a foto da semana, o cartão convida a tirar');
 
-// Ordem das 4 áreas: o bebê, "Para hoje", o casal e o carrossel.
+// Ordem das 4 áreas: o bebê, o casal, "Para hoje" e o carrossel.
 const order = await p.evaluate(() => {
   const at = sel => { const el = document.querySelector(sel); return el ? el.getBoundingClientRect().top + window.scrollY : null; };
   return { bebe: at('[aria-label="Semana da gestação"]'), hoje: at('[aria-labelledby="hoje-titulo"]'), casal: at('[aria-labelledby="checkin-titulo"]'), nesta: at('#nesta-semana') };
 });
-check(order.bebe < order.hoje && order.hoje < order.casal && order.casal < order.nesta, 'bebê → "Para hoje" → casal → "Nesta semana"');
+check(order.bebe < order.casal && order.casal < order.hoje && order.hoje < order.nesta, 'bebê → casal → "Para hoje" → "Nesta semana"');
 
 await card.click();
 check((await dlg.getByRole('radio', { name: /Barriguinha/ }).getAttribute('aria-checked')) === 'true', 'o cartão abre o formulário na pasta Barriguinha');

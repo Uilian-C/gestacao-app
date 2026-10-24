@@ -29,6 +29,8 @@ await mae.keyboard.press('Escape');
 check((await mae.getByText('Quando procurar a maternidade').count()) === 0, 'sem alerta, os sinais de alerta não ocupam o Início');
 check((await mae.getByText('Saúde rápida').count()) === 0, 'a saúde rápida saiu do Início (o botão Registrar cobre)');
 check(await mae.getByRole('heading', { name: 'Como você está hoje?' }).isVisible(), 'sem parceiro, o check-in pergunta só por ela');
+const ordem = await mae.evaluate(() => ['[aria-label="Semana da gestação"]', '[aria-labelledby="checkin-titulo"]', '[aria-labelledby="hoje-titulo"]', '#nesta-semana'].map(s => document.querySelector(s).getBoundingClientRect().top));
+check(ordem.every((y, i) => i === 0 || y > ordem[i - 1]), 'a ordem: o bebê, como você está, para hoje e nesta semana');
 await mae.screenshot({ path: `${OUT}inicio-novo.png`, fullPage: true });
 
 // ---- Parceiro, agenda, tarefas e diário ----
@@ -69,7 +71,7 @@ check(await semanaCards.getByText('Para o pai', { exact: true }).isVisible() && 
 
 // ---- Vocês dois hoje ----
 const card = mae.locator('section[aria-labelledby="checkin-titulo"]');
-check(await card.getByRole('heading', { name: 'Vocês dois hoje' }).isVisible() && (await card.getByText('Ainda não contou').isVisible()), 'com o parceiro: os dois lado a lado (Caio ainda não respondeu)');
+check(await card.getByRole('heading', { name: 'Como vocês estão hoje?' }).isVisible() && (await card.getByText('Ainda não contou').isVisible()), 'com o parceiro: os dois lado a lado (Caio ainda não respondeu)');
 await card.getByRole('button', { name: 'Cansada' }).click();
 await card.getByRole('status').getByText('Registrado. Caio vai ver.').waitFor({ timeout: 10000 });
 check((await card.getByRole('button', { name: 'Cansada' }).count()) === 0, 'depois do toque: "Registrado. Caio vai ver." e as opções fecham');
