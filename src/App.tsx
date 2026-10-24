@@ -321,7 +321,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   const saveProfile = (preWeightKg: number, heightCm: number) => run(() => api.mutate('saveProfile', { preWeightKg, heightCm }), undefined, 'Dados salvos');
 
-  const saveFicha = (f: FichaInput) => run(() => api.mutate('saveFicha', { ...f }), 'Não foi possível salvar a ficha. Confira os campos e tente de novo.', 'Ficha salva');
+  const saveFicha = (f: FichaInput) => run(() => api.mutate('saveFicha', { ...f }), 'Não foi possível salvar os dados. Confira os campos e tente de novo.', 'Dados salvos');
 
   const saveKicks = (k: { startedAt: string; endedAt: string; kicks: number; target: number }) => run(() => api.mutate('saveKicks', k), undefined, 'Contagem de chutes salva');
 
@@ -659,7 +659,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const NAMES_MISSING = 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/026_nomes_do_bebe.sql no Neon.';
   const CADERNO_MISSING = 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/027_caderno_do_nome.sql no Neon.';
   const nameActions: NameActions = {
-    onAdd: (name, note) => run(() => api.mutate('addNameIdea', { name, ...(note ? { note } : {}) }), NAMES_MISSING, 'Anotado no fichário do nome'),
+    onAdd: (name, note) => run(() => api.mutate('addNameIdea', { name, ...(note ? { note } : {}) }), NAMES_MISSING, 'Anotado no caderno de nomes'),
     onNote: (id, note) => run(() => api.mutate('noteNameIdea', { id, note }), CADERNO_MISSING),
     onComment: (id, body) => run(() => api.mutate('commentNameIdea', { id, body }), CADERNO_MISSING),
     onDeleteComment: id => run(() => api.mutate('deleteNameComment', { id }), CADERNO_MISSING),

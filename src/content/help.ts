@@ -57,7 +57,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     items: [
       { q: 'Como organizo o chá de bebê?', a: 'Em Diário → Celebrações, toque em "Nova celebração". Ela já vem com um roteiro de tarefas com prazos contados a partir da data, além de fornecedores, convidados (com o tamanho de fralda de cada um) e ideias.', go: { target: 'celebracoes', label: 'Abrir as Celebrações' } },
       { q: 'Como acompanho o orçamento da festa?', a: 'Ao marcar um orçamento previsto, a régua mostra quanto já está combinado e pago e avisa quando está perto do limite ou passou dele.' },
-      { q: 'Como funciona o fichário do nome?', a: 'Cada ideia de nome vira uma ficha com o porquê, quem curtiu e a conversa sobre ele. A família pode dar palpite, mas quem escolhe são vocês.', go: { target: 'nomes', label: 'Abrir o fichário do nome' } },
+      { q: 'Como funciona o caderno de nomes?', a: 'Cada ideia de nome ganha uma página com o porquê, quem curtiu e a conversa sobre ele. A família pode dar palpite, mas quem escolhe são vocês.', go: { target: 'nomes', label: 'Abrir o caderno de nomes' } },
     ],
   },
   {

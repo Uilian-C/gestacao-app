@@ -16,7 +16,7 @@ export const MISSIONS: Mission[] = [
   { id: 'checkin', day: 2, title: 'Contar como você está hoje', why: 'Um toque por dia, e o outro sabe como você está.', action: 'Contar' },
   { id: 'consulta', day: 3, title: 'Agendar a próxima consulta', why: 'A agenda e os lembretes começam a cuidar de vocês.', action: 'Agendar' },
   { id: 'barriga', day: 4, title: 'Tirar a primeira foto da barriga', why: 'Semana a semana, ela vira a evolução da barriga.', action: 'Tirar foto' },
-  { id: 'nome', day: 5, title: 'Anotar uma ideia de nome', why: 'Cada nome vira uma ficha, com o porquê e quem curtiu.', action: 'Anotar' },
+  { id: 'nome', day: 5, title: 'Anotar uma ideia de nome', why: 'Cada nome ganha uma página, com o porquê e quem curtiu.', action: 'Anotar' },
   { id: 'carta', day: 6, title: 'Escrever uma carta para o bebê', why: 'Uma página que ele vai ler um dia.', action: 'Escrever' },
   { id: 'livro', day: 7, title: 'Abrir o livro de vocês', why: 'Tudo isso vira a história de vocês, capítulo por capítulo.', action: 'Abrir o livro' },
 ];

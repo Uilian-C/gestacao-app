@@ -1,5 +1,5 @@
 // Nada pode passar da largura da tela no celular (o navegador diminuiria o zoom de tudo),
-// nem com a ficha da gestante completa, que deixa o resumo do cabeçalho longo.
+// nem com os dados da gestação completos, que deixa o resumo do cabeçalho longo.
 import { check, errs, finish, launch, OUT, quickAccount } from './lib.mjs';
 
 const b = await launch();
@@ -16,16 +16,16 @@ for (const width of [300, 360, 412]) {
     }),
   );
   await p.reload();
-  // A ficha mora em Cuidados (o Início não repete as semanas e a DPP).
+  // Os dados da gestação moram em Cuidados (o Início não repete as semanas e a DPP).
   await p.getByRole('button', { name: /^Cuidados/ }).first().click();
-  await p.getByRole('button', { name: /Ficha/ }).waitFor();
+  await p.locator('button[aria-expanded]', { hasText: 'Dados' }).first().waitFor();
 
   const overlap = await p.evaluate(() => {
-    const btn = [...document.querySelectorAll('button[aria-expanded]')].find(x => x.textContent.includes('Ficha'));
+    const btn = [...document.querySelectorAll('button[aria-expanded]')].find(x => x.textContent.includes('Dados'));
     const [summary, label] = [btn.children[1], btn.children[2]].map(x => x.getBoundingClientRect());
     return summary.right > label.left + 1;
   });
-  check(!overlap, `${width}px: resumo da ficha não passa por cima do "Ficha"`);
+  check(!overlap, `${width}px: resumo dos dados não passa por cima do "Dados da gestação"`);
 
   for (const tab of ['Início', 'Diário', 'Agenda', 'Cuidados', 'Parto']) {
     await p.getByRole('button', { name: new RegExp(`^${tab}`) }).first().click();

@@ -16,7 +16,7 @@ check((await eco.count()) === 1 && (await eco.evaluate(el => getComputedStyle(el
 check(await mae.getByRole('button', { name: /Semana 22 de 40/ }).isVisible(), 'o bebê da semana no topo do Início');
 check(await mae.getByText(/Faltam \d+ dias · dia \d+ de 280/).isVisible(), 'quanto falta e o dia da gestação');
 check(await mae.getByRole('progressbar', { name: 'Quanto da gestação já passou' }).isVisible(), 'barra da gestação com os trimestres');
-check((await mae.getByRole('button', { name: /Ficha/ }).count()) === 0, 'a ficha não se repete no Início (vive em Cuidados)');
+check((await mae.getByRole('button', { name: /Dados( da gestação)?$/ }).count()) === 0, 'os dados da gestação não se repetem no Início (vivem em Cuidados)');
 check((await hoje.getByRole('listitem').count()) <= 3, '"Para hoje" mostra no máximo 3 linhas');
 check(await hoje.getByText(/^Primeiros 7 dias · \d de 7$/).isVisible(), 'conta nova: a missão dos primeiros dias entra no "Para hoje"');
 const semanaCards = mae.locator('section[aria-labelledby="nesta-semana"]');
