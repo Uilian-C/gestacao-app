@@ -1,5 +1,5 @@
 // Detalhes em janela: tocar num registro abre tudo o que foi anotado, com Editar e Excluir.
-import { check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
+import { check, finish, launch, OUT, phone, quickAccount , openCare } from './lib.mjs';
 
 const b = await launch();
 const p = await phone(b);
@@ -18,9 +18,8 @@ await p.reload();
 const dlg = p.getByRole('dialog');
 const tab = name => p.getByRole('button', { name: new RegExp(`^${name}`) }).first().click();
 
-// ---- Sintoma: detalhes, cuidado, editar, excluir (Cuidados → Saúde) ----
-await tab('Cuidados');
-await p.getByRole('button', { name: 'Saúde', exact: true }).click();
+// ---- Sintoma: detalhes, cuidado, editar, excluir (Cuidados → Sintomas) ----
+await openCare(p, 'Sintomas');
 await p.getByRole('button', { name: /Enjoo, moderado: ver detalhes/ }).click();
 await dlg.waitFor();
 check(await dlg.getByRole('heading', { name: 'Enjoo' }).isVisible() && await dlg.getByText('Pior de manhã').isVisible(), 'sintoma abre com observação e detalhes');
@@ -37,7 +36,8 @@ check(await dlg.getByText('Forte', { exact: true }).isVisible(), 'intensidade ed
 await p.keyboard.press('Escape');
 check(await p.getByRole('button', { name: /Enjoo, forte: ver detalhes/ }).isVisible(), 'lista mostra o sintoma editado');
 
-// ---- Medição: editar ----
+// ---- Medição: editar (Cuidados → Peso e pressão) ----
+await openCare(p, 'Peso e pressão');
 await p.getByRole('button', { name: /Medição da semana/ }).click();
 await dlg.getByRole('button', { name: 'Editar' }).click();
 await dlg.getByLabel('Peso (kg)').fill('68,9');
@@ -60,7 +60,7 @@ await p.keyboard.press('Escape');
 await dlg.waitFor({ state: 'hidden' });
 
 // ---- Excluir pelo detalhe, com desfazer ----
-await tab('Cuidados');
+await openCare(p, 'Sintomas');
 await p.getByRole('button', { name: /Enjoo, forte: ver detalhes/ }).click();
 await dlg.getByRole('button', { name: 'Excluir', exact: true }).click();
 check(!(await dlg.isVisible()) && await p.getByText('Excluído: Enjoo').isVisible(), 'excluir fecha a janela e oferece desfazer');
@@ -115,9 +115,9 @@ await dlg.getByRole('button', { name: 'Salvar alterações' }).click();
 await dlg.getByText('Dra. Marina Lima').waitFor();
 check(true, 'consulta editada');
 await p.screenshot({ path: `${OUT}detalhe-consulta.png` });
-await dlg.getByRole('button', { name: /Preparar resumo/ }).click();
+await dlg.getByRole('button', { name: /Preparar a consulta/ }).click();
 await p.locator('.print-area').waitFor({ timeout: 10000 }).catch(() => undefined);
-check(!(await dlg.isVisible()) && (await p.locator('.print-area').isVisible()), '"Preparar resumo" abre o resumo da consulta');
+check(!(await dlg.isVisible()) && (await p.locator('.print-area').isVisible()), '"Preparar a consulta" abre as dúvidas e o resumo da consulta');
 const ddmm = n => p.evaluate(n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); }, n);
 const datas = p.locator('.print-area li', { hasText: 'Azia' }).locator('p', { hasText: 'Datas:' });
 await datas.waitFor({ timeout: 10000 });

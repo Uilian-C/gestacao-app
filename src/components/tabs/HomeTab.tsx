@@ -90,7 +90,7 @@ interface Props {
   onOpenDetail: (target: DetailTarget) => void;
   /** Guardar o resultado de um exame que já aconteceu. */
   onResult: (c: Consultation) => void;
-  /** Itens da jornada com a janela já fechada, sem data e sem marcação (Agenda → Jornada). */
+  /** Itens da jornada com a janela já fechada, sem data e sem marcação (Cuidados → Jornada). */
   lateSteps: PlanItem[];
   /** Diário com fotos (migrações 008 e 012): o cartão da barriguinha da semana. */
   bellyAvailable: boolean;

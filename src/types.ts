@@ -133,10 +133,9 @@ export type Tab = 'inicio' | 'diario' | 'agenda' | 'cuidados' | 'parto';
 /** Partes de cada aba (os chips logo abaixo do título). */
 /** Diário: a capa do fichário ou uma das pastas. */
 export type DiaryView = 'mural' | 'livro' | 'celebracoes' | 'tudo' | 'humor' | 'momento' | 'dia' | 'ideia' | 'carta' | 'barriga';
-export type AgendaView = 'proximos' | 'calendario' | 'jornada' | 'tarefas';
-export type CareView = 'saude' | 'exames' | 'duvidas';
-/** Cuidados → Saúde: os registros, os gráficos e o resumo. */
-export type HealthView = 'registros' | 'sintomas' | 'corpo' | 'resumo';
+export type AgendaView = 'proximos' | 'calendario' | 'tarefas';
+/** Cuidados: a página única (inicio) e as que abrem a partir dela. */
+export type CareView = 'inicio' | 'sintomas' | 'medidas' | 'jornada' | 'exames';
 
-/** Visões dos gráficos e da jornada (o antigo Painel, hoje dentro de Cuidados). */
-export type DashboardView = 'geral' | 'jornada' | 'sintomas' | 'corpo';
+/** Os gráficos de Cuidados: sintomas, ou peso e pressão. */
+export type DashboardView = 'sintomas' | 'corpo';

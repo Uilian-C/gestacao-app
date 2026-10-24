@@ -64,7 +64,7 @@ export interface DetailHandlers {
   onReact: OnReact;
   onThread: (targetType: 'entry' | 'exam', targetId: string, body: string) => Promise<boolean>;
   onDeleteThread: (c: ThreadComment) => void;
-  /** Agendamento ligado a um item da jornada: abre o item em Agenda → Jornada. */
+  /** Agendamento ligado a um item da jornada: abre o item na jornada (Cuidados). */
   onOpenJourney: (itemId: string) => void;
   /** Nome do item da jornada (inclui os itens do casal). */
   journeyTitle: (itemId: string) => string | null;
@@ -351,7 +351,7 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
                 }}
                 className="w-full"
               >
-                <FileText /> Preparar resumo da consulta
+                <FileText /> Preparar a consulta
               </Button>
             ) : (
               hasResult(c) &&

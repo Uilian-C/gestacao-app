@@ -14,7 +14,7 @@ import type { Consultation } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import PhotoViewer from '../PhotoViewer';
 import { inputClass } from '../styles';
-import { Button, Card, Chip, EmptyState, Field, Pill, SectionTitle, Segmented } from '../ui';
+import { Button, Chip, EmptyState, Field, Pill, Segmented } from '../ui';
 
 export interface NewExam {
   kind: ExamKind;
@@ -47,7 +47,7 @@ interface Props {
   /** Leva até este resultado na lista. */
   focusExam?: string | null;
   social: ExamSocial;
-  /** Abre o item ligado a este resultado em Agenda → Jornada. */
+  /** Abre o item ligado a este resultado na jornada (Cuidados). */
   onOpenJourney?: (itemId: string) => void;
 }
 
@@ -94,12 +94,7 @@ export default function ExamsTab(props: Props) {
 
   return (
     <div className="space-y-5">
-      <Card>
-        <SectionTitle
-          icon={<ScanHeart className="w-5 h-5" />}
-          title="Resultados"
-          subtitle="Laudos, fotos e PDFs dos exames e ultrassons já feitos, num lugar só. Para marcar um exame, use Agendados."
-        />
+      <div>
 
         {props.available && props.exams.length > 0 && !formFor && (
           <Button onClick={() => setFormFor('novo')} className="w-full mb-4">
@@ -221,7 +216,7 @@ export default function ExamsTab(props: Props) {
             )}
           </div>
         )}
-      </Card>
+      </div>
 
       {opened && (
         <Sheet title={opened.title} onClose={() => setOpenId(null)}>

@@ -107,3 +107,13 @@ export async function quickAccount(page, { name = 'Ana', role = 'mae', dum = DUM
   await call('/api/data', { op: 'saveDum', date: dum });
   await page.reload();
 }
+
+/** Cuidados: a página única, ou uma das partes que abrem dela ("Sintomas", "Peso e pressão", "Jornada", "Resultados"). */
+export async function openCare(page, part) {
+  await page.getByRole('button', { name: /^Cuidados/ }).first().click();
+  await page.locator('section[aria-labelledby="registros-titulo"]').waitFor();
+  if (!part) return;
+  if (part === 'Resultados') await page.locator('section[aria-labelledby="resultados-titulo"]').getByRole('button', { name: /^(Ver todos|Abrir)/ }).click();
+  else await page.getByRole('button', { name: { Sintomas: /^Sintomas/, 'Peso e pressão': /^Peso e pressão/, Jornada: /^Pré-natal/ }[part] }).first().click();
+  await page.getByRole('heading', { level: 1, name: part === 'Jornada' ? 'Jornada do pré-natal' : part }).waitFor();
+}

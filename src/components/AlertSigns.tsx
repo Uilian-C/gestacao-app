@@ -1,7 +1,7 @@
 import { Siren } from 'lucide-react';
 import { ALERT_SIGNS } from '../content/symptomCatalog';
 
-/** "Quando procurar a maternidade": a lista dos sinais, recolhida (Cuidados → Saúde) ou aberta (folha de alerta do Início). */
+/** "Quando procurar a maternidade": a lista dos sinais, numa folha (Cuidados e o alerta do Início). */
 export default function AlertSigns({ open = false }: { open?: boolean }) {
   const list = (
     <>

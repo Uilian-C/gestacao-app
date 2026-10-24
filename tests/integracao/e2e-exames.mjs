@@ -1,6 +1,6 @@
 // Exames no celular: guardar o ultrassom da janela atual com foto e PDF, ver a foto
 // em tela cheia, conferir a jornada marcada e apagar com "desfazer".
-import { check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
+import { check, finish, launch, OUT, phone, quickAccount, openCare } from './lib.mjs';
 
 const b = await launch();
 const p = await phone(b);
@@ -26,8 +26,7 @@ const photo = Buffer.from(
 );
 const pdf = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
 
-await p.getByRole('button', { name: /^Cuidados/ }).first().click();
-await p.getByRole('button', { name: /^Resultados/ }).click();
+await openCare(p, 'Resultados');
 await p.getByText('Nenhum exame guardado ainda').waitFor({ timeout: 10000 }).catch(() => undefined);
 check(await p.getByText('Nenhum exame guardado ainda').isVisible(), 'sem exames: convite para guardar o primeiro');
 const chip = p.getByRole('button', { name: 'Morfológico 2º tri' });

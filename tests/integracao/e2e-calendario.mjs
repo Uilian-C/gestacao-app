@@ -27,7 +27,7 @@ const inWeek = await p.evaluate(() => new Date(Date.now() + 2 * 86_400_000).getD
 await strip.getByRole('button', { name: 'Calendário', exact: true }).click();
 await p.getByRole('group', { name: 'Filtrar o calendário' }).waitFor();
 check((await p.getByRole('dialog').count()) === 0, '"Calendário" abre o calendário, sem abrir um dia');
-check(await p.getByRole('button', { name: /^Próximos/ }).isVisible() && (await p.getByRole('button', { name: /^Jornada/ }).isVisible()), 'as abas da Agenda continuam à vista');
+check(await p.getByRole('button', { name: /^Próximos/ }).isVisible() && (await p.getByRole('button', { name: /^Tarefas/ }).first().isVisible()), 'as abas da Agenda continuam à vista');
 // O menu Agenda volta para "Próximos".
 await p.getByRole('button', { name: /^Início/ }).first().click();
 await p.getByRole('button', { name: /^Agenda/ }).first().click();

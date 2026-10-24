@@ -1,6 +1,6 @@
 // Nada pode passar da largura da tela no celular (o navegador diminuiria o zoom de tudo),
-// nem com os dados da gestação completos, que deixa o resumo do cabeçalho longo.
-import { check, errs, finish, launch, OUT, quickAccount } from './lib.mjs';
+// nem com os dados da gestação completos.
+import { check, errs, finish, launch, OUT, quickAccount, openCare } from './lib.mjs';
 
 const b = await launch();
 for (const width of [300, 360, 412]) {
@@ -16,16 +16,12 @@ for (const width of [300, 360, 412]) {
     }),
   );
   await p.reload();
-  // Os dados da gestação moram em Cuidados (o Início não repete as semanas e a DPP).
-  await p.getByRole('button', { name: /^Cuidados/ }).first().click();
-  await p.locator('button[aria-expanded]', { hasText: 'Dados' }).first().waitFor();
-
-  const overlap = await p.evaluate(() => {
-    const btn = [...document.querySelectorAll('button[aria-expanded]')].find(x => x.textContent.includes('Dados'));
-    const [summary, label] = [btn.children[1], btn.children[2]].map(x => x.getBoundingClientRect());
-    return summary.right > label.left + 1;
-  });
-  check(!overlap, `${width}px: resumo dos dados não passa por cima do "Dados da gestação"`);
+  // Os dados da gestação moram em Cuidados → Para ter à mão, numa folha.
+  await openCare(p);
+  await p.getByRole('button', { name: /^Dados da gestação/ }).click();
+  await p.getByRole('dialog', { name: 'Dados da gestação' }).getByText('Anabela Cristina de Souza').waitFor();
+  check(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${width}px: os dados da gestação cabem na tela`);
+  await p.keyboard.press('Escape');
 
   for (const tab of ['Início', 'Diário', 'Agenda', 'Cuidados', 'Parto']) {
     await p.getByRole('button', { name: new RegExp(`^${tab}`) }).first().click();
@@ -33,12 +29,14 @@ for (const width of [300, 360, 412]) {
     const [sw, cw] = await p.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
     check(sw <= cw, `${width}px, ${tab}: nada passa da largura (${sw} ≤ ${cw})`);
   }
-  // Cuidados → Saúde (quatro partes) e as pastas do diário também cabem.
-  await p.getByRole('button', { name: /^Cuidados/ }).first().click();
-  await p.getByRole('button', { name: 'Saúde', exact: true }).click();
-  await p.waitForTimeout(400);
-  let [sw, cw] = await p.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
-  check(sw <= cw, `${width}px, Cuidados → Saúde: nada passa da largura (${sw} ≤ ${cw})`);
+  // As páginas de Cuidados e as pastas do diário também cabem.
+  let sw, cw;
+  for (const part of ['Sintomas', 'Peso e pressão', 'Jornada', 'Resultados']) {
+    await openCare(p, part);
+    await p.waitForTimeout(400);
+    [sw, cw] = await p.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
+    check(sw <= cw, `${width}px, Cuidados → ${part}: nada passa da largura (${sw} ≤ ${cw})`);
+  }
   await p.getByRole('button', { name: /^Diário/ }).first().click();
   await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Fichário/ }).click();
   await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Barriguinha/ }).click();

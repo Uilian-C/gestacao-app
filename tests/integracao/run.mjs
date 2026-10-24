@@ -116,6 +116,7 @@ const tests = [
   ['e2e-celebracoes.mjs', false],
   ['e2e-calendario.mjs', false],
   ['e2e-ajuda.mjs', false],
+  ['e2e-cuidados.mjs', false],
 ];
 const only = process.argv.slice(2);
 

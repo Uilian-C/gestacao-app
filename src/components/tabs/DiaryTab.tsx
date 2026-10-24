@@ -22,7 +22,7 @@ import { Card, Segmented } from '../ui';
 // O Diário é o fichário afetivo da gestação: momentos, dia a dia, ideias,
 // cartas para o bebê e a barriga semana a semana. Abre no Mural (tudo junto,
 // como uma rede social de vocês dois); o Fichário guarda por pasta. Sintomas, peso e pressão
-// ficam em Cuidados → Saúde, junto do que a equipe médica acompanha.
+// ficam em Cuidados, junto do que a equipe médica acompanha.
 
 interface Props {
   view: DiaryView;
@@ -46,7 +46,7 @@ interface Props {
   onOpen: (target: DetailTarget) => void;
   /** Abre o formulário já na pasta (e com uma ideia para começar). */
   onWrite: (folder?: Folder, idea?: string) => void;
-  /** Leva para Cuidados → Saúde. */
+  /** Leva para Cuidados. */
   onOpenHealth: () => void;
   /** O livro de vocês: um capítulo por semana. */
   book: Chapter[];
@@ -347,7 +347,7 @@ function Cover({ journal, dumDate, photosAvailable, journalAvailable, onView, on
         </span>
         <span className="flex-1 min-w-0">
           <span className="block font-bold text-ink">Sintomas, peso e pressão</span>
-          <span className="block text-xs text-ink-mute">Ficam em Cuidados → Saúde, com os gráficos e o resumo para a consulta.</span>
+          <span className="block text-xs text-ink-mute">Ficam em Cuidados, com os gráficos e o resumo para a consulta.</span>
         </span>
         <ChevronRight className="w-4 h-4 text-ink-mute shrink-0" />
       </button>

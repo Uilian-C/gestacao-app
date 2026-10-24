@@ -1,20 +1,16 @@
 import { useState } from 'react';
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, CalendarHeart, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Route, Scale, Sparkles, TrendingUp, X } from 'lucide-react';
-import type { PlanItem } from '../../content/prenatalPlan';
-import { phaseOf, planProgress, plannedVisitWeeks, visitsOf, type Visit } from '../../lib/journey';
-import { gestationMonth } from '../../lib/ficha';
-import Guide from '../Guide';
+import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, Grid3x3, HeartHandshake, HeartPulse, Lightbulb, Scale, Sparkles, X } from 'lucide-react';
 import { SYMPTOM_CATEGORIES } from '../../content/symptomCatalog';
 import { daysBetween, formatBR, parseLocalDate, toISODate, type GestationalAge } from '../../lib/dates';
 import { isHighBloodPressure } from '../../lib/health';
 import { careNotesFor, computeSymptomStats, findPatterns, inPeriod, timeOfDayLabel, toEntries, type Period, type SymptomStats, type Trend } from '../../lib/symptoms';
 import { BMI_LABEL, GAIN_STATUS_LABEL, bmi, bmiClass, expectedGain, gainStatus } from '../../lib/weightGain';
-import type { Consultation, DashboardView, HealthMetric, PartnerComment, PregnancyProfile, SymptomItem } from '../../types';
+import type { DashboardView, HealthMetric, PartnerComment, PregnancyProfile, SymptomItem } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import { BloodPressureChart, CategoryHeatmap, Sparkline, SymptomTrendChart, TimeOfDayBars, WeightChart, type WeightPoint } from '../charts/charts';
 import { InsightList } from '../InsightList';
 import { inputClass } from '../styles';
-import { Button, Card, EmptyState, Field, LinkButton, Pill, Segmented, SectionTitle } from '../ui';
+import { Button, Card, EmptyState, Field, Pill, Segmented, SectionTitle } from '../ui';
 
 type PeriodId = '4sem' | 'trimestre' | 'tudo';
 
@@ -28,13 +24,9 @@ interface Props {
   busy: boolean;
   onSaveProfile: (preWeightKg: number, heightCm: number) => Promise<boolean>;
   currentWeek: number;
-  view: Exclude<DashboardView, 'jornada'>;
-  /** Jornada (Agenda → Jornada): os itens planejados e os já feitos, para o "Plano em dia". */
-  planItems: PlanItem[];
-  doneSteps: Set<string>;
-  /** Leva a outra visão (que pode estar em outra aba: a jornada fica na Agenda). */
-  onViewChange: (view: DashboardView) => void;
-  consultations: Consultation[];
+  view: DashboardView;
+  /** Os registros do período, por dia, embaixo dos gráficos. */
+  records: (period: Period) => React.ReactNode;
 }
 
 const fmt = (n: number, d = 1) => n.toLocaleString('pt-BR', { maximumFractionDigits: d });
@@ -48,7 +40,7 @@ const TREND: Record<Trend, { label: string; tone: 'alert' | 'ok' | 'neutral' | '
 };
 
 export default function DashboardTab(props: Props) {
-  const { age, profile, symptoms, comments, metrics, migrationPending, busy, onSaveProfile, currentWeek, view, consultations } = props;
+  const { age, profile, symptoms, comments, metrics, migrationPending, busy, onSaveProfile, view } = props;
   const [periodId, setPeriodId] = useState<PeriodId>('4sem');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
@@ -88,30 +80,8 @@ export default function DashboardTab(props: Props) {
   const periodLabel = periodId === '4sem' ? 'últimas 4 semanas' : periodId === 'trimestre' ? `${age.trimester}º trimestre` : 'toda a gestação';
 
 
-  // ----- Jornada (plano de referência + o que o casal já fez) -----
-  const now = new Date();
-  const visits = visitsOf(consultations, profile.dumDate, now);
-  const progress = planProgress(props.planItems, currentWeek, props.doneSteps);
-  const firstVisit = visits.find(v => v.specialty === 'obstetra')?.week;
-  const plannedVisits = plannedVisitWeeks(firstVisit ?? 8);
-  const phase = phaseOf(currentWeek);
-
   return (
     <div className="space-y-5">
-      {view === 'geral' && (
-        <Overview
-          {...props}
-          entries={entries}
-          progress={progress}
-          visits={visits}
-          plannedVisits={plannedVisits}
-          insights={findPatterns(entries, { from: addDays(today, -27), to: today })}
-          phaseFocus={phase.focus}
-          phaseTitle={`${phase.label} · ${phase.title}`}
-          today={today}
-        />
-      )}
-
       {view === 'sintomas' && (
         <>
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -134,16 +104,12 @@ export default function DashboardTab(props: Props) {
             />
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Stat label="Registros" value={String(inPeriodEntries.length)} />
-            <Stat label="Sintomas diferentes" value={String(stats.length)} />
-            <Stat
-              label="Intensidade média"
-              value={avgNow !== null ? `${fmt(avgNow)}/5` : '—'}
-              delta={avgNow !== null && avgPrev !== null ? { value: avgNow - avgPrev, label: 'vs. período anterior', goodWhenDown: true } : undefined}
-            />
-            <Stat label="Dias com registro" value={`${daysWithRecord}`} hint={`de ${periodDays} dias`} />
-          </div>
+          {inPeriodEntries.length > 0 && (
+            <p className="px-1 text-[14px] text-ink-soft">
+              <strong className="text-ink">{inPeriodEntries.length}</strong> {inPeriodEntries.length === 1 ? 'registro' : 'registros'} em {daysWithRecord} {daysWithRecord === 1 ? 'dia' : 'dias'} · intensidade média <strong className="text-ink">{fmt(avgNow!)}/5</strong>
+              {avgPrev !== null && Math.abs(avgNow! - avgPrev) >= 0.1 && <span className={avgNow! < avgPrev ? 'text-ok' : 'text-alert'}> ({avgNow! < avgPrev ? 'melhor' : 'pior'} que antes)</span>}
+            </p>
+          )}
 
           {insights.length > 0 && (
             <Card>
@@ -162,6 +128,11 @@ export default function DashboardTab(props: Props) {
               <CategoryHeatmap cells={heatCells} categories={SYMPTOM_CATEGORIES} weekFrom={weekFrom} weekTo={weekTo} />
             </Card>
           )}
+
+          <section aria-label="Registros de sintomas" className="space-y-3">
+            <h2 className="px-1 text-[1.1rem] text-ink">Registros</h2>
+            {props.records(period)}
+          </section>
         </>
       )}
 
@@ -169,84 +140,22 @@ export default function DashboardTab(props: Props) {
         <>
           <WeightSection profile={profile} metrics={metrics} migrationPending={migrationPending} busy={busy} onSaveProfile={onSaveProfile} />
           <PressureSection metrics={metrics} />
+          <section aria-label="Registros de peso e pressão" className="space-y-3">
+            <h2 className="px-1 text-[1.1rem] text-ink">Registros</h2>
+            {props.records({ from: dum, to: today })}
+          </section>
         </>
       )}
     </div>
   );
 }
 
-/** Visão geral: um número por assunto; tocar abre o detalhe. Registros separados do guia. */
-function Overview({ profile, metrics, currentWeek, onViewChange, entries, progress, visits, plannedVisits, insights, phaseFocus, phaseTitle, today }: Props & {
-  entries: ReturnType<typeof toEntries>;
-  progress: ReturnType<typeof planProgress>;
-  visits: Visit[];
-  plannedVisits: number[];
-  insights: ReturnType<typeof findPatterns>;
-  phaseFocus: string;
-  phaseTitle: string;
-  today: Date;
-}) {
-  const recent = entries.filter(e => inPeriod(e.date, { from: addDays(today, -27), to: today }));
-  const avg = recent.length ? recent.reduce((a, e) => a + e.intensity, 0) / recent.length : null;
-  const top = [...recent.reduce((m, e) => m.set(e.name, (m.get(e.name) ?? 0) + 1), new Map<string, number>()).entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-  const lastWeight = [...metrics].reverse().find(m => m.weight_kg !== null);
-  const lastBp = [...metrics].reverse().find(m => m.systolic_bp !== null && m.diastolic_bp !== null);
-  const gain = lastWeight && profile.preWeightKg !== null ? lastWeight.weight_kg! - profile.preWeightKg : null;
-  const highBp = lastBp ? isHighBloodPressure(lastBp.systolic_bp, lastBp.diastolic_bp) : false;
-  const next = visits.find(v => v.future);
-  const pending = progress.dueByNow - progress.doneByNow;
-
-  return (
-    <>
-      <section className="space-y-2">
-        <h2 className="text-xs font-semibold text-ink-mute px-1">Seus registros</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <Tile icon={<TrendingUp />} label="Gestação" value={`${Math.min(100, Math.round((currentWeek / 40) * 100))}%`} hint={`semana ${currentWeek} · ${gestationMonth(currentWeek)}º mês`} onClick={() => onViewChange('jornada')} />
-          <Tile icon={<Route />} label="Plano em dia" value={`${progress.doneByNow}/${progress.dueByNow}`} hint={pending ? `${pending} pendente${pending > 1 ? 's' : ''}` : 'tudo em dia'} tone={pending ? 'warn' : undefined} onClick={() => onViewChange('jornada')} />
-          <Tile icon={<CalendarHeart />} label="Consultas" value={`${visits.filter(v => !v.future).length}/${plannedVisits.filter(w => w <= currentWeek).length}`} hint={next ? `próxima ${next.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}` : 'nenhuma agendada'} onClick={() => onViewChange('jornada')} />
-          <Tile icon={<Activity />} label="Sintomas · 4 sem." value={String(recent.length)} hint={recent.length ? `média ${fmt(avg!)}/5${top ? ` · mais: ${top}` : ''}` : 'sem registros'} onClick={() => onViewChange('sintomas')} />
-          <Tile icon={<Scale />} label="Peso" value={lastWeight ? `${fmt(lastWeight.weight_kg!)} kg` : '—'} hint={gain !== null ? `${gain >= 0 ? '+' : ''}${fmt(gain)} kg na gestação` : lastWeight ? formatBR(lastWeight.recorded_at) : 'sem registro'} onClick={() => onViewChange('corpo')} />
-          <Tile icon={<HeartPulse />} label="Pressão" value={lastBp ? `${lastBp.systolic_bp}/${lastBp.diastolic_bp}` : '—'} hint={lastBp ? (highBp ? 'acima de 140/90' : formatBR(lastBp.recorded_at)) : 'sem registro'} tone={highBp ? 'alert' : undefined} onClick={() => onViewChange('corpo')} />
-        </div>
-      </section>
-
-      {insights.length > 0 && (
-        <Card>
-          <SectionTitle icon={<Lightbulb className="w-5 h-5" />} title="O que os registros mostram" action={<LinkButton onClick={() => onViewChange('sintomas')}>Ver tudo</LinkButton>} />
-          <InsightList insights={insights.slice(0, 2)} compact />
-        </Card>
-      )}
-
-      <Guide title={phaseTitle} source="Caderneta da Gestante e FEBRASGO">
-        <p>{phaseFocus}</p>
-        <button type="button" onClick={() => onViewChange('jornada')} className="text-xs font-semibold text-brand underline underline-offset-4">
-          O que importa nesta fase
-        </button>
-      </Guide>
-    </>
-  );
-}
-
-function Tile({ icon, label, value, hint, tone, onClick }: { icon: React.ReactNode; label: string; value: string; hint: string; tone?: 'warn' | 'alert'; onClick: () => void }) {
-  const toneCls = tone === 'alert' ? 'text-alert' : tone === 'warn' ? 'text-warn' : 'text-ink-mute';
-  return (
-    <button type="button" onClick={onClick} className="text-left rounded-[22px] bg-surface shadow-soft p-4 hover:shadow-lift transition min-w-0">
-      <span className="flex items-center gap-1.5 text-xs text-ink-mute [&_svg]:w-3.5 [&_svg]:h-3.5">
-        {icon} {label}
-      </span>
-      <span className="block font-display text-2xl text-ink tabular mt-1 truncate">{value}</span>
-      <span className={`block text-xs truncate ${toneCls}`}>{hint}</span>
-    </button>
-  );
-}
-
-
 function SymptomTable({ stats, selectedKey, onSelect }: { stats: SymptomStats[]; selectedKey: string | null; onSelect: (k: string | null) => void }) {
   return (
     <Card>
       <SectionTitle icon={<Activity className="w-5 h-5" />} title="Frequência e tendência" subtitle="Toque em um sintoma para ver a evolução." />
       {stats.length === 0 ? (
-        <EmptyState icon={<Activity />} title="Nenhum sintoma no período">Use o botão “Registrar”, aqui em Saúde. Os registros aparecem aqui com frequência, intensidade e tendência.</EmptyState>
+        <EmptyState icon={<Activity />} title="Nenhum sintoma no período">Use o botão “Registrar”, aqui em Cuidados. Os registros aparecem aqui com frequência, intensidade e tendência.</EmptyState>
       ) : (
         <ul className="divide-y divide-line">
           {stats.map(s => (
@@ -275,21 +184,6 @@ function SymptomTable({ stats, selectedKey, onSelect }: { stats: SymptomStats[];
   );
 }
 
-function Stat({ label, value, hint, delta }: { label: string; value: string; hint?: string; delta?: { value: number; label: string; goodWhenDown: boolean } }) {
-  const good = delta ? (delta.goodWhenDown ? delta.value < 0 : delta.value > 0) : false;
-  return (
-    <div className="rounded-[24px] bg-surface shadow-soft p-4">
-      <p className="text-xs font-semibold text-ink-mute">{label}</p>
-      <p className="text-2xl font-semibold text-ink tabular mt-1">{value}</p>
-      {hint && <p className="text-xs text-ink-mute">{hint}</p>}
-      {delta && Math.abs(delta.value) >= 0.05 && (
-        <p className={`text-xs font-semibold mt-1 ${good ? 'text-ok' : 'text-alert'}`}>
-          {delta.value > 0 ? '▲' : '▼'} {fmt(Math.abs(delta.value))} {delta.label}
-        </p>
-      )}
-    </div>
-  );
-}
 
 function SymptomDetail({ stats: s, comments, weekFrom, weekTo, onClose }: { stats: SymptomStats; comments: PartnerComment[]; weekFrom: number; weekTo: number; onClose: () => void }) {
   const care = careNotesFor(s, comments);

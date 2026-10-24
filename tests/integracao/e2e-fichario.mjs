@@ -110,6 +110,7 @@ check((await p.getByRole('button', { name: 'Abrir a pasta Barriguinha' }).textCo
 await p.getByRole('button', { name: /Últimos registros/ }).click();
 check((await p.getByRole('button', { name: /Últimos registros/ }).getAttribute('aria-expanded')) === 'false' && (await p.getByRole('button', { name: /^Carta: ver detalhes/ }).count()) === 0, 'os últimos registros podem ser recolhidos');
 await p.getByRole('button', { name: /Sintomas, peso e pressão/ }).click();
-check((await p.getByRole('button', { name: 'Saúde', exact: true }).getAttribute('aria-pressed')) === 'true' && (await p.getByText('Período').isVisible()), 'atalho leva para Cuidados → Saúde');
+await p.locator('section[aria-labelledby="registros-titulo"]').waitFor();
+check(true, 'atalho leva para Cuidados');
 await b.close();
 finish();
