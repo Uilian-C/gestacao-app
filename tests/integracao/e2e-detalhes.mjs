@@ -12,6 +12,8 @@ await post({ op: 'createMetric', week: 22, date: today, weight: 68.4, systolic: 
 await post({ op: 'createEntry', date: today, body: 'Sentimos o bebê mexer', visibility: 'shared', remindOn: null });
 await post({ op: 'createTask', week: 22, title: 'Montar o berço', assignee: 'pai', priority: 'Média', dueDate: await inDays(3), notes: 'Comprar parafusos' });
 await post({ op: 'createConsultation', scheduledAt: `${await inDays(2)}T12:30:00Z`, specialty: 'obstetra', professional: 'Dra. Marina', location: null });
+// Sintomas em dias diferentes, para o resumo mostrar as datas.
+for (const [n, intensity] of [[-6, 2], [-3, 4], [-1, 3]]) await post({ op: 'createSymptom', week: 22, date: await inDays(n), name: 'Azia', intensity, category: 'Digestivo', notes: null, timeOfDay: 'noite' });
 await p.reload();
 const dlg = p.getByRole('dialog');
 const tab = name => p.getByRole('button', { name: new RegExp(`^${name}`) }).first().click();
@@ -116,6 +118,16 @@ await p.screenshot({ path: `${OUT}detalhe-consulta.png` });
 await dlg.getByRole('button', { name: /Preparar resumo/ }).click();
 await p.locator('.print-area').waitFor({ timeout: 10000 }).catch(() => undefined);
 check(!(await dlg.isVisible()) && (await p.locator('.print-area').isVisible()), '"Preparar resumo" abre o resumo da consulta');
+const ddmm = n => p.evaluate(n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); }, n);
+const datas = p.locator('.print-area li', { hasText: 'Azia' }).locator('p', { hasText: 'Datas:' });
+await datas.waitFor({ timeout: 10000 });
+const linha = (await datas.textContent()) ?? '';
+check(linha.includes(`${await ddmm(-6)} (2)`) && linha.includes(`${await ddmm(-1)} (3)`), `o resumo traz as datas de cada sintoma, com a intensidade (${linha})`);
+await p.emulateMedia({ media: 'print' });
+await p.screenshot({ path: `${OUT}resumo-impressao.png`, fullPage: true });
+const altura = await p.locator('.print-area').evaluate(el => el.getBoundingClientRect().height);
+check(altura < 1600, `impresso, o resumo fica enxuto (${Math.round(altura)}px)`);
+await p.emulateMedia({ media: 'screen' });
 
 await b.close();
 finish();

@@ -103,7 +103,7 @@ export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
 
 export function FichaGrid({ items, compact = false }: { items: FichaItem[]; compact?: boolean }) {
   return (
-    <dl className={`grid gap-x-6 ${compact ? 'grid-cols-2 sm:grid-cols-3 gap-y-2.5' : 'grid-cols-2 lg:grid-cols-3 gap-y-3'}`}>
+    <dl className={`grid gap-x-6 ${compact ? 'grid-cols-2 sm:grid-cols-3 gap-y-2.5 print:grid-cols-4 print:gap-y-1' : 'grid-cols-2 lg:grid-cols-3 gap-y-3'}`}>
       {items.map(i => (
         <div key={i.key} className="min-w-0">
           <dt className="text-xs text-ink-mute">{i.label}</dt>
