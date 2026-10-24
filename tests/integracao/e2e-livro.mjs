@@ -27,9 +27,9 @@ await mae.evaluate(
 );
 await mae.reload();
 
-// Enquanto não escolheram o nome, ele ganha destaque no Início.
-await mae.getByRole('button', { name: 'Escolhendo o nome do bebê: abrir' }).waitFor({ timeout: 10000 });
-check(true, 'no Início, "Qual vai ser o nome?" aparece logo abaixo do bebê');
+// Enquanto não escolheram o nome, ele entra no "Para hoje" do Início.
+await mae.locator('section[aria-labelledby="hoje-titulo"]').getByRole('button', { name: /Qual vai ser o nome\?/ }).waitFor({ timeout: 10000 });
+check(true, 'no Início, "Qual vai ser o nome?" aparece no "Para hoje"');
 await mae.screenshot({ path: `${OUT}nomes-inicio.png` });
 
 await mae.getByRole('button', { name: /^Diário/ }).first().click();
@@ -174,8 +174,9 @@ await escolha.getByRole('button', { name: 'Fechar' }).click();
 await mae.getByRole('button', { name: /^Início/ }).first().click();
 const topo = mae.getByRole('region', { name: 'Semana da gestação' });
 check(await topo.getByText('Helena', { exact: true }).isVisible(), 'o nome do bebê aparece no Início');
-const chamada = topo.getByRole('button', { name: 'O livro de Helena: abrir' });
-check(await chamada.isVisible() && (await chamada.getByText('Uma página nova foi escrita').isVisible()), 'e o livro chama no coração do Início');
+const chamada = mae.locator('section[aria-labelledby="nesta-semana"]').getByRole('button', { name: 'O livro de Helena: abrir' });
+check((await chamada.count()) === 1 && (await chamada.getByText('Uma página nova foi escrita').count()) === 1, 'e o livro chama no carrossel "Nesta semana"');
+await chamada.scrollIntoViewIfNeeded();
 await mae.screenshot({ path: `${OUT}livro-inicio.png` });
 await chamada.click();
 await livro.waitFor();

@@ -915,21 +915,3 @@ function IdeaList({ celebration: c, actions }: { celebration: Celebration; actio
 }
 
 /** No Início, a partir de 60 dias antes: a contagem e o próximo passo. */
-export function CelebrationTeaser({ celebration: c, days, onOpen }: { celebration: Celebration; days: number; onOpen: () => void }) {
-  const next = pendingTasks(c)[0];
-  const g = guestsOf(c);
-  return (
-    <button type="button" onClick={onOpen} aria-label={`${c.title}: abrir`} className="w-full flex items-center gap-3 rounded-[26px] bg-surface shadow-soft px-4 py-3.5 text-left transition active:scale-[0.99]">
-      <CelebrationTile kind={c.kind} />
-      <span className="flex-1 min-w-0">
-        <span className="block text-[12px] font-extrabold uppercase tracking-wide text-rosa">
-          {countdown(days)}
-          {g.guests.length > 0 && <span className="text-ink-mute"> · {plural(g.going, 'confirmado', 'confirmados')}</span>}
-        </span>
-        <span className="block font-bold text-ink leading-snug truncate">{c.title}</span>
-        <span className="block text-[12.5px] text-ink-soft truncate">{next ? `Próximo passo: ${next.item.title}` : 'Tudo pronto. Agora é aproveitar!'}</span>
-      </span>
-      <ChevronRight className="w-5 h-5 text-ink-mute shrink-0" />
-    </button>
-  );
-}

@@ -125,13 +125,19 @@ await espaco.getByRole('button', { name: 'Voltar' }).click();
 await mae.getByRole('list', { name: 'Celebrações' }).getByRole('button', { name: 'Chá da Helena: abrir' }).waitFor();
 await mae.screenshot({ path: `${OUT}celebracao-lista.png` });
 
-// No Início: o cartão com a contagem, e o Hoje sem os passos que já passaram.
+// No Início: a linha com a contagem no "Para hoje", e o Hoje sem os passos que já passaram.
+// (Quem já fechou o convite dos lembretes e os primeiros 7 dias, para o chá caber nas 3 linhas.)
+await mae.evaluate(() => {
+  localStorage.setItem('nossa-gestacao:convite-notificacoes', 'fechado');
+  localStorage.setItem('tumtum-primeiros-dias', JSON.stringify({ start: new Date().toLocaleDateString('en-CA'), hidden: true }));
+});
+await mae.reload();
 await mae.getByRole('button', { name: /^Início/ }).first().click();
-const teaser = mae.getByRole('button', { name: 'Chá da Helena: abrir' });
+const hoje = mae.locator('section[aria-labelledby="hoje-titulo"]');
+const teaser = hoje.getByRole('button', { name: /^Faltam \d+ dias Chá da Helena/ });
 await teaser.waitFor({ timeout: 10000 });
-check(await teaser.getByText(/Próximo passo:/).isVisible(), 'o Início mostra o chá e o próximo passo');
-check((await mae.getByRole('button', { name: /Chá da Helena: .*: ver detalhes/ }).count()) === 0 || !(await mae.getByText('atrasada').count()), 'o Hoje não fica lotado de passos vencidos do chá');
-check((await mae.getByText(/Chá da Helena · atrasada/).count()) === 0, 'nenhum passo do chá aparece como atrasado no Hoje');
+check(await teaser.getByText(/^Faltam \d+ dias$/).isVisible() && (await teaser.getByText(/Próximo passo:/).isVisible()), 'o "Para hoje" mostra quanto falta para o chá e o próximo passo');
+check((await hoje.getByText(/atrasada/i).count()) === 0, 'nenhum passo do chá aparece como atrasado no Início');
 await mae.screenshot({ path: `${OUT}celebracao-inicio.png` });
 
 // Na Agenda, o dia da festa.

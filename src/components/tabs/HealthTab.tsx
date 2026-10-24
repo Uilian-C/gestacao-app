@@ -10,6 +10,7 @@ import { SocialCount } from '../Social';
 import type { DetailTarget } from '../../lib/details';
 import AuthorBadge from '../AuthorBadge';
 import IntensityDots from '../IntensityDots';
+import AlertSigns from '../AlertSigns';
 import { Button, Card, EmptyState, Pill, Segmented } from '../ui';
 import { INTENSITY } from '../../lib/intensity';
 import type { NewSymptom } from '../forms/RecordForms';
@@ -100,6 +101,7 @@ export default function HealthTab(props: Props) {
           </ol>
         )}
       </Card>
+      <AlertSigns />
     </div>
   );
 }

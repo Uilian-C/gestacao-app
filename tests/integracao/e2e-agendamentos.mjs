@@ -37,7 +37,8 @@ await p.screenshot({ path: `${OUT}agendados.png`, fullPage: true });
 
 // ---- Início pede o resultado ----
 await tab('Início');
-check(await p.getByText(/Falta guardar 1 resultado: Ultrassom morfológico/).isVisible(), 'Início lembra de guardar o resultado, em "Para não esquecer"');
+const falta = p.locator('section[aria-labelledby="hoje-titulo"]').getByRole('button', { name: /Falta guardar 1 resultado/ });
+check(await falta.getByText('Ultrassom morfológico').isVisible(), 'Início lembra de guardar o resultado, no "Para hoje"');
 
 // ---- Agenda: o ultrassom e o hemograma no calendário ----
 await tab('Agenda');

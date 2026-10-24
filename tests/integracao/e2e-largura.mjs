@@ -16,6 +16,8 @@ for (const width of [300, 360, 412]) {
     }),
   );
   await p.reload();
+  // A ficha mora em Cuidados (o Início não repete as semanas e a DPP).
+  await p.getByRole('button', { name: /^Cuidados/ }).first().click();
   await p.getByRole('button', { name: /Ficha/ }).waitFor();
 
   const overlap = await p.evaluate(() => {

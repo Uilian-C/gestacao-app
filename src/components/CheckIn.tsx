@@ -11,7 +11,7 @@ import Avatar from './Avatar';
 import MoodFace from './MoodFace';
 import { MOOD_COLOR, MOODS, moodLabel, moodOf } from '../lib/moods';
 
-// "Vocês dois hoje": como cada um está (um toque por dia), lado a lado. Depois
+// "Como vocês estão hoje?": como cada um está (um toque por dia), lado a lado. Depois
 // de responder, o cartão confirma e fecha; se a outra pessoa não está bem, vem
 // uma ideia de cuidado e o botão de mandar um abraço (chega como aviso).
 
@@ -82,10 +82,10 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
   const hasWeek = checkins.some(c => week.includes(c.day));
 
   return (
-    <section aria-labelledby="checkin-titulo" className="rounded-[26px] bg-surface shadow-soft p-3 space-y-2.5">
+    <section aria-labelledby="checkin-titulo" className="rounded-[28px] bg-gradient-to-br from-rosa-soft/80 via-lilas-soft/50 to-azul-soft/40 p-3.5 space-y-3">
       <div className="flex items-center justify-between gap-3 px-1">
         <h2 id="checkin-titulo" className="text-[1.05rem] text-ink">
-          {partner ? 'Vocês dois hoje' : 'Como você está hoje?'}
+          {partner ? 'Como vocês estão hoje?' : 'Como você está hoje?'}
         </h2>
         {/* Os últimos 7 dias, em bolinhas, levam ao histórico no Diário → Humor. */}
         {hasWeek && (
@@ -117,7 +117,7 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
                 disabled={saving !== null}
                 aria-pressed={on}
                 onClick={() => (on ? setChanging(false) : pick(m.id))}
-                className={`flex flex-col items-center gap-0.5 rounded-2xl px-0.5 py-1.5 text-[11.5px] font-bold transition active:scale-95 ${on ? 'bg-rosa text-white shadow-soft' : 'bg-surface-2 text-ink-soft hover:text-ink'} ${saving && saving !== m.id ? 'opacity-60' : ''}`}
+                className={`flex flex-col items-center gap-1 rounded-[18px] px-0.5 py-2 text-[11.5px] font-bold transition active:scale-95 ${on ? 'bg-rosa text-white shadow-soft' : 'bg-surface/80 text-ink-soft hover:text-ink'} ${saving && saving !== m.id ? 'opacity-60' : ''}`}
               >
                 {saving === m.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <MoodFace path={m.face} className="w-5 h-5" />}
                 {role === 'pai' ? m.pai : m.mae}
@@ -251,7 +251,7 @@ function PostRow({ entry: e, isNew, mentionsMe, onOpen }: { entry: JournalEntry;
 /** Uma pessoa no cartão: foto, nome e como está hoje. */
 function Person({ member, role, name, mood, empty, onChange }: { member?: FamilyMember; role: Author; name: string; mood?: Mood; empty: string; onChange?: () => void }) {
   return (
-    <div className="flex items-center gap-2 rounded-full bg-surface-2/60 p-1 pr-3 min-w-0">
+    <div className="flex items-center gap-2 rounded-full bg-surface/70 p-1 pr-3 min-w-0">
       <span className="relative shrink-0">
         <Avatar member={member} role={role} className="w-9 h-9 text-sm" />
         {mood && (
