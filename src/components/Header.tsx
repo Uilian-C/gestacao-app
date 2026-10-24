@@ -23,11 +23,10 @@ export default function Header({ firstName, members, greeting, onOpenSpace, onHe
           <div className="flex items-center gap-2.5 min-w-0">
             <BrandMark animated className="w-8 h-8 shrink-0" />
             <h1 className="text-[1.5rem] max-[359px]:text-[1.3rem] text-ink leading-tight truncate">{title}</h1>
-            {/* Em tela bem estreita, o nome da aba tem prioridade: a semana vira "22 sem". */}
+            {/* O nome da aba tem prioridade: a semana fica curta ("22 sem"). */}
             {week != null && (
-              <span className="shrink-0 rounded-full bg-brand-soft text-brand-strong text-xs font-extrabold px-2.5 py-1 tabular whitespace-nowrap">
-                {week} <span className="max-[359px]:hidden">semanas</span>
-                <span className="min-[360px]:hidden">sem</span>
+              <span aria-label={`${week} semanas`} className="shrink-0 rounded-full bg-brand-soft text-brand-strong text-xs font-extrabold px-2.5 py-1 tabular whitespace-nowrap">
+                {week} sem
               </span>
             )}
           </div>

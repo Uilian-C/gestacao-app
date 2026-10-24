@@ -1,9 +1,9 @@
-// Agenda → Jornada no celular, pensada para quem nunca fez pré-natal: o que
+// Cuidados → Jornada no celular, pensada para quem nunca fez pré-natal: o que
 // fazer agora, trimestres recolhíveis, pop-up de cada item (por que, como se
 // preparar, planejado editável com o combinado da equipe, realizado com
 // agendar e "já fizemos"), encaixe automático, links com a Agenda e "revisar
 // com a equipe".
-import { check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
+import { check, finish, launch, OUT, phone, quickAccount, openCare } from './lib.mjs';
 
 const b = await launch();
 const p = await phone(b);
@@ -24,11 +24,15 @@ const yesterday = new Date(`${await iso(-1)}T10:00`).toISOString();
 await post({ op: 'createConsultation', scheduledAt: yesterday, specialty: 'outra', professional: null, location: null, kind: 'vacina', title: 'Vacina dTpa', planItem: 'dtpa', attendees: null });
 await p.reload();
 
-// ---- A jornada mora na Agenda ----
-await tab('Cuidados');
-check((await p.getByRole('button', { name: /^Jornada/ }).count()) === 0, 'Cuidados não tem a Jornada');
+// ---- A jornada mora em Cuidados (a Agenda fica com o que tem data) ----
 await tab('Agenda');
-await p.getByRole('button', { name: /^Jornada/ }).click();
+check((await p.getByRole('button', { name: /^Jornada/ }).count()) === 0, 'a Agenda não tem mais a Jornada');
+await openCare(p);
+const card = p.getByRole('button', { name: /^Pré-natal/ });
+check((await card.textContent()).includes('feitos') && (await card.textContent()).includes('atrasado'), 'Cuidados mostra o pré-natal numa linha: o andamento e os atrasados');
+await card.click();
+check(await p.getByRole('button', { name: /^Ultrassom morfológico do 1º trimestre|^1ª consulta|^Exames iniciais/ }).first().isVisible(), 'ao abrir, os primeiros do que fazer agora');
+await openCare(p, 'Jornada');
 const summary = p.getByRole('region', { name: 'Resumo da jornada' });
 await summary.waitFor();
 check(await summary.getByText(/do que já era para ter começado está feito/).isVisible(), 'resumo com um número simples: feito do previsto');
@@ -38,7 +42,8 @@ check(await now.getByRole('button', { name: 'Ultrassom morfológico do 2º trime
 check(await now.getByRole('button', { name: 'Agendar Ultrassom morfológico do 2º trimestre' }).isVisible(), 'com o botão de agendar ao lado');
 check((await row('Vacina dTpa', 'feito').textContent()).includes('Feito em'), 'agendamento que passou deixa o item como feito, com a data');
 check(await summary.getByRole('img', { name: /^Semana 22 de 40/ }).isVisible(), 'a gestação nas quatro fases, com a semana de hoje');
-check(await summary.getByRole('img', { name: /^Planejado e realizado por semana/ }).isVisible(), 'gráfico do planejado × realizado semana a semana');
+await summary.getByText('Ver o planejado × feito ›').click();
+check(await summary.getByRole('img', { name: /^Planejado e realizado por semana/ }).isVisible(), 'gráfico do planejado × realizado semana a semana, a um toque');
 
 // ---- Trimestres recolhíveis ----
 const tri1 = p.getByRole('button', { name: /^1º trimestre · Formação/ });
@@ -98,6 +103,7 @@ check((await dlg.getByText(/^Feito em /).count()) === 1, 'o pop-up passa a feito
 await dlg.getByRole('button', { name: 'Fechar' }).click();
 
 // ---- Encaixe automático em Próximos ----
+await tab('Agenda');
 await p.getByRole('button', { name: /^Próximos/ }).click();
 await p.getByRole('button', { name: 'Agendar', exact: true }).first().click();
 await p.getByRole('group', { name: 'Tipo de agendamento' }).getByRole('button', { name: 'Ultrassom' }).click();
@@ -141,7 +147,7 @@ const late = p.getByRole('button', { name: /itens? da jornada para conferir/ });
 check((await late.textContent()).includes('Exames iniciais'), 'Início lembra os itens atrasados');
 await late.click();
 await summary.waitFor();
-check(true, 'e leva para Agenda → Jornada');
+check(true, 'e leva para Cuidados → Jornada');
 
 await b.close();
 finish();

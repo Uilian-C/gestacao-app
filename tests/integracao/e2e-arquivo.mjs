@@ -1,6 +1,6 @@
 // iPhone: o app se instala pelo Safari (sem App Store) e o aviso de iOS antigo só
 // aparece quando é antigo mesmo. Resultados: arquivo por trimestre, por exame e busca.
-import { check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
+import { check, finish, launch, OUT, phone, quickAccount, openCare } from './lib.mjs';
 
 const b = await launch();
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1';
@@ -43,8 +43,7 @@ await create({ kind: 'exame', title: 'Glicemia de jejum', date: '2026-06-25' });
 await create({ kind: 'ultrassom', title: 'Ultrassom morfológico do 1º trimestre', date: '2026-08-10', planItem: 'morfo-1' });
 await create({ kind: 'ultrassom', title: 'Ultrassom morfológico do 2º trimestre', date: '2026-10-13', planItem: 'morfo-2' });
 await p.reload();
-await p.getByRole('button', { name: /^Cuidados/ }).first().click();
-await p.getByRole('button', { name: /^Resultados/ }).click();
+await openCare(p, 'Resultados');
 const second = p.locator('details', { hasText: '2º trimestre' }).first();
 await second.waitFor();
 check((await second.getAttribute('open')) !== null, 'trimestre mais recente aberto');

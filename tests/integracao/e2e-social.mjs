@@ -1,5 +1,5 @@
 // Curtir e comentar entre o casal, e listas editáveis (mala e jornada), no celular.
-import { BASE, check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
+import { BASE, check, finish, launch, OUT, phone, quickAccount, openCare } from './lib.mjs';
 
 const b = await launch();
 const mae = await phone(b);
@@ -118,9 +118,8 @@ await mae.getByRole('button', { name: 'Salvar', exact: true }).click();
 await mae.getByText('Travesseiro e almofada').waitFor();
 check(true, 'item próprio renomeado');
 
-// ---- Jornada: item próprio (Agenda → Jornada) ----
-await tab(mae, 'Agenda');
-await mae.getByRole('button', { name: /^Jornada/ }).click();
+// ---- Jornada: item próprio (Cuidados → Jornada) ----
+await openCare(mae, 'Jornada');
 const own = mae.getByRole('region', { name: 'Itens de vocês' });
 await own.scrollIntoViewIfNeeded();
 await own.getByRole('button', { name: 'Adicionar item' }).click();

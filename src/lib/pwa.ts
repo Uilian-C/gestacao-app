@@ -10,14 +10,16 @@ const SUBTABS: Record<string, { tab: Tab; view: string }> = {
   agendados: { tab: 'agenda', view: 'proximos' },
   proximos: { tab: 'agenda', view: 'proximos' },
   tarefas: { tab: 'agenda', view: 'tarefas' },
-  // A jornada do pré-natal (planejado × realizado) mora na Agenda.
-  jornada: { tab: 'agenda', view: 'jornada' },
-  painel: { tab: 'agenda', view: 'jornada' },
-  // Cuidados: o que a equipe médica lê.
-  duvidas: { tab: 'cuidados', view: 'duvidas' },
+  // Cuidados: a página única e as partes que abrem dela. A jornada do pré-natal
+  // mora aqui (os avisos de semana nova apontam para "jornada").
+  jornada: { tab: 'cuidados', view: 'jornada' },
+  painel: { tab: 'cuidados', view: 'jornada' },
+  duvidas: { tab: 'cuidados', view: 'inicio' },
   exames: { tab: 'cuidados', view: 'exames' },
   resultados: { tab: 'cuidados', view: 'exames' },
-  saude: { tab: 'cuidados', view: 'saude' },
+  saude: { tab: 'cuidados', view: 'inicio' },
+  sintomas: { tab: 'cuidados', view: 'sintomas' },
+  medidas: { tab: 'cuidados', view: 'medidas' },
 };
 
 let linkedTab: Tab | null | undefined;

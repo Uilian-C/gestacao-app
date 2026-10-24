@@ -7,7 +7,8 @@ import { Loader2 } from 'lucide-react';
 
 export function Card({ children, className = '', tone = 'surface' }: { children: ReactNode; className?: string; tone?: 'surface' | 'warm' | 'brand' | 'alert' }) {
   const tones = {
-    surface: 'bg-surface shadow-soft',
+    // Sem sombra: o tom basta para separar do fundo (menos peso na tela).
+    surface: 'bg-surface/80',
     warm: 'bg-warm-soft',
     brand: 'bg-brand-soft',
     alert: 'bg-alert-soft',

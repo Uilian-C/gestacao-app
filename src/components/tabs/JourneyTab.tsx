@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, CalendarCheck2, CalendarClock, CalendarPlus, Check, ChevronDown, ChevronRight, ClipboardCopy, EyeOff, FileImage, HelpCircle, ListChecks, NotebookPen, Pencil, Route, Share2, Stethoscope, Undo2, UsersRound } from 'lucide-react';
+import { AlertCircle, CalendarCheck2, CalendarClock, CalendarPlus, Check, ChevronDown, ChevronRight, ClipboardCopy, EyeOff, FileImage, HelpCircle, ListChecks, NotebookPen, Pencil, Share2, Stethoscope, Undo2, UsersRound } from 'lucide-react';
 import { KIND_LABEL, KIND_WHERE, PHASES, PLAN_SOURCE } from '../../content/prenatalPlan';
 import { dateOfWeek, phaseOf, plannedVisitWeeks, visitsOf } from '../../lib/journey';
 import { appointmentKindFor, journeySummary, phaseCount, planToText, statusText, todoNow, visitSlots, weeksText, windowDates, windowDatesText, type JourneyRow, type JourneyStatus, type VisitStatus } from '../../lib/journeyPlan';
@@ -16,7 +16,7 @@ import { inputClass } from '../styles';
 import { Button } from '../ui';
 import { ScheduleForm, type NewConsultation } from './ConsultationsTab';
 
-// Agenda → Jornada: o roteiro do pré-natal para quem nunca passou por um.
+// Cuidados → Jornada: o roteiro do pré-natal para quem nunca passou por um.
 // Em cima, o que pede ação agora; embaixo, cada trimestre (recolhível) com
 // seus exames, vacinas e preparos. Tocar num item abre o pop-up com o
 // planejado (quando fazer, editável e com o combinado com a equipe) e o
@@ -95,17 +95,7 @@ export default function JourneyTab(props: Props) {
   return (
     <div className="max-w-[640px] mx-auto space-y-4">
       {/* Resumo: um número que qualquer pessoa entende */}
-      <section aria-label="Resumo da jornada" className="rounded-[26px] bg-surface shadow-soft p-4 space-y-3.5">
-        <div className="flex items-start gap-3">
-          <span className="w-10 h-10 rounded-2xl bg-brand-soft text-brand flex items-center justify-center shrink-0">
-            <Route className="w-5 h-5" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-[1.2rem] leading-tight text-ink">Jornada do pré-natal</h2>
-            <p className="text-[13px] text-ink-soft">O que fazer em cada fase, quando fazer e o que vocês já fizeram.</p>
-          </div>
-        </div>
-
+      <section aria-label="Resumo da jornada" className="rounded-[26px] bg-surface/80 p-4 space-y-3.5">
         <GestationStrip week={currentWeek} />
 
         <div className="rounded-2xl bg-surface-2/70 p-3.5 space-y-2">
@@ -122,9 +112,15 @@ export default function JourneyTab(props: Props) {
             {summary.late > 0 && <span className="text-warn">{summary.late} {summary.late === 1 ? 'atrasado' : 'atrasados'}</span>}
             <span className="text-ink-mute">de {summary.total} na gestação</span>
           </p>
-          <div className="pt-1">
-            <PlanVsDoneChart rows={rows} dumDate={dumDate} week={currentWeek} />
-          </div>
+          <details className="pt-1 group">
+            <summary className="cursor-pointer list-none text-[12.5px] font-bold text-ink-soft">
+              <span className="group-open:hidden">Ver o planejado × feito ›</span>
+              <span className="hidden group-open:inline">Esconder o gráfico</span>
+            </summary>
+            <div className="pt-2">
+              <PlanVsDoneChart rows={rows} dumDate={dumDate} week={currentWeek} />
+            </div>
+          </details>
         </div>
 
         <button type="button" onClick={() => setOpen({ kind: 'consultas' })} className="w-full flex items-center gap-3 rounded-2xl bg-surface-2/70 px-3.5 py-3 text-left">
@@ -158,7 +154,7 @@ export default function JourneyTab(props: Props) {
       {!props.checksAvailable && <p className="text-xs text-warn bg-warn-soft rounded-2xl px-3 py-2">Para marcar itens como feitos, rode a migração 007 no Neon.</p>}
 
       {/* O que pede ação agora */}
-      <section aria-label="Para fazer agora" className="rounded-[26px] bg-surface shadow-soft p-4">
+      <section aria-label="Para fazer agora" className="rounded-[26px] bg-surface/80 p-4">
         <h3 className="text-[1.1rem] text-ink">Para fazer agora</h3>
         <p className="text-xs text-ink-mute mb-1">Semana {currentWeek} · {phase.label}, {phase.visits.toLowerCase()}</p>
         {todo.length === 0 ? (
@@ -189,7 +185,7 @@ export default function JourneyTab(props: Props) {
           const count = phaseCount(g.rows);
           const isNow = g.phase?.id === phase.id;
           return (
-            <div key={g.id} role="group" aria-label={g.title} className="rounded-[22px] bg-surface shadow-soft">
+            <div key={g.id} role="group" aria-label={g.title} className="rounded-[22px] bg-surface/80">
               <button type="button" onClick={() => toggle(g.id)} aria-expanded={isOpen} className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
                 <span className="flex-1 min-w-0">
                   <span className="flex items-center gap-2">
@@ -223,7 +219,7 @@ export default function JourneyTab(props: Props) {
       </section>
 
       {props.listsAvailable && (
-        <section aria-label="Itens de vocês" className="rounded-[26px] bg-surface shadow-soft p-4 space-y-1">
+        <section aria-label="Itens de vocês" className="rounded-[26px] bg-surface/80 p-4 space-y-1">
           <h3 className="flex items-center gap-2 text-[1.05rem] text-ink">
             <ListChecks className="w-5 h-5 text-brand" /> A equipe pediu algo a mais?
           </h3>

@@ -4,7 +4,7 @@ import type { AppointmentKind, Consultation } from '../types';
 import { parseLocalDate, parseTimestamp, toISODate } from './dates';
 import { normalize } from './examArchive';
 
-// Agenda → Jornada: o planejado (a janela de semanas de cada item, a de
+// Cuidados → Jornada: o planejado (a janela de semanas de cada item, a de
 // referência ou a que o casal ajustou) ao lado do realizado (o que foi
 // agendado, feito ou guardado). Um agendamento ligado a um item (plan_item)
 // faz o item andar sozinho: agendado enquanto a data não chega, feito depois.

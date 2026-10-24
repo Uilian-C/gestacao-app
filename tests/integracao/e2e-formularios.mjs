@@ -1,6 +1,6 @@
 // Formulários: sintoma, medição, tarefa e diário com o dia escolhido (hoje,
 // ontem ou outro dia); a semana segue o dia. Editar também troca o dia.
-import { check, finish, launch, OUT, phone, quickAccount, DUM_22 } from './lib.mjs';
+import { check, finish, launch, OUT, phone, quickAccount, DUM_22, openCare } from './lib.mjs';
 
 const b = await launch();
 const p = await phone(b);
@@ -47,9 +47,7 @@ check(metric.recorded_at.slice(0, 10) === tenDaysAgo && metric.week_number === (
 check(await p.evaluate(d => fetch('/api/data', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'createMetric', week: 30, date: d, weight: 70, systolic: null, diastolic: null }) }).then(r => r.status), await iso(5)) === 400, 'medição no futuro é recusada');
 
 // ---- Editar troca o dia ----
-await p.getByRole('button', { name: /^Cuidados(\s|$)/ }).first().click();
-await p.getByRole('button', { name: /^Saúde/ }).click();
-await p.getByRole('button', { name: 'Tudo', exact: true }).click();
+await openCare(p, 'Peso e pressão');
 await p.getByRole('button', { name: /Medição da semana/ }).first().click();
 await dlg.getByRole('button', { name: 'Editar' }).click();
 check((await dlg.getByLabel('Peso (kg)').inputValue()) === '65,2', 'editar abre com o peso');

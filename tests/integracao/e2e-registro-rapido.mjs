@@ -1,5 +1,5 @@
 // Botão "+" de cada aba: a janela abre com os registros daquela aba, salva, fecha e o dado aparece no lugar certo.
-import { check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
+import { openCare, check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
 
 const b = await launch();
 const p = await phone(b);
@@ -19,22 +19,20 @@ await dlg.getByRole('button', { name: 'Salvar sintoma' }).click();
 await p.waitForTimeout(1200);
 check(!(await dlg.isVisible()), 'janela fecha após salvar sintoma');
 
-// Cuidados → Saúde: sintoma e medição (os registros de saúde saíram do Diário)
-await tab('Cuidados');
-await p.getByRole('button', { name: 'Saúde', exact: true }).click();
-await p.getByRole('button', { name: 'Sintomas', exact: true }).click();
+// Cuidados → Sintomas: sintoma e medição (os registros de saúde saíram do Diário)
+await openCare(p, 'Sintomas');
 await p.waitForTimeout(500);
-check(await p.getByText('Enjoo').first().isVisible(), 'sintoma aparece nos gráficos de Saúde');
+check(await p.getByText('Enjoo').first().isVisible(), 'sintoma aparece em Cuidados → Sintomas');
 await plus.click();
-check((await modes()) === 'Sintoma,Peso e pressão', 'Saúde oferece sintoma e medição');
+check((await modes()) === 'Sintoma,Peso e pressão', 'Sintomas oferece sintoma e medição');
 await dlg.getByRole('button', { name: 'Peso e pressão' }).click();
 await dlg.getByLabel('Peso (kg)').fill('64,5');
 await dlg.getByRole('button', { name: /Salvar medição/ }).click();
 await p.waitForTimeout(1200);
 check(!(await dlg.isVisible()), 'janela fecha após salvar peso');
-await p.getByRole('button', { name: 'Medidas', exact: true }).click();
+await openCare(p, 'Peso e pressão');
 await p.waitForTimeout(500);
-check((await p.getByText(/64[,.]5/).count()) > 0, 'peso aparece em Medidas');
+check((await p.getByText(/64[,.]5/).count()) > 0, 'peso aparece em Peso e pressão');
 
 // Diário: só o fichário, já na pasta aberta
 await tab('Diário');
@@ -62,10 +60,9 @@ await p.getByRole('button', { name: /^Tarefas/ }).click();
 check(await p.getByText('Montar o berço').first().isVisible(), 'tarefa aparece em Tarefas');
 
 // Cuidados: consulta e exame; Esc fecha
-await tab('Cuidados');
-await p.getByRole('button', { name: /^Resultados/ }).click();
+await openCare(p);
 await plus.click();
-check((await modes()) === 'Resultado,Sintoma,Peso e pressão', 'Cuidados oferece resultado, sintoma e medição');
+check((await modes()) === 'Sintoma,Peso e pressão,Resultado', 'Cuidados oferece sintoma, medição e resultado');
 await p.screenshot({ path: `${OUT}rapido-cuidados.png` });
 await p.keyboard.press('Escape');
 check(!(await dlg.isVisible()), 'Esc fecha');

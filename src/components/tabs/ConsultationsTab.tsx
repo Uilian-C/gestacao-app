@@ -1,7 +1,7 @@
 import { useContext, useMemo, useState } from 'react';
-import { ArrowLeft, ClipboardCopy, FileText, HelpCircle, Plus, Printer, Route, ShieldCheck, Trash2 } from 'lucide-react';
-import { SPECIALTIES, questionSpecialty, specialtyOf, type SpecialtyId } from '../../data/specialties';
-import { daysBetween, formatBR, localDay, parseLocalDate, parseTimestamp, toISODate, weekOfDay } from '../../lib/dates';
+import { ArrowLeft, ClipboardCopy, Plus, Printer, Route, ShieldCheck, Trash2 } from 'lucide-react';
+import { SPECIALTIES, questionSpecialty, type SpecialtyId } from '../../data/specialties';
+import { formatBR, parseLocalDate, parseTimestamp, toISODate, weekOfDay } from '../../lib/dates';
 import { TREND_LABEL, buildReport, defaultReportPeriod, reportToText, type ConsultationReport } from '../../lib/report';
 import { timeOfDayLabel } from '../../lib/symptoms';
 import { buildFicha, fichaToText, type FichaItem } from '../../lib/ficha';
@@ -21,7 +21,7 @@ import { JourneyContext } from '../../lib/journeyContext';
 import { linkableItems, suggestPlanItem, type JourneyItem } from '../../lib/journeyPlan';
 import { InsightList } from '../InsightList';
 import { inputClass } from '../styles';
-import { Button, Card, Chip, EmptyState, Field, LinkButton, Pill, SectionTitle } from '../ui';
+import { Button, Chip, Field, Pill } from '../ui';
 
 export interface ReportRequest {
   specialtyId: SpecialtyId;
@@ -84,45 +84,12 @@ interface Props {
   birthPlan: BirthPlanRecord | null;
 }
 
-const QUESTION_CATEGORIES = ['Alimentação', 'Medicação', 'Exames', 'Parto', 'Geral'];
 
+/** Preparar a consulta (ou o resumo para emergência): as dúvidas para levar e o resumo para imprimir. */
 export default function ConsultationsTab(props: Props) {
   const today = parseLocalDate(toISODate(new Date()));
-  if (props.report) {
-    return <ReportScreen {...props} request={props.report} today={today} />;
-  }
-
-  // A próxima consulta (não exame nem vacina): é para ela que as dúvidas e o resumo se preparam.
-  const next = props.consultations.filter(isConsultation).find(c => daysBetween(today, localDay(c.scheduled_at)) >= 0) ?? null;
-  const when = next ? parseTimestamp(next.scheduled_at) : null;
-
-  return (
-    <div className="space-y-5">
-      <section className="rounded-[28px] bg-verde-soft p-5 space-y-2">
-        <p className="text-xs font-extrabold uppercase tracking-wider text-verde-strong">Próxima consulta</p>
-        {next && when ? (
-          <>
-            <button type="button" onClick={() => props.onOpenConsultation(next)} className="block text-left font-display text-[1.3rem] leading-snug text-ink">
-              {specialtyOf(next.specialty).label} · {when.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })} às {when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-            </button>
-            <p className="text-sm text-ink-soft">O resumo junta sintomas, peso, pressão, resultados e as dúvidas abaixo, com o que importa para essa especialidade.</p>
-            <Button onClick={() => props.onOpenReport({ specialtyId: questionSpecialty(next.specialty), consultationId: next.id })} className="mt-1">
-              <FileText className="w-4 h-4" /> Preparar resumo
-            </Button>
-          </>
-        ) : (
-          <>
-            <p className="text-ink">Nenhuma consulta marcada.</p>
-            <LinkButton onClick={props.onOpenAgenda}>Agendar na Agenda</LinkButton>
-          </>
-        )}
-      </section>
-
-      <QuestionsSection {...props} />
-
-      <QuickReport onOpen={specialtyId => props.onOpenReport({ specialtyId, consultationId: null })} />
-    </div>
-  );
+  if (!props.report) return null;
+  return <ReportScreen {...props} request={props.report} today={today} />;
 }
 
 /** Agendar a partir da jornada: tipo, nome, item e uma data dentro da janela já vêm preenchidos. */
@@ -366,83 +333,56 @@ function JourneyLink({ value, auto, options, onChange }: { value: string | null;
   );
 }
 
-function QuickReport({ onOpen }: { onOpen: (id: SpecialtyId) => void }) {
-  const [specialty, setSpecialty] = useState<SpecialtyId>('obstetra');
-  return (
-    <section className="rounded-[24px] bg-surface shadow-soft px-5 py-4">
-      <p className="text-sm font-semibold text-ink mb-2 flex items-center gap-2">
-        <FileText className="w-4 h-4 text-brand" /> Resumo para pronto-atendimento
-      </p>
-      <div className="flex gap-2">
-        <select aria-label="Especialidade do resumo" className={`${inputClass} !py-2 text-sm`} value={specialty} onChange={e => setSpecialty(e.target.value as SpecialtyId)}>
-          {SPECIALTIES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-        </select>
-        <Button tone="soft" onClick={() => onOpen(specialty)} className="shrink-0 !py-2">Gerar</Button>
-      </div>
-    </section>
-  );
-}
-
-function QuestionsSection({ questions, busy, migrationPending, onCreateQuestion, onAnswer, onDeleteQuestion }: Props) {
+/** As dúvidas para levar a esta especialidade: anotar, responder depois da consulta e apagar. */
+function QuestionsSection({ questions, specialtyId, busy, onCreateQuestion, onAnswer, onDeleteQuestion }: Props & { specialtyId: SpecialtyId }) {
   const [text, setText] = useState('');
-  const [category, setCategory] = useState('Geral');
-  const [specialty, setSpecialty] = useState<SpecialtyId>('obstetra');
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [answering, setAnswering] = useState<string | null>(null);
-
-  const pending = questions.filter(q => !q.doctor_answer);
-  const answered = questions.filter(q => q.doctor_answer);
-  const groups = SPECIALTIES.map(s => ({ spec: s, items: pending.filter(q => questionSpecialty(q.specialty) === s.id) })).filter(g => g.items.length);
+  const mine = questions.filter(q => questionSpecialty(q.specialty) === specialtyId);
+  const pending = mine.filter(q => !q.doctor_answer);
+  const answered = mine.filter(q => q.doctor_answer);
 
   return (
-    <Card>
-      <SectionTitle icon={<HelpCircle className="w-5 h-5" />} title="Dúvidas" subtitle="Anotem quando surgir; entram no resumo da consulta." />
+    <section aria-labelledby="duvidas-titulo" className="no-print rounded-[28px] bg-surface/80 p-4 space-y-3">
+      <div className="px-1">
+        <h2 id="duvidas-titulo" className="text-[1.15rem] text-ink">
+          Dúvidas para levar
+        </h2>
+        <p className="text-[13px] text-ink-soft">Anotem quando surgir. Elas entram no resumo, para não esquecer na hora.</p>
+      </div>
       <form
-        className="space-y-3"
+        className="flex gap-2"
         onSubmit={async e => {
           e.preventDefault();
-          if (text.trim() && (await onCreateQuestion(text.trim(), category, specialty))) setText('');
+          if (text.trim() && (await onCreateQuestion(text.trim(), 'Geral', specialtyId))) setText('');
         }}
       >
-        <div className="flex gap-2">
-          <input aria-label="Dúvida" className={inputClass} placeholder="Ex.: Posso continuar o pilates?" value={text} onChange={e => setText(e.target.value)} />
-          <Button type="submit" disabled={busy || !text.trim()} className="shrink-0">Anotar</Button>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {!migrationPending && (
-            <select aria-label="Para quem" className={`${inputClass} !py-2 text-sm`} value={specialty} onChange={e => setSpecialty(e.target.value as SpecialtyId)}>
-              {SPECIALTIES.map(s => <option key={s.id} value={s.id}>Para: {s.label}</option>)}
-            </select>
-          )}
-          <select aria-label="Assunto" className={`${inputClass} !py-2 text-sm`} value={category} onChange={e => setCategory(e.target.value)}>
-            {QUESTION_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
+        <input aria-label="Dúvida" className={inputClass} placeholder="Ex.: Posso continuar o pilates?" value={text} onChange={e => setText(e.target.value)} />
+        <Button type="submit" disabled={busy || !text.trim()} className="shrink-0">
+          Anotar
+        </Button>
       </form>
-
-      <div className="mt-5 space-y-4">
-        {groups.length === 0 && <EmptyState icon={<HelpCircle />} title="Nenhuma dúvida pendente">Quando surgir uma pergunta no dia a dia, anotem aqui para não esquecer na consulta.</EmptyState>}
-        {groups.map(g => (
-          <div key={g.spec.id} className="space-y-2">
-            <h3 className="text-sm font-semibold text-ink-soft">{g.spec.label} ({g.items.length})</h3>
-            {g.items.map(q => (
-              <div key={q.id} className="rounded-2xl bg-surface-2/60 px-4 py-3 space-y-2">
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-ink leading-snug">{q.questions_to_ask}</p>
-                    <p className="text-xs text-ink-mute mt-0.5 flex flex-wrap items-center gap-x-1.5">
-                      <span>{q.category}</span>·<span>{formatBR(q.created_at)}</span>
-                      <AuthorBadge role={q.created_by} />
-                    </p>
-                  </div>
-                  <button type="button" onClick={() => setAnswering(answering === q.id ? null : q.id)} aria-expanded={answering === q.id} className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium text-brand hover:bg-brand-soft">
-                    Responder
-                  </button>
-                  <button onClick={() => onDeleteQuestion(q)} aria-label="Excluir dúvida" className="shrink-0 p-1 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+      {pending.length > 0 && (
+        <ul className="divide-y divide-line/60">
+          {pending.map(q => (
+            <li key={q.id} className="py-2.5 px-1 space-y-2">
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-ink leading-snug">{q.questions_to_ask}</p>
+                  <p className="text-xs text-ink-mute mt-0.5 flex flex-wrap items-center gap-x-1.5">
+                    <span>{formatBR(q.created_at)}</span>
+                    <AuthorBadge role={q.created_by} />
+                  </p>
                 </div>
-                {answering === q.id && <form
+                <button type="button" onClick={() => setAnswering(answering === q.id ? null : q.id)} aria-expanded={answering === q.id} className="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold text-brand-strong hover:bg-brand-soft">
+                  Responder
+                </button>
+                <button onClick={() => onDeleteQuestion(q)} aria-label="Excluir dúvida" className="shrink-0 p-1 rounded-full text-ink-mute hover:text-alert hover:bg-alert-soft">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+              {answering === q.id && (
+                <form
                   className="flex gap-2"
                   onSubmit={async e => {
                     e.preventDefault();
@@ -454,35 +394,36 @@ function QuestionsSection({ questions, busy, migrationPending, onCreateQuestion,
                   }}
                 >
                   <input autoFocus aria-label={`Resposta para "${q.questions_to_ask}"`} className={`${inputClass} !py-2 text-sm`} placeholder="O que o profissional respondeu..." value={answers[q.id] ?? ''} onChange={e => setAnswers(s => ({ ...s, [q.id]: e.target.value }))} />
-                  <Button type="submit" tone="soft" disabled={busy || !answers[q.id]?.trim()} className="!px-4 !py-2 shrink-0">Salvar</Button>
-                </form>}
-              </div>
-            ))}
-          </div>
-        ))}
-        {answered.length > 0 && (
-          <details>
-            <summary className="cursor-pointer text-sm font-semibold text-ink-mute">Respondidas ({answered.length})</summary>
-            <div className="space-y-3 mt-3">
-              {answered.map(q => (
-                <div key={q.id} className="rounded-2xl border border-transparent bg-surface-2/60 p-4 space-y-2">
-                  <div className="flex justify-between gap-3">
-                    <p className="font-semibold text-ink">{q.questions_to_ask}</p>
-                    <button onClick={() => onDeleteQuestion(q)} aria-label="Excluir dúvida" className="p-1.5 rounded-full text-ink-mute hover:text-alert self-start">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="rounded-xl bg-ok-soft p-3 text-sm">
-                    <span className="font-semibold text-ok flex items-center gap-1 text-xs"><ShieldCheck className="w-3.5 h-3.5" /> {specialtyOf(questionSpecialty(q.specialty)).label}</span>
-                    <p className="text-ink mt-1">{q.doctor_answer}</p>
-                  </div>
+                  <Button type="submit" tone="soft" disabled={busy || !answers[q.id]?.trim()} className="!px-4 !py-2 shrink-0">
+                    Salvar
+                  </Button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {answered.length > 0 && (
+        <details className="px-1">
+          <summary className="cursor-pointer text-sm font-semibold text-ink-mute">Respondidas ({answered.length})</summary>
+          <ul className="space-y-2 mt-2">
+            {answered.map(q => (
+              <li key={q.id} className="rounded-2xl bg-ok-soft/60 p-3 space-y-1">
+                <div className="flex justify-between gap-3">
+                  <p className="font-semibold text-ink text-sm">{q.questions_to_ask}</p>
+                  <button onClick={() => onDeleteQuestion(q)} aria-label="Excluir dúvida" className="p-1 rounded-full text-ink-mute hover:text-alert self-start">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-              ))}
-            </div>
-          </details>
-        )}
-      </div>
-    </Card>
+                <p className="text-sm text-ink flex gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-ok shrink-0 mt-0.5" /> {q.doctor_answer}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
   );
 }
 
@@ -530,27 +471,47 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
     }
   };
 
+  const when = consultation ? parseTimestamp(consultation.scheduled_at) : null;
   return (
-    <div className="space-y-4">
-      <div className="no-print flex flex-wrap items-center justify-between gap-3">
-        <Button tone="ghost" onClick={() => props.onOpenReport(null)}>
-          <ArrowLeft className="w-4 h-4" /> Voltar
-        </Button>
-        <div className="flex flex-wrap gap-2">
-          <Button tone="soft" onClick={copy}>
-            <ClipboardCopy className="w-4 h-4" /> Copiar texto
-          </Button>
-          <Button onClick={() => window.print()}>
-            <Printer className="w-4 h-4" /> Imprimir / PDF
-          </Button>
+    <div className="space-y-5">
+      <div className="no-print space-y-3">
+        <button type="button" onClick={() => props.onOpenReport(null)} className="inline-flex items-center gap-1 text-sm font-bold text-ink-soft">
+          <ArrowLeft className="w-4 h-4" /> Cuidados
+        </button>
+        <div className="px-1">
+          <p className="text-[12px] font-extrabold uppercase tracking-wide text-verde-strong">{consultation ? 'Preparar a consulta' : 'Resumo para levar'}</p>
+          <h1 className="font-display text-[1.5rem] leading-tight text-ink">{report.specialty.label}</h1>
+          {when && (
+            <p className="text-[14px] text-ink-soft first-letter:uppercase">
+              {when.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })} às {when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              {consultation?.professional_name && ` · ${consultation.professional_name}`}
+            </p>
+          )}
         </div>
       </div>
-      <div className="no-print flex flex-wrap items-center gap-3 text-sm text-ink-soft">
-        <label htmlFor="inicio-periodo">Analisar a partir de</label>
-        <input id="inicio-periodo" type="date" max={toISODate(today)} className={`${inputClass} !w-auto !py-1.5`} value={from} onChange={e => e.target.value && setFrom(e.target.value)} />
-        <span className="text-ink-mute">(padrão: desde a última consulta desta especialidade, ou 30 dias)</span>
-      </div>
+
+      {consultation && <QuestionsSection {...props} specialtyId={request.specialtyId} />}
+
+      <section aria-label="O resumo" className="space-y-3">
+        <div className="no-print px-1 space-y-2">
+          <h2 className="text-[1.15rem] text-ink">O resumo</h2>
+          <p className="text-[13px] text-ink-soft">Sintomas, peso, pressão, dúvidas e os dados da gestação, com o que importa para essa especialidade. Imprima ou mande para o profissional.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={() => window.print()}>
+              <Printer className="w-4 h-4" /> Imprimir / PDF
+            </Button>
+            <Button tone="soft" onClick={copy}>
+              <ClipboardCopy className="w-4 h-4" /> Copiar texto
+            </Button>
+          </div>
+          <label className="flex flex-wrap items-center gap-2 text-[13px] text-ink-soft">
+            A partir de
+            <input id="inicio-periodo" type="date" max={toISODate(today)} className={`${inputClass} !w-auto !py-1.5 text-sm`} value={from} onChange={e => e.target.value && setFrom(e.target.value)} />
+            <span className="text-ink-mute">desde a última consulta, ou 30 dias</span>
+          </label>
+        </div>
       <ReportDocument report={report} ficha={ficha} labor={labor} />
+      </section>
     </div>
   );
 }
@@ -561,7 +522,7 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
   const when = r.consultation ? parseTimestamp(r.consultation.scheduled_at) : null;
 
   return (
-    <article className="print-area rounded-[28px] bg-surface shadow-soft p-6 md:p-8 space-y-7 print:space-y-4 print:border-0 print:p-0 print:text-[12px]">
+    <article className="print-area rounded-[28px] bg-surface p-6 md:p-8 space-y-7 print:space-y-4 print:border-0 print:p-0 print:text-[12px]">
       <header className="space-y-3 border-b border-line pb-5">
         <p className="text-sm font-semibold text-brand">Tumtum · resumo para consulta</p>
         <h2 className="text-2xl font-semibold text-ink">{r.specialty.label}</h2>

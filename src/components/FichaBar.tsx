@@ -1,6 +1,6 @@
-import { Fragment, useState } from 'react';
-import { ChevronDown, ClipboardList, Pencil } from 'lucide-react';
-import { BLOOD_TYPES, buildFicha, fichaSummary, missingFicha, type FichaItem } from '../lib/ficha';
+import { useState } from 'react';
+import { Pencil } from 'lucide-react';
+import { BLOOD_TYPES, buildFicha, missingFicha, type FichaItem } from '../lib/ficha';
 import type { HealthMetric, PregnancyProfile } from '../types';
 import { inputClass } from './styles';
 import { Button, Field } from './ui';
@@ -27,77 +27,36 @@ interface Props {
   onSave: (input: FichaInput) => Promise<boolean>;
 }
 
-const WEEKS = /^\d+s \d+d$/;
-
-/** Dados da gestação no topo de Cuidados: uma linha de resumo, com a ficha completa a um toque. */
-export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
-  const [open, setOpen] = useState(false);
+/** Dados da gestação (Cuidados → Para ter à mão): a ficha inteira e o botão para editar. */
+export default function FichaPanel({ profile, metrics, busy, onSave }: Props) {
   const [editing, setEditing] = useState(false);
-  // Semana, trimestre e DPP primeiro: é o que mais se procura. O nome (o primeiro
-  // item, quando preenchido) vai para o fim, que é o que se corta quando não cabe.
-  const all = fichaSummary(profile);
-  const name = profile.motherName ? all[0] : null;
-  const summary = [...all.filter(s => s !== name), ...(name ? [name] : [])];
   const items = buildFicha(profile, metrics);
   const missing = missingFicha(items);
 
+  if (editing) {
+    return (
+      <FichaForm
+        profile={profile}
+        busy={busy}
+        onCancel={() => setEditing(false)}
+        onSave={async input => {
+          if (await onSave(input)) setEditing(false);
+        }}
+      />
+    );
+  }
   return (
-    <div className="no-print max-w-5xl mx-auto px-4 md:px-6">
-      {/* Fechada, a ficha é só uma linha de texto: sem caixa, sem contornos. */}
-      <button onClick={() => setOpen(v => !v)} aria-expanded={open} className="w-full flex items-center gap-2.5 py-1.5 text-left">
-        <span className="w-8 h-8 rounded-full bg-brand-soft text-brand-strong flex items-center justify-center shrink-0">
-          <ClipboardList className="w-4 h-4" />
-        </span>
-        {/* Uma linha só, cortada com reticências: com a ficha completa o resumo é longo e,
-            sem isso, passava por cima do "Dados da gestação" e da largura da tela (o celular dava zoom). */}
-        <span className="flex-1 min-w-0 truncate text-sm text-ink-soft tabular">
-          {summary.map((s, i) => (
-            <Fragment key={i}>
-              {i > 0 && <span className="text-ink-mute/70" aria-hidden> · </span>}
-              <span className={WEEKS.test(s) ? 'font-extrabold text-ink' : ''}>{s}</span>
-            </Fragment>
-          ))}
-        </span>
-        <span className="shrink-0 flex items-center gap-1.5 text-sm font-bold text-brand-strong">
-          {missing.length > 0 && <span className="w-2 h-2 rounded-full bg-warm" title="Dados incompletos" aria-label="dados incompletos" />}
-          {/* Em telas estreitas, só "Dados": o resumo ao lado precisa de espaço. */}
-          <span className="min-[380px]:hidden">Dados</span>
-          <span className="hidden min-[380px]:inline">Dados da gestação</span>
-          <ChevronDown className={`w-4 h-4 transition ${open ? 'rotate-180' : ''}`} />
-        </span>
-      </button>
-
-      {open && (
-        <div className="mt-2 rounded-[24px] bg-surface shadow-soft px-4 py-4 space-y-4">
-          {!editing ? (
-            <>
-              <FichaGrid items={items} />
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-ink-mute">
-                  {missing.length ? `Falta preencher: ${missing.join(', ').toLowerCase()}.` : 'Dados completos. Eles aparecem no topo de todo resumo de consulta.'}
-                </p>
-                {profile.fichaAvailable ? (
-                  <Button tone="soft" onClick={() => setEditing(true)} className="!px-4 !py-2">
-                    <Pencil className="w-4 h-4" /> Editar dados
-                  </Button>
-                ) : (
-                  <p className="text-xs text-warn bg-warn-soft rounded-xl px-3 py-2">
-                    Para editar, rodem a migração <code>db/migrations/003_ficha_gestante.sql</code> no Neon.
-                  </p>
-                )}
-              </div>
-            </>
-          ) : (
-            <FichaForm
-              profile={profile}
-              busy={busy}
-              onCancel={() => setEditing(false)}
-              onSave={async input => {
-                if (await onSave(input)) setEditing(false);
-              }}
-            />
-          )}
-        </div>
+    <div className="space-y-4">
+      <FichaGrid items={items} />
+      <p className="text-xs text-ink-mute">{missing.length ? `Falta preencher: ${missing.join(', ').toLowerCase()}.` : 'Dados completos. Eles aparecem no topo de todo resumo de consulta.'}</p>
+      {profile.fichaAvailable ? (
+        <Button tone="soft" onClick={() => setEditing(true)}>
+          <Pencil className="w-4 h-4" /> Editar dados
+        </Button>
+      ) : (
+        <p className="text-xs text-warn bg-warn-soft rounded-xl px-3 py-2">
+          Para editar, rodem a migração <code>db/migrations/003_ficha_gestante.sql</code> no Neon.
+        </p>
       )}
     </div>
   );
