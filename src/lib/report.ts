@@ -151,7 +151,7 @@ export function reportToText(r: ConsultationReport, ficha: string[] = []): strin
     lines.push(`Consulta: ${when.toLocaleDateString('pt-BR')} às ${when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}${r.consultation.professional_name ? ` · ${r.consultation.professional_name}` : ''}`);
   }
   if (ficha.length) {
-    lines.push('', 'FICHA DA GESTANTE', ...ficha.map(l => `- ${l}`), '');
+    lines.push('', 'DADOS DA GESTANTE', ...ficha.map(l => `- ${l}`), '');
   } else if (r.age) {
     lines.push(`Idade gestacional hoje: ${r.age.weeks} semanas e ${r.age.days} dias · DPP ${r.age.dpp.toLocaleDateString('pt-BR')}`);
   }

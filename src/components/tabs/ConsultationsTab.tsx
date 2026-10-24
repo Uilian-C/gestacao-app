@@ -573,9 +573,9 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
         )}
       </header>
 
-      {/* Ficha da gestante: o mesmo cabeçalho de prontuário em todo resumo. */}
+      {/* Dados da gestante: o mesmo cabeçalho de prontuário em todo resumo. */}
       <section className="space-y-3 print:space-y-1.5 rounded-2xl bg-surface-2 p-4 print:p-2.5 break-inside-avoid print:bg-transparent print:border print:border-line">
-        <h3 className="text-sm font-semibold text-ink-soft">Ficha da gestante</h3>
+        <h3 className="text-sm font-semibold text-ink-soft">Dados da gestante</h3>
         <FichaGrid items={ficha} compact />
         <p className="text-xs text-ink-mute border-t border-line pt-2">
           Período analisado neste resumo: semanas {r.weekFrom} a {r.weekTo} ({formatBR(toISODate(r.period.from))} a {formatBR(toISODate(r.period.to))})

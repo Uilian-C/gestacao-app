@@ -29,7 +29,7 @@ interface Props {
 
 const WEEKS = /^\d+s \d+d$/;
 
-/** Ficha da gestante no topo do Início e de Cuidados: uma linha de resumo, com a ficha completa a um toque. */
+/** Dados da gestação no topo de Cuidados: uma linha de resumo, com a ficha completa a um toque. */
 export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -49,7 +49,7 @@ export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
           <ClipboardList className="w-4 h-4" />
         </span>
         {/* Uma linha só, cortada com reticências: com a ficha completa o resumo é longo e,
-            sem isso, passava por cima do "Ficha" e da largura da tela (o celular dava zoom). */}
+            sem isso, passava por cima do "Dados da gestação" e da largura da tela (o celular dava zoom). */}
         <span className="flex-1 min-w-0 truncate text-sm text-ink-soft tabular">
           {summary.map((s, i) => (
             <Fragment key={i}>
@@ -59,8 +59,10 @@ export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
           ))}
         </span>
         <span className="shrink-0 flex items-center gap-1.5 text-sm font-bold text-brand-strong">
-          {missing.length > 0 && <span className="w-2 h-2 rounded-full bg-warm" title="Ficha incompleta" aria-label="ficha incompleta" />}
-          Ficha
+          {missing.length > 0 && <span className="w-2 h-2 rounded-full bg-warm" title="Dados incompletos" aria-label="dados incompletos" />}
+          {/* Em telas estreitas, só "Dados": o resumo ao lado precisa de espaço. */}
+          <span className="min-[380px]:hidden">Dados</span>
+          <span className="hidden min-[380px]:inline">Dados da gestação</span>
           <ChevronDown className={`w-4 h-4 transition ${open ? 'rotate-180' : ''}`} />
         </span>
       </button>
@@ -72,11 +74,11 @@ export default function FichaBar({ profile, metrics, busy, onSave }: Props) {
               <FichaGrid items={items} />
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-ink-mute">
-                  {missing.length ? `Falta preencher: ${missing.join(', ').toLowerCase()}.` : 'Ficha completa. Ela aparece no topo de todo resumo de consulta.'}
+                  {missing.length ? `Falta preencher: ${missing.join(', ').toLowerCase()}.` : 'Dados completos. Eles aparecem no topo de todo resumo de consulta.'}
                 </p>
                 {profile.fichaAvailable ? (
                   <Button tone="soft" onClick={() => setEditing(true)} className="!px-4 !py-2">
-                    <Pencil className="w-4 h-4" /> Editar ficha
+                    <Pencil className="w-4 h-4" /> Editar dados
                   </Button>
                 ) : (
                   <p className="text-xs text-warn bg-warn-soft rounded-xl px-3 py-2">
@@ -213,7 +215,7 @@ function FichaForm({ profile, busy, onSave, onCancel }: { profile: PregnancyProf
       {error && <p className="text-sm font-semibold text-alert" role="alert">{error}</p>}
       <div className="flex gap-2 justify-end">
         <Button tone="ghost" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" disabled={busy}>Salvar ficha</Button>
+        <Button type="submit" disabled={busy}>Salvar dados</Button>
       </div>
     </form>
   );

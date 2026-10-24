@@ -1,4 +1,4 @@
-// Ficha da gestante: o mesmo cabeçalho em todas as telas e em todo resumo,
+// Dados da gestação (a antiga "ficha da gestante"): o mesmo cabeçalho em todas as telas e em todo resumo,
 // na ordem em que um especialista costuma perguntar.
 import type { HealthMetric, PregnancyProfile } from '../types';
 import { formatBR, gestationalAge, parseLocalDate } from './dates';
