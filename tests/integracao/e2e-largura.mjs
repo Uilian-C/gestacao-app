@@ -1,6 +1,6 @@
 // Nada pode passar da largura da tela no celular (o navegador diminuiria o zoom de tudo),
 // nem com os dados da gestação completos.
-import { check, errs, finish, launch, OUT, quickAccount, openCare } from './lib.mjs';
+import { check, errs, finish, launch, OUT, quickAccount, openCare, openHandy } from './lib.mjs';
 
 const b = await launch();
 for (const width of [300, 360, 412]) {
@@ -18,7 +18,7 @@ for (const width of [300, 360, 412]) {
   await p.reload();
   // Os dados da gestação moram em Cuidados → Para ter à mão, numa folha.
   await openCare(p);
-  await p.getByRole('button', { name: /^Dados da gestação/ }).click();
+  await openHandy(p, 'Dados da gestação');
   await p.getByRole('dialog', { name: 'Dados da gestação' }).getByText('Anabela Cristina de Souza').waitFor();
   check(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${width}px: os dados da gestação cabem na tela`);
   await p.keyboard.press('Escape');

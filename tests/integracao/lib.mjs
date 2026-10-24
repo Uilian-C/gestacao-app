@@ -113,7 +113,17 @@ export async function openCare(page, part) {
   await page.getByRole('button', { name: /^Cuidados/ }).first().click();
   await page.locator('section[aria-labelledby="registros-titulo"]').waitFor();
   if (!part) return;
-  if (part === 'Resultados') await page.locator('section[aria-labelledby="resultados-titulo"]').getByRole('button', { name: /^(Ver todos|Abrir)/ }).click();
-  else await page.getByRole('button', { name: { Sintomas: /^Sintomas/, 'Peso e pressão': /^Peso e pressão/, Jornada: /^Pré-natal/ }[part] }).first().click();
+  if (part === 'Jornada') {
+    const fold = page.getByRole('button', { name: /^Pré-natal/ });
+    if ((await fold.getAttribute('aria-expanded')) !== 'true') await fold.click();
+    await page.getByRole('button', { name: 'Ver a jornada completa ›' }).click();
+  } else await page.getByRole('button', { name: { Sintomas: /^Sintomas/, 'Peso e pressão': /^Peso e pressão/, Resultados: /^Resultados/ }[part] }).first().click();
   await page.getByRole('heading', { level: 1, name: part === 'Jornada' ? 'Jornada do pré-natal' : part }).waitFor();
+}
+
+/** Cuidados → "Para ter à mão": abre a linha recolhida e toca num dos itens. */
+export async function openHandy(page, name) {
+  const fold = page.getByRole('button', { name: /^Para ter à mão/ });
+  if ((await fold.getAttribute('aria-expanded')) !== 'true') await fold.click();
+  await page.getByRole('button', { name: new RegExp(`^${name}`) }).click();
 }

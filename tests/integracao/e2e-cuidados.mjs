@@ -1,7 +1,7 @@
 // Cuidados numa página só: a próxima consulta (preparar com as dúvidas e o
 // resumo), os registros, o pré-natal, os resultados e o que ter à mão. Cada
 // parte abre numa página com "voltar"; o menu Cuidados sempre volta ao topo.
-import { check, finish, launch, OUT, openCare, phone, quickAccount } from './lib.mjs';
+import { check, finish, launch, OUT, openCare, phone, quickAccount, openHandy } from './lib.mjs';
 
 const b = await launch();
 const p = await phone(b);
@@ -58,9 +58,15 @@ await openCare(p, 'Peso e pressão');
 check(await p.getByRole('region', { name: 'Registros de peso e pressão' }).getByText(/66,2 kg/).isVisible(), 'Peso e pressão: os gráficos e as medições juntos');
 await p.getByRole('button', { name: /^Cuidados/ }).first().click();
 check(await hero.isVisible(), 'o menu Cuidados sempre volta para a página única');
+const folds = p.getByRole('list', { name: 'Mais de Cuidados' });
+check((await folds.getByRole('button', { name: /^Pré-natal \d+ de \d+ feitos/ }).getAttribute('aria-expanded')) === 'false' && (await folds.getByRole('button', { name: /^Resultados/ }).isVisible()), 'pré-natal, resultados e o que ter à mão numa lista curta');
+await folds.getByRole('button', { name: /^Pré-natal/ }).click();
+check(await p.getByRole('button', { name: 'Ver a jornada completa ›' }).isVisible(), 'o pré-natal abre no lugar, com o que fazer agora');
+await p.screenshot({ path: `${OUT}cuidados-lista.png` });
 
-// ---- Para ter à mão ----
-await p.getByRole('button', { name: /^Dados da gestação/ }).click();
+// ---- Para ter à mão (recolhido: abre no lugar) ----
+check((await p.getByRole('button', { name: /^Resumo para emergência/ }).count()) === 0, '"Para ter à mão" começa recolhido');
+await openHandy(p, 'Dados da gestação');
 check(await dlg.getByRole('button', { name: /Editar dados/ }).isVisible(), 'os dados da gestação abrem numa folha, com editar');
 await p.keyboard.press('Escape');
 await p.getByRole('button', { name: /^Quando procurar a maternidade/ }).click();
