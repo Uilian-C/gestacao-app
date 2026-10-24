@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
-import { Bell, CheckCircle2, ChevronRight, Clock, ListChecks, Plus, Sparkles } from 'lucide-react';
+import { Bell, CheckCircle2, ChevronDown, ChevronRight, Clock, Plus, Sparkles } from 'lucide-react';
 import { suggestionsFor, type TaskSuggestion } from '../../content/taskSuggestions';
-import { formatBR, isOverdue, parseLocalDate, toISODate, trimesterOf } from '../../lib/dates';
+import { formatBR, isOverdue, parseLocalDate, toISODate } from '../../lib/dates';
 import type { Assignee, PartnerTask, Priority } from '../../types';
 import WhoPicker, { WhoAvatars } from '../WhoPicker';
 import { PeopleContext, TaskRemindersReady, TimedRemindersReady, whoName } from '../../lib/people';
@@ -9,11 +9,9 @@ import { reminderAt, reminderTime } from '../../lib/reminders';
 import ReminderPicker from '../forms/ReminderPicker';
 import { inputClass } from '../styles';
 import DayPicker from '../forms/DayPicker';
-import { Button, Card, Chip, EmptyState, Field, Pill, Segmented, SectionTitle } from '../ui';
+import { Button, Chip, Field, Pill, Segmented } from '../ui';
 
 type AssigneeFilter = 'todos' | Assignee;
-type PeriodFilter = 'semana' | 'tri1' | 'tri2' | 'tri3' | 'todas';
-type StatusFilter = 'pendentes' | 'concluidas' | 'todas';
 
 export interface NewTask {
   title: string;
@@ -44,150 +42,145 @@ const PRIORITY_TONE: Record<Priority, 'neutral' | 'warn' | 'alert'> = { Baixa: '
 export default function TasksTab({ tasks, selectedWeek, currentWeek, busy, onCreate, onToggle, onOpen }: Props) {
   const people = useContext(PeopleContext);
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('todos');
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todas');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('pendentes');
   const [formOpen, setFormOpen] = useState(false);
+  const [ideas, setIdeas] = useState(false);
+  const [showDone, setShowDone] = useState(false);
 
   const byAssignee = tasks.filter(t => assigneeFilter === 'todos' || t.assigned_to === assigneeFilter);
-  const filtered = byAssignee
-    .filter(t => {
-      if (periodFilter === 'semana' && t.week_number !== selectedWeek) return false;
-      if (periodFilter === 'tri1' && trimesterOf(t.week_number) !== 1) return false;
-      if (periodFilter === 'tri2' && trimesterOf(t.week_number) !== 2) return false;
-      if (periodFilter === 'tri3' && trimesterOf(t.week_number) !== 3) return false;
-      if (statusFilter === 'pendentes' && t.is_completed) return false;
-      if (statusFilter === 'concluidas' && !t.is_completed) return false;
-      return true;
-    })
-    .sort((a, b) => Number(a.is_completed) - Number(b.is_completed) || Number(isOverdue(b.due_date)) - Number(isOverdue(a.due_date)) || a.week_number - b.week_number);
-
+  const pending = byAssignee.filter(t => !t.is_completed).sort((a, b) => Number(isOverdue(b.due_date)) - Number(isOverdue(a.due_date)) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || a.week_number - b.week_number);
+  const completed = byAssignee.filter(t => t.is_completed);
   const total = byAssignee.length;
-  const done = byAssignee.filter(t => t.is_completed).length;
-  const overdue = byAssignee.filter(t => !t.is_completed && isOverdue(t.due_date)).length;
-  const rate = total > 0 ? Math.round((done / total) * 100) : 0;
+  const overdue = pending.filter(t => isOverdue(t.due_date)).length;
+  const rate = total > 0 ? Math.round((completed.length / total) * 100) : 0;
   const suggestions = suggestionsFor(currentWeek, tasks.map(t => t.task_title));
 
   const addSuggestion = (s: TaskSuggestion) => onCreate({ title: s.title, assignee: s.assignee, priority: s.priority, dueDate: '', notes: s.notes ?? '', week: Math.max(s.week, currentWeek) });
 
   return (
-    <div className="space-y-5">
-      <Card>
-        <SectionTitle
-          icon={<ListChecks className="w-5 h-5" />}
-          title="Preparativos do casal"
-          action={
-            <Segmented
-              label="Responsável"
-              size="sm"
-              value={assigneeFilter}
-              onChange={setAssigneeFilter}
-              options={[
-                { value: 'todos', label: 'Todos' },
-                { value: 'mae', label: whoName(people, 'mae') },
-                { value: 'pai', label: whoName(people, 'pai') },
-                { value: 'casal', label: 'Os dois' },
-              ]}
-            />
-          }
+    <div className="space-y-4">
+      {/* De quem e quanto já foi: uma linha e a barra fina. */}
+      <div className="space-y-3">
+        <Segmented
+          label="Responsável"
+          size="sm"
+          full
+          value={assigneeFilter}
+          onChange={setAssigneeFilter}
+          options={[
+            { value: 'todos', label: 'Todos' },
+            { value: 'mae', label: whoName(people, 'mae') },
+            { value: 'pai', label: whoName(people, 'pai') },
+            { value: 'casal', label: 'Os dois' },
+          ]}
         />
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-ink-soft">
-              <strong className="text-ink tabular">{done}</strong> de <span className="tabular">{total}</span> concluídas
+        {total > 0 && (
+          <div className="px-1 space-y-1.5">
+            <p className="text-[13px] text-ink-soft">
+              <strong className="text-ink tabular">{completed.length}</strong> de <span className="tabular">{total}</span> concluídas
               {overdue > 0 && <span className="text-alert font-semibold"> · {overdue} {overdue === 1 ? 'atrasada' : 'atrasadas'}</span>}
-            </span>
-            <span className="font-semibold text-brand tabular">{rate}%</span>
+            </p>
+            <div className="h-1 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={rate} aria-valuemin={0} aria-valuemax={100} aria-label="Tarefas concluídas">
+              <div className="h-full rounded-full bg-azul transition-all" style={{ width: `${rate}%` }} />
+            </div>
           </div>
-          <div className="h-2.5 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-valuenow={rate} aria-valuemin={0} aria-valuemax={100} aria-label="Tarefas concluídas">
-            <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${rate}%` }} />
-          </div>
-        </div>
-      </Card>
+        )}
+      </div>
 
-      {suggestions.length > 0 && (
-        <Card tone="brand">
-          <SectionTitle icon={<Sparkles className="w-5 h-5" />} title="Sugestões para esta fase" subtitle="Marcos comuns do pré-natal nesta altura. Toque para adicionar." />
-          <div className="flex flex-wrap gap-2">
-            {suggestions.map(s => (
-              <Chip key={s.title} onClick={() => addSuggestion(s)}>
-                <span className="inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" />{s.title}</span>
-              </Chip>
-            ))}
-          </div>
-        </Card>
+      {formOpen ? (
+        <TaskForm selectedWeek={selectedWeek} busy={busy} onCancel={() => setFormOpen(false)} onCreate={async t => { const ok = await onCreate(t); if (ok) setFormOpen(false); return ok; }} />
+      ) : (
+        <Button tone="soft" onClick={() => setFormOpen(true)}>
+          <Plus className="w-4 h-4" /> Nova tarefa
+        </Button>
       )}
 
-      <Card>
-        <SectionTitle
-          title="Lista"
-          action={
-            <Button tone={formOpen ? 'ghost' : 'soft'} onClick={() => setFormOpen(v => !v)} className="!px-4 !py-2">
-              {formOpen ? 'Fechar' : <><Plus className="w-4 h-4" /> Nova tarefa</>}
-            </Button>
-          }
-        />
-        {formOpen && <TaskForm selectedWeek={selectedWeek} busy={busy} onCreate={async t => { const ok = await onCreate(t); if (ok) setFormOpen(false); return ok; }} />}
+      {pending.length === 0 ? (
+        <p className="px-1 text-[14px] text-ink-soft">{total ? 'Nada pendente por aqui. 💛' : 'Dividam os preparativos: cada tarefa tem quem cuida e, se quiserem, prazo e lembrete.'}</p>
+      ) : (
+        <ul aria-label="Tarefas pendentes" className="rounded-[24px] bg-surface/80 divide-y divide-line/60">
+          {pending.map(t => (
+            <TaskRow key={t.id} task={t} onToggle={onToggle} onOpen={onOpen} />
+          ))}
+        </ul>
+      )}
 
-        <div className="flex flex-wrap gap-2 mb-4">
-          <select aria-label="Período" value={periodFilter} onChange={e => setPeriodFilter(e.target.value as PeriodFilter)} className={`${inputClass} !w-auto !py-1.5 text-sm`}>
-            <option value="todas">Todas as semanas</option>
-            <option value="semana">Semana {selectedWeek}</option>
-            <option value="tri1">1º trimestre</option>
-            <option value="tri2">2º trimestre</option>
-            <option value="tri3">3º trimestre</option>
-          </select>
-          <Segmented
-            label="Situação"
-            size="sm"
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              { value: 'pendentes', label: 'Pendentes' },
-              { value: 'concluidas', label: 'Concluídas' },
-              { value: 'todas', label: 'Todas' },
-            ]}
-          />
-        </div>
-
-        {filtered.length === 0 ? (
-          <EmptyState icon={<ListChecks />} title="Nada por aqui">Nenhuma tarefa com esses filtros.</EmptyState>
-        ) : (
-          <ul className="space-y-2.5">
-            {filtered.map(t => {
-              const late = !t.is_completed && isOverdue(t.due_date);
-              return (
-                <li key={t.id} className={`rounded-2xl border p-4 flex items-start gap-3 transition ${t.is_completed ? 'border-line bg-surface-2/60' : late ? 'border-alert/40 bg-canvas' : 'border-transparent bg-surface-2/60'}`}>
-                  <button onClick={() => onToggle(t)} aria-label={t.is_completed ? `Reabrir "${t.task_title}"` : `Concluir "${t.task_title}"`} className="mt-0.5 shrink-0">
-                    {t.is_completed ? <CheckCircle2 className="w-6 h-6 text-ok" /> : <span className="block w-6 h-6 rounded-full border-2 border-ink-mute hover:border-brand" />}
-                  </button>
-                  <button type="button" onClick={() => onOpen(t)} className="flex-1 min-w-0 space-y-1.5 text-left" aria-label={`${t.task_title}: ver detalhes`}>
-                    <p className={`font-semibold ${t.is_completed ? 'line-through text-ink-mute' : 'text-ink'}`}>{t.task_title}</p>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-ink-mute">
-                      <span className="inline-flex items-center gap-1.5 font-semibold text-ink-soft">
-                        <WhoAvatars who={t.assigned_to} className="w-5 h-5 text-[9px]" /> {whoName(people, t.assigned_to)}
+      {/* O resto, recolhido: as ideias da fase e o que já foi feito. */}
+      <div className="rounded-[24px] bg-surface/80 divide-y divide-line/60">
+        {suggestions.length > 0 && (
+          <div>
+            <button type="button" onClick={() => setIdeas(v => !v)} aria-expanded={ideas} className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
+              <Sparkles className="w-5 h-5 text-azul-strong shrink-0" />
+              <span className="flex-1 font-semibold text-ink">Ideias para esta fase ({suggestions.length})</span>
+              <ChevronDown className={`w-4 h-4 text-ink-mute transition-transform ${ideas ? 'rotate-180' : ''}`} />
+            </button>
+            {ideas && (
+              <div className="px-4 pb-4 space-y-2">
+                <p className="text-[13px] text-ink-soft">Marcos comuns do pré-natal nesta altura. Toque para virar tarefa.</p>
+                <div className="flex flex-wrap gap-2">
+                  {suggestions.map(s => (
+                    <Chip key={s.title} onClick={() => addSuggestion(s)}>
+                      <span className="inline-flex items-center gap-1">
+                        <Plus className="w-3.5 h-3.5" />
+                        {s.title}
                       </span>
-                      <Pill tone={PRIORITY_TONE[t.priority] ?? 'neutral'}>{t.priority}</Pill>
-                      {t.due_date && (
-                        <span className={`flex items-center gap-1 font-semibold ${late ? 'text-alert' : ''}`}>
-                          <Clock className="w-3.5 h-3.5" /> {late ? 'atrasada desde' : 'até'} {formatBR(t.due_date)}
-                        </span>
-                      )}
-                      {t.remind_on && !t.is_completed && t.remind_on.slice(0, 10) >= toISODate(new Date()) && (
-                        <span className="flex items-center gap-1">
-                          <Bell className="w-3.5 h-3.5" /> lembrar em {formatBR(t.remind_on)}
-                        </span>
-                      )}
-                    </div>
-                    {t.notes && <p className="text-sm text-ink-soft line-clamp-1">{t.notes}</p>}
-                  </button>
-                  <ChevronRight className="w-4 h-4 text-ink-mute shrink-0 self-center" />
-                </li>
-              );
-            })}
-          </ul>
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
-      </Card>
+        {completed.length > 0 && (
+          <div>
+            <button type="button" onClick={() => setShowDone(v => !v)} aria-expanded={showDone} className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
+              <CheckCircle2 className="w-5 h-5 text-ok shrink-0" />
+              <span className="flex-1 font-semibold text-ink">Concluídas ({completed.length})</span>
+              <ChevronDown className={`w-4 h-4 text-ink-mute transition-transform ${showDone ? 'rotate-180' : ''}`} />
+            </button>
+            {showDone && (
+              <ul aria-label="Tarefas concluídas" className="divide-y divide-line/60 border-t border-line/60">
+                {completed.map(t => (
+                  <TaskRow key={t.id} task={t} onToggle={onToggle} onOpen={onOpen} />
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
     </div>
+  );
+}
+
+/** Uma tarefa numa linha: concluir à esquerda, o resto abre os detalhes. */
+function TaskRow({ task: t, onToggle, onOpen }: { task: PartnerTask; onToggle: (t: PartnerTask) => void; onOpen: (t: PartnerTask) => void }) {
+  const people = useContext(PeopleContext);
+  const late = !t.is_completed && isOverdue(t.due_date);
+  return (
+    <li className="flex items-start gap-3 px-4 py-3">
+      <button onClick={() => onToggle(t)} aria-label={t.is_completed ? `Reabrir "${t.task_title}"` : `Concluir "${t.task_title}"`} className="mt-0.5 shrink-0">
+        {t.is_completed ? <CheckCircle2 className="w-6 h-6 text-ok" /> : <span className={`block w-6 h-6 rounded-full border-2 ${late ? 'border-alert' : 'border-ink-mute'} hover:border-azul`} />}
+      </button>
+      <button type="button" onClick={() => onOpen(t)} className="flex-1 min-w-0 text-left" aria-label={`${t.task_title}: ver detalhes`}>
+        <span className={`block font-semibold leading-snug ${t.is_completed ? 'line-through text-ink-mute' : 'text-ink'}`}>{t.task_title}</span>
+        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-ink-mute">
+          <span className="inline-flex items-center gap-1.5 font-semibold text-ink-soft">
+            <WhoAvatars who={t.assigned_to} className="w-5 h-5 text-[9px]" /> {whoName(people, t.assigned_to)}
+          </span>
+          {t.priority === 'Alta' && !t.is_completed && <Pill tone={PRIORITY_TONE.Alta}>Alta</Pill>}
+          {t.due_date && !t.is_completed && (
+            <span className={`flex items-center gap-1 font-semibold ${late ? 'text-alert' : ''}`}>
+              <Clock className="w-3.5 h-3.5" /> {late ? 'atrasada desde' : 'até'} {formatBR(t.due_date)}
+            </span>
+          )}
+          {t.remind_on && !t.is_completed && t.remind_on.slice(0, 10) >= toISODate(new Date()) && (
+            <span className="flex items-center gap-1">
+              <Bell className="w-3.5 h-3.5" /> {formatBR(t.remind_on)}
+            </span>
+          )}
+        </span>
+      </button>
+      <ChevronRight className="w-4 h-4 text-ink-mute shrink-0 self-center" />
+    </li>
   );
 }
 
@@ -220,7 +213,7 @@ export function TaskForm({ selectedWeek: _selectedWeek, busy, onCreate, initialD
   if (!reminderChoices.some(c => c.iso === tomorrow)) reminderChoices.push({ iso: tomorrow, text: 'Amanhã' });
   return (
     <form
-      className="rounded-2xl bg-surface-2/60 p-4 space-y-4 mb-5"
+      className="rounded-[24px] bg-surface/80 p-4 space-y-4"
       onSubmit={async e => {
         e.preventDefault();
         if (title.trim()) await onCreate({ title: title.trim(), assignee, priority, dueDate, notes: notes.trim(), remindOn: reminders ? remindOn : undefined, remindAt: reminders && withTime ? (remindOn ? reminderAt(remindOn, remindTime) : null) : undefined });

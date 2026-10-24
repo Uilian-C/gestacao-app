@@ -142,7 +142,7 @@ export function ScheduleForm({ busy, onCreate, initialDate, startOpen = false, o
 
   return (
     <form
-      className="rounded-[22px] bg-surface border border-line p-4 space-y-5 shadow-soft"
+      className="rounded-[24px] bg-surface/80 p-4 space-y-5"
       onSubmit={async e => {
         e.preventDefault();
         if (!date || (!consulta && !title.trim())) return;

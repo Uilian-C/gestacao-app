@@ -6,7 +6,6 @@ import { buildUpcoming, dayChip, type UpcomingItem } from '../../lib/upcoming';
 import type { Celebration } from '../../lib/celebrations';
 import type { ExamItem, JournalEntry } from '../../hooks/useGestationData';
 import type { Consultation, PartnerTask } from '../../types';
-import { Card } from '../ui';
 import { WhoAvatars } from '../WhoPicker';
 import { ScheduleForm, type NewConsultation } from './ConsultationsTab';
 
@@ -53,7 +52,7 @@ export default function UpcomingTab(props: Props) {
       {up.missingResults.length > 0 && (
         <Group title="Falta guardar o resultado" tone="text-alert">
           {up.missingResults.map(c => (
-            <div key={c.id} className="rounded-[22px] bg-surface shadow-soft px-4 py-3 flex items-center gap-3">
+            <div key={c.id} className="px-4 py-3 flex items-center gap-3">
               <FileCheck2 className="w-5 h-5 text-verde shrink-0" />
               <button type="button" onClick={() => props.onOpen({ kind: 'consultation', id: c.id })} className="flex-1 min-w-0 text-left">
                 <span className="block font-bold text-ink truncate">{appointmentTitle(c)}</span>
@@ -67,11 +66,7 @@ export default function UpcomingTab(props: Props) {
         </Group>
       )}
 
-      {empty && (
-        <Card>
-          <p className="text-ink-soft">Nada marcado por enquanto. Toquem em <strong>Agendar</strong> para pôr consultas, exames, ultrassons e vacinas aqui, com lembrete na véspera.</p>
-        </Card>
-      )}
+      {empty && <p className="px-1 text-[14px] text-ink-soft">Nada marcado por enquanto. Toquem em <strong>Agendar</strong> para pôr consultas, exames, ultrassons e vacinas aqui, com lembrete na véspera.</p>}
 
       {up.today.length > 0 && <Group title="Hoje">{up.today.map(i => <Row key={i.id} item={i} today onOpen={() => open(i)} />)}</Group>}
       {up.thisWeek.length > 0 && <Group title="Esta semana">{up.thisWeek.map(i => <Row key={i.id} item={i} onOpen={() => open(i)} />)}</Group>}
@@ -79,13 +74,13 @@ export default function UpcomingTab(props: Props) {
       {up.afterNextWeek.length > 0 && <Group title="Mais para frente">{up.afterNextWeek.map(i => <Row key={i.id} item={i} onOpen={() => open(i)} />)}</Group>}
 
       {up.past.length > 0 && (
-        <details className="rounded-[22px] bg-surface-2/50 px-4 py-3">
+        <details className="rounded-[24px] bg-surface/60 px-4 py-3">
           <summary className="cursor-pointer text-sm font-bold text-ink-soft">Já aconteceram ({up.past.length})</summary>
           <div className="mt-3 space-y-2">
             {up.past.map(c => {
               const result = resultOf(c, props.exams);
               return (
-                <button key={c.id} type="button" onClick={() => props.onOpen({ kind: 'consultation', id: c.id })} className="w-full text-left rounded-2xl bg-surface px-3 py-2.5 flex items-center gap-3">
+                <button key={c.id} type="button" onClick={() => props.onOpen({ kind: 'consultation', id: c.id })} className="w-full text-left rounded-2xl px-1 py-2.5 flex items-center gap-3">
                   <span className="flex-1 min-w-0">
                     <span className="block text-[11px] font-extrabold uppercase tracking-wide text-ink-mute">{kindInfo(kindOf(c)).label}</span>
                     <span className="block font-semibold text-ink truncate">{appointmentTitle(c)}</span>
@@ -109,7 +104,7 @@ function Group({ title, tone = 'text-ink-mute', children }: { title: string; ton
   return (
     <section className="space-y-2" aria-label={title}>
       <h2 className={`px-1 text-[12px] font-extrabold uppercase tracking-wider font-sans ${tone}`}>{title}</h2>
-      {children}
+      <div className="rounded-[24px] bg-surface/80 divide-y divide-line/60 overflow-hidden">{children}</div>
     </section>
   );
 }
@@ -119,7 +114,7 @@ export function Row({ item: i, today = false, onOpen }: { item: UpcomingItem; to
   const t = TONE[i.tone];
   const chip = dayChip(i.day);
   return (
-    <button type="button" onClick={onOpen} aria-label={`${i.label}: ${i.title}: ver detalhes`} className="w-full text-left rounded-[22px] bg-surface shadow-soft px-4 py-3 flex items-center gap-3 transition hover:brightness-[0.99] active:scale-[0.995]">
+    <button type="button" onClick={onOpen} aria-label={`${i.label}: ${i.title}: ver detalhes`} className="w-full text-left px-4 py-3 flex items-center gap-3 transition hover:bg-surface-2/40 active:scale-[0.995]">
       <span className="w-14 shrink-0 text-center">
         {today ? (
           i.time ? (
