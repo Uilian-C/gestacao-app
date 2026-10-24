@@ -561,7 +561,7 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
   const when = r.consultation ? parseTimestamp(r.consultation.scheduled_at) : null;
 
   return (
-    <article className="print-area rounded-[28px] bg-surface shadow-soft p-6 md:p-8 space-y-7 print:border-0 print:p-0">
+    <article className="print-area rounded-[28px] bg-surface shadow-soft p-6 md:p-8 space-y-7 print:space-y-4 print:border-0 print:p-0 print:text-[12px]">
       <header className="space-y-3 border-b border-line pb-5">
         <p className="text-sm font-semibold text-brand">Tumtum · resumo para consulta</p>
         <h2 className="text-2xl font-semibold text-ink">{r.specialty.label}</h2>
@@ -574,7 +574,7 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
       </header>
 
       {/* Ficha da gestante: o mesmo cabeçalho de prontuário em todo resumo. */}
-      <section className="space-y-3 rounded-2xl bg-surface-2 p-4 break-inside-avoid print:bg-transparent print:border print:border-line">
+      <section className="space-y-3 print:space-y-1.5 rounded-2xl bg-surface-2 p-4 print:p-2.5 break-inside-avoid print:bg-transparent print:border print:border-line">
         <h3 className="text-sm font-semibold text-ink-soft">Ficha da gestante</h3>
         <FichaGrid items={ficha} compact />
         <p className="text-xs text-ink-mute border-t border-line pt-2">
@@ -593,36 +593,29 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
           {r.symptoms.length === 0 ? (
             <p className="text-ink-soft">Nenhum sintoma registrado no período para esta especialidade.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[520px]">
-                <thead>
-                  <tr className="text-left text-xs text-ink-mute border-b border-line">
-                    <th className="py-2 pr-2 font-semibold">Sintoma</th>
-                    <th className="py-2 px-2 font-semibold text-right">Vezes</th>
-                    <th className="py-2 px-2 font-semibold text-right">Média</th>
-                    <th className="py-2 px-2 font-semibold text-right">Máx.</th>
-                    <th className="py-2 px-2 font-semibold">Tendência</th>
-                    <th className="py-2 pl-2 font-semibold">Quando</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.symptoms.map(s => (
-                    <tr key={s.key} className="border-b border-line align-top">
-                      <td className="py-2.5 pr-2">
-                        <span className="font-semibold text-ink">{s.name}</span>
-                        <span className="block text-xs text-ink-mute">{s.category}</span>
-                        {s.care.length > 0 && <span className="block text-xs text-ink-soft mt-1">Cuidados: {s.care.slice(-2).map(c => c.comment_text).join('; ')}</span>}
-                      </td>
-                      <td className="py-2.5 px-2 text-right tabular">{s.count}</td>
-                      <td className="py-2.5 px-2 text-right tabular">{s.avgIntensity.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}</td>
-                      <td className="py-2.5 px-2 text-right tabular">{s.maxIntensity}</td>
-                      <td className="py-2.5 px-2">{s.trend ? TREND_LABEL[s.trend] : '—'}</td>
-                      <td className="py-2.5 pl-2">{s.timeOfDay.dominant && s.timeOfDay.known >= 2 ? timeOfDayLabel(s.timeOfDay.dominant) : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="text-xs text-ink-mute mt-2">Intensidade de 1 (muito leve) a 5 (muito forte), registrada pelo casal.</p>
+            <div>
+              {/* Uma linha por sintoma, com as datas de cada vez (e a intensidade entre parênteses): cabe no papel sem tabela larga. */}
+              <ul className="divide-y divide-line border-y border-line">
+                {r.symptoms.map(s => (
+                  <li key={s.key} className="py-2 print:py-1.5 break-inside-avoid">
+                    <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                      <span className="font-semibold text-ink">{s.name}</span>
+                      <span className="text-xs text-ink-mute">{s.category}</span>
+                      <span className="ml-auto text-xs text-ink-soft tabular">
+                        {s.count}x · média {s.avgIntensity.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} · máx. {s.maxIntensity}
+                        {s.trend && ` · ${TREND_LABEL[s.trend].toLowerCase()}`}
+                        {s.timeOfDay.dominant && s.timeOfDay.known >= 2 && ` · mais ${timeOfDayLabel(s.timeOfDay.dominant).toLowerCase()}`}
+                      </span>
+                    </p>
+                    <p className="text-xs text-ink-soft tabular leading-relaxed">
+                      <span className="text-ink-mute">Datas: </span>
+                      {s.entries.map(e => `${e.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} (${e.intensity})`).join(' · ')}
+                    </p>
+                    {s.care.length > 0 && <p className="text-xs text-ink-soft">Cuidados: {s.care.slice(-2).map(c => c.comment_text).join('; ')}</p>}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-ink-mute mt-2">Entre parênteses, a intensidade daquele dia: de 1 (muito leve) a 5 (muito forte), registrada pelo casal.</p>
             </div>
           )}
         </ReportSection>
@@ -705,8 +698,9 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
 
 function ReportSection({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-3 break-inside-avoid">
-      <h3 className="text-lg font-semibold text-ink">{title}</h3>
+    // Sem "não quebrar" na seção inteira: uma seção longa pulava para a página seguinte e deixava meia página em branco.
+    <section className="space-y-3 print:space-y-1.5">
+      <h3 className="text-lg print:text-base font-semibold text-ink break-after-avoid">{title}</h3>
       {children}
       {note && <p className="text-xs text-ink-mute">{note}</p>}
     </section>

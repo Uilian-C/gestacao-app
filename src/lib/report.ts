@@ -169,6 +169,7 @@ export function reportToText(r: ConsultationReport, ficha: string[] = []): strin
       if (s.trend) parts.push(TREND_LABEL[s.trend]);
       if (s.timeOfDay.dominant && s.timeOfDay.known >= 2) parts.push(`mais de ${timeOfDayLabel(s.timeOfDay.dominant).toLowerCase()}`);
       lines.push(`- ${s.name}: ${parts.join(', ')}`);
+      lines.push(`  · datas: ${s.entries.map(e => `${e.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} (${e.intensity})`).join(', ')}`);
       for (const c of s.care.slice(-2)) lines.push(`  · cuidado: ${c.comment_text}`);
     }
   } else {
