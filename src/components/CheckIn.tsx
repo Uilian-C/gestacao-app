@@ -12,6 +12,7 @@ import MoodFace from './MoodFace';
 import { MOOD_COLOR, MOODS, moodLabel, moodOf } from '../lib/moods';
 import { BabyNameContext } from '../lib/baby';
 import { babyReply } from '../content/babyReplies';
+import { togetherRun, welcomeBack } from '../lib/streak';
 import BrandMark from './BrandMark';
 
 // "Como vocês estão hoje?": como cada um está (um toque por dia), lado a lado. Depois
@@ -87,6 +88,10 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
   });
   const moodAt = (day: string, mineSide: boolean) => checkins.find(c => c.day === day && c.mine === mineSide)?.mood;
   const hasWeek = checkins.some(c => week.includes(c.day));
+  // A sequência gentil: os dias seguidos em que os dois contaram (sem cobrança quando falha).
+  const roles = [...new Set(members.map(m => m.role))].filter((r): r is 'mae' | 'pai' => r === 'mae' || r === 'pai');
+  const run = partner ? togetherRun(checkins, roles, today) : 0;
+  const back = welcomeBack(checkins, today);
 
   return (
     <section aria-labelledby="checkin-titulo" className="rounded-[28px] bg-gradient-to-br from-rosa-soft/80 via-lilas-soft/50 to-azul-soft/40 p-3.5 space-y-3">
@@ -113,6 +118,13 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
         {partner && <Person member={partner} role={partner.role} name={partnerName!} mood={theirs?.mood} empty="Ainda não contou" />}
       </div>
 
+      {run >= 2 && (
+        <p className="flex items-center gap-1.5 px-1 text-[12.5px] font-bold text-rosa-strong">
+          <Heart className="w-3.5 h-3.5 fill-current" aria-hidden />
+          {run} dias seguidos contando um para o outro{run >= 7 ? ' · cada semana inteira ganha um coração no livro' : ''}
+        </p>
+      )}
+
       {picking && (
         <div className="grid grid-cols-5 gap-1.5" role="group" aria-label="Como você está hoje">
           {MOODS.map(m => {
@@ -138,7 +150,7 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
       {justSaved && mine && (
         <div className="tt-carimbo rounded-2xl bg-surface/80 px-3 py-2.5 space-y-1.5" role="status">
           <p className="flex items-center gap-1.5 text-[13px] font-bold text-ok">
-            <Check className="w-4 h-4 animate-[tt-pop_400ms_ease-out]" strokeWidth={3} /> Registrado{partnerName ? `. ${partnerName} vai ver.` : '.'}
+            <Check className="w-4 h-4 animate-[tt-pop_400ms_ease-out]" strokeWidth={3} /> {back ? 'Que bom ver você de novo.' : 'Registrado.'}{partnerName ? ` ${partnerName} vai ver.` : ''}
           </p>
           {!quiet && (
             <p className="flex items-start gap-2 text-[14px] leading-snug text-ink">

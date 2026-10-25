@@ -166,6 +166,8 @@ export interface JournalEntry {
   voice_at?: string | null;
   /** A segunda voz é de quem está logado. */
   voice_mine?: boolean | null;
+  /** A primeira vez de um marco que este registro guardou (migração 031). */
+  first_time?: string | null;
 }
 
 /** Só eu, nós dois, ou nós dois e a família (migração 023). */

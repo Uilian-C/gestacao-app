@@ -9,6 +9,7 @@ import { FreshEntryContext, PeopleContext, RelativesContext, authorOf, firstName
 import { useMention } from '../../lib/useMention';
 import Avatar from '../Avatar';
 import { VoiceQuote } from '../SecondVoice';
+import { FirstTimeBadge } from '../FirstTimes';
 import { MentionBar, MentionText } from '../Mentions';
 import type { OnReact } from '../Social';
 
@@ -191,6 +192,11 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
         </button>
       </header>
 
+      {e.first_time && (
+        <div className="px-4 pb-2.5">
+          <FirstTimeBadge id={e.first_time} />
+        </div>
+      )}
       {e.photos.length > 0 && <Photos entry={e} week={e.folder === 'barriga' ? weekOn(dumDate, e.entry_date) : null} onOpen={open} />}
 
       {e.body && (

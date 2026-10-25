@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowLeft, Bell, ChevronDown, ChevronUp, PartyPopper, ChevronRight, Images, Lock, Plus, Smile } from 'lucide-react';
+import { useContext, useState } from 'react';
+import { ArrowLeft, Bell, ChevronDown, ChevronUp, PartyPopper, ChevronRight, Images, Lock, Plus, Smile, Sparkles } from 'lucide-react';
 import { photoUrl, type FamilyMember } from '../../api';
 import type { Checkin, EntryPhoto, Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { formatBR, toISODate } from '../../lib/dates';
@@ -18,6 +18,11 @@ import { coupleNames } from '../../lib/relatives';
 import { freshChapter, type Chapter } from '../../lib/chapters';
 import MoodTab from './MoodTab';
 import { Segmented, SubTabs } from '../ui';
+import Sheet from '../Sheet';
+import FirstTimes from '../FirstTimes';
+import { firstTimesAlbum, nextFirstTime } from '../../lib/firstTimes';
+import type { FirstTimeId } from '../../content/firstTimes';
+import { BabyNameContext } from '../../lib/baby';
 
 // O Diário é o fichário afetivo da gestação, em três lugares só: o Mural (tudo
 // junto, do mais novo ao mais antigo, como uma rede social de vocês dois), o
@@ -45,7 +50,7 @@ interface Props {
   /** Abre os detalhes (com reações, conversa, editar e excluir). */
   onOpen: (target: DetailTarget) => void;
   /** Abre o formulário já na pasta (e com uma ideia para começar). */
-  onWrite: (folder?: Folder, idea?: string) => void;
+  onWrite: (folder?: Folder, idea?: string, firstTime?: FirstTimeId) => void;
   /** Leva para Cuidados. */
   onOpenHealth: () => void;
   /** O livro de vocês: um capítulo por semana. */
@@ -246,7 +251,12 @@ function Grouped({ folder, entries, dumDate, social, onOpen }: { folder: Folder;
  * O Fichário: as pastas num relance, sem capa. As Celebrações e o Humor são
  * pastas especiais; a barriguinha mostra as últimas fotos. Um toque abre.
  */
-function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView, onWrite, count, celebrations, checkins }: Props & { count: (f: Folder) => number }) {
+function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView, onWrite, onOpen, count, celebrations, checkins }: Props & { count: (f: Folder) => number }) {
+  const babyName = useContext(BabyNameContext);
+  const [album, setAlbum] = useState(false);
+  const firsts = firstTimesAlbum(journal, babyName);
+  const firstsDone = firsts.filter(c => c.done).length;
+  const nextFirst = nextFirstTime(firsts, weekOn(dumDate, toISODate(new Date())));
   const next = (celebrations ?? []).map(c => ({ c, days: daysTo(c.event_at) })).filter(x => x.days === null || x.days >= 0).sort((a, b) => (a.days ?? 999) - (b.days ?? 999))[0];
   const nextHint = next
     ? `${next.c.title} · ${next.days === null ? 'sem data ainda' : next.days === 0 ? 'hoje' : next.days === 1 ? 'amanhã' : `em ${next.days} dias`}${pendingTasks(next.c).length ? ` · ${pendingTasks(next.c).length} por fazer` : ''}`
@@ -258,6 +268,9 @@ function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView,
 
       {/* As pastas como num fichário de papel: a aba, os furinhos e as fotos espiando de dentro. */}
       <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        {journalAvailable && (
+          <AlbumFolder wide label="Primeiras vezes" hint={`${firstsDone} de ${firsts.length}${nextFirst ? ` · próxima: ${nextFirst.ft.title.toLowerCase()}` : ' · o álbum completo!'}`} Icon={Sparkles} soft="bg-gradient-to-br from-rosa-soft to-lilas-soft" tab="bg-lilas-soft" text="text-lilas-strong" aria="Abrir o álbum das primeiras vezes" onClick={() => setAlbum(true)} />
+        )}
         {celebrations !== undefined && (
           <AlbumFolder wide label="Celebrações" hint={nextHint} Icon={PartyPopper} soft="bg-gradient-to-br from-rosa-soft via-lilas-soft to-azul-soft" tab="bg-rosa-soft" text="text-rosa-strong" aria="Abrir a pasta Celebrações" onClick={() => onView('celebracoes')} />
         )}
@@ -286,6 +299,16 @@ function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView,
           <AlbumFolder wide label="Humor" hint={checkins.length ? `A linha de como vocês estão, semana ${weekOn(dumDate, toISODate(new Date()))}` : 'Aparece quando vocês marcam como estão'} Icon={Smile} soft="bg-warm-soft" tab="bg-warm-soft" text="text-warm" aria="Abrir a pasta Humor" onClick={() => onView('humor')} />
         )}
       </div>
+
+      {album && (
+        <Sheet title="Primeiras vezes" subtitle="O álbum dos marcos de vocês" onClose={() => setAlbum(false)}>
+          <FirstTimes
+            cards={firsts}
+            onWrite={c => (setAlbum(false), onWrite(c.ft.id === 'barriga' ? 'barriga' : 'momento', c.ft.starter, c.ft.id))}
+            onOpenEntry={id => (setAlbum(false), onOpen({ kind: 'entry', id }))}
+          />
+        </Sheet>
+      )}
 
       {journal.length === 0 && journalAvailable && (
         <button type="button" onClick={() => onWrite()} className="w-full rounded-[24px] border-2 border-dashed border-line p-5 text-left transition hover:bg-surface/60">

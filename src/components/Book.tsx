@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { BookOpen, Check, ChevronLeft, ChevronRight, List, PenLine, Printer, X } from 'lucide-react';
+import { BookOpen, Check, ChevronLeft, ChevronRight, Heart, List, PenLine, Printer, X } from 'lucide-react';
 import { photoUrl } from '../api';
 import type { BabyTone } from '../content/babyTones';
 import { stageAt } from '../content/growth';
@@ -12,6 +12,7 @@ import { MOOD_COLOR, moodLabel, moodOf } from '../lib/moods';
 import { PeopleContext, firstName } from '../lib/people';
 import BabyArt from './BabyArt';
 import { VoiceQuote } from './SecondVoice';
+import { FirstTimeBadge } from './FirstTimes';
 import BrandMark from './BrandMark';
 import { useScrollLock } from '../hooks/useScrollLock';
 import MoodFace from './MoodFace';
@@ -55,6 +56,11 @@ function MoodOfWeek({ chapter: c }: { chapter: Chapter }) {
         </div>
       )}
       <p className="text-[13.5px] italic leading-snug text-ink-soft">{c.moodNote}</p>
+      {c.together && (
+        <p className="flex items-center gap-1.5 text-[13px] font-bold text-rosa-strong">
+          <Heart className="w-3.5 h-3.5 fill-current" aria-hidden /> Uma semana inteira contando um ao outro como estavam.
+        </p>
+      )}
     </div>
   );
 }
@@ -100,6 +106,7 @@ function WeekPage({ chapter: c, tone, onOpenEntry }: { chapter: Chapter; tone: B
         <div className="min-w-0">
           <p className="text-[11.5px] font-extrabold uppercase tracking-wide text-rosa">
             Semana {c.week} · {c.open ? 'sendo escrita' : span(c)}
+            {c.together && <Heart className="inline w-3 h-3 ml-1 -mt-0.5 fill-current" aria-label="semana inteira juntos" />}
           </p>
           <h3 className="font-display text-[1.45rem] leading-tight text-ink text-balance">{titleOf(c)}</h3>
           <p className="text-[12.5px] text-ink-soft">
@@ -114,6 +121,7 @@ function WeekPage({ chapter: c, tone, onOpenEntry }: { chapter: Chapter; tone: B
         return (
           <Wrap key={e.id} {...(onOpenEntry ? { type: 'button' as const, onClick: () => onOpenEntry(e.id), 'aria-label': `${FOLDER[e.folder].singular}: abrir` } : {})} className="tt-livro-registro block w-full text-left space-y-2 border-t border-line pt-3">
             <span className="block text-[11.5px] font-bold uppercase tracking-wide text-ink-mute">{stamp(e)}</span>
+            {e.first_time && <FirstTimeBadge id={e.first_time} />}
             {e.body && <span className={`block text-[16px] leading-relaxed text-ink whitespace-pre-line ${e.folder === 'carta' || e.folder === 'momento' ? 'font-display text-[1.12rem]' : ''}`}>{e.body}</span>}
             <BookPhotos photos={e.photos} />
             <VoiceQuote entry={e} />
