@@ -1,4 +1,5 @@
 import type { Checkin, EntryPhoto, ExamItem, Hug, JournalEntry, Mood, NameIdea, Reaction, ThreadComment } from '../hooks/useGestationData';
+import { togetherWeek } from './streak';
 import type { Consultation } from '../types';
 import { stageAt } from '../content/growth';
 import { weekInfo } from '../content/weeks';
@@ -47,6 +48,8 @@ export interface Chapter {
   warmth: number;
   /** Na semana em que escolheram o nome: a página dele. */
   named: NamePage | null;
+  /** A sequência gentil: os dois contaram como estavam todos os dias da semana (ganha um coração). */
+  together: boolean;
 }
 
 export interface BookInput {
@@ -64,6 +67,8 @@ export interface BookInput {
   babyName?: string | null;
   babyNameAt?: string | null;
   nameIdeas?: NameIdea[] | null;
+  /** Quem do casal participa (para a semana inteira contando um ao outro). */
+  roles?: Array<'mae' | 'pai'>;
 }
 
 /** A página do nome: o nome, quando, e os nomes que fizeram parte da escolha. */
@@ -128,7 +133,8 @@ export function buildBook(input: BookInput): Chapter[] {
   const current = weekOn(dumDate, todayIso);
   const shared = input.journal.filter(e => e.visibility !== 'private');
   const weekOfEntry = (e: JournalEntry) => weekOn(dumDate, e.entry_date.slice(0, 10));
-  const firstWeek = Math.min(current, ...shared.map(weekOfEntry));
+  // O livro começa na primeira lembrança ou no primeiro dia em que contaram como estavam (a sequência gentil também conta história).
+  const firstWeek = Math.min(current, ...shared.map(weekOfEntry), ...(input.roles?.length ? (input.checkins ?? []).map(c => weekOn(dumDate, c.day)) : []));
   const hugsOn = (id: string) => input.reactions.filter(r => r.target_type === 'entry' && r.target_id === id).length;
   const talksOn = (id: string) => input.threads.filter(c => c.target_type === 'entry' && c.target_id === id).length;
   // Primeiras vezes: a primeira carta e a primeira foto da barriga de toda a gestação.
@@ -186,7 +192,9 @@ export function buildBook(input: BookInput): Chapter[] {
     if (hugs) things.push(hugs >= 5 ? 'muitos abraços' : 'abraços trocados');
     if (talks) things.push(talks >= 5 ? 'muita conversa no Mural' : 'conversas no Mural');
 
-    const quiet = entries.length === 0 && things.length === 0;
+    // A sequência gentil: os dois contaram como estavam todos os dias (a semana entra no livro com um coração).
+    const together = togetherWeek(input.checkins ?? [], input.roles ?? [], from, to);
+    const quiet = entries.length === 0 && things.length === 0 && !together;
     const open = week === current;
     // Comparado com a semana anterior (só quando ela existe e teve algo).
     const prevWarmth = prev ? warmth(prev) : 0;
@@ -215,7 +223,8 @@ export function buildBook(input: BookInput): Chapter[] {
     if (quiet) story = open ? 'Um capítulo novinho, esperando a primeira lembrança.' : 'Uma semana quieta. Às vezes o melhor é só viver.';
     else {
       const had = things.length ? `${open ? 'Até agora teve' : 'Teve'} ${joinPt(things)}.` : '';
-      story = [pace, had].filter(Boolean).join(' ');
+      const told = together ? 'Vocês dois contaram um ao outro como estavam, todos os dias.' : '';
+      story = [pace, had, told].filter(Boolean).join(' ');
     }
 
     // Um convite gentil a partir do que ainda falta no fichário (até esta semana).
@@ -246,6 +255,7 @@ export function buildBook(input: BookInput): Chapter[] {
       moods,
       moodNote,
       mood,
+      together,
       quiet,
       open,
     });

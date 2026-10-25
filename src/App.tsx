@@ -13,6 +13,7 @@ import { takeTabFromUrl, takeViewFromUrl, takeVoiceFromUrl } from './lib/pwa';
 import { api, ApiError, type CoupleFamilyState, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
 import CareModeHome from './components/home/CareModeHome';
+import { firstTimeOf, type FirstTimeId } from './content/firstTimes';
 import Header from './components/Header';
 import HelpCenter from './components/HelpCenter';
 import type { HelpTarget } from './content/help';
@@ -168,7 +169,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [recording, setRecording] = useState<QuickMode[] | null>(null);
   const [recordStart, setRecordStart] = useState<QuickMode | null>(null);
   /** Pasta (e ideia) com que o diário abre no registro. */
-  const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string }>({});
+  const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string; firstTime?: FirstTimeId }>({});
   const [namesOpen, setNamesOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   // "Primeiros 7 dias": quando começou (neste aparelho) e se o casal pediu para esconder.
@@ -399,14 +400,14 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
    * Registro do diário (novo ou editado): grava o texto e depois as fotos, uma
    * por vez. Se o registro foi guardado e uma foto falhou, avisa o que faltou.
    */
-  const saveEntry = async (id: string | null, e: NewEntry) => {
+  const saveEntry = async (id: string | null, e: NewEntry, firstTime?: FirstTimeId) => {
     setBusy(true);
     setSavingLabel(id ? 'Salvando...' : 'Postando...');
     let entryId = id;
     try {
       const fields = { body: e.body, visibility: e.visibility, remindOn: e.remindOn, folder: e.folder, ...(e.remindAt === undefined ? {} : { remindAt: e.remindAt }) };
       if (id) await api.mutate('updateEntry', { id, ...fields });
-      else entryId = ((await api.mutate('createEntry', { date: e.date, ...fields })) as { id?: string }).id ?? null;
+      else entryId = ((await api.mutate('createEntry', { date: e.date, ...fields, ...(firstTime ? { firstTime } : {}) })) as { id?: string }).id ?? null;
       if (entryId) {
         for (const photoId of e.removePhotos) await api.photos('delete', { id: photoId });
         for (let i = 0; i < e.photos.length; i++) {
@@ -419,7 +420,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       // Lembrança nova (que vai para o livro): em vez de "Salvo", a folha do livro recebendo a lembrança.
       if (!id && e.visibility !== 'private') {
         setToast(null);
-        setStamp({ text: e.body.trim().split('\n')[0].slice(0, 120) || (e.folder === 'barriga' ? 'A foto da barriga desta semana' : 'Uma foto para guardar'), week: weekOn(dumDate!, e.date), chapter: null, also: entryDone(false, e.visibility, e.folder) });
+        const first = firstTimeOf(firstTime);
+        setStamp({ text: e.body.trim().split('\n')[0].slice(0, 120) || (e.folder === 'barriga' ? 'A foto da barriga desta semana' : 'Uma foto para guardar'), week: weekOn(dumDate!, e.date), chapter: null, also: first ? `Primeira vez: ${first.title.toLowerCase()} · uma página especial no livro` : entryDone(false, e.visibility, e.folder) });
       } else showToast({ text: entryDone(!!id, e.visibility, e.folder), tone: 'success' });
       if (entryId && !id) setFreshEntry(entryId);
       return true;
@@ -443,7 +445,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       setSavingLabel(null);
     }
   };
-  const createEntry = (e: NewEntry) => saveEntry(null, e);
+  const createEntry = (e: NewEntry) => saveEntry(null, e, entryStart.firstTime);
 
   /**
    * Exame novo (ou arquivos a mais num exame que já existe): grava o exame, envia os
@@ -649,7 +651,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     const n = partnerNews(journal, threads, family.members, lastSeen(me.user.id));
     return n.entries.length + n.comments.length > 0;
   })();
-  const book = buildBook({ dumDate, today: new Date(), journal, reactions: socialAvailable ? reactions : [], threads, hugs: data.hugs ?? [], consultations, exams, checkins: data.checkins ?? [], babyName: data.babyName, babyNameAt: data.babyNameAt, nameIdeas: data.nameIdeas });
+  const book = buildBook({ dumDate, today: new Date(), journal, reactions: socialAvailable ? reactions : [], threads, hugs: data.hugs ?? [], consultations, exams, checkins: data.checkins ?? [], babyName: data.babyName, babyNameAt: data.babyNameAt, nameIdeas: data.nameIdeas, roles: family.members.flatMap(m => (m.role === 'mae' || m.role === 'pai' ? [m.role] : [])) });
   const prepareReport = (c: Consultation) => {
     setReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id });
     setActiveTab('cuidados');
@@ -670,8 +672,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   };
   const openDashboardView = (v: DashboardView) => openCare(v === 'corpo' ? 'medidas' : 'sintomas');
   /** Abre o registro do diário já numa pasta (sem pasta, ela acompanha o texto). */
-  const writeEntry = (folder?: Folder, idea?: string) => {
-    setEntryStart({ folder, idea });
+  const writeEntry = (folder?: Folder, idea?: string, firstTime?: FirstTimeId) => {
+    setEntryStart({ folder, idea, firstTime });
     setRecording(RECORD_MODES.diario);
   };
   /** Exame ou ultrassom agendado: abre o resultado guardado, ou o formulário já preenchido. */

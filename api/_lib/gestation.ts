@@ -95,7 +95,7 @@ export async function fetchAll(fid: string, userId: string) {
               (user_id = $2) AS mine, created_at::text AS created_at, COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS folder,
               to_jsonb(j) ->> 'remind_at' AS remind_at,
               to_jsonb(j) ->> 'voice_body' AS voice_body, to_jsonb(j) ->> 'voice_role' AS voice_role, to_jsonb(j) ->> 'voice_at' AS voice_at,
-              (to_jsonb(j) ->> 'voice_user_id') = $2 AS voice_mine
+              (to_jsonb(j) ->> 'voice_user_id') = $2 AS voice_mine, to_jsonb(j) ->> 'first_time' AS first_time
        FROM journal_entries j
        WHERE family_id = $1 AND (visibility <> 'private' OR user_id = $2)
        ORDER BY entry_date DESC, created_at DESC`,

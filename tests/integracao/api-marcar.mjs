@@ -33,7 +33,7 @@ const entry = (c, body, visibility = 'shared') => c.call('/api/data', { op: 'cre
 let got = await novos('mb', () => entry(A, 'Olha que lindo, @bruno!'));
 check(got.length === 1 && got[0] === 'Ana marcou você no diário', 'marcado no diário: B recebe "Ana marcou você no diário" (e só esse aviso)');
 got = await novos('mb', () => entry(A, 'Sem marcar ninguém'));
-check(got.length === 1 && got[0] === 'Ana guardou um momento', 'sem marcação: o aviso de sempre');
+check(got.length === 1 && got[0] === 'Ana guardou "Sem marcar ninguém"', 'sem marcação: o aviso de sempre (o convite para a segunda voz)');
 got = await novos('mb', () => entry(A, '@Bruno segredo', 'private'));
 check(got.length === 0, 'registro "só eu" não avisa ninguém, mesmo com @');
 check((await novos('ma', () => entry(A, '@Ana eu mesma'))).length === 0, 'marcar a si mesma não avisa');

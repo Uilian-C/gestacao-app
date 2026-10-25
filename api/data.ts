@@ -137,7 +137,7 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('createConsultation'), ...consultationFields }),
   z.object({ op: z.literal('updateConsultation'), id, ...consultationFields }),
   z.object({ op: z.literal('setCheck'), list: z.enum(['prenatal', 'mala']), itemId: z.string().regex(/^[a-z0-9-]{1,40}$/), done: z.boolean(), doneOn: isoDate.optional() }),
-  z.object({ op: z.literal('createEntry'), date: isoDate, ...entryFields }),
+  z.object({ op: z.literal('createEntry'), date: isoDate, ...entryFields, firstTime: z.enum(['descoberta', 'contar', 'coracao', 'ultrassom', 'barriga', 'chute', 'sexo', 'nome', 'roupinha', 'cantinho', 'cha', 'mala']).optional() }),
   z.object({ op: z.literal('updateEntry'), id, ...entryFields }),
   z.object({ op: z.literal('deleteEntry'), id }),
   // Listas: itens do casal e itens da lista padrão que não se aplicam.
@@ -437,6 +437,12 @@ async function apply(m: Member, o: Op) {
         );
       const created = await withFolder(o.folder ?? 'momento', () => insert(true), () => insert(false));
       if (o.remindAt !== undefined) await setReminderTime('journal_entries', created[0].id, o.remindOn ? o.remindAt : null);
+      // A primeira vez de um marco (migração 031); antes da migração, fica um registro comum.
+      if (o.firstTime) {
+        await query('UPDATE journal_entries SET first_time = $1 WHERE id::text = $2', [o.firstTime, created[0].id]).catch(err => {
+          if ((err as { code?: string }).code !== '42703') throw err;
+        });
+      }
       return created;
     }
     case 'updateEntry': {
