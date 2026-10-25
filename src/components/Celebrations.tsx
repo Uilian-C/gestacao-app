@@ -89,16 +89,14 @@ const countdown = (days: number | null) => (days === null ? 'Sem data ainda' : d
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** Diário → Celebrações: a lista e o começo de uma nova. */
+/** A lista das celebrações (o Fichário já dá o título): o botão de criar no topo e cada celebração. */
 export function CelebrationList({ celebrations, actions, onOpen }: { celebrations: Celebration[]; actions: CelebrationActions; onOpen: (id: string) => void }) {
   const [picking, setPicking] = useState(false);
   const [creating, setCreating] = useState<CelebrationKind | null>(null);
   return (
     <div className="space-y-4 max-w-[560px] mx-auto">
-      <header className="rounded-[28px] bg-gradient-to-br from-rosa-soft via-lilas-soft to-azul-soft px-5 pt-5 pb-4 shadow-soft">
-        <p className="text-[12px] font-extrabold uppercase tracking-wide text-rosa">Celebrações</p>
-        <h2 className="font-display text-[1.45rem] leading-snug text-ink text-balance">Os encontros que vão fazer parte da história de vocês</h2>
-        <p className="text-[13.5px] text-ink-soft mt-1">Chá de bebê, de fraldas, revelação, ensaio de fotos: planejem tudo aqui, do tema às fraldas, com prazos que se ajustam à data.</p>
-        <button type="button" onClick={() => setPicking(v => !v)} aria-expanded={picking} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-4 py-2 text-[13.5px] font-extrabold shadow-soft">
+      <header>
+        <button type="button" onClick={() => setPicking(v => !v)} aria-expanded={picking} className="inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-4 py-2 text-[13.5px] font-extrabold shadow-soft">
           <Plus className="w-4 h-4" /> Nova celebração
         </button>
         {picking && (
@@ -130,7 +128,7 @@ export function CelebrationList({ celebrations, actions, onOpen }: { celebration
       </header>
 
       {celebrations.length === 0 ? (
-        <p className="rounded-[24px] bg-surface shadow-soft px-5 py-4 text-[14px] text-ink-soft">
+        <p className="rounded-[24px] bg-surface/80 px-5 py-4 text-[14px] text-ink-soft">
           Ainda não há celebrações. Que tal começar pelo chá de bebê? O roteiro de tarefas já vem pronto.
         </p>
       ) : (
@@ -145,7 +143,7 @@ export function CelebrationList({ celebrations, actions, onOpen }: { celebration
             const facts = [tasks.length ? `${done}/${tasks.length} tarefas` : null, guests.guests.length ? plural(guests.going, 'confirmado', 'confirmados') : null, meter.pct !== null ? `${Math.round(meter.pct)}% do orçamento` : null].filter(Boolean);
             return (
               <li key={c.id}>
-                <button type="button" onClick={() => onOpen(c.id)} aria-label={`${c.title}: abrir`} className="relative w-full text-left rounded-[26px] bg-surface shadow-soft px-4 pt-4 pb-4 transition active:scale-[0.99]">
+                <button type="button" onClick={() => onOpen(c.id)} aria-label={`${c.title}: abrir`} className="relative w-full text-left rounded-[26px] bg-surface/80 px-4 pt-4 pb-4 transition active:scale-[0.99]">
                   <span className="flex items-start gap-3">
                     <CelebrationTile kind={c.kind} />
                     <span className="flex-1 min-w-0">
