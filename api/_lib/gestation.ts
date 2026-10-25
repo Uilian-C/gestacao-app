@@ -69,7 +69,8 @@ export async function fetchAll(fid: string, userId: string) {
       // Tipo, nome e item da jornada pelo jsonb: antes da migração 013 as colunas não existem e tudo é consulta.
       `SELECT id, scheduled_at::text AS scheduled_at, specialty, professional_name, location, notes, COALESCE(created_by, 'mae') AS created_by,
               COALESCE(to_jsonb(c) ->> 'kind', 'consulta') AS kind, to_jsonb(c) ->> 'title' AS title, to_jsonb(c) ->> 'plan_item' AS plan_item,
-              to_jsonb(c) ->> 'attendees' AS attendees, (to_jsonb(c) ->> 'remind_before')::int AS remind_before
+              to_jsonb(c) ->> 'attendees' AS attendees, (to_jsonb(c) ->> 'remind_before')::int AS remind_before,
+              to_jsonb(c) ->> 'after_status' AS after_status, to_jsonb(c) ->> 'created_at' AS created_at
        FROM consultations c WHERE family_id = $1
        ORDER BY scheduled_at ASC`,
       [fid],

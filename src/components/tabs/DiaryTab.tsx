@@ -1,5 +1,5 @@
 import { useContext, useState } from 'react';
-import { ArrowLeft, Bell, ChevronDown, ChevronUp, PartyPopper, ChevronRight, Images, Lock, Plus, Smile, Sparkles } from 'lucide-react';
+import { ArrowLeft, Bell, ChevronDown, ChevronUp, PartyPopper, ChevronRight, Images, Lock, Play, Plus, Smile, Sparkles } from 'lucide-react';
 import { photoUrl, type FamilyMember } from '../../api';
 import type { Checkin, EntryPhoto, Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { formatBR, toISODate } from '../../lib/dates';
@@ -20,6 +20,7 @@ import MoodTab from './MoodTab';
 import { Segmented, SubTabs } from '../ui';
 import Sheet from '../Sheet';
 import FirstTimes from '../FirstTimes';
+import BellyGrowthPlayer from '../BellyGrowthPlayer';
 import { firstTimesAlbum, nextFirstTime } from '../../lib/firstTimes';
 import type { FirstTimeId } from '../../content/firstTimes';
 import { BabyNameContext } from '../../lib/baby';
@@ -396,7 +397,30 @@ function FolderPage({ folder, entries, dumDate, journalAvailable, onOpen, onWrit
 
 /** A barriga semana a semana: a foto mais recente de cada semana, da última para a primeira. */
 function BellyGrid({ entries, dumDate, onOpen }: { entries: JournalEntry[]; dumDate: string; onOpen: (id: string) => void }) {
+  // O crescendo: com 4 semanas ou mais de foto, a barriga passa como um filminho.
+  const [film, setFilm] = useState(false);
+  const shots = bellyWeeks(entries, dumDate)
+    .map(w => ({ week: w.week, photo: w.items.find(i => i.photos.length > 0)?.photos[0] }))
+    .filter((w): w is { week: number; photo: EntryPhoto } => !!w.photo)
+    .sort((a, b) => a.week - b.week);
   return (
+    <>
+    {shots.length >= 4 ? (
+      <button type="button" onClick={() => setFilm(true)} className="mb-3 w-full flex items-center gap-3 rounded-[22px] bg-gradient-to-br from-lilas-soft to-rosa-soft px-4 py-3 text-left">
+        <Play className="w-5 h-5 text-lilas-strong shrink-0" />
+        <span>
+          <span className="block font-display text-[1.05rem] text-ink">Ver o crescendo</span>
+          <span className="block text-[12.5px] text-ink-soft">{shots.length} semanas de barriga, uma depois da outra</span>
+        </span>
+      </button>
+    ) : (
+      shots.length > 0 && <p className="mb-3 px-1 text-[13px] text-ink-soft">Com 4 semanas de foto, a barriga vira um filminho: faltam {4 - shots.length}.</p>
+    )}
+    {film && (
+      <Sheet title="O crescendo" subtitle="A barriga, semana a semana" onClose={() => setFilm(false)}>
+        <BellyGrowthPlayer shots={shots} />
+      </Sheet>
+    )}
     <ol className="grid grid-cols-2 sm:grid-cols-3 gap-3" aria-label="Fotos da barriga por semana">
       {bellyWeeks(entries, dumDate).map(({ week, items }) => {
         const e = items.find(i => i.photos.length > 0) ?? items[0];
@@ -421,6 +445,7 @@ function BellyGrid({ entries, dumDate, onOpen }: { entries: JournalEntry[]; dumD
         );
       })}
     </ol>
+    </>
   );
 }
 

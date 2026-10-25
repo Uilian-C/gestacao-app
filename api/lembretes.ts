@@ -70,7 +70,7 @@ export const GET = endpoint(async request => {
   ]);
 
   // Com hora (migração 018): o que chegou nas últimas 12 horas e ainda não saiu.
-  const [timedEntries, timedTasks, early] = await Promise.all([
+  const [timedEntries, timedTasks, early, after] = await Promise.all([
     query<EntryRow & { at: string }>(
       `SELECT e.id::text AS id, e.family_id::text AS family_id, e.user_id, e.visibility, e.body, e.remind_at::text AS at
        FROM journal_entries e WHERE e.remind_at <= NOW() AND e.remind_at > NOW() - INTERVAL '12 hours'`,
@@ -90,8 +90,19 @@ export const GET = endpoint(async request => {
          AND c.scheduled_at - make_interval(mins => c.remind_before) > NOW() - INTERVAL '12 hours'`,
       [TIME_ZONE],
     ).catch(() => []),
+    // "Como foi a consulta?" (migração 032): de 3 a 6 horas depois, se ainda ninguém contou. Nunca de madrugada.
+    hour >= 8 && hour < 22
+      ? query<ConsultationRow>(
+          `SELECT c.id::text AS id, c.family_id::text AS family_id, to_char(c.scheduled_at AT TIME ZONE $1, 'YYYY-MM-DD HH24:MI') AS local,
+                  c.professional_name, c.location, COALESCE(c.kind, 'consulta') AS kind, c.title
+           FROM consultations c
+           WHERE COALESCE(c.kind, 'consulta') IN ('consulta', 'ultrassom') AND c.after_status IS NULL
+             AND c.scheduled_at <= NOW() - INTERVAL '3 hours' AND c.scheduled_at > NOW() - INTERVAL '6 hours'`,
+          [TIME_ZONE],
+        ).catch(() => [])
+      : Promise.resolve([] as ConsultationRow[]),
   ]);
-  const timed: Timed = { entries: timedEntries, tasks: timedTasks, early };
+  const timed: Timed = { entries: timedEntries, tasks: timedTasks, early, after };
 
   const notices = [...(daily ? planReminders(today, families, consultations, entries, tasks, evening) : []), ...planTimed(families, timed)];
   let sent = 0;

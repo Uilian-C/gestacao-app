@@ -53,7 +53,7 @@ const STARTERS: Array<{ text: string; folder: Folder }> = [
   { text: 'Primeiro chute', folder: 'momento' },
 ];
 
-export function EntryForm({ busy, available, photosAvailable, dumDate, folder: startFolder, idea, initial, onSave }: {
+export function EntryForm({ busy, available, photosAvailable, dumDate, folder: startFolder, idea, initial, onSave, lastBelly }: {
   busy: boolean;
   available: boolean;
   /** A migração 012 já rodou (pastas e fotos). */
@@ -65,6 +65,8 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
   idea?: string;
   initial?: JournalEntry;
   onSave: (e: NewEntry) => Promise<boolean>;
+  /** A última foto da barriga: o guia para repetir a pose e a comparação com a nova. */
+  lastBelly?: { src: string; week: number } | null;
 }) {
   const today = toISODate(new Date());
   const [picked, setFolder] = useState<Folder | null>(initial?.folder ?? (photosAvailable ? (startFolder ?? null) : 'momento'));
@@ -158,6 +160,29 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
           </>
         )}
       </div>
+      {/* O guia da barriguinha: a foto da última semana, bem leve, para repetir a pose. */}
+      {belly && !initial && lastBelly && !hasPhoto && (
+        <div className="flex items-center gap-3 rounded-2xl bg-lilas-soft/70 p-3">
+          <span className="relative w-16 h-20 shrink-0 overflow-hidden rounded-xl bg-surface">
+            <img src={lastBelly.src} alt="" className="absolute inset-0 w-full h-full object-cover opacity-45" />
+            <span aria-hidden className="absolute inset-1.5 rounded-lg border-2 border-dashed border-white/80" />
+          </span>
+          <span className="text-[13px] leading-snug text-ink">
+            <strong className="block">Mesma pose da semana {lastBelly.week}</strong>
+            De lado, no mesmo lugar e com a mesma luz: assim o crescendo fica lindo.
+          </span>
+        </div>
+      )}
+      {belly && !initial && lastBelly && photos.length > 0 && (
+        <div className="grid grid-cols-2 gap-2" aria-label="Antes e agora">
+          {[{ src: lastBelly.src, label: `Semana ${lastBelly.week}` }, { src: photos[0].preview, label: 'Agora' }].map(p => (
+            <figure key={p.label} className="relative overflow-hidden rounded-2xl bg-surface-2 aspect-[3/4]">
+              <img src={p.src} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <figcaption className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/55 to-transparent text-white text-[12px] font-extrabold">{p.label}</figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
       {room > 0 && belly && !hasPhoto && (
         <div className="grid grid-cols-2 gap-2">
           <PickButton big onClick={() => camera.current?.click()} disabled={preparing || busy} tone={tone.text} Icon={preparing ? Loader2 : Camera} spin={preparing} label="Tirar a foto" />
