@@ -13,6 +13,7 @@ const weekOf = d => p.evaluate(([d, dum]) => Math.floor((new Date(`${d}T00:00:00
 
 // ---- Sintoma de ontem ----
 await plus.click();
+await dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button', { name: 'Sintoma' }).click();
 await dlg.getByLabel('O que ela está sentindo?').fill('Azia');
 await dlg.getByRole('button', { name: '2: Leve' }).click();
 check((await dlg.getByRole('button', { name: 'Hoje', exact: true }).getAttribute('aria-pressed')) === 'true', 'dia começa em "Hoje"');

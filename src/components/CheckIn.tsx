@@ -10,9 +10,13 @@ import type { Author } from '../types';
 import Avatar from './Avatar';
 import MoodFace from './MoodFace';
 import { MOOD_COLOR, MOODS, moodLabel, moodOf } from '../lib/moods';
+import { BabyNameContext } from '../lib/baby';
+import { babyReply } from '../content/babyReplies';
+import BrandMark from './BrandMark';
 
 // "Como vocês estão hoje?": como cada um está (um toque por dia), lado a lado. Depois
-// de responder, o cartão confirma e fecha; se a outra pessoa não está bem, vem
+// de responder, o cartão confirma, a bolinha de hoje acende no fio da semana e o
+// bebê "responde" com uma frase do dia; se a outra pessoa não está bem, vem
 // uma ideia de cuidado e o botão de mandar um abraço (chega como aviso).
 
 /** Uma ideia de cuidado quando a outra pessoa não está bem (pelo papel dela). */
@@ -40,6 +44,7 @@ interface Props {
 
 export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShare, onMonth, posts = [], onOpenEntry, onMural }: Props) {
   const members = useContext(PeopleContext);
+  const babyName = useContext(BabyNameContext);
   const today = toISODate(new Date());
   const me = members.find(m => m.me);
   const partner = members.find(m => !m.me);
@@ -67,7 +72,7 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
     setSaving(null);
     if (ok) {
       setJustSaved(true);
-      window.setTimeout(() => setJustSaved(false), 3500);
+      window.setTimeout(() => setJustSaved(false), 7000);
       if (onShare && !shared) setOffer(mood);
     }
   };
@@ -93,7 +98,7 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
             <span className="flex gap-[3px]" aria-hidden>
               {week.map(d => {
                 const mood = moodAt(d, true) ?? moodAt(d, false);
-                return <span key={d} className={`w-1.5 h-1.5 rounded-full ${mood ? MOOD_COLOR[mood].bg : 'bg-line'}`} />;
+                return <span key={d} className={`w-1.5 h-1.5 rounded-full ${mood ? MOOD_COLOR[mood].bg : 'bg-line'} ${justSaved && d === today ? 'tt-bolinha-hoje' : ''}`} />;
               })}
             </span>
             7 dias ›
@@ -127,11 +132,17 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
         </div>
       )}
 
-      {/* Confirmação rápida: some sozinha (o humor já aparece no seu lado do cartão). */}
-      {justSaved && (
-        <p className="flex items-center gap-1.5 text-[13px] font-bold text-ok px-1" role="status">
-          <Check className="w-4 h-4 animate-[tt-pop_400ms_ease-out]" strokeWidth={3} /> Registrado{partnerName ? `. ${partnerName} vai ver.` : '.'}
-        </p>
+      {/* A resposta: a confirmação e o bebê "respondendo" com a frase do dia. Some sozinha. */}
+      {justSaved && mine && (
+        <div className="tt-carimbo rounded-2xl bg-surface/80 px-3 py-2.5 space-y-1.5" role="status">
+          <p className="flex items-center gap-1.5 text-[13px] font-bold text-ok">
+            <Check className="w-4 h-4 animate-[tt-pop_400ms_ease-out]" strokeWidth={3} /> Registrado{partnerName ? `. ${partnerName} vai ver.` : '.'}
+          </p>
+          <p className="flex items-start gap-2 text-[14px] leading-snug text-ink">
+            <BrandMark className="w-5 h-5 shrink-0 mt-0.5" />
+            <span>{babyReply(mine.mood, role, babyName)}</span>
+          </p>
+        </div>
       )}
 
       {offer && onShare && !shared && (

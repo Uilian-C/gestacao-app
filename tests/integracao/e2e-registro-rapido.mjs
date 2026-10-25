@@ -11,8 +11,9 @@ const modes = async () => (await dlg.getByRole('group', { name: 'Tipo de registr
 
 // Início: tudo o que dá para registrar
 await plus.click();
-check((await modes()) === 'Sintoma,Diário,Peso e pressão,Agendar,Tarefa,Resultado', `Início oferece todos os registros (${await modes()})`);
+check((await modes()) === 'Diário,Sintoma,Peso e pressão,Agendar,Tarefa,Resultado', `Início oferece todos os registros, o Diário primeiro (${await modes()})`);
 await p.screenshot({ path: `${OUT}rapido-inicio.png` });
+await dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button', { name: 'Sintoma' }).click();
 await dlg.getByLabel('O que ela está sentindo?').fill('Enjoo');
 await dlg.getByRole('button', { name: '3: Moderado' }).click();
 await dlg.getByRole('button', { name: 'Salvar sintoma' }).click();

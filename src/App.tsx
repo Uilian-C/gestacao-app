@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CloudRain, Plus, Sprout } from 'lucide-react';
 import BrandMark from './components/BrandMark';
 import QuickRecord, { type QuickMode } from './components/QuickRecord';
@@ -45,9 +45,9 @@ const LaborTab = lazy(() => import('./components/tabs/LaborTab'));
 const JourneyTab = lazy(() => import('./components/tabs/JourneyTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
-import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, toISODate, weekOfDay } from './lib/dates';
-import { FOLDER } from './lib/folders';
-import { buildBook } from './lib/chapters';
+import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, parseTimestamp, toISODate, weekOfDay } from './lib/dates';
+import { FOLDER, weekOn } from './lib/folders';
+import { buildBook, chapterOfWeek } from './lib/chapters';
 import { BabyNameContext, markNameSeen, nameSeen } from './lib/baby';
 import { pressureInsights } from './lib/health';
 import type { NewMetric } from './components/forms/RecordForms';
@@ -58,16 +58,24 @@ import { autoDone, planFor, visitsOf } from './lib/journey';
 import { doneByAppointments, journeyRows, plannedItems } from './lib/journeyPlan';
 import { JourneyContext } from './lib/journeyContext';
 import { AttendeesReady, PeopleContext, RelativesContext, TaskRemindersReady, TimedRemindersReady } from './lib/people';
-import { markSeen } from './lib/news';
+import { lastSeen, markSeen, partnerNews } from './lib/news';
+import { tumtum } from './lib/feel';
+import BookStamp, { type Stamp } from './components/BookStamp';
+import SymptomEchoCard from './components/SymptomEchoCard';
+import { symptomEcho, type SymptomEcho } from './lib/echo';
 import { PLAN_ITEMS } from './content/prenatalPlan';
 
 const UNDO_WINDOW_MS = 5000;
 
 const TITLE: Record<Tab, string> = { inicio: 'Tumtum', diario: 'Diário', agenda: 'Agenda', cuidados: 'Cuidados', parto: 'Parto' };
 
-/** O que o botão "+" oferece em cada aba (o primeiro abre selecionado). Parto não tem: lá os registros são os cronômetros. */
+/**
+ * O que o botão "+" oferece em cada aba (o primeiro abre selecionado). No
+ * Início, o primeiro gesto é afetivo: guardar um momento (a saúde vem logo ao
+ * lado). Parto não tem: lá os registros são os cronômetros.
+ */
 const RECORD_MODES: Record<Tab, QuickMode[]> = {
-  inicio: ['sintoma', 'momento', 'medicao', 'consulta', 'tarefa', 'exame'],
+  inicio: ['momento', 'sintoma', 'medicao', 'consulta', 'tarefa', 'exame'],
   diario: ['momento'],
   agenda: ['consulta', 'tarefa'],
   cuidados: ['sintoma', 'medicao', 'exame'],
@@ -154,6 +162,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [focusExam, setFocusExam] = useState<string | null>(null);
   const [journeyFocus, setJourneyFocus] = useState<string | null>(null);
   const [recording, setRecording] = useState<QuickMode[] | null>(null);
+  const [recordStart, setRecordStart] = useState<QuickMode | null>(null);
   /** Pasta (e ideia) com que o diário abre no registro. */
   const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string }>({});
   const [namesOpen, setNamesOpen] = useState(false);
@@ -209,6 +218,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   }, [freshEntry]);
   const savingState = useMemo(() => ({ busy, label: savingLabel }), [busy, savingLabel]);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  /** "Entrou no livro": o fim bonito de uma lembrança nova. */
+  const [stamp, setStamp] = useState<Stamp | null>(null);
+  const closeStamp = useCallback(() => setStamp(null), []);
+  /** A devolutiva do sintoma recém-registrado. */
+  const [echo, setEcho] = useState<SymptomEcho | null>(null);
+  const closeEcho = useCallback(() => setEcho(null), []);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
   const deleteTimers = useRef(new Map<string, number>());
   const toastSeq = useRef(0);
@@ -347,12 +362,13 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     return run(() => api.mutate('toggleTask', { id: t.id, done: !t.is_completed }));
   };
 
-  const createSymptom = (s: NewSymptom) =>
-    run(() =>
-      api.mutate('createSymptom', { week: weekOfDay(dumDate!, s.date), date: s.date, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }),
-      undefined,
-      'Sintoma registrado',
-    );
+  // O sintoma salvo devolve na hora o que costuma ajudar e o padrão da semana (no lugar de "registrado").
+  const createSymptom = async (s: NewSymptom) => {
+    const before = symptoms;
+    const ok = await run(() => api.mutate('createSymptom', { week: weekOfDay(dumDate!, s.date), date: s.date, name: s.name, intensity: s.intensity, category: s.category, notes: s.notes || null, timeOfDay: s.timeOfDay }));
+    if (ok) setEcho(symptomEcho(s, before));
+    return ok;
+  };
 
   const createComment = (symptomId: string, text: string) => run(() => api.mutate('createComment', { symptomId, text }), undefined, 'Comentário enviado');
 
@@ -391,7 +407,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         }
       }
       await refresh();
-      showToast({ text: entryDone(!!id, e.visibility, e.folder), tone: 'success' });
+      if (!id) tumtum();
+      // Lembrança nova (que vai para o livro): em vez de "Salvo", a folha do livro recebendo a lembrança.
+      if (!id && e.visibility !== 'private') {
+        setToast(null);
+        setStamp({ text: e.body.trim().split('\n')[0].slice(0, 120) || (e.folder === 'barriga' ? 'A foto da barriga desta semana' : 'Uma foto para guardar'), week: weekOn(dumDate!, e.date), chapter: null, also: entryDone(false, e.visibility, e.folder) });
+      } else showToast({ text: entryDone(!!id, e.visibility, e.folder), tone: 'success' });
       if (entryId && !id) setFreshEntry(entryId);
       return true;
     } catch (err) {
@@ -478,6 +499,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   // Curtir e comentar. A reação aparece na hora; o servidor confirma em seguida.
   const react: OnReact = (targetType, targetId, kind, on) => {
+    if (on) tumtum();
     patch(d => ({
       ...d,
       reactions: on
@@ -602,6 +624,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const comments = visible('comment', data.comments);
   const consultations = visible('consultation', data.consultations);
   // O livro de vocês: no Diário → Livro, no Mural (a página nova) e no Início (o capítulo sendo escrito).
+  // Algo novo do outro no Mural (post ou comentário) desde a última visita ao Diário: o coração do menu bate.
+  const diaryNews = activeTab !== 'diario' && (() => {
+    const n = partnerNews(journal, threads, family.members, lastSeen(me.user.id));
+    return n.entries.length + n.comments.length > 0;
+  })();
   const book = buildBook({ dumDate, today: new Date(), journal, reactions: socialAvailable ? reactions : [], threads, hugs: data.hugs ?? [], consultations, exams, checkins: data.checkins ?? [], babyName: data.babyName, babyNameAt: data.babyNameAt, nameIdeas: data.nameIdeas });
   const prepareReport = (c: Consultation) => {
     setReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id });
@@ -643,6 +670,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const partnerName = partner ? partner.name.split(' ')[0] || null : null;
   /** Check-in do dia: aparece na hora; o servidor confirma em seguida. */
   const checkin = (mood: Mood | null) => {
+    if (mood) tumtum();
     patch(d => ({
       ...d,
       checkins: [...(mood ? [{ day: today, mood, author_role: author, mine: true }] : []), ...(d.checkins ?? []).filter(c => !(c.mine && c.day === today))],
@@ -703,6 +731,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     return run(() => api.mutate('setBabyTone', { tone }), 'Não foi possível salvar o tom. Se for a primeira vez, rode a migração db/migrations/024_tom_do_bebe.sql no Neon.');
   };
   const hug = () => {
+    tumtum();
     patch(d => ({ ...d, hugs: [...(d.hugs ?? []), { day: today, toMe: false }] }));
     return run(() => api.mutate('hug', { day: today }), 'Não foi possível mandar o abraço. Verifique a conexão.', 'Abraço enviado');
   };
@@ -806,6 +835,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           if (tab === 'parto') setLaborReset(n => n + 1);
           navigate(tab);
         }}
+        pulse={{ diario: diaryNews }}
         badges={{
           agenda: overdueTasks,
           cuidados: questions.filter(q => !q.doctor_answer).length,
@@ -1128,7 +1158,14 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {recordModes.length > 0 && (
         <button
           type="button"
-          onClick={() => (activeTab === 'diario' ? writeEntry(diaryView === 'tudo' || diaryView === 'mural' || diaryView === 'livro' || diaryView === 'celebracoes' || diaryView === 'humor' ? undefined : diaryView) : (setEntryStart({}), setRecording(recordModes)))}
+          onClick={() => {
+            if (activeTab === 'diario') return writeEntry(diaryView === 'tudo' || diaryView === 'mural' || diaryView === 'livro' || diaryView === 'celebracoes' || diaryView === 'humor' ? undefined : diaryView);
+            setEntryStart({});
+            // No Início, o Registrar segue o momento: voltando de uma consulta hoje, abre em "Resultado".
+            const backFromVisit = activeTab === 'inicio' && consultations.some(c => { const at = parseTimestamp(c.scheduled_at); return toISODate(at) === toISODate(new Date()) && at.getTime() < Date.now(); });
+            setRecordStart(backFromVisit ? 'exame' : null);
+            setRecording(recordModes);
+          }}
           className="tt-registrar no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-8 h-11 pl-3 pr-4 rounded-full text-white text-[14px] font-extrabold flex items-center gap-1.5 transition active:scale-95 hover:brightness-110"
         >
           <Plus className="w-[18px] h-[18px]" strokeWidth={3} />
@@ -1155,7 +1192,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {recording && (
         <QuickRecord
           modes={recording}
-          initial={recording[0]}
+          initial={recordStart && recording.includes(recordStart) ? recordStart : recording[0]}
           onClose={() => setRecording(null)}
           author={author}
           trimester={age.trimester}
@@ -1217,6 +1254,29 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       )}
 
       <Toast toast={toast} onClose={() => setToast(null)} />
+      {echo && (
+        <SymptomEchoCard
+          echo={echo}
+          onClose={closeEcho}
+          onOpen={() => {
+            setEcho(null);
+            setDetail(null);
+            openCare('sintomas');
+          }}
+        />
+      )}
+      {stamp && (
+        <BookStamp
+          stamp={{ ...stamp, chapter: chapterOfWeek(book, stamp.week) }}
+          onClose={closeStamp}
+          onOpenBook={() => {
+            setStamp(null);
+            setDetail(null);
+            setDiaryView('livro');
+            navigate('diario');
+          }}
+        />
+      )}
       {spaceSheet}
       {helpOpen && (
         <HelpCenter
