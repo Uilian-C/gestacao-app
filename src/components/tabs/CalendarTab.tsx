@@ -1,4 +1,4 @@
-import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, startTransition, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Bell, FileCheck2, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, Flag, Heart, ListPlus, NotebookPen, PartyPopper, Stethoscope } from 'lucide-react';
 import { CALENDAR_FILTERS, buildCalendar, dayDots, gestationDay, gestationMonths, gestationalWeekDays, gestationalWeekOf, googleCalendarUrl, matchesFilter, toIcs, type CalendarEvent, type CalendarFilter, type CalendarMoment, type CalendarResult, type DayRecords, type GestationDay } from '../../lib/calendar';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, toISODate } from '../../lib/dates';
@@ -126,8 +126,17 @@ export default function CalendarTab(props: Props) {
     setTarget(t => ({ key, smooth, n: t.n + 1 }));
   };
 
-  const cal = buildCalendar({ dumDate: props.dumDate, consultations: props.consultations, results: props.results, tasks: props.tasks, symptoms: props.symptoms, metrics: props.metrics, journal: props.journal, celebrations: props.celebrations, today });
-  const months = gestationMonths(props.dumDate, today);
+  // Montar o calendário pesa: só refaz quando os dados mudam (tocar num dia não recalcula tudo).
+  const cal = useMemo(
+    () => buildCalendar({ dumDate: props.dumDate, consultations: props.consultations, results: props.results, tasks: props.tasks, symptoms: props.symptoms, metrics: props.metrics, journal: props.journal, celebrations: props.celebrations, today: parseLocalDate(todayIso) }),
+    [props.dumDate, props.consultations, props.results, props.tasks, props.symptoms, props.metrics, props.journal, props.celebrations, todayIso],
+  );
+  const months = useMemo(() => gestationMonths(props.dumDate, parseLocalDate(todayIso)), [props.dumDate, todayIso]);
+  const moodsByDay = useMemo(() => {
+    const m = new Map<string, Checkin[]>();
+    for (const c of props.checkins) m.set(c.day, [...(m.get(c.day) ?? []), c]);
+    return m;
+  }, [props.checkins]);
 
   const goToday = () => {
     setWeek(props.currentWeek);
@@ -168,7 +177,7 @@ export default function CalendarTab(props: Props) {
         <FilterChips value={filter} onChange={setFilter} />
       </div>
 
-      {view === 'mes' && <MonthsView months={months} target={target} dumDate={props.dumDate} todayIso={todayIso} openDay={openDay} onSelect={setOpenDay} events={cal.events} records={cal.records} checkins={props.checkins} filter={filter} footer={<ExportButton onClick={exportIcs} />} />}
+      {view === 'mes' && <MonthsView months={months} target={target} dumDate={props.dumDate} todayIso={todayIso} openDay={openDay} onSelect={setOpenDay} events={cal.events} records={cal.records} moodsByDay={moodsByDay} filter={filter} footer={<ExportButton onClick={exportIcs} />} />}
 
 
       {view === 'semana' && (
@@ -277,6 +286,13 @@ const ageText = (g: GestationDay) => `${g.weeks} ${g.weeks === 1 ? 'semana' : 's
  */
 function MonthsView({ months, target, footer, ...rest }: { months: Array<{ year: number; month: number }>; target: { key: string; smooth: boolean; n: number }; footer: React.ReactNode } & Omit<MonthProps, 'year' | 'month'>) {
   const box = useFillHeight();
+  // Abre rápido: primeiro só o mês do alvo e os vizinhos; os outros chegam logo depois, sem travar a tela.
+  const [all, setAll] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => startTransition(() => setAll(true)), 60);
+    return () => window.clearTimeout(id);
+  }, []);
+  const at = months.findIndex(m => keyOf(m.year, m.month) === target.key);
   useLayoutEffect(() => {
     const el = box.current?.querySelector<HTMLElement>(`#mes-${target.key}`);
     // 30px: a linha dos dias da semana, presa no alto da caixa.
@@ -290,9 +306,14 @@ function MonthsView({ months, target, footer, ...rest }: { months: Array<{ year:
         ))}
       </div>
       <div className="space-y-7 pt-1 pb-4">
-        {months.map(m => (
-          <MonthBlock key={keyOf(m.year, m.month)} year={m.year} month={m.month} {...rest} />
-        ))}
+        {months.map((m, i) =>
+          all || Math.abs(i - at) <= 1 ? (
+            // Só o mês do dia escolhido recebe a escolha: os outros não precisam se redesenhar.
+            <MonthBlock key={keyOf(m.year, m.month)} year={m.year} month={m.month} {...rest} openDay={rest.openDay && monthKey(rest.openDay) === keyOf(m.year, m.month) ? rest.openDay : null} />
+          ) : (
+            <div key={keyOf(m.year, m.month)} id={`mes-${keyOf(m.year, m.month)}`} style={{ height: monthHeight(m.year, m.month) }} aria-hidden />
+          ),
+        )}
         {footer}
       </div>
     </div>
@@ -343,11 +364,18 @@ interface MonthProps {
   onSelect: (iso: string) => void;
   events: Map<string, CalendarEvent[]>;
   records: Map<string, DayRecords>;
-  checkins: Checkin[];
+  moodsByDay: Map<string, Checkin[]>;
   filter: CalendarFilter;
 }
 
-function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events, records, checkins, filter }: MonthProps) {
+/** A altura de um mês no Mês (título + semanas de 3,9rem): reservada antes de desenhar. */
+const monthHeight = (year: number, month: number) => 39.4 + Math.ceil((new Date(year, month, 1).getDay() + new Date(year, month + 1, 0).getDate()) / 7) * 62.4;
+
+/** Um só formatador para os ~300 dias (criar um a cada dia deixava o calendário lento para abrir). */
+const DAY_LABEL = new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' });
+const NO_MOODS: Checkin[] = [];
+
+const MonthBlock = memo(function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events, records, moodsByDay, filter }: MonthProps) {
   const nameOf = useNameOf();
   const name = monthName(year, month);
   const total = new Date(year, month + 1, 0).getDate();
@@ -360,7 +388,8 @@ function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events,
   const showHealth = filter === 'tudo' || filter === 'saude';
 
   return (
-    <section id={`mes-${keyOf(year, month)}`} aria-label={`${name} de ${year}`} className="">
+    // O navegador só desenha os meses perto da tela; a altura de cada um já fica reservada (a rolagem não pula).
+    <section id={`mes-${keyOf(year, month)}`} aria-label={`${name} de ${year}`} style={{ contentVisibility: 'auto', containIntrinsicSize: `auto ${monthHeight(year, month)}px` }}>
       <div className="flex items-baseline justify-between gap-2 px-1 mb-1.5">
         <h3 className="font-display text-[1.35rem] text-ink first-letter:uppercase">
           {name} <span className="text-[0.95rem] text-ink-mute">{year}</span>
@@ -379,7 +408,7 @@ function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events,
               const shown = list.filter(e => matchesFilter(e, filter));
               const { dots, more } = dayDots(list, filter);
               const rec = showHealth ? records.get(iso) : undefined;
-              const moods = showHealth ? checkins.filter(c => c.day === iso) : [];
+              const moods = showHealth ? (moodsByDay.get(iso) ?? NO_MOODS) : NO_MOODS;
               const isToday = iso === todayIso;
               const isOpen = iso === openDay;
               return (
@@ -388,7 +417,7 @@ function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events,
                   type="button"
                   role="gridcell"
                   aria-selected={isOpen}
-                  aria-label={`${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })}${isToday ? ', hoje' : ''}${band ? `, ${ageText(g)}` : ''}${g?.isDpp ? ', data provável do parto' : ''}${shown.length ? `, ${shown.length} ${shown.length === 1 ? 'evento' : 'eventos'}` : ''}${rec ? ', com registro de saúde' : ''}${moodsText(moods, nameOf)}`}
+                  aria-label={`${DAY_LABEL.format(d)}${isToday ? ', hoje' : ''}${band ? `, ${ageText(g)}` : ''}${g?.isDpp ? ', data provável do parto' : ''}${shown.length ? `, ${shown.length} ${shown.length === 1 ? 'evento' : 'eventos'}` : ''}${rec ? ', com registro de saúde' : ''}${moodsText(moods, nameOf)}`}
                   onClick={() => onSelect(iso)}
                   className="relative h-[3.9rem] flex flex-col items-center pt-1 outline-none group"
                 >
@@ -419,7 +448,7 @@ function MonthBlock({ year, month, dumDate, todayIso, openDay, onSelect, events,
       </div>
     </section>
   );
-}
+});
 
 /**
  * O Ano em tela cheia, por cima de tudo: a gestação inteira de relance. Sai

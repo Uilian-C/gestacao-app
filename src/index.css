@@ -484,9 +484,18 @@
   to { transform: none; opacity: 1; }
 }
 .tt-pagina-frente { animation: tt-virar-frente 380ms cubic-bezier(.2, .8, .2, 1); }
+/* O coração do Parto: surge do horizonte, dá uma batida e fica (só na hora de selecionar). */
+.tt-sol-coracao { transform-box: fill-box; transform-origin: 50% 100%; animation: tt-sol-surgir 900ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes tt-sol-surgir {
+  0% { transform: translateY(95%) scale(.85); opacity: .5; }
+  55% { transform: translateY(0) scale(1); opacity: 1; }
+  72% { transform: scale(1.14); }
+  86% { transform: scale(.97); }
+  100% { transform: scale(1); }
+}
 .tt-pagina-volta { animation: tt-virar-volta 380ms cubic-bezier(.2, .8, .2, 1); }
 @media (prefers-reduced-motion: reduce) {
-  .tt-pagina-frente, .tt-pagina-volta { animation: none; }
+  .tt-pagina-frente, .tt-pagina-volta, .tt-sol-coracao { animation: none; }
 }
 
 /* A festa do nome escolhido: coraçõezinhos subindo. */

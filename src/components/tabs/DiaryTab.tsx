@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, Bell, ChevronDown, ChevronUp, PartyPopper, ChevronRight, Images, Lock, Plus, Smile } from 'lucide-react';
 import { photoUrl, type FamilyMember } from '../../api';
-import type { Checkin, Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
+import type { Checkin, EntryPhoto, Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { formatBR, toISODate } from '../../lib/dates';
 import type { DetailTarget } from '../../lib/details';
 import { FOLDER, FOLDERS, TONE, bellyWeeks, groupEntries, shortDate, weekOn, type GroupBy } from '../../lib/folders';
@@ -247,7 +247,6 @@ function Grouped({ folder, entries, dumDate, social, onOpen }: { folder: Folder;
  * pastas especiais; a barriguinha mostra as últimas fotos. Um toque abre.
  */
 function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView, onWrite, count, celebrations, checkins }: Props & { count: (f: Folder) => number }) {
-  const belly = journal.filter(e => e.folder === 'barriga' && e.photos.length > 0).slice(0, 4);
   const next = (celebrations ?? []).map(c => ({ c, days: daysTo(c.event_at) })).filter(x => x.days === null || x.days >= 0).sort((a, b) => (a.days ?? 999) - (b.days ?? 999))[0];
   const nextHint = next
     ? `${next.c.title} · ${next.days === null ? 'sem data ainda' : next.days === 0 ? 'hoje' : next.days === 1 ? 'amanhã' : `em ${next.days} dias`}${pendingTasks(next.c).length ? ` · ${pendingTasks(next.c).length} por fazer` : ''}`
@@ -257,59 +256,36 @@ function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView,
     <div className="space-y-3">
       {!journalAvailable && <p className="text-xs text-warn bg-warn-soft rounded-2xl px-3 py-2">Para guardar no diário, rode a migração 008 no Neon.</p>}
 
-      {celebrations !== undefined && (
-        <button type="button" onClick={() => onView('celebracoes')} aria-label="Abrir a pasta Celebrações" className="w-full flex items-center gap-3 rounded-[24px] bg-gradient-to-br from-rosa-soft via-lilas-soft to-azul-soft px-4 py-3.5 text-left transition active:scale-[0.99]">
-          <span className="w-10 h-10 rounded-2xl bg-surface/80 text-rosa-strong flex items-center justify-center shrink-0">
-            <PartyPopper className="w-5 h-5" />
-          </span>
-          <span className="flex-1 min-w-0">
-            <span className="block font-extrabold text-ink">Celebrações</span>
-            <span className="block text-[12.5px] text-ink-soft truncate">{nextHint}</span>
-          </span>
-          <ChevronRight className="w-4 h-4 text-ink-mute shrink-0" />
-        </button>
-      )}
-
-      {photosAvailable && (
-        <div className="grid grid-cols-2 gap-3">
-          {FOLDERS.map(f => {
+      {/* As pastas como num fichário de papel: a aba, os furinhos e as fotos espiando de dentro. */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        {celebrations !== undefined && (
+          <AlbumFolder wide label="Celebrações" hint={nextHint} Icon={PartyPopper} soft="bg-gradient-to-br from-rosa-soft via-lilas-soft to-azul-soft" tab="bg-rosa-soft" text="text-rosa-strong" aria="Abrir a pasta Celebrações" onClick={() => onView('celebracoes')} />
+        )}
+        {photosAvailable &&
+          FOLDERS.map(f => {
             const t = TONE[f.tone];
             const n = count(f.id);
-            const wide = f.id === 'barriga';
+            const photos = journal.filter(e => e.folder === f.id && e.photos.length > 0).slice(0, f.id === 'barriga' ? 4 : 2).map(e => e.photos[0]);
             return (
-              <button key={f.id} type="button" onClick={() => onView(f.id)} aria-label={`Abrir a pasta ${f.title}`} className={`${wide ? 'col-span-2' : ''} rounded-[24px] bg-surface/80 p-3.5 text-left transition active:scale-[0.98]`}>
-                <span className="flex items-center gap-2.5">
-                  <span className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${t.soft} ${t.text}`}>
-                    <f.Icon className="w-[18px] h-[18px]" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-bold text-ink leading-tight">{f.label}</span>
-                    <span className="block text-[12.5px] text-ink-mute">{n ? `${n} ${n === 1 ? 'registro' : 'registros'}` : 'Vazia'}</span>
-                  </span>
-                  {wide && belly.length > 0 && (
-                    <span className="flex -space-x-2" aria-hidden>
-                      {belly.map(e => (
-                        <img key={e.id} src={photoUrl(e.photos[0].id, e.photos[0].thumb)} alt="" className="w-9 h-11 rounded-lg object-cover ring-2 ring-surface" loading="lazy" />
-                      ))}
-                    </span>
-                  )}
-                </span>
-                {wide && belly.length === 0 && <span className="block text-[12.5px] text-ink-soft mt-2">Uma foto por semana para ver a barriga crescer.</span>}
-              </button>
+              <AlbumFolder
+                key={f.id}
+                wide={f.id === 'barriga'}
+                label={f.label}
+                hint={n ? `${n} ${n === 1 ? 'registro' : 'registros'}` : f.id === 'barriga' ? 'Uma foto por semana' : 'Vazia, por enquanto'}
+                Icon={f.Icon}
+                soft={t.soft}
+                tab={t.soft}
+                text={t.text}
+                photos={photos}
+                aria={`Abrir a pasta ${f.title}`}
+                onClick={() => onView(f.id)}
+              />
             );
           })}
-          <button type="button" onClick={() => onView('humor')} aria-label="Abrir a pasta Humor" className="col-span-2 rounded-[24px] bg-surface/80 p-3.5 text-left flex items-center gap-2.5 transition active:scale-[0.99]">
-            <span className="w-9 h-9 rounded-2xl bg-warm-soft text-warm flex items-center justify-center shrink-0">
-              <Smile className="w-[18px] h-[18px]" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-bold text-ink leading-tight">Humor</span>
-              <span className="block text-[12.5px] text-ink-mute">{checkins.length ? `A linha de como vocês estão, semana ${weekOn(dumDate, toISODate(new Date()))}` : 'Aparece quando vocês marcam como estão'}</span>
-            </span>
-            <ChevronRight className="w-4 h-4 text-ink-mute shrink-0" />
-          </button>
-        </div>
-      )}
+        {photosAvailable && (
+          <AlbumFolder wide label="Humor" hint={checkins.length ? `A linha de como vocês estão, semana ${weekOn(dumDate, toISODate(new Date()))}` : 'Aparece quando vocês marcam como estão'} Icon={Smile} soft="bg-warm-soft" tab="bg-warm-soft" text="text-warm" aria="Abrir a pasta Humor" onClick={() => onView('humor')} />
+        )}
+      </div>
 
       {journal.length === 0 && journalAvailable && (
         <button type="button" onClick={() => onWrite()} className="w-full rounded-[24px] border-2 border-dashed border-line p-5 text-left transition hover:bg-surface/60">
@@ -320,6 +296,41 @@ function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView,
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * Uma pasta do fichário: a aba em cima, os três furinhos do fichário na
+ * lateral e, quando há fotos, as polaroides espiando de dentro, como num álbum
+ * de bebê.
+ */
+function AlbumFolder({ label, hint, Icon, soft, tab, text, photos = [], wide = false, aria, onClick }: { label: string; hint: string; Icon: typeof Smile; soft: string; tab: string; text: string; photos?: EntryPhoto[]; wide?: boolean; aria: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={aria} className={`${wide ? 'col-span-2' : ''} relative pt-3 text-left transition active:scale-[0.98]`}>
+      <span aria-hidden className={`absolute top-0 left-5 h-5 w-20 rounded-t-[12px] ${tab}`} />
+      <span className={`relative flex ${wide ? 'items-center min-h-[84px]' : 'flex-col min-h-[124px]'} rounded-[20px] rounded-tl-[8px] ${soft} pl-6 pr-3.5 py-3 overflow-hidden`}>
+        <span aria-hidden className="absolute left-2 top-1/2 -translate-y-1/2 flex flex-col gap-2.5">
+          {[0, 1, 2].map(i => (
+            <span key={i} className="w-1.5 h-1.5 rounded-full bg-canvas/90 shadow-[inset_0_1px_1px_rgba(0,0,0,0.12)]" />
+          ))}
+        </span>
+        <span className={`min-w-0 ${wide ? 'flex-1' : ''}`}>
+          <Icon className={`w-5 h-5 ${text}`} />
+          <span className="block mt-1.5 font-display text-[1.15rem] leading-tight text-ink">{label}</span>
+          <span className={`block text-[12.5px] font-bold ${text} ${wide ? 'truncate' : ''}`}>{hint}</span>
+        </span>
+        {photos.length > 0 && (
+          <span aria-hidden className={wide ? 'flex -space-x-3 shrink-0 pl-2' : 'absolute right-2.5 bottom-2.5 flex -space-x-4'}>
+            {photos.map((ph, i) => (
+              <span key={ph.id} className={`block bg-white p-1 pb-2.5 rounded-[4px] shadow-[0_2px_6px_rgba(0,0,0,0.15)] ${i % 2 ? 'rotate-6' : '-rotate-6'}`}>
+                <img src={photoUrl(ph.id, ph.thumb)} alt="" loading="lazy" className={`${wide ? 'w-10 h-12' : 'w-11 h-11'} object-cover rounded-[2px]`} />
+              </span>
+            ))}
+          </span>
+        )}
+        {!wide && <ChevronRight aria-hidden className="absolute top-3 right-3 w-4 h-4 text-ink-mute/70" />}
+      </span>
+    </button>
   );
 }
 

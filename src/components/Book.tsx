@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { BookOpen, Check, ChevronLeft, ChevronRight, List, PenLine, Printer, Sparkles, X } from 'lucide-react';
+import { BookOpen, Check, ChevronLeft, ChevronRight, List, PenLine, Printer, X } from 'lucide-react';
 import { photoUrl } from '../api';
 import type { BabyTone } from '../content/babyTones';
 import { stageAt } from '../content/growth';
@@ -17,10 +17,9 @@ import MoodFace from './MoodFace';
 
 // O livro de vocês: cada mês da gestação é um capítulo e cada semana, uma
 // página, contada como história (sem contagem), com o bebê daquela semana e o
-// humor dos dois. No Mural aparece a página que acabou de fechar; no Diário →
-// Livro, os capítulos, que abrem num leitor como os de e-book (página inteira,
-// folhear, sumário e "continuar de onde parou"), e a impressão para o fichário
-// de memórias, só com as páginas escolhidas.
+// humor dos dois. No Diário → Livro: a capa (um livro de verdade, com lombada e
+// fitinha marcando onde pararam) abre o leitor; o sumário leva a um capítulo; e
+// a impressão para o fichário de memórias, só com as páginas escolhidas.
 
 /** "16 a 22 out". */
 const span = (c: Chapter) => `${parseLocalDate(c.from).getDate()} a ${shortDate(c.to)}`;
@@ -32,26 +31,6 @@ function stamp(e: JournalEntry) {
   const day = e.entry_date.slice(0, 10);
   const sameDay = !!e.created_at && toISODate(parseTimestamp(e.created_at)) === day;
   return `${FOLDER[e.folder].singular} · ${formatBR(day)}${sameDay ? ` às ${hhmmOf(e.created_at)}` : ''}`;
-}
-
-/** O bebê naquela semana: o desenho da jornada, o tamanho e o nome carinhoso da fase. */
-function BabyOfWeek({ chapter: c, tone }: { chapter: Chapter; tone: BabyTone }) {
-  const name = useContext(BabyNameContext);
-  const stage = stageAt(artWeek(c.week)).title;
-  return (
-    <div className="flex items-center gap-3 rounded-2xl bg-surface-2/60 pl-1.5 pr-3 py-1.5">
-      <BabyArt week={artWeek(c.week)} tone={tone} className="w-14 h-14 shrink-0" />
-      <span className="min-w-0">
-        <span className="block text-[11.5px] font-extrabold uppercase tracking-wide text-rosa">
-          {babyCall(name, true)} na semana {c.week}
-        </span>
-        <span className="block text-[13.5px] text-ink leading-snug">
-          {c.baby}
-          {c.personal && <span className="text-ink-soft"> · {stage}</span>}
-        </span>
-      </span>
-    </div>
-  );
 }
 
 /** Como cada um estava na semana (as carinhas do check-in) e uma frase sobre a variação, ou o convite para contar. */
@@ -78,67 +57,6 @@ function MoodOfWeek({ chapter: c }: { chapter: Chapter }) {
     </div>
   );
 }
-
-/** Uma semana (página) como cartão: no Mural, a página que acabou de fechar. */
-export function ChapterCard({ chapter: c, tone, onOpenEntry, onWrite, showNudge = false }: { chapter: Chapter; tone: BabyTone; onOpenEntry: (id: string) => void; onWrite?: () => void; showNudge?: boolean }) {
-  const label = `Semana ${c.week} · ${c.open ? 'sendo escrita' : span(c)}`;
-  return (
-    <article aria-label={`Semana ${c.week}`} className={`rounded-[28px] overflow-hidden ${c.open ? 'bg-surface border-2 border-dashed border-line' : 'bg-surface shadow-soft'}`}>
-      {c.cover ? (
-        <button type="button" onClick={() => onOpenEntry(c.cover!.entryId)} className="relative block w-full" aria-label={`Semana ${c.week}: ver a foto`}>
-          <img src={photoUrl(c.cover.photo.id)} alt="" loading="lazy" className="w-full aspect-[4/3] object-cover bg-surface-2" />
-          <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-5 pb-4 pt-12 text-left">
-            <span className="block text-[11.5px] font-extrabold uppercase tracking-wide text-white/85">{label}</span>
-            <span className="block font-display text-[1.45rem] leading-tight text-white text-balance">{titleOf(c)}</span>
-          </span>
-        </button>
-      ) : (
-        <header className="px-5 pt-5">
-          <p className="text-[11.5px] font-extrabold uppercase tracking-wide text-rosa">{label}</p>
-          <h3 className="font-display text-[1.45rem] leading-tight text-ink text-balance">{titleOf(c)}</h3>
-        </header>
-      )}
-      <div className="px-5 pt-3 pb-5 space-y-3">
-        <BabyOfWeek chapter={c} tone={tone} />
-        <p className="text-[15px] leading-relaxed text-ink">{c.story}</p>
-        <MoodOfWeek chapter={c} />
-        {c.highlight && !c.open && (
-          <button type="button" onClick={() => onOpenEntry(c.highlight!.entryId)} className="block w-full text-left border-l-[3px] border-rosa/60 pl-3">
-            <span className="block font-display text-[1.05rem] italic leading-snug text-ink">“{c.highlight.quote}”</span>
-            <span className="block text-[12px] font-bold text-rosa-strong mt-0.5">{c.highlight.hugged ? 'A lembrança mais abraçada' : 'Para guardar desta semana'}</span>
-          </button>
-        )}
-        {showNudge && c.nudge && (
-          <button type="button" onClick={onWrite} disabled={!onWrite} className="w-full flex items-start gap-2 rounded-2xl bg-rosa-soft/70 px-3.5 py-2.5 text-left text-[13.5px] text-ink">
-            <PenLine className="w-4 h-4 mt-0.5 shrink-0 text-rosa-strong" />
-            <span>{c.nudge}</span>
-          </button>
-        )}
-      </div>
-    </article>
-  );
-}
-
-/** A página que acabou de fechar, no topo do Mural, com o convite para a próxima. */
-/** A página da semana que acabou de fechar, no topo do Livro (o Início avisa e leva até ela). */
-function FreshChapter({ chapter, tone, onOpenEntry, onWrite }: { chapter: Chapter; tone: BabyTone; onOpenEntry: (id: string) => void; onWrite?: () => void }) {
-  return (
-    <section aria-label="Página da semana" className="space-y-2">
-      <p className="flex items-center gap-1.5 px-1 text-[12px] font-extrabold uppercase tracking-wide text-rosa">
-        <Sparkles className="w-3.5 h-3.5" /> Uma página nova no livro de vocês
-      </p>
-      <ChapterCard chapter={chapter} tone={tone} onOpenEntry={onOpenEntry} onWrite={onWrite} showNudge />
-      {onWrite && (
-        <button type="button" onClick={onWrite} className="w-full inline-flex items-center gap-2 rounded-full bg-rosa-soft text-rosa-strong px-4 py-2.5 text-[13.5px] font-bold text-left">
-          <PenLine className="w-4 h-4 shrink-0" />
-          <span className="truncate">Começar a semana {chapter.week + 1}</span>
-        </button>
-      )}
-    </section>
-  );
-}
-
-// ---- As páginas do livro (no leitor e na impressão, iguais) ----
 
 /** Fotos inteiras, sem cortar: uma grande, ou duas por linha no tamanho de cada uma. */
 function BookPhotos({ photos }: { photos: JournalEntry['photos'] }) {
@@ -232,6 +150,8 @@ const FIRST = 4;
 const LAST = 40;
 const PRINTED_KEY = 'tumtum-livro-impresso';
 const READING_KEY = 'tumtum-livro-lendo';
+/** A última página nova que já foi lida (a capa deixa de chamar para ela). */
+const FRESH_READ_KEY = 'tumtum-livro-pagina-nova-lida';
 export const BOOK_SEEN_KEY = 'tumtum-livro-visto';
 
 /** A assinatura de uma página: muda quando ganha lembranças novas (para saber o que ainda não foi impresso). */
@@ -264,6 +184,7 @@ export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, o
   // O leitor abre num capítulo (abertura) ou numa semana (onde parou).
   const [reading, setReading] = useState<{ month: number; week?: number } | null>(null);
   const [lastRead, setLastRead] = useState<number | null>(() => readStored<number | null>(READING_KEY, null));
+  const [freshRead, setFreshRead] = useState<number | null>(() => readStored<number | null>(FRESH_READ_KEY, null));
   const [choosing, setChoosing] = useState(false);
   const [printed, setPrinted] = useState(() => new Set(readStored<string[]>(PRINTED_KEY, [])));
   const fresh = newPages(book, printed);
@@ -271,48 +192,55 @@ export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, o
   const current = book[0]?.week ?? FIRST;
   const filled = new Set(written.map(c => c.week));
   const nudge = book.slice(0, 2).find(c => c.nudge);
-  const resume = lastRead !== null ? months.find(m => m.pages.some(p => p.week === lastRead && (!p.quiet || p.open))) : undefined;
+  const monthOf = (week: number) => months.find(m => m.pages.some(p => p.week === week && (!p.quiet || p.open)));
+  const resume = lastRead !== null ? monthOf(lastRead) : undefined;
+  const freshMonth = freshPage ? monthOf(freshPage.week) : undefined;
+  // A capa abre onde faz mais sentido: na página nova, onde pararam, ou no capítulo de agora.
+  const open =
+    freshPage && freshMonth && freshRead !== freshPage.week
+      ? { label: 'Ler a página nova', go: { month: freshMonth.month, week: freshPage.week } }
+      : resume && lastRead !== null
+        ? { label: `Continuar da semana ${lastRead}`, go: { month: resume.month, week: lastRead } }
+        : months[0]
+          ? { label: 'Abrir o livro', go: { month: months[0].month } }
+          : null;
 
   return (
-    <div className="space-y-4 max-w-[560px] mx-auto">
-      <header className="rounded-[28px] bg-gradient-to-b from-rosa-soft/80 to-surface/80 px-5 pt-5 pb-4">
-        <p className="text-[12px] font-extrabold uppercase tracking-wide text-rosa">O livro de {name ?? 'vocês'}</p>
-        <h2 className="font-display text-[1.25rem] leading-snug text-ink text-balance">
-          {written.length === 0 ? 'A primeira página espera por vocês.' : `Um dia vocês vão ler estas páginas juntos, com ${babyCall(name)} no colo.`}
-        </h2>
+    <div className="space-y-5 max-w-[560px] mx-auto">
+      {/* A capa: um livro de verdade, com lombada costurada e a fitinha marcando a página. */}
+      <button
+        type="button"
+        disabled={!open}
+        onClick={() => open && setReading(open.go)}
+        aria-label={open?.label ?? 'O livro ainda está em branco'}
+        className="relative block w-full overflow-hidden rounded-[26px] rounded-l-[12px] bg-gradient-to-br from-rosa-soft via-lilas-soft to-azul-soft text-left shadow-[6px_8px_0_-2px_var(--c-surface-2)] transition active:scale-[0.99]"
+      >
+        <span aria-hidden className="absolute inset-y-0 left-0 w-5 bg-rosa/20 border-r-2 border-dashed border-surface/70" />
+        {(open?.label !== 'Abrir o livro') && open && <span aria-hidden className="absolute top-0 right-7 w-3.5 h-11 bg-rosa [clip-path:polygon(0_0,100%_0,100%_100%,50%_78%,0_100%)]" />}
+        <span className="flex items-center gap-3 pl-9 pr-5 pt-6 pb-5">
+          <span className="flex-1 min-w-0 space-y-2">
+            <span className="block text-[12px] font-extrabold uppercase tracking-wide text-rosa-strong">O livro de {name ?? 'vocês'}</span>
+            <span className="block font-display text-[1.3rem] leading-snug text-ink text-balance">
+              {written.length === 0 ? 'A primeira página espera por vocês.' : `Um dia vocês vão ler estas páginas juntos, com ${babyCall(name)} no colo.`}
+            </span>
+            {freshPage && <span className="block text-[13px] text-ink-soft line-clamp-2">Página nova: {titleOf(freshPage)}</span>}
+          </span>
+          <BabyArt week={artWeek(current)} beat tone={tone} className="w-24 h-24 shrink-0" />
+        </span>
         {/* A lombada: uma marquinha por semana, cheia quando a página tem lembranças. */}
-        <div className="mt-3 flex gap-[3px]" role="img" aria-label={`Semanas com lembranças: ${written.length} de ${LAST - FIRST + 1}`}>
+        <span className="flex gap-[3px] pl-9 pr-5" role="img" aria-label={`Semanas com lembranças: ${written.length} de ${LAST - FIRST + 1}`}>
           {Array.from({ length: LAST - FIRST + 1 }, (_, i) => FIRST + i).map(w => (
-            <span key={w} className={`flex-1 h-3 rounded-full ${filled.has(w) ? 'bg-rosa' : w === current ? 'bg-surface border border-dashed border-rosa' : w < current ? 'bg-rosa/20' : 'bg-line/60'}`} />
+            <span key={w} className={`flex-1 h-2 rounded-full ${filled.has(w) ? 'bg-rosa' : w === current ? 'bg-surface border border-dashed border-rosa' : w < current ? 'bg-rosa/25' : 'bg-surface/70'}`} />
           ))}
-        </div>
-        {resume && lastRead !== null && (
-          <button type="button" onClick={() => setReading({ month: resume.month, week: lastRead })} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-rosa text-white px-4 py-2 text-[13.5px] font-extrabold shadow-soft">
-            <BookOpen className="w-4 h-4" /> Continuar da semana {lastRead}
-          </button>
-        )}
-        {/* Para o fichário de papel: com afeto e presença, sem gritar mais que o livro. */}
-        {written.length > 0 && (
-          <button type="button" onClick={() => setChoosing(true)} className="mt-3 w-full flex items-center gap-2.5 rounded-2xl bg-surface/70 ring-1 ring-rosa/20 px-2.5 py-1.5 text-left transition hover:bg-surface active:scale-[0.99]">
-            <span className="relative w-7 h-7 rounded-xl bg-rosa-soft text-rosa-strong flex items-center justify-center shrink-0">
-              <Printer className="w-3.5 h-3.5" />
-              {fresh.length > 0 && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-rosa ring-2 ring-surface" aria-hidden />}
+        </span>
+        {open && (
+          <span className="flex pl-9 pr-5 pt-4 pb-5">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-rosa text-on-accent px-4 py-2 text-[13.5px] font-extrabold">
+              <BookOpen className="w-4 h-4" /> {open.label}
             </span>
-            <span className="flex-1 min-w-0 leading-tight">
-              <span className="block text-[13px] font-bold text-ink">Imprimir para o fichário de memórias</span>
-              <span className="block text-[11.5px] text-ink-soft truncate">{fresh.length > 0 ? 'Páginas novas esperando o papel' : 'Para guardar com as outras lembranças'}</span>
-            </span>
-            <ChevronRight className="w-4 h-4 text-rosa-strong shrink-0" />
-          </button>
+          </span>
         )}
-        {!name && onNames && (
-          <button type="button" onClick={onNames} className="mt-3 block text-left text-[13px] font-bold text-rosa-strong">
-            Qual vai ser o nome? Ele vai para a capa do livro ›
-          </button>
-        )}
-      </header>
-
-      {freshPage && <FreshChapter chapter={freshPage} tone={tone} onOpenEntry={onOpenEntry} onWrite={onWrite} />}
+      </button>
 
       {nudge && onWrite && (
         <button type="button" onClick={onWrite} className="w-full flex items-start gap-2 rounded-2xl bg-surface/80 px-4 py-3 text-left text-[13.5px] text-ink">
@@ -321,13 +249,39 @@ export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, o
         </button>
       )}
 
-      <ol className="space-y-3" aria-label="Capítulos">
-        {months.map(m => (
-          <li key={m.month}>
-            <MonthCard month={m} tone={tone} onOpen={() => setReading({ month: m.month })} />
-          </li>
-        ))}
-      </ol>
+      {/* O sumário: um capítulo por mês; tocar abre o livro ali. */}
+      <section aria-labelledby="sumario-titulo" className="space-y-2">
+        <h3 id="sumario-titulo" className="px-1 text-[12px] font-extrabold uppercase tracking-wide text-ink-mute">
+          Sumário
+        </h3>
+        <ol className="rounded-[24px] bg-surface/80 divide-y divide-line/60" aria-label="Capítulos">
+          {months.map(m => (
+            <li key={m.month}>
+              <MonthRow month={m} onOpen={() => setReading({ month: m.month })} />
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <div className="flex flex-col items-start gap-2 px-1">
+        {written.length > 0 && (
+          <button type="button" onClick={() => setChoosing(true)} className="inline-flex items-start gap-2 text-left text-[13.5px] font-bold text-rosa-strong">
+            <span className="relative shrink-0 mt-0.5">
+              <Printer className="w-4 h-4" />
+              {fresh.length > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rosa ring-2 ring-surface" aria-hidden />}
+            </span>
+            <span>
+              Imprimir para o fichário de memórias
+              {fresh.length > 0 && <span className="block text-[12px] font-semibold text-ink-soft">Páginas novas esperando o papel</span>}
+            </span>
+          </button>
+        )}
+        {!name && onNames && (
+          <button type="button" onClick={onNames} className="text-left text-[13.5px] font-bold text-rosa-strong">
+            Qual vai ser o nome? Ele vai para a capa do livro ›
+          </button>
+        )}
+      </div>
 
       {reading && (
         <BookReader
@@ -342,6 +296,10 @@ export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, o
           onPage={week => {
             setLastRead(week);
             store(READING_KEY, week);
+            if (freshPage?.week === week) {
+              setFreshRead(week);
+              store(FRESH_READ_KEY, week);
+            }
           }}
         />
       )}
@@ -363,29 +321,23 @@ export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, o
   );
 }
 
-/** Um capítulo (mês) na lista: capa, nome, o resumo e as páginas (uma bolinha por semana). */
-function MonthCard({ month: m, tone, onOpen }: { month: MonthChapter; tone: BabyTone; onOpen: () => void }) {
-  const last = m.pages[m.pages.length - 1];
+/** Um capítulo no sumário: o número, o nome, o mês e as páginas (uma marquinha por semana). */
+function MonthRow({ month: m, onOpen }: { month: MonthChapter; onOpen: () => void }) {
   return (
-    <button type="button" onClick={onOpen} aria-label={`Capítulo ${m.month}: ${m.title}. Abrir`} className={`w-full text-left rounded-[28px] overflow-hidden transition active:scale-[0.99] ${m.open ? 'bg-surface border-2 border-dashed border-line' : m.quiet ? 'bg-surface-2/60' : 'bg-surface shadow-soft'}`}>
-      <span className="flex items-stretch">
-        <span className="relative w-28 shrink-0 bg-gradient-to-b from-rosa-soft to-surface-2 flex items-center justify-center overflow-hidden">
-          {m.cover ? <img src={photoUrl(m.cover.photo.id, m.cover.photo.thumb)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" /> : <BabyArt week={artWeek(last?.week ?? 4)} tone={tone} className="w-24 h-24" />}
-        </span>
-        <span className="flex-1 min-w-0 px-4 py-3.5 space-y-1">
-          <span className="block text-[11.5px] font-extrabold uppercase tracking-wide text-rosa">
-            Capítulo {m.month} · {m.open ? 'sendo escrito' : m.name.toLowerCase()}
-          </span>
-          <span className="block font-display text-[1.2rem] leading-tight text-ink">{m.title}</span>
-          <span className="block text-[13px] text-ink-soft leading-snug line-clamp-2">{m.story}</span>
-          <span className="flex items-center gap-1.5 pt-1" aria-hidden>
+    <button type="button" onClick={onOpen} aria-label={`Capítulo ${m.month}: ${m.title}. Abrir`} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+      <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-display text-[1.05rem] tabular ${m.quiet && !m.open ? 'bg-surface-2 text-ink-mute' : 'bg-rosa-soft text-rosa-strong'}`}>{m.month}</span>
+      <span className="flex-1 min-w-0">
+        <span className={`block font-display text-[1.08rem] leading-tight truncate ${m.quiet && !m.open ? 'text-ink-soft' : 'text-ink'}`}>{m.title}</span>
+        <span className="flex items-center gap-2 mt-1">
+          <span className="text-[12px] text-ink-mute">{m.open ? 'sendo escrito' : m.name.toLowerCase()}</span>
+          <span className="flex gap-1" aria-hidden>
             {m.pages.map(p => (
-              <span key={p.week} className={`h-1.5 w-5 rounded-full ${p.open ? 'border border-dashed border-rosa' : p.quiet ? 'bg-line' : 'bg-rosa'}`} />
+              <span key={p.week} className={`h-1.5 w-3.5 rounded-full ${p.open ? 'border border-dashed border-rosa' : p.quiet ? 'bg-line' : 'bg-rosa'}`} />
             ))}
-            <span className="ml-auto text-[12px] font-bold text-rosa-strong">Abrir ›</span>
           </span>
         </span>
       </span>
+      <ChevronRight className="w-4 h-4 text-ink-mute shrink-0" />
     </button>
   );
 }
@@ -448,7 +400,7 @@ function BookReader({ months, start, tone, onClose, onOpenEntry, onPage }: { mon
     const dy = e.clientY - t.y;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
   };
-  const where = page.kind === 'abertura' ? `Capítulo ${page.month.month}` : page.kind === 'nome' ? `O nome · semana ${page.chapter.week}` : `Semana ${page.chapter.week}`;
+  const where = page.kind === 'abertura' ? 'Abertura do capítulo' : page.kind === 'nome' ? 'A página do nome' : `Semana ${page.chapter.week}${page.chapter.open ? ' · sendo escrita' : ''}`;
 
   return (
     <div role="dialog" aria-label={`O livro de ${name ?? 'vocês'}`} className="fixed inset-0 z-50 flex flex-col overscroll-contain bg-surface text-ink">
@@ -468,11 +420,12 @@ function BookReader({ months, start, tone, onClose, onOpenEntry, onPage }: { mon
         <div key={at} ref={sheet} onPointerDown={down} onPointerUp={up} style={{ touchAction: 'pan-y' }} className={`tt-pagina ${dir > 0 ? 'tt-pagina-frente' : 'tt-pagina-volta'} h-full overflow-y-auto`} aria-live="polite">
           <div className="mx-auto max-w-[620px] px-6 pt-6 pb-10">
             {page.kind === 'abertura' ? <MonthOpening month={page.month} tone={tone} /> : page.kind === 'nome' ? <NamePageView page={page.chapter.named!} tone={tone} week={page.chapter.week} /> : <WeekPage chapter={page.chapter} tone={tone} onOpenEntry={onOpenEntry} />}
-            {at < pages.length - 1 && (
-              <button type="button" onClick={() => go(1)} className="mt-8 w-full inline-flex items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-[13.5px] font-bold text-ink-soft">
-                Virar a página <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
+            {/* O fim da página, com a assinatura do Tumtum. */}
+            <div className="mt-10 flex items-center gap-3 text-rosa/50" aria-hidden>
+              <span className="flex-1 h-px bg-line" />
+              <BrandMark className="w-6 h-6" />
+              <span className="flex-1 h-px bg-line" />
+            </div>
           </div>
         </div>
       </div>
@@ -486,9 +439,7 @@ function BookReader({ months, start, tone, onClose, onOpenEntry, onPage }: { mon
           <button type="button" onClick={() => go(-1)} disabled={at === 0} aria-label="Página anterior" className="w-11 h-11 rounded-full flex items-center justify-center text-ink hover:bg-surface-2 disabled:opacity-25">
             <ChevronLeft className="w-6 h-6" />
           </button>
-          <p className="text-[12.5px] text-ink-soft text-center tabular">
-            {where} · página {at + 1} de {pages.length}
-          </p>
+          <p className="text-[13px] font-semibold text-ink-soft text-center">{where}</p>
           <button type="button" onClick={() => go(1)} disabled={at === pages.length - 1} aria-label="Próxima página" className="w-11 h-11 rounded-full flex items-center justify-center text-ink hover:bg-surface-2 disabled:opacity-25">
             <ChevronRight className="w-6 h-6" />
           </button>

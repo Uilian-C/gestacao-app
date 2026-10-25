@@ -51,7 +51,7 @@ export interface Goal {
 const TERM = 40;
 
 /** Tamanho do desenho em cada fase: cresce com o bebê, sem sumir no começo. */
-const artSize = (week: number) => Math.round(44 + Math.sqrt(stageAt(week).lengthCm / 51.2) * 52);
+const artSize = (week: number) => Math.round(56 + Math.sqrt(stageAt(week).lengthCm / 51.2) * 40);
 
 export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui', parents, belly = [], onOpenEntry, tone = 'tumtum', onToneChange, onNames, goal }: Props) {
   const babyName = useContext(BabyNameContext);
@@ -192,7 +192,7 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
           rows.push(
             <li key={s.week} ref={isNow ? hereRef : isGoal ? goalRef : undefined} className="relative flex items-stretch gap-3">
               <div className="w-[96px] shrink-0 flex items-center justify-center py-1.5">
-                <span style={{ width: artSize(s.week) }} className={`block transition ${passed ? '' : 'opacity-45 saturate-50'}`}>
+                <span style={{ width: artSize(s.week) }} className={`block transition ${passed ? '' : 'opacity-80'}`}>
                   {/* Pulsam só o coração do topo e o da fase em que o bebê está; as outras fases ficam quietas. */}
                   <BabyArt week={s.week} beat={s.week === stage.week} tone={shown} className="w-full h-auto" />
                 </span>

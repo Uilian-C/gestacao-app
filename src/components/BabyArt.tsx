@@ -114,11 +114,15 @@ export default function BabyArt({ week, beat = false, tone = 'tumtum', className
       {/* O bebê, um pouco menor, para caber no coração */}
       <g transform="translate(60 61) scale(0.74) translate(-60 -60)">
       {week < 8 ? (
-        // Sementinha: uma luz quente com o coração já batendo.
+        // Sementinha: o feijãozinho bem pequeno, aninhado numa luz quente, com o coração já batendo.
         <g>
-          <circle cx={60} cy={60} r={26} fill={`url(#${glow})`} />
-          <circle cx={60} cy={60} r={11} fill={`url(#${skin})`} />
-          <circle cx={60} cy={60} r={4} fill="#fff" opacity={0.85} className={beat ? 'tt-bebe-batida' : undefined} />
+          <circle cx={60} cy={62} r={34} fill={`url(#${glow})`} opacity={0.55} />
+          <g transform="translate(60 64) scale(0.72) translate(-62 -70)">
+            <path d="M50 62 C64 56 84 66 84 82 C84 96 70 102 60 97 C50 92 46 76 50 62 Z" fill={`url(#${shade})`} />
+            <circle cx={53} cy={47} r={24} fill={`url(#${skin})`} />
+            <Face x={52} y={49} s={0.82} feature={SKIN.feature} blush={SKIN.blush} />
+          </g>
+          <circle cx={70} cy={76} r={3.2} fill="#fff" opacity={0.85} className={beat ? 'tt-bebe-batida' : undefined} />
         </g>
       ) : week < 12 ? (
         // Feijãozinho: carinha grande e o corpinho curvado como um feijão.

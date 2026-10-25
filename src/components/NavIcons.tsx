@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type { Tab } from '../types';
 
 // Ícones das abas, desenhados no mesmo traço: contorno quando a aba está
@@ -53,13 +54,29 @@ function Care({ on }: IconProps) {
   );
 }
 
-/** "Dar à luz": o sol nascendo no horizonte. Aceso, o sol fica cheio, com um coraçãozinho vazado. */
+/**
+ * "Dar à luz": o sol nascendo no horizonte. Ao selecionar, no lugar do sol
+ * surge o coração do Tumtum: sobe do horizonte, dá uma batida e fica ali.
+ */
 function Birth({ on }: IconProps) {
+  const clip = `horizonte-${useId().replace(/:/g, '')}`;
   return (
     <svg {...base} stroke="currentColor">
-      <path d="M5.6 17.5a6.4 6.4 0 0 1 12.8 0" fill={on ? 'currentColor' : 'none'} />
-      <path d="M12 8.9V7M16.9 10.4l1.1-1.4M7.1 10.4 6 9M19.9 14.3l1.6-.6M4.1 14.3l-1.6-.6M2.5 17.5h19" />
-      {on && <path d="M12 16.4c-1.3-.85-2-1.5-2-2.35a1 1 0 0 1 2-.45 1 1 0 0 1 2 .45c0 .85-.7 1.5-2 2.35z" fill={CUT} stroke={CUT} strokeWidth={1} />}
+      {on ? (
+        <>
+          <defs>
+            <clipPath id={clip}>
+              <rect x="0" y="0" width="24" height="17.5" />
+            </clipPath>
+          </defs>
+          <g clipPath={`url(#${clip})`}>
+            <path className="tt-sol-coracao" d="M12 16.8c-4-2.6-6.1-4.7-6.1-7.3a3 3 0 0 1 6.1-1.4 3 3 0 0 1 6.1 1.4c0 2.6-2.1 4.7-6.1 7.3z" fill="currentColor" strokeWidth={1.4} />
+          </g>
+        </>
+      ) : (
+        <path d="M5.6 17.5a6.4 6.4 0 0 1 12.8 0M12 7.7V5.9M17.6 9.5l1-1.5M6.4 9.5l-1-1.5" />
+      )}
+      <path d="M21.1 14.1l1.7-.6M2.9 14.1l-1.7-.6M1.5 17.5h21" />
     </svg>
   );
 }
