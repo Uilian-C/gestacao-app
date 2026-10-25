@@ -40,9 +40,11 @@ interface Props {
   posts?: Array<{ entry: JournalEntry; isNew: boolean; mentionsMe: boolean }>;
   onOpenEntry?: (id: string) => void;
   onMural?: () => void;
+  /** Modo cuidado: só a confirmação, sem a "resposta do bebê". */
+  quiet?: boolean;
 }
 
-export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShare, onMonth, posts = [], onOpenEntry, onMural }: Props) {
+export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShare, onMonth, posts = [], onOpenEntry, onMural, quiet = false }: Props) {
   const members = useContext(PeopleContext);
   const babyName = useContext(BabyNameContext);
   const today = toISODate(new Date());
@@ -138,10 +140,12 @@ export default function CheckIn({ role, checkins, hugs, onCheckin, onHug, onShar
           <p className="flex items-center gap-1.5 text-[13px] font-bold text-ok">
             <Check className="w-4 h-4 animate-[tt-pop_400ms_ease-out]" strokeWidth={3} /> Registrado{partnerName ? `. ${partnerName} vai ver.` : '.'}
           </p>
-          <p className="flex items-start gap-2 text-[14px] leading-snug text-ink">
-            <BrandMark className="w-5 h-5 shrink-0 mt-0.5" />
-            <span>{babyReply(mine.mood, role, babyName)}</span>
-          </p>
+          {!quiet && (
+            <p className="flex items-start gap-2 text-[14px] leading-snug text-ink">
+              <BrandMark className="w-5 h-5 shrink-0 mt-0.5" />
+              <span>{babyReply(mine.mood, role, babyName)}</span>
+            </p>
+          )}
         </div>
       )}
 

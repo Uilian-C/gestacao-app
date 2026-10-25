@@ -11,12 +11,14 @@ const TABS: Array<{ id: Tab }> = [{ id: 'inicio' }, { id: 'diario' }, { id: 'age
  * Quando há carinho novo (o outro postou ou comentou), o ícone dá a batida do
  * Tumtum de vez em quando, com um pontinho rosa, no lugar de um número.
  */
-export default function Nav({ active, onChange, badges, pulse = {} }: { active: Tab; onChange: (tab: Tab) => void; badges: Partial<Record<Tab, number>>; pulse?: Partial<Record<Tab, boolean>> }) {
+export default function Nav({ active, onChange, badges, pulse = {}, hidden = [] }: { active: Tab; onChange: (tab: Tab) => void; badges: Partial<Record<Tab, number>>; pulse?: Partial<Record<Tab, boolean>>; hidden?: Tab[] }) {
+  // No modo cuidado o Parto sai do menu.
+  const tabs = TABS.filter(t => !hidden.includes(t.id));
   return (
     <>
       <nav className="no-print hidden md:block sticky top-0 z-30 bg-canvas/85 backdrop-blur-md" aria-label="Seções">
         <div className="max-w-5xl mx-auto px-6 py-3 flex gap-1.5">
-          {TABS.map(t => {
+          {tabs.map(t => {
             const on = active === t.id;
             return (
               <button
@@ -42,8 +44,8 @@ export default function Nav({ active, onChange, badges, pulse = {} }: { active: 
         style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
         aria-label="Seções"
       >
-        <div className="grid grid-cols-5 px-1 py-1.5">
-          {TABS.map(t => {
+        <div className={`grid px-1 py-1.5 ${tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+          {tabs.map(t => {
             const on = active === t.id;
             return (
               <button

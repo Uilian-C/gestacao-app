@@ -172,6 +172,7 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('updateCelebrationItem'), id: uuid, ...celebrationItemFields }),
   z.object({ op: z.literal('deleteCelebrationItem'), id: uuid }),
   z.object({ op: z.literal('setBabyName'), name: z.string().trim().max(40).nullable() }),
+  z.object({ op: z.literal('setCareMode'), on: z.boolean() }),
   z.object({ op: z.literal('setBabyTone'), tone: z.enum(['tumtum', 'tom1', 'tom2', 'tom3', 'tom4', 'tom5']).nullable() }),
   // Check-in do dia (migração 014): o humor de cada um; null apaga.
   z.object({ op: z.literal('checkin'), day: isoDate, mood: z.enum(['otima', 'bem', 'cansada', 'enjoada', 'ansiosa']).nullable() }),
@@ -556,6 +557,11 @@ async function apply(m: Member, o: Op) {
     case 'setBabyName':
       return setBabyName(fid, o.name ? o.name : null).catch(err => {
         if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'O nome do bebê ainda não está ligado no servidor. Rode a migração db/migrations/025_nome_do_bebe.sql no Neon.');
+        throw err;
+      });
+    case 'setCareMode':
+      return query('UPDATE families SET care_since = CASE WHEN $2 THEN COALESCE(care_since, CURRENT_DATE) ELSE NULL END WHERE id = $1', [fid, o.on]).catch(err => {
+        if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'O modo cuidado ainda não está ligado no servidor. Rode a migração db/migrations/029_modo_cuidado.sql no Neon.');
         throw err;
       });
     case 'setBabyTone':

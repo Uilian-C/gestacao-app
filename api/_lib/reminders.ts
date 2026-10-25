@@ -15,6 +15,8 @@ export interface FamilyRow {
   /** Familiares (migração 023): recebem só a semana nova. */
   relatives?: string[];
   done: string[];
+  /** Modo cuidado ligado (migração 029): nada de semana nova nem contagens. */
+  care?: boolean;
 }
 
 export interface ConsultationRow {
@@ -150,7 +152,7 @@ export function planReminders(today: string, families: FamilyRow[], consultation
 
   // Véspera da semana nova: um convite para voltar amanhã (a semana chega embrulhada no Início).
   for (const f of families) {
-    if (!f.dum_date) continue;
+    if (!f.dum_date || f.care) continue;
     const days = dayNumber(today) - dayNumber(f.dum_date) + 1;
     if (days <= 0 || days % 7 !== 0) continue;
     const week = days / 7;
@@ -165,7 +167,7 @@ export function planReminders(today: string, families: FamilyRow[], consultation
 
   // Semana nova: no dia em que completa a semana, com o que abre na jornada.
   for (const f of families) {
-    if (!f.dum_date) continue;
+    if (!f.dum_date || f.care) continue;
     const days = dayNumber(today) - dayNumber(f.dum_date);
     if (days <= 0 || days % 7 !== 0) continue;
     const week = days / 7;

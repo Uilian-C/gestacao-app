@@ -38,7 +38,8 @@ export const GET = endpoint(async request => {
       `SELECT f.id::text AS id, f.dum_date::text AS dum_date, f.blood_type,
               ARRAY(SELECT m.user_id FROM family_members m WHERE m.family_id = f.id AND m.role <> 'familia') AS members,
               ARRAY(SELECT m.user_id FROM family_members m WHERE m.family_id = f.id AND m.role = 'familia') AS relatives,
-              ARRAY(SELECT c.item_id FROM checklist c WHERE c.family_id = f.id AND c.list = 'prenatal') AS done
+              ARRAY(SELECT c.item_id FROM checklist c WHERE c.family_id = f.id AND c.list = 'prenatal') AS done,
+              (to_jsonb(f) ->> 'care_since') IS NOT NULL AS care
        FROM families f
        WHERE EXISTS (SELECT 1 FROM family_members m JOIN push_subscriptions s ON s.user_id = m.user_id WHERE m.family_id = f.id)`,
     ),
