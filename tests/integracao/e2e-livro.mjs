@@ -35,9 +35,11 @@ await mae.screenshot({ path: `${OUT}nomes-inicio.png` });
 await mae.getByRole('button', { name: /^Diário/ }).first().click();
 const tabs = mae.getByRole('navigation', { name: 'Pastas do diário' });
 check((await tabs.getByRole('button').count()) === 3, 'o Diário tem três lugares: Mural, Fichário e Livro');
+check((await mae.getByRole('region', { name: 'Página da semana' }).count()) === 0 && (await mae.getByRole('list', { name: 'Mural' }).isVisible()), 'o Mural é só o mural: as postagens, sem o resumo do livro');
+await tabs.getByRole('button', { name: 'Livro' }).click();
 const capitulo = mae.getByRole('region', { name: 'Página da semana' });
 await capitulo.waitFor();
-check(await capitulo.getByText('Uma página nova no livro de vocês').isVisible(), 'a semana que acabou de fechar aparece no Mural como página nova do livro');
+check(await capitulo.getByText('Uma página nova no livro de vocês').isVisible(), 'a semana que acabou de fechar abre o Livro como página nova');
 check(
   await capitulo.getByText('Depois de uma semana quieta, vocês voltaram a guardar lembranças. Teve um momento daqueles que a gente não esquece, a primeira carta para o bebê, uma foto nova e abraços trocados.').isVisible(),
   'a semana contada como história, comparada com a anterior e sem números (nem o que é "Só eu")',
@@ -48,7 +50,6 @@ check(await capitulo.getByRole('button', { name: 'Começar a semana 22' }).isVis
 await mae.screenshot({ path: `${OUT}livro-mural.png` });
 
 // ---- O livro: capítulos por mês ----
-await capitulo.getByRole('button', { name: 'Ver o livro' }).click();
 const livro = mae.getByRole('list', { name: 'Capítulos' });
 await livro.waitFor();
 check(await mae.getByText('Um dia vocês vão ler estas páginas juntos, com o bebê no colo.').isVisible(), 'o livro convida com afeto, sem contagem');

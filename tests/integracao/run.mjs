@@ -118,6 +118,7 @@ const tests = [
   ['e2e-ajuda.mjs', false],
   ['e2e-cuidados.mjs', false],
   ['e2e-tarefas.mjs', false],
+  ['e2e-parto.mjs', false],
 ];
 const only = process.argv.slice(2);
 

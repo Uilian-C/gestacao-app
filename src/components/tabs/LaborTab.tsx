@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, ChevronDown, ClipboardCopy, Footprints, Luggage, Printer, RefreshCw, RotateCcw, Timer, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, ClipboardCopy, FileHeart, Footprints, Luggage, Printer, RefreshCw, RotateCcw, Siren, Timer, Trash2 } from 'lucide-react';
 import { HOSPITAL_BAG } from '../../content/hospitalBag';
 import type { ListItem } from '../../hooks/useGestationData';
 import { AddItem, HiddenItems, MenuButton, RowMenu } from '../EditableList';
@@ -8,11 +8,13 @@ import { BIRTH_TYPE, PLAN_SECTIONS, planProgress, planToText, toPlan, type Birth
 import { formatBR, parseTimestamp, toISODate } from '../../lib/dates';
 import { formatDuration, laborStatus, summarizeKicks, timeContractions, type LaborStatus } from '../../lib/labor';
 import type { Author, BirthPlanRecord, Contraction, KickSession } from '../../types';
+import AlertSigns from '../AlertSigns';
 import AuthorBadge from '../AuthorBadge';
+import Sheet from '../Sheet';
 import { inputClass } from '../styles';
-import { Button, Card, Chip, EmptyState, Field, Segmented, SectionTitle, SubTabs } from '../ui';
+import { Button, Card, Chip, EmptyState, Field, Segmented, SectionTitle } from '../ui';
 
-type View = 'movimentos' | 'contracoes' | 'plano' | 'mala';
+type Tool = 'movimentos' | 'contracoes' | 'plano' | 'mala';
 type BagGroupId = 'mae' | 'bebe' | 'acompanhante';
 
 interface Props {
@@ -77,35 +79,154 @@ function useNow(active: boolean) {
   return now;
 }
 
-export default function LaborTab(props: Props) {
-  const [view, setView] = useState<View>(() => (props.currentWeek >= 28 ? 'movimentos' : 'plano'));
+// O Parto por fases: uma página só, com a fase em que vocês estão em destaque
+// e as ferramentas de cada fase (o plano e a mala; os movimentos; as
+// contrações e a hora de ir). Cada uma abre como página com "voltar".
 
-  return (
-    <>
-      <SubTabs
-        label="Parte do parto"
-        value={view}
-        onChange={setView}
-        options={[
-          { value: 'movimentos', label: 'Movimentos' },
-          { value: 'contracoes', label: 'Contrações' },
-          { value: 'plano', label: 'Plano' },
-          { value: 'mala', label: 'Mala' },
-        ]}
-      />
+type PhaseId = 'preparar' | 'reta' | 'hora';
+const PHASES: Array<{ id: PhaseId; title: string; weeks: string; from: number; text: string }> = [
+  { id: 'preparar', title: 'Preparar', weeks: 'até 28 semanas', from: 0, text: 'Com calma, um pouco por vez: o plano de parto e a mala.' },
+  { id: 'reta', title: 'Reta final', weeks: '28 a 36 semanas', from: 28, text: 'Contar os movimentos do bebê e deixar a mala pronta até 36 semanas.' },
+  { id: 'hora', title: 'Chegou a hora', weeks: '37 semanas em diante', from: 37, text: 'Marcar as contrações juntos e saber a hora de ir para a maternidade.' },
+];
+const phaseOf = (week: number) => [...PHASES].reverse().find(p => week >= p.from)!.id;
+
+const TOOLS: Record<Tool, { title: string; subtitle: string }> = {
+  plano: { title: 'Plano de parto', subtitle: 'O que vocês desejam para o nascimento, para conversar com o obstetra.' },
+  mala: { title: 'Mala da maternidade', subtitle: 'Deixem pronta até 36 semanas. Ajustem ao que a maternidade de vocês pede.' },
+  movimentos: { title: 'Movimentos do bebê', subtitle: 'Contar até 10 movimentos ajuda a notar mudanças.' },
+  contracoes: { title: 'Contrações', subtitle: 'Um sente, o outro marca. O app avisa quando chegar a hora.' },
+};
+
+export default function LaborTab(props: Props) {
+  const [tool, setTool] = useState<Tool | null>(null);
+  const back = () => {
+    setTool(null);
+    window.scrollTo({ top: 0 });
+  };
+
+  if (tool) {
+    return (
       <div className="space-y-5">
-        {!props.available && view !== 'mala' && (
+        <div className="space-y-2">
+          <button type="button" onClick={back} className="inline-flex items-center gap-1 text-sm font-bold text-ink-soft">
+            <ArrowLeft className="w-4 h-4" /> Parto
+          </button>
+          <div className="px-1">
+            <h1 className="font-display text-[1.5rem] leading-tight text-ink">{TOOLS[tool].title}</h1>
+            <p className="text-[14px] text-ink-soft">{TOOLS[tool].subtitle}</p>
+          </div>
+        </div>
+        {!props.available && tool !== 'mala' && (
           <p className="text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">
             Para salvar contagens, contrações e o plano, rodem a migração <code>db/migrations/004_parto.sql</code> no Neon.
           </p>
         )}
-
-        {view === 'movimentos' && <KickCounter {...props} />}
-        {view === 'contracoes' && <ContractionTimer {...props} />}
-        {view === 'plano' && <BirthPlanEditor key={props.birthPlan?.updated_at ?? 'novo'} {...props} />}
-        {view === 'mala' && <HospitalBag {...props} />}
+        {tool === 'movimentos' && <KickCounter {...props} />}
+        {tool === 'contracoes' && <ContractionTimer {...props} />}
+        {tool === 'plano' && <BirthPlanEditor key={props.birthPlan?.updated_at ?? 'novo'} {...props} />}
+        {tool === 'mala' && <HospitalBag {...props} />}
       </div>
-    </>
+    );
+  }
+  return (
+    <LaborHome
+      {...props}
+      onOpen={t => {
+        setTool(t);
+        window.scrollTo({ top: 0 });
+      }}
+    />
+  );
+}
+
+function LaborHome(props: Props & { onOpen: (t: Tool) => void }) {
+  const [signs, setSigns] = useState(false);
+  const week = props.currentWeek;
+  const now = phaseOf(week);
+  const at = PHASES.findIndex(p => p.id === now);
+  const phase = PHASES[at];
+  const toTerm = Math.max(0, 40 - week);
+
+  const plan = props.birthPlan ? Math.round(planProgress(toPlan(props.birthPlan.data)) * 100) : 0;
+  const bag = bagGroups(props);
+  const bagTotal = bag.reduce((n, g) => n + g.rows.length, 0);
+  const bagDone = bag.reduce((n, g) => n + g.rows.filter(r => props.packed.has(r.id)).length, 0);
+  const lastKick = summarizeKicks(props.kickSessions)[0];
+  const today = toISODate(new Date());
+  const contractionsToday = props.contractions.filter(c => toISODate(parseTimestamp(c.started_at)) === today).length;
+
+  const rows: Record<PhaseId, Array<{ id: string; icon: React.ReactNode; title: string; hint: string; done?: boolean; tone?: 'alert'; onClick: () => void }>> = {
+    preparar: [
+      { id: 'plano', icon: <FileHeart />, title: 'Plano de parto', hint: plan ? `${plan}% preenchido${props.birthPlan && toPlan(props.birthPlan.data).discussedWithDoctor ? ' · conversado com o obstetra' : ''}` : 'Ainda em branco', done: plan >= 100, onClick: () => props.onOpen('plano') },
+      { id: 'mala', icon: <Luggage />, title: 'Mala da maternidade', hint: `${bagDone} de ${bagTotal} itens separados`, done: bagTotal > 0 && bagDone === bagTotal, onClick: () => props.onOpen('mala') },
+    ],
+    reta: [
+      { id: 'movimentos', icon: <Footprints />, title: 'Movimentos do bebê', hint: lastKick ? `Última: ${lastKick.session.kicks}/${lastKick.session.target} em ${Math.round(lastKick.minutes)} min, ${formatBR(lastKick.session.started_at)}` : week < 28 ? 'Costuma começar em 28 semanas' : 'Nenhuma contagem ainda', onClick: () => props.onOpen('movimentos') },
+    ],
+    hora: [
+      { id: 'contracoes', icon: <Timer />, title: 'Contrações', hint: contractionsToday ? `${contractionsToday} hoje` : 'Um sente, o outro marca', onClick: () => props.onOpen('contracoes') },
+      { id: 'sinais', icon: <Siren />, title: 'Quando ir para a maternidade', hint: 'Os sinais que não esperam', tone: 'alert', onClick: () => setSigns(true) },
+    ],
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* A fase de agora, com o caminho até o colo. */}
+      <section aria-label="A fase de vocês" className="rounded-[28px] bg-gradient-to-br from-rosa-soft via-lilas-soft/70 to-azul-soft/50 p-5 space-y-4">
+        <div>
+          <p className="text-[12px] font-extrabold uppercase tracking-wide text-rosa-strong">
+            Semana {week} · {toTerm ? `faltam ${toTerm} ${toTerm === 1 ? 'semana' : 'semanas'}` : 'a qualquer momento'}
+          </p>
+          <h2 className="font-display text-[1.5rem] leading-tight text-ink mt-0.5">{phase.title}</h2>
+          <p className="text-[14px] text-ink-soft mt-0.5">{phase.text}</p>
+        </div>
+        <ol className="flex items-center gap-1.5" aria-label="As fases até o parto">
+          {PHASES.map((p, i) => (
+            <li key={p.id} className="flex-1 min-w-0" aria-current={i === at ? 'step' : undefined}>
+              <span className={`block h-1.5 rounded-full ${i < at ? 'bg-rosa/60' : i === at ? 'bg-rosa' : 'bg-surface/80'}`} />
+              <span className={`block mt-1.5 text-[11.5px] truncate ${i === at ? 'font-extrabold text-rosa-strong' : 'font-semibold text-ink-mute'}`}>{p.title}</span>
+            </li>
+          ))}
+        </ol>
+        {now === 'hora' && (
+          <button type="button" onClick={() => props.onOpen('contracoes')} className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-rosa text-on-accent px-5 py-3 text-[15px] font-extrabold">
+            <Timer className="w-5 h-5" /> Marcar contrações
+          </button>
+        )}
+      </section>
+
+      {/* As fases, na ordem: a de agora em destaque; cada linha abre a ferramenta. */}
+      {PHASES.map((p, i) => (
+        <section key={p.id} aria-labelledby={`fase-${p.id}`} className="space-y-2">
+          <h3 id={`fase-${p.id}`} className="flex items-baseline gap-2 px-1">
+            <span className={`text-[15px] font-extrabold ${i === at ? 'text-ink' : 'text-ink-soft'}`}>{p.title}</span>
+            <span className="text-[12.5px] text-ink-mute">{p.weeks}</span>
+            {i === at && <span className="rounded-full bg-rosa-soft text-rosa-strong px-2 py-0.5 text-[11px] font-extrabold">agora</span>}
+          </h3>
+          <ul className={`rounded-[24px] divide-y divide-line/60 ${i === at ? 'bg-surface' : 'bg-surface/60'}`}>
+            {rows[p.id].map(r => (
+              <li key={r.id}>
+                <button type="button" onClick={r.onClick} className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
+                  <span className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 [&_svg]:w-[18px] [&_svg]:h-[18px] ${r.tone === 'alert' ? 'bg-alert-soft text-alert' : r.done ? 'bg-ok-soft text-ok' : 'bg-rosa-soft text-rosa-strong'}`}>{r.done ? <Check /> : r.icon}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-semibold text-ink">{r.title}</span>
+                    <span className="block text-[12.5px] text-ink-soft truncate">{r.hint}</span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-ink-mute shrink-0" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+
+      {signs && (
+        <Sheet title="Quando ir para a maternidade" onClose={() => setSigns(false)}>
+          <AlertSigns open />
+        </Sheet>
+      )}
+    </div>
   );
 }
 
@@ -411,11 +532,8 @@ function BirthPlanEditor({ birthPlan, motherName, available, busy, onSavePlan, o
       <Card className="!py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="font-semibold text-ink">Plano de parto</p>
-            <p className="text-xs text-ink-mute">
-              {Math.round(progress * 100)}% preenchido
-              {birthPlan?.updated_at && <> · salvo em {formatBR(birthPlan.updated_at)}</>}
-            </p>
+            <p className="font-semibold text-ink">{Math.round(progress * 100)}% preenchido</p>
+            <p className="text-xs text-ink-mute">{birthPlan?.updated_at ? `Salvo em ${formatBR(birthPlan.updated_at)}` : 'Ainda não salvo'}</p>
           </div>
           <div className="flex gap-2 shrink-0">
             <Button tone="ghost" onClick={() => setPreview(true)} className="!px-3"><Printer className="w-4 h-4" /> Ver</Button>
@@ -485,23 +603,26 @@ function PlanRow({ title, summary, open, onToggle, children }: { title: string; 
 
 /* ---------------- Mala da maternidade ---------------- */
 
-function HospitalBag({ packed, checksAvailable, busy, onTogglePacked, bagItems, hiddenBag, listsAvailable, onAddItem, onRenameItem, onDeleteItem, onHideItem }: Props) {
-  const menu = useRowMenu();
-  // Cada grupo: os itens da lista padrão que valem para o casal e os que eles puseram.
-  const groups = HOSPITAL_BAG.map(g => ({
+/** Cada grupo da mala: os itens da lista padrão que valem para o casal e os que eles puseram. */
+function bagGroups({ bagItems, hiddenBag }: Pick<Props, 'bagItems' | 'hiddenBag'>) {
+  return HOSPITAL_BAG.map(g => ({
     ...g,
     rows: [
       ...g.items.filter(i => !hiddenBag.has(i.id)).map(i => ({ id: i.id, label: i.label, custom: null as ListItem | null })),
       ...bagItems.filter(i => (i.bag_group ?? 'mae') === g.id).map(i => ({ id: i.id, label: i.title, custom: i })),
     ],
   }));
+}
+
+function HospitalBag({ packed, checksAvailable, busy, onTogglePacked, bagItems, hiddenBag, listsAvailable, onAddItem, onRenameItem, onDeleteItem, onHideItem }: Props) {
+  const menu = useRowMenu();
+  const groups = bagGroups({ bagItems, hiddenBag });
   const total = groups.reduce((n, g) => n + g.rows.length, 0);
   const done = groups.reduce((n, g) => n + g.rows.filter(r => packed.has(r.id)).length, 0);
   const hidden = HOSPITAL_BAG.flatMap(g => g.items).filter(i => hiddenBag.has(i.id));
 
   return (
     <Card>
-      <SectionTitle icon={<Luggage className="w-5 h-5" />} title="Mala da maternidade" subtitle="Deixem pronta até 36 semanas. Ajustem a lista ao que a maternidade de vocês pede." />
       {!checksAvailable && <p className="text-xs text-warn bg-warn-soft rounded-2xl px-3 py-2 mb-3">Para marcar itens, rode a migração 007 no Neon.</p>}
       {!listsAvailable && <p className="text-xs text-warn bg-warn-soft rounded-2xl px-3 py-2 mb-3">Para pôr itens próprios na mala, rode a migração 011 no Neon.</p>}
       <div className="flex items-center gap-3 mb-4">

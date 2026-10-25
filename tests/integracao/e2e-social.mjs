@@ -97,7 +97,7 @@ await pai.screenshot({ path: `${OUT}quem-vai.png` });
 
 // ---- Mala editável ----
 await tab(mae, 'Parto');
-await mae.getByRole('button', { name: 'Mala', exact: true }).click();
+await mae.getByRole('button', { name: /^Mala da maternidade/ }).click();
 await mae.getByRole('button', { name: 'Adicionar item' }).first().click();
 await mae.getByLabel('Novo item').fill('Travesseiro de amamentação');
 await mae.getByRole('button', { name: 'Adicionar', exact: true }).click();

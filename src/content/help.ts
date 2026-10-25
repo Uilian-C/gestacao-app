@@ -70,7 +70,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       { q: 'O que é a Jornada?', a: 'É o roteiro do pré-natal, semana a semana: consultas, exames e vacinas recomendados. Fica em Cuidados, no cartão Pré-natal. Quando vocês agendam ou guardam um resultado, ela se marca sozinha.', go: { target: 'jornada', label: 'Abrir a Jornada' } },
       { q: 'O app avisa sobre sinais de alerta?', a: 'Sim. Alguns sintomas (como sangramento, dor forte, pressão alta ou o bebê mexendo menos) aparecem em destaque no Início, com a orientação de procurar atendimento. Em Cuidados, "Quando procurar a maternidade" lista todos os sinais. O app não substitui a equipe de saúde: na dúvida, ligue para o seu médico ou vá à maternidade.' },
       { q: 'Onde guardo os resultados de exames?', a: 'Em Cuidados, em Resultados, com foto ou PDF. Se o exame veio de um agendamento, ele já se liga à consulta e à jornada.', go: { target: 'exames', label: 'Abrir os Resultados' } },
-      { q: 'O que tem na aba Parto?', a: 'A mala da maternidade, o plano de parto e dois contadores para a reta final: o das contrações (com o intervalo entre elas) e o dos movimentos do bebê.', go: { target: 'parto', label: 'Abrir o Parto' } },
+      { q: 'O que tem na aba Parto?', a: 'Tudo organizado por fase: Preparar (o plano de parto e a mala), Reta final (a contagem dos movimentos do bebê) e Chegou a hora (o marcador de contrações e quando ir para a maternidade). A fase de vocês aparece em destaque.', go: { target: 'parto', label: 'Abrir o Parto' } },
     ],
   },
   {
