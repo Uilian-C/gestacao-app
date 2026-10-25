@@ -106,13 +106,16 @@ interface Props {
   reactions: Reaction[];
   /** Abre o registro do diário numa pasta (o convite da descoberta do dia). */
   onWrite: (folder: Folder) => void;
+  /** Abrir já numa janela (vindo da Ajuda). */
+  start?: 'bebe' | 'missoes' | null;
 }
 
 export default function HomeTab(props: Props) {
   const { age, selectedWeek, currentWeek, onSelectWeek, insights, onOpen } = props;
   const [editingDum, setEditingDum] = useState(false);
-  const [growth, setGrowth] = useState(false);
-  const [sheet, setSheet] = useState<'alerta' | 'missoes' | 'lembretes' | 'resumo' | null>(null);
+  // A Ajuda pode abrir o Início já na Jornada do bebê ou nos Primeiros 7 dias.
+  const [growth, setGrowth] = useState(props.start === 'bebe');
+  const [sheet, setSheet] = useState<'alerta' | 'missoes' | 'lembretes' | 'resumo' | null>(props.start === 'missoes' ? 'missoes' : null);
   const openGrowth = () => setGrowth(true);
   const info = weekInfo(selectedWeek);
   const stage = stageAt(selectedWeek);

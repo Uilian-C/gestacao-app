@@ -148,5 +148,16 @@ await mae.unroute('**/api/data');
 await erro.click();
 check(await erro.isHidden(), 'tentar de novo some com o aviso e grava');
 
+// ---- No começo, o desenho segue o tamanho: sementinha, grãozinho, feijãozinho ----
+const inicio = await phone(b);
+await quickAccount(inicio, { name: 'Bia', dum: new Date(Date.now() - (4 * 7 + 1) * 86_400_000).toISOString().slice(0, 10) });
+const hero = inicio.getByRole('region', { name: 'Semana da gestação' });
+await hero.getByRole('heading', { name: 'Uma sementinha de amor' }).waitFor();
+check(true, 'na 4ª semana, a sementinha');
+await hero.screenshot({ path: `${OUT}crescimento-semana4.png` });
+await hero.getByRole('button', { name: /abrir a jornada do bebê/ }).click();
+await inicio.waitForTimeout(800);
+await inicio.screenshot({ path: `${OUT}crescimento-jornada-inicio.png` });
+
 await b.close();
 finish();
