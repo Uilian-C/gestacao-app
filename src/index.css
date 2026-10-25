@@ -511,8 +511,32 @@
   100% { transform: scale(1); }
 }
 .tt-pagina-volta { animation: tt-virar-volta 380ms cubic-bezier(.2, .8, .2, 1); }
+/* A semana nova embrulhada: balança de leve; ao tocar, a tampa sobe, o coração surge e o bebê aparece. */
+.tt-presente { animation: tt-presente-balanca 2.8s ease-in-out infinite; }
+@keyframes tt-presente-balanca { 0%, 70%, 100% { transform: rotate(0); } 76% { transform: rotate(-4deg); } 82% { transform: rotate(3.5deg); } 88% { transform: rotate(-2deg); } 94% { transform: rotate(1deg); } }
+.tt-presente-brilho { animation: tt-brilhar 2.8s ease-in-out infinite; }
+@keyframes tt-brilhar { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+.tt-presente-abrindo .tt-presente-brilho { animation: tt-base-sumir 400ms ease-in forwards; }
+.tt-presente-coracao { transform-box: fill-box; transform-origin: 50% 100%; opacity: 0; }
+.tt-presente-tampa, .tt-presente-base { transform-box: fill-box; transform-origin: 50% 100%; }
+.tt-presente-abrindo .tt-presente-tampa { animation: tt-tampa-subir 600ms cubic-bezier(.2, .8, .2, 1) forwards; }
+.tt-presente-abrindo .tt-presente-base { animation: tt-base-sumir 500ms 450ms ease-in forwards; }
+.tt-presente-abrindo .tt-presente-coracao { animation: tt-coracao-surgir 900ms 120ms cubic-bezier(.2, .8, .2, 1) forwards; }
+@keyframes tt-tampa-subir { to { transform: translate(18%, -120%) rotate(18deg); opacity: 0; } }
+@keyframes tt-base-sumir { to { transform: translateY(12%) scale(.92); opacity: 0; } }
+@keyframes tt-coracao-surgir {
+  0% { transform: translateY(40%) scale(.5); opacity: 0; }
+  45% { transform: translateY(-30%) scale(1.05); opacity: 1; }
+  60% { transform: translateY(-30%) scale(1.25); }
+  75% { transform: translateY(-30%) scale(1); }
+  88% { transform: translateY(-30%) scale(1.15); opacity: 1; }
+  100% { transform: translateY(-30%) scale(1.6); opacity: 0; }
+}
+.tt-revelar { animation: tt-revelar 700ms cubic-bezier(.2, .8, .2, 1) both; }
+.tt-revelar-texto { animation: tt-carimbo-subir 520ms 380ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes tt-revelar { 0% { transform: scale(.55); opacity: 0; filter: blur(6px); } 70% { transform: scale(1.06); opacity: 1; filter: none; } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) {
-  .tt-pagina-frente, .tt-pagina-volta, .tt-sol-coracao, .tt-carimbo, .tt-carimbo-folha, .tt-bolinha-hoje, .tt-menu-batida { animation: none; }
+  .tt-pagina-frente, .tt-pagina-volta, .tt-sol-coracao, .tt-carimbo, .tt-carimbo-folha, .tt-bolinha-hoje, .tt-menu-batida, .tt-presente, .tt-presente-brilho, .tt-revelar, .tt-revelar-texto { animation: none; }
 }
 
 /* A festa do nome escolhido: coraçõezinhos subindo. */
