@@ -32,8 +32,8 @@ describe('Hoje e próximos', () => {
     expect(up.today[1]).toMatchObject({ label: 'Ultrassom', title: 'Morfológico', time: '14:00' });
   });
 
-  it('na Agenda, "esta semana" acaba no domingo; segunda já é a semana que vem', () => {
-    // Hoje é sábado, 17/10: esta semana só tem o domingo, 18/10.
+  it('na Agenda, a semana vai de domingo a sábado: no sábado, domingo já é a semana que vem', () => {
+    // Hoje é sábado, 17/10: esta semana acaba hoje; a que vem vai de 18 a 24/10.
     expect(up.thisWeek.map(i => i.id)).toEqual([]);
     expect(up.nextWeek.map(i => i.id)).toEqual(['agendado-ter', 'tarefa-sab']);
     expect(up.afterNextWeek.map(i => i.id)).toEqual(['agendado-nov', 'lembrete-lembra']);
@@ -47,5 +47,19 @@ describe('Hoje e próximos', () => {
   it('exame que já aconteceu sem resultado pede para guardar; consulta e exame com resultado não', () => {
     expect(up.missingResults.map(c => c.id)).toEqual(['passou']);
     expect(up.past.map(c => c.id)).toEqual(['passou', 'passou-com', 'consulta-passada']);
+  });
+});
+
+describe('a semana começa no domingo', () => {
+  it('no domingo, a segunda é "esta semana" e o domingo seguinte já é a semana que vem', () => {
+    const up = buildUpcoming({
+      today: new Date(2026, 9, 25, 10, 0),
+      consultations: [consult({ id: 'seg', scheduled_at: at('2026-10-26', '09:00') }), consult({ id: 'sab', scheduled_at: at('2026-10-31', '09:00') }), consult({ id: 'dom', scheduled_at: at('2026-11-01', '09:00') })],
+      tasks: [],
+      journal: [],
+      exams: [],
+    });
+    expect(up.thisWeek.map(i => i.id)).toEqual(['agendado-seg', 'agendado-sab']);
+    expect(up.nextWeek.map(i => i.id)).toEqual(['agendado-dom']);
   });
 });
