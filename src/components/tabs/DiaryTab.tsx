@@ -304,7 +304,7 @@ function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView,
         <Sheet title="Primeiras vezes" subtitle="O álbum dos marcos de vocês" onClose={() => setAlbum(false)}>
           <FirstTimes
             cards={firsts}
-            onWrite={c => (setAlbum(false), onWrite(c.ft.id === 'barriga' ? 'barriga' : 'momento', c.ft.starter, c.ft.id))}
+            onWrite={c => onWrite(c.ft.id === 'barriga' ? 'barriga' : 'momento', c.ft.starter, c.ft.id)}
             onOpenEntry={id => (setAlbum(false), onOpen({ kind: 'entry', id }))}
           />
         </Sheet>
@@ -331,27 +331,26 @@ function AlbumFolder({ label, hint, Icon, soft, tab, text, photos = [], wide = f
   return (
     <button type="button" onClick={onClick} aria-label={aria} className={`${wide ? 'col-span-2' : ''} relative pt-3 text-left transition active:scale-[0.98]`}>
       <span aria-hidden className={`absolute top-0 left-5 h-5 w-20 rounded-t-[12px] ${tab}`} />
-      <span className={`relative flex ${wide ? 'items-center min-h-[84px]' : 'flex-col min-h-[124px]'} rounded-[20px] rounded-tl-[8px] ${soft} pl-6 pr-3.5 py-3 overflow-hidden`}>
+      {/* Todas as pastas com a mesma altura e o mesmo jeito: ícone, nome e a dica embaixo. */}
+      <span className={`relative flex flex-col min-h-[112px] rounded-[20px] rounded-tl-[8px] ${soft} pl-6 pr-3.5 py-3 overflow-hidden`}>
         <span aria-hidden className="absolute left-2 top-1/2 -translate-y-1/2 flex flex-col gap-2.5">
           {[0, 1, 2].map(i => (
             <span key={i} className="w-1.5 h-1.5 rounded-full bg-canvas/90 shadow-[inset_0_1px_1px_rgba(0,0,0,0.12)]" />
           ))}
         </span>
-        <span className={`min-w-0 ${wide ? 'flex-1' : ''}`}>
-          <Icon className={`w-5 h-5 ${text}`} />
-          <span className="block mt-1.5 font-display text-[1.15rem] leading-tight text-ink">{label}</span>
-          <span className={`block text-[12.5px] font-bold ${text} ${wide ? 'truncate' : ''}`}>{hint}</span>
-        </span>
+        <Icon className={`w-5 h-5 shrink-0 ${text}`} />
+        <span className={`block mt-1.5 font-display text-[1.15rem] leading-tight text-ink ${photos.length ? (wide ? 'pr-36' : 'pr-14') : 'pr-5'}`}>{label}</span>
+        <span className={`block mt-auto pt-1 text-[12.5px] font-bold leading-snug ${text} ${photos.length ? (wide ? 'pr-36' : 'pr-14') : 'pr-5'} ${wide ? 'truncate' : 'line-clamp-2'}`}>{hint}</span>
         {photos.length > 0 && (
-          <span aria-hidden className={wide ? 'flex -space-x-3 shrink-0 pl-2' : 'absolute right-2.5 bottom-2.5 flex -space-x-4'}>
+          <span aria-hidden className={`absolute right-3 bottom-2.5 flex ${wide ? '-space-x-3' : '-space-x-4'}`}>
             {photos.map((ph, i) => (
               <span key={ph.id} className={`block bg-white p-1 pb-2.5 rounded-[4px] shadow-[0_2px_6px_rgba(0,0,0,0.15)] ${i % 2 ? 'rotate-6' : '-rotate-6'}`}>
-                <img src={photoUrl(ph.id, ph.thumb)} alt="" loading="lazy" className={`${wide ? 'w-10 h-12' : 'w-11 h-11'} object-cover rounded-[2px]`} />
+                <img src={photoUrl(ph.id, ph.thumb)} alt="" loading="lazy" className="w-11 h-12 object-cover rounded-[2px]" />
               </span>
             ))}
           </span>
         )}
-        {!wide && <ChevronRight aria-hidden className="absolute top-3 right-3 w-4 h-4 text-ink-mute/70" />}
+        <ChevronRight aria-hidden className="absolute top-3 right-3 w-4 h-4 text-ink-mute/70" />
       </span>
     </button>
   );

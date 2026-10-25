@@ -42,8 +42,12 @@ await post(pai, '/api/family', { op: 'consent', version: '2026-10-16' });
 await post(pai, '/api/family', { op: 'join', code, role: 'pai' });
 const iso = n => mae.evaluate(n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); }, n);
 const at = async (n, t) => mae.evaluate(([d, t]) => new Date(`${d}T${t}:00`).toISOString(), [await iso(n), t]);
-// O ultrassom é daqui a meia hora: é o próximo compromisso.
-const soon = await mae.evaluate(() => new Date(Date.now() + 30 * 60000).toISOString());
+// O ultrassom é daqui a pouco (ainda hoje): é o próximo compromisso.
+const soon = await mae.evaluate(() => {
+  const end = new Date();
+  end.setHours(23, 59, 0, 0);
+  return new Date(Math.min(Date.now() + 30 * 60000, end.getTime())).toISOString();
+});
 await post(mae, '/api/data', { op: 'createConsultation', scheduledAt: soon, specialty: 'ultrassom', professional: 'Clínica Imagem', location: 'Av. Paulista, 1000, São Paulo', kind: 'ultrassom', title: 'Ultrassom morfológico', planItem: 'morfo-2', attendees: 'casal' });
 await post(mae, '/api/data', { op: 'createConsultation', scheduledAt: await at(3, '09:00'), specialty: 'outra', professional: null, location: null, kind: 'vacina', title: 'Vacina dTpa' });
 await post(mae, '/api/data', { op: 'createConsultation', scheduledAt: await at(20, '09:00'), specialty: 'obstetra', professional: null, location: null });
@@ -56,8 +60,13 @@ await mae.reload();
 
 await hoje.waitFor();
 const ultra = hoje.getByRole('button', { name: /Ultrassom morfológico/ });
-check(await ultra.getByText(/^(Hoje|Amanhã) · \d\d:\d\d · Ultrassom$/).isVisible(), '"Para hoje": o ultrassom de daqui a pouco, com a hora');
+check(await ultra.getByText(/^Hoje · \d\d:\d\d · Ultrassom$/).isVisible(), '"Para hoje": o ultrassom de daqui a pouco, com a hora');
 check(await hoje.getByRole('button', { name: /Marcar a fisioterapia/ }).getByText('Tarefa atrasada').isVisible(), 'e a tarefa atrasada');
+const amanha = await mae.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0); return d.toISOString(); });
+await post(mae, '/api/data', { op: 'createConsultation', scheduledAt: amanha, specialty: 'obstetra', professional: 'Dra. Amanhã', location: null });
+await mae.reload();
+await hoje.waitFor();
+check((await hoje.getByText(/Dra\. Amanhã|Amanhã ·/).count()) === 0, 'a consulta de amanhã não entra no "Para hoje"');
 check((await hoje.getByText('Vacina dTpa').count()) === 0 && (await hoje.getByText('Montar o berço').count()) === 0, 'o que é de outro dia fica na Agenda');
 check((await hoje.getByRole('listitem').count()) === 3 && (await hoje.getByRole('button', { name: /^e mais \d+ ite/ }).isVisible()), 'três linhas e "e mais" leva à agenda');
 check((await hoje.getByRole('listitem').nth(0).textContent()).includes('Ultrassom'), 'o compromisso vem antes da tarefa atrasada');
