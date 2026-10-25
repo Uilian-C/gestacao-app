@@ -35,6 +35,7 @@ await p.screenshot({ path: `${OUT}cuidados.png`, fullPage: true });
 await hero.getByRole('button', { name: 'Preparar a consulta' }).click();
 await p.getByRole('heading', { level: 1, name: 'Obstetra (pré-natal)' }).waitFor();
 const duvidas = p.locator('section[aria-labelledby="duvidas-titulo"]');
+check(await duvidas.getByRole('group', { name: 'Sugestões para perguntar' }).isVisible(), 'sem dúvidas ainda: ideias para anotar com um toque');
 await duvidas.getByLabel('Dúvida').fill('Posso tomar café?');
 await duvidas.getByRole('button', { name: 'Anotar' }).click();
 await duvidas.getByText('Posso tomar café?').waitFor();
@@ -49,7 +50,7 @@ check(true, 'depois da consulta, a resposta fica guardada');
 await p.screenshot({ path: `${OUT}cuidados-preparar.png`, fullPage: true });
 await p.getByRole('button', { name: 'Cuidados', exact: true }).first().click();
 await hero.waitFor();
-check(await hero.getByText('Anotem as dúvidas e levem o resumo dos registros.').isVisible(), 'voltar leva a Cuidados (sem dúvidas pendentes)');
+check(await hero.getByText('Nenhuma dúvida ainda').isVisible(), 'voltar leva a Cuidados (sem dúvidas pendentes)');
 
 // ---- As páginas que abrem de Cuidados ----
 await openCare(p, 'Sintomas');
@@ -85,8 +86,10 @@ await partes.getByRole('button', { name: /Sintomas/ }).click();
 await partes.getByRole('button', { name: /Dados da gestação/ }).click();
 const doc = p.locator('.print-area');
 check((await doc.getByRole('heading', { name: 'Sintomas no período' }).count()) === 0 && (await doc.getByRole('heading', { name: 'Dados da gestante' }).count()) === 0 && (await doc.getByRole('heading', { name: 'Peso' }).count()) === 1, 'tirar sintomas e dados: somem do relatório, o resto fica');
-await periodo.getByRole('button', { name: 'Outra data' }).click();
-check(await p.locator('#inicio-periodo').isVisible(), 'outra data: aparece o campo para escolher o início');
+check((await p.locator('#inicio-periodo').inputValue()) === (await p.evaluate(() => document.querySelector('#inicio-periodo').min)) && (await periodo.getByRole('button', { name: 'Toda a gestação' }).getAttribute('aria-pressed')) === 'true', 'o atalho preenche o "de" (desde a DUM) e fica marcado');
+await p.locator('#fim-periodo').fill(await iso(-2));
+check((await periodo.locator('[aria-pressed="true"]').count()) === 0 && (await doc.getByRole('heading', { name: 'Peso' }).count()) === 0, 'mudar o "até" vira um período livre, e o peso de ontem sai do relatório');
+check((await partes.getByRole('button', { name: /^Peso/ }).isDisabled()) && (await partes.getByRole('button', { name: /^Peso/ }).textContent()).includes('Nada no período'), 'parte sem registro no período fica apagada');
 await p.screenshot({ path: `${OUT}cuidados-relatorio.png` });
 
 await b.close();

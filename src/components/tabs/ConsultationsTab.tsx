@@ -1,5 +1,5 @@
 import { useContext, useMemo, useState } from 'react';
-import { ArrowLeft, Check, ClipboardCopy, Plus, Printer, Route, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, ClipboardCopy, MessageCircleQuestion, Plus, Printer, Route, ShieldCheck, Trash2 } from 'lucide-react';
 import { SPECIALTIES, questionSpecialty, type SpecialtyId } from '../../data/specialties';
 import { formatBR, parseLocalDate, parseTimestamp, toISODate, weekOfDay } from '../../lib/dates';
 import { REPORT_PARTS, TREND_LABEL, buildReport, presetStart, reportToText, type ConsultationReport, type PeriodPreset, type ReportPart } from '../../lib/report';
@@ -334,6 +334,8 @@ function JourneyLink({ value, auto, options, onChange }: { value: string | null;
 }
 
 /** As dúvidas para levar a esta especialidade: anotar, responder depois da consulta e apagar. */
+const QUESTION_IDEAS = ['Que exames vêm a seguir?', 'Posso fazer exercício?', 'O que é normal sentir agora?'];
+
 function QuestionsSection({ questions, specialtyId, busy, onCreateQuestion, onAnswer, onDeleteQuestion }: Props & { specialtyId: SpecialtyId }) {
   const [text, setText] = useState('');
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -343,30 +345,48 @@ function QuestionsSection({ questions, specialtyId, busy, onCreateQuestion, onAn
   const answered = mine.filter(q => q.doctor_answer);
 
   return (
-    <section aria-labelledby="duvidas-titulo" className="no-print rounded-[28px] bg-surface/80 p-4 space-y-3">
-      <div className="px-1">
-        <h2 id="duvidas-titulo" className="text-[1.15rem] text-ink">
-          Dúvidas para levar
-        </h2>
-        <p className="text-[13px] text-ink-soft">Anotem quando surgir. Elas entram no resumo, para não esquecer na hora.</p>
+    // O coração da preparação: em destaque, como a listinha que vai no bolso para a consulta.
+    <section aria-labelledby="duvidas-titulo" className="no-print rounded-[28px] bg-gradient-to-br from-azul-soft via-lilas-soft/60 to-rosa-soft/50 p-4 space-y-3">
+      <div className="flex items-start gap-3 px-1">
+        <span className="w-10 h-10 rounded-2xl bg-surface/80 text-azul-strong flex items-center justify-center shrink-0">
+          <MessageCircleQuestion className="w-5 h-5" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <h2 id="duvidas-titulo" className="font-display text-[1.3rem] leading-tight text-ink">
+            Dúvidas para levar
+          </h2>
+          <p className="text-[13px] text-ink-soft">{pending.length ? `${pending.length} para perguntar. Elas vão no resumo, para não esquecer na hora.` : 'Anotem quando surgir: elas vão no resumo, para não esquecer na hora.'}</p>
+        </div>
       </div>
       <form
-        className="flex gap-2"
+        className="flex items-center gap-2 rounded-full bg-surface pl-4 pr-1.5 py-1.5"
         onSubmit={async e => {
           e.preventDefault();
           if (text.trim() && (await onCreateQuestion(text.trim(), 'Geral', specialtyId))) setText('');
         }}
       >
-        <input aria-label="Dúvida" className={inputClass} placeholder="Ex.: Posso continuar o pilates?" value={text} onChange={e => setText(e.target.value)} />
-        <Button type="submit" disabled={busy || !text.trim()} className="shrink-0">
+        <input aria-label="Dúvida" className="flex-1 min-w-0 bg-transparent text-[15px] text-ink placeholder:text-ink-mute outline-none py-1.5" placeholder="Ex.: Posso continuar o pilates?" value={text} onChange={e => setText(e.target.value)} />
+        <button type="submit" disabled={busy || !text.trim()} className="shrink-0 rounded-full bg-azul-strong text-on-accent px-4 py-2 text-[13.5px] font-bold disabled:opacity-40">
           Anotar
-        </Button>
+        </button>
       </form>
+      {pending.length === 0 && (
+        <div className="flex flex-wrap gap-1.5 px-1" role="group" aria-label="Sugestões para perguntar">
+          {QUESTION_IDEAS.map(i => (
+            <button key={i} type="button" disabled={busy} onClick={() => onCreateQuestion(i, 'Geral', specialtyId)} className="rounded-full bg-surface/70 px-3 py-1.5 text-[12.5px] font-semibold text-ink-soft">
+              + {i}
+            </button>
+          ))}
+        </div>
+      )}
       {pending.length > 0 && (
-        <ul className="divide-y divide-line/60">
-          {pending.map(q => (
-            <li key={q.id} className="py-2.5 px-1 space-y-2">
-              <div className="flex items-start gap-2">
+        <ol className="space-y-1.5">
+          {pending.map((q, n) => (
+            <li key={q.id} className="rounded-2xl bg-surface/90 px-3 py-2.5 space-y-2">
+              <div className="flex items-start gap-2.5">
+                <span className="w-6 h-6 mt-0.5 rounded-full bg-azul-soft text-azul-strong text-[12px] font-extrabold flex items-center justify-center shrink-0 tabular" aria-hidden>
+                  {n + 1}
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-ink leading-snug">{q.questions_to_ask}</p>
                   <p className="text-xs text-ink-mute mt-0.5 flex flex-wrap items-center gap-x-1.5">
@@ -401,7 +421,7 @@ function QuestionsSection({ questions, specialtyId, busy, onCreateQuestion, onAn
               )}
             </li>
           ))}
-        </ul>
+        </ol>
       )}
       {answered.length > 0 && (
         <details className="px-1">
@@ -433,9 +453,12 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
   const presetOpts = { consultations: props.consultations.filter(isConsultation), specialtyId: request.specialtyId, today, dumDate: props.profile.dumDate };
   const hasPrevious = presetOpts.consultations.some(c => c.specialty === request.specialtyId && parseTimestamp(c.scheduled_at) < today);
   // Período e partes: nem toda consulta precisa de tudo, nem do mesmo intervalo.
-  const [preset, setPreset] = useState<PeriodPreset>(hasPrevious ? 'ultima' : '30d');
-  const [custom, setCustom] = useState(() => toISODate(presetStart('ultima', presetOpts)));
-  const from = preset === 'outra' ? custom : toISODate(presetStart(preset, presetOpts));
+  // O período é sempre "de–até"; os atalhos só preenchem as duas datas.
+  const todayIso = toISODate(today);
+  const [from, setFrom] = useState(() => toISODate(presetStart(hasPrevious ? 'ultima' : '30d', presetOpts)));
+  const [to, setTo] = useState(todayIso);
+  const presets = PERIOD_PRESETS.filter(o => o.id !== 'ultima' || hasPrevious).map(o => ({ ...o, from: toISODate(presetStart(o.id, presetOpts)) }));
+  const activePreset = to === todayIso ? presets.find(o => o.from === from)?.id : undefined;
   const [parts, setParts] = useState<Set<ReportPart>>(() => new Set(REPORT_PARTS.map(p => p.id)));
   const togglePart = (id: ReportPart) =>
     setParts(cur => {
@@ -449,7 +472,7 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
     () =>
       buildReport({
         specialtyId: request.specialtyId,
-        period: { from: parseLocalDate(from), to: today },
+        period: { from: parseLocalDate(from), to: parseLocalDate(to) },
         today,
         dumDate: props.profile.dumDate,
         preWeightKg: props.profile.preWeightKg,
@@ -460,7 +483,7 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
         questions: props.questions,
         consultation,
       }),
-    [request.specialtyId, from, today, props.profile, props.symptoms, props.comments, props.metrics, props.questions, consultation],
+    [request.specialtyId, from, to, today, props.profile, props.symptoms, props.comments, props.metrics, props.questions, consultation],
   );
 
   const ficha = buildFicha(props.profile, props.metrics, today);
@@ -475,7 +498,7 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
     : [];
 
   const copy = async () => {
-    const text = reportToText(report, fichaToText(ficha), parts) + (labor.length && parts.has('retafinal') ? `\n\nRETA FINAL\n${labor.map(l => `- ${l}`).join('\n')}` : '');
+    const text = reportToText(report, fichaToText(ficha), shownParts) + (labor.length && shownParts.has('retafinal') ? `\n\nRETA FINAL\n${labor.map(l => `- ${l}`).join('\n')}` : '');
     try {
       await navigator.clipboard.writeText(text);
       props.onNotify('Resumo copiado. Cole no WhatsApp ou no e-mail do profissional.');
@@ -483,6 +506,18 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
       props.onNotify('Não foi possível copiar automaticamente. Use Imprimir / PDF.');
     }
   };
+
+  // Quanto de cada parte há no período: o que está vazio aparece apagado (não enche o papel à toa).
+  const metricsIn = props.metrics.filter(m => m.recorded_at.slice(0, 10) >= from && m.recorded_at.slice(0, 10) <= to);
+  const partCount = (id: ReportPart): number | null =>
+    id === 'dados' ? null
+    : id === 'atencao' ? report.insights.length
+    : id === 'sintomas' ? report.symptoms.reduce((n, s) => n + s.count, 0)
+    : id === 'peso' ? (report.weight ? metricsIn.filter(m => m.weight_kg !== null).length : 0)
+    : id === 'pressao' ? (report.bloodPressure?.readings.length ?? 0)
+    : id === 'duvidas' ? report.pendingQuestions.length + report.answeredQuestions.length
+    : labor.length;
+  const shownParts = new Set([...parts].filter(id => partCount(id) !== 0));
 
   const when = consultation ? parseTimestamp(consultation.scheduled_at) : null;
   return (
@@ -508,29 +543,45 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
       <section aria-label="O resumo" className="space-y-3">
         <div className="no-print px-1 space-y-2">
           <h2 className="text-[1.15rem] text-ink">{consultation ? 'O resumo' : 'O que levar'}</h2>
-          <p className="text-[13px] text-ink-soft">Escolham o período e as partes: nem toda consulta precisa de tudo. Depois é só imprimir ou mandar para o profissional.</p>
-          <div role="group" aria-label="Período do relatório" className="flex flex-wrap gap-1.5">
-            {PERIOD_PRESETS.filter(o => o.id !== 'ultima' || hasPrevious).map(o => (
-              <OptionChip key={o.id} on={preset === o.id} onClick={() => setPreset(o.id)}>
-                {o.label}
-              </OptionChip>
-            ))}
-          </div>
-          {preset === 'outra' && (
-            <label className="flex flex-wrap items-center gap-2 text-[13px] text-ink-soft">
-              A partir de
-              <input id="inicio-periodo" type="date" min={props.profile.dumDate} max={toISODate(today)} className={`${inputClass} !w-auto !py-1.5 text-sm`} value={custom} onChange={e => e.target.value && setCustom(e.target.value)} />
-            </label>
-          )}
-          <p className="text-[12.5px] text-ink-mute">
-            {formatBR(from)} a {formatBR(toISODate(today))} · semanas {report.weekFrom} a {report.weekTo}
-          </p>
-          <div role="group" aria-label="O que entra no relatório" className="flex flex-wrap gap-1.5 pt-1">
-            {REPORT_PARTS.filter(p => p.id !== 'retafinal' || labor.length > 0).map(p => (
-              <OptionChip key={p.id} check on={parts.has(p.id)} onClick={() => togglePart(p.id)}>
-                {p.label}
-              </OptionChip>
-            ))}
+          <div className="rounded-[24px] bg-surface/80 p-4 space-y-4">
+            <div className="space-y-2.5">
+              <p className="text-[12px] font-extrabold uppercase tracking-wide text-ink-mute">Período</p>
+              <div className="grid grid-cols-2 gap-2">
+                <DateField id="inicio-periodo" label="De" value={from} min={props.profile.dumDate} max={to} onChange={setFrom} />
+                <DateField id="fim-periodo" label="Até" value={to} min={from} max={todayIso} onChange={setTo} />
+              </div>
+              <div role="group" aria-label="Período do relatório" className="-mx-4 px-4 flex gap-1.5 overflow-x-auto no-scrollbar">
+                {presets.map(o => (
+                  <OptionChip
+                    key={o.id}
+                    on={activePreset === o.id}
+                    onClick={() => {
+                      setFrom(o.from);
+                      setTo(todayIso);
+                    }}
+                  >
+                    {o.label}
+                  </OptionChip>
+                ))}
+              </div>
+              <p className="text-[12.5px] text-ink-mute">
+                Semanas {report.weekFrom} a {report.weekTo} · {periodSummary(report, metricsIn)}
+              </p>
+            </div>
+            <div className="space-y-2.5">
+              <p className="text-[12px] font-extrabold uppercase tracking-wide text-ink-mute">O que entra</p>
+              <ul role="group" aria-label="O que entra no relatório" className="grid grid-cols-2 gap-1.5">
+                {REPORT_PARTS.filter(p => p.id !== 'retafinal' || labor.length > 0).map(p => {
+                  const n = partCount(p.id);
+                  const empty = n === 0;
+                  return (
+                    <li key={p.id}>
+                      <PartToggle on={parts.has(p.id) && !empty} disabled={empty} label={p.label} hint={empty ? 'Nada no período' : n === null ? 'Sempre igual' : `${n} no período`} onClick={() => togglePart(p.id)} />
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-2 pt-1">
             <Button onClick={() => window.print()}>
@@ -541,7 +592,7 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
             </Button>
           </div>
         </div>
-        <ReportDocument report={report} ficha={ficha} labor={labor} parts={parts} />
+        <ReportDocument report={report} ficha={ficha} labor={labor} parts={shownParts} />
       </section>
     </div>
   );
@@ -549,16 +600,45 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
 
 const PERIOD_PRESETS: Array<{ id: PeriodPreset; label: string }> = [
   { id: 'ultima', label: 'Desde a última consulta' },
-  { id: '30d', label: '30 dias' },
+  { id: '30d', label: 'Últimos 30 dias' },
   { id: 'trimestre', label: 'Este trimestre' },
   { id: 'tudo', label: 'Toda a gestação' },
-  { id: 'outra', label: 'Outra data' },
 ];
 
-function OptionChip({ on, check, onClick, children }: { on: boolean; check?: boolean; onClick: () => void; children: React.ReactNode }) {
+/** "3 sintomas · 2 medidas · 1 dúvida": o que o período tem, numa linha. */
+function periodSummary(r: ConsultationReport, metrics: HealthMetric[]) {
+  const n = (v: number, one: string, many: string) => (v ? `${v} ${v === 1 ? one : many}` : '');
+  const parts = [n(r.symptoms.reduce((t, s) => t + s.count, 0), 'sintoma', 'sintomas'), n(metrics.length, 'medida', 'medidas'), n(r.pendingQuestions.length, 'dúvida', 'dúvidas')].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'nenhum registro no período';
+}
+
+function DateField({ id, label, value, min, max, onChange }: { id: string; label: string; value: string; min?: string; max?: string; onChange: (v: string) => void }) {
   return (
-    <button type="button" aria-pressed={on} onClick={onClick} className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] transition ${on ? 'bg-verde-soft text-verde-strong font-bold' : 'bg-surface-2/70 text-ink-soft font-semibold'}`}>
-      {check && on && <Check className="w-3.5 h-3.5" strokeWidth={2.5} aria-hidden />}
+    <label htmlFor={id} className="block rounded-2xl bg-surface-2/70 px-3 py-2">
+      <span className="block text-[11.5px] font-bold text-ink-mute">{label}</span>
+      <input id={id} type="date" value={value} min={min} max={max} onChange={e => e.target.value && onChange(e.target.value)} className="w-full bg-transparent text-[15px] font-semibold text-ink outline-none" />
+    </label>
+  );
+}
+
+/** Uma parte do relatório: marcada entra no papel e no texto; sem nada no período, fica apagada. */
+function PartToggle({ on, disabled, label, hint, onClick }: { on: boolean; disabled: boolean; label: string; hint: string; onClick: () => void }) {
+  return (
+    <button type="button" aria-pressed={on} disabled={disabled} onClick={onClick} className={`w-full flex items-center gap-2 rounded-2xl px-2.5 py-2 text-left transition disabled:opacity-45 ${on ? 'bg-verde-soft' : 'bg-surface-2/60'}`}>
+      <span className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${on ? 'bg-verde-strong text-on-accent' : 'border-2 border-line'}`} aria-hidden>
+        {on && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+      </span>
+      <span className="min-w-0">
+        <span className={`block text-[13.5px] leading-tight ${on ? 'font-bold text-ink' : 'font-semibold text-ink-soft'}`}>{label}</span>
+        <span className="block text-[11.5px] text-ink-mute truncate">{hint}</span>
+      </span>
+    </button>
+  );
+}
+
+function OptionChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" aria-pressed={on} onClick={onClick} className={`shrink-0 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] transition ${on ? 'bg-verde-strong text-on-accent font-bold' : 'bg-surface-2/70 text-ink-soft font-semibold'}`}>
       {children}
     </button>
   );

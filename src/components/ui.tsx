@@ -77,39 +77,34 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
 }
 
 /**
- * Partes de uma aba, logo abaixo do cabeçalho: texto com um traço na cor da aba
- * embaixo da parte ativa. Bem diferente das abas de baixo (pílulas) e dos botões,
- * para não confundir os níveis. Todas cabem na largura da tela, sem cortar.
- */
-/**
- * Partes de uma aba (ex.: Saúde · Resultados · Dúvidas · Jornada). Cada parte
- * ocupa o espaço do próprio nome (as curtas não ficam largas nem as longas
- * apertadas) e o sublinhado acompanha o nome. Em tela muito estreita, a
- * fileira desliza para o lado em vez de espremer os nomes.
+ * Partes de uma aba (ex.: Próximos · Calendário · Tarefas): uma pílula macia
+ * com um destaque na cor da aba que desliza até a parte escolhida. Sem linhas
+ * nem sublinhado de "sistema"; as partes dividem a largura igualmente.
  */
 export function SubTabs<T extends string>({ value, options, onChange, label }: { value: T; options: Array<{ value: T; label: string; badge?: number }>; onChange: (v: T) => void; label: string }) {
+  const at = Math.max(0, options.findIndex(o => o.value === value));
   return (
-    <div className="no-print -mx-4 px-1.5 md:mx-0 md:px-0 mb-4 border-b border-line overflow-x-auto no-scrollbar" role="group" aria-label={label}>
-      <div className="flex min-w-max sm:min-w-0">
-        {options.map(o => {
-          const on = value === o.value;
-          return (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => onChange(o.value)}
-              aria-pressed={on}
-              className={`flex-1 flex justify-center px-2 pt-2 pb-2.5 ${options.length > 3 ? 'text-[13.5px]' : 'text-[14px]'} leading-tight whitespace-nowrap transition ${on ? 'text-brand-strong font-extrabold' : 'text-ink-mute font-semibold hover:text-ink'}`}
-            >
-              <span className="relative inline-flex items-center">
-                {o.label}
-                {!!o.badge && <span className="ml-1 min-w-[16px] h-4 px-1 rounded-full bg-warm text-on-accent text-[10px] font-bold flex items-center justify-center tabular">{o.badge}</span>}
-                <span className={`absolute -left-1 -right-1 -bottom-[11px] h-[3px] rounded-full transition ${on ? 'bg-brand' : 'bg-transparent'}`} aria-hidden />
-              </span>
-            </button>
-          );
-        })}
-      </div>
+    <div className="no-print mb-4 relative flex rounded-full bg-surface/70 p-1" role="group" aria-label={label}>
+      <span
+        aria-hidden
+        className="absolute top-1 bottom-1 left-1 rounded-full bg-brand-soft transition-transform duration-300 ease-out"
+        style={{ width: `calc((100% - 0.5rem) / ${options.length})`, transform: `translateX(${at * 100}%)` }}
+      />
+      {options.map(o => {
+        const on = value === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            aria-pressed={on}
+            className={`relative flex-1 min-w-0 inline-flex items-center justify-center gap-1 rounded-full px-1.5 py-2 ${options.length > 3 ? 'text-[13px]' : 'text-[14px]'} leading-tight whitespace-nowrap transition-colors ${on ? 'text-brand-strong font-extrabold' : 'text-ink-mute font-semibold hover:text-ink'}`}
+          >
+            <span className="truncate">{o.label}</span>
+            {!!o.badge && <span className="min-w-[16px] h-4 px-1 rounded-full bg-warm text-on-accent text-[10px] font-bold flex items-center justify-center tabular">{o.badge}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
