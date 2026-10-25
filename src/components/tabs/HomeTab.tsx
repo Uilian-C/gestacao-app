@@ -121,7 +121,6 @@ export default function HomeTab(props: Props) {
   const stage = stageAt(selectedWeek);
   const now = new Date();
   const todayIso = toISODate(now);
-  const tomorrowIso = toISODate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
   const alerts = insights.filter(i => i.tone === 'alerta');
   const phase = phaseOf(currentWeek);
   const cards = weekCards(selectedWeek);
@@ -227,7 +226,6 @@ export default function HomeTab(props: Props) {
   const rows: TodayRow[] = [
     ...(alerts.length ? [{ id: 'alerta', tone: 'alert' as const, icon: <Siren />, kicker: 'Atenção à saúde', title: alerts[0].title, sub: alerts.length > 1 ? `e mais ${alerts.length - 1} ${alerts.length === 2 ? 'ponto' : 'pontos'} para conversar com a equipe` : alerts[0].detail, onClick: () => setSheet('alerta') }] : []),
     ...up.today.filter(isEvent).map(i => itemRow(i, 'Hoje')),
-    ...up.week.filter(i => i.day === tomorrowIso && isEvent(i)).map(i => itemRow(i, 'Amanhã')),
     ...(overdue.length > 1 ? [{ id: 'atrasadas', tone: 'alert' as const, icon: <ListChecks />, kicker: 'Tarefas atrasadas', title: `${overdue.length} tarefas passaram do prazo`, sub: overdue.slice(0, 2).map(i => i.title).join(' · '), onClick: () => onOpen('tarefas') }] : overdue.map(i => itemRow(i, 'Hoje'))),
     // Várias tarefas no mesmo dia viram uma linha só (o detalhe fica na Agenda).
     ...(todayTasks.length > 1

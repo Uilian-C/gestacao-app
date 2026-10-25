@@ -14,7 +14,7 @@ await post(pai, '/api/auth/sign-up/email', { name: 'Caio', email: `caio${Date.no
 await post(pai, '/api/family', { op: 'consent', version: '2026-10-16' });
 await post(pai, '/api/family', { op: 'join', code: (await post(mae, '/api/family', { op: 'invite' })).code, role: 'pai' });
 const iso = n => mae.evaluate(n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); }, n);
-const dlg = mae.getByRole('dialog');
+const dlg = mae.getByRole('dialog').first();
 
 // ---- O álbum das primeiras vezes ----
 await mae.reload();
@@ -26,18 +26,24 @@ await pasta.click();
 await dlg.getByRole('list', { name: 'As primeiras vezes' }).waitFor();
 await mae.screenshot({ path: `${OUT}primeiras-album.png` });
 await dlg.getByRole('button', { name: 'Ouvir o coração: guardar' }).click();
-await dlg.getByLabel('O que aconteceu?').waitFor();
-check((await dlg.getByLabel('O que aconteceu?').inputValue()) === 'Ouvimos o coração pela primeira vez', 'guardar abre o diário já com o começo da frase');
-await dlg.getByLabel('O que aconteceu?').fill('Ouvimos o coração pela primeira vez. Parecia um cavalinho!');
-await dlg.getByRole('button', { name: /^Guardar|^Postar/ }).click();
+// O registro abre por cima do álbum; fechar sem guardar volta para o álbum (não para o Fichário).
+const form = mae.getByRole('dialog').last();
+await form.getByLabel('O que aconteceu?').waitFor();
+await mae.keyboard.press('Escape');
+await form.getByLabel('O que aconteceu?').waitFor({ state: 'detached' });
+check(await dlg.getByRole('list', { name: 'As primeiras vezes' }).isVisible(), 'fechar o registro volta para o álbum das primeiras vezes');
+await dlg.getByRole('button', { name: 'Ouvir o coração: guardar' }).click();
+await form.getByLabel('O que aconteceu?').waitFor();
+check((await form.getByLabel('O que aconteceu?').inputValue()) === 'Ouvimos o coração pela primeira vez', 'guardar abre o diário já com o começo da frase');
+await form.getByLabel('O que aconteceu?').fill('Ouvimos o coração pela primeira vez. Parecia um cavalinho!');
+await form.getByRole('button', { name: /^Guardar|^Postar/ }).click();
 const carimbo = mae.getByRole('status').filter({ hasText: 'Entrou no livro' });
 await carimbo.waitFor();
 check(await carimbo.getByText('Primeira vez: ouvir o coração · uma página especial no livro').isVisible(), 'o carimbo conta que é uma primeira vez');
 await carimbo.waitFor({ state: 'hidden', timeout: 10000 });
-check(await pasta.getByText(/^2 de 12/).isVisible(), 'o álbum passa para 2 de 12');
-await pasta.click();
-check(await dlg.getByRole('button', { name: 'Ouvir o coração: abrir a lembrança' }).isVisible(), 'a primeira vez guardada vira um cartão cheio, que abre a lembrança');
+check(await dlg.getByText(/^2 de 12/).isVisible() && (await dlg.getByRole('button', { name: 'Ouvir o coração: abrir a lembrança' }).isVisible()), 'depois de guardar, o álbum continua aberto: 2 de 12 e o cartão cheio');
 await mae.keyboard.press('Escape');
+check(await pasta.getByText(/^2 de 12/).isVisible(), 'a pasta também passa para 2 de 12');
 await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Mural/ }).click();
 check(await mae.getByText('Primeira vez · Ouvir o coração').first().isVisible(), 'no Mural, o selo de primeira vez');
 

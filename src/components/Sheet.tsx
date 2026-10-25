@@ -3,6 +3,10 @@ import { X } from 'lucide-react';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { useSheetDrag } from '../hooks/useSheetDrag';
 
+// As janelas abertas, da mais antiga à de cima: o Esc fecha só a de cima
+// (uma janela pode abrir outra por cima, como o álbum e o registro).
+const openSheets: string[] = [];
+
 /**
  * Janela que sobe de baixo no celular (e aparece no meio no computador): usada
  * pelo registro rápido e pelos detalhes de cada registro. Fecha no X, no Esc ou
@@ -20,10 +24,14 @@ export default function Sheet({ title, subtitle, icon, onClose, children }: { ti
 
   useEffect(() => {
     closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeFn.current();
+    openSheets.push(titleId);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && openSheets[openSheets.length - 1] === titleId && closeFn.current();
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      openSheets.splice(openSheets.indexOf(titleId), 1);
+    };
+  }, [titleId]);
 
   useScrollLock();
   const { handle, panelStyle, full } = useSheetDrag(() => closeFn.current());
