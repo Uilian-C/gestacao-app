@@ -11,6 +11,7 @@ import { FOLDER, shortDate } from '../lib/folders';
 import { MOOD_COLOR, moodLabel, moodOf } from '../lib/moods';
 import { PeopleContext, firstName } from '../lib/people';
 import BabyArt from './BabyArt';
+import { VoiceQuote } from './SecondVoice';
 import BrandMark from './BrandMark';
 import { useScrollLock } from '../hooks/useScrollLock';
 import MoodFace from './MoodFace';
@@ -115,6 +116,7 @@ function WeekPage({ chapter: c, tone, onOpenEntry }: { chapter: Chapter; tone: B
             <span className="block text-[11.5px] font-bold uppercase tracking-wide text-ink-mute">{stamp(e)}</span>
             {e.body && <span className={`block text-[16px] leading-relaxed text-ink whitespace-pre-line ${e.folder === 'carta' || e.folder === 'momento' ? 'font-display text-[1.12rem]' : ''}`}>{e.body}</span>}
             <BookPhotos photos={e.photos} />
+            <VoiceQuote entry={e} />
           </Wrap>
         );
       })}

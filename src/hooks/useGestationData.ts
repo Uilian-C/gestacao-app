@@ -160,6 +160,12 @@ export interface JournalEntry {
   folder: Folder;
   /** Fotos do registro; `thumb` diz se há miniatura para as listas. */
   photos: EntryPhoto[];
+  /** A segunda voz (migração 030): o que a outra pessoa sentiu, no mesmo registro. */
+  voice_body?: string | null;
+  voice_role?: 'mae' | 'pai' | null;
+  voice_at?: string | null;
+  /** A segunda voz é de quem está logado. */
+  voice_mine?: boolean | null;
 }
 
 /** Só eu, nós dois, ou nós dois e a família (migração 023). */

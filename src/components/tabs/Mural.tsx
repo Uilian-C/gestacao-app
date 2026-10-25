@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { ChevronRight, Heart, Lock, MessageCircle, Send, Users } from 'lucide-react';
+import { ChevronRight, Heart, Lock, MessageCircle, PenLine, Send, Users } from 'lucide-react';
 import { photoUrl, type FamilyMember, type Relative, type SpaceRole } from '../../api';
 import type { Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { daysBetween, hhmmOf, parseLocalDate, parseTimestamp, stampText, toISODate } from '../../lib/dates';
@@ -8,6 +8,7 @@ import { mentionsMe } from '../../lib/mentions';
 import { FreshEntryContext, PeopleContext, RelativesContext, authorOf, firstName, speakerOf } from '../../lib/people';
 import { useMention } from '../../lib/useMention';
 import Avatar from '../Avatar';
+import { VoiceQuote } from '../SecondVoice';
 import { MentionBar, MentionText } from '../Mentions';
 import type { OnReact } from '../Social';
 
@@ -198,6 +199,19 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
             <MentionText text={e.body} />
           </p>
         </button>
+      )}
+
+      {/* A segunda voz; nos momentos da outra pessoa ainda sem ela, o convite para completar. */}
+      {e.voice_body ? (
+        <div className="px-4 pt-3">
+          <VoiceQuote entry={e} compact />
+        </div>
+      ) : (
+        role !== 'familia' && !e.mine && e.visibility !== 'private' && e.body && (e.folder === 'momento' || e.folder === 'dia' || e.folder === 'carta') && (
+          <button type="button" onClick={open} className="mx-4 mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-rosa-soft px-3 py-1.5 text-[13px] font-bold text-rosa-strong">
+            <PenLine className="w-3.5 h-3.5" /> {e.folder === 'carta' ? 'Escrever a sua parte' : 'Completar com o que você sentiu'}
+          </button>
+        )
       )}
 
       {social && (

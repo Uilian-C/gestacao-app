@@ -9,7 +9,7 @@ import type { Celebration, CelebrationItem } from './lib/celebrations';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
-import { takeTabFromUrl, takeViewFromUrl } from './lib/pwa';
+import { takeTabFromUrl, takeViewFromUrl, takeVoiceFromUrl } from './lib/pwa';
 import { api, ApiError, type CoupleFamilyState, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
 import CareModeHome from './components/home/CareModeHome';
@@ -196,7 +196,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [revealAgain, setReveal] = useState<string | null>(null);
   const babyNameNow = data?.babyName ?? null;
   const reveal = revealAgain ?? (babyNameNow && revealSeen !== babyNameNow ? babyNameNow : null);
-  const [detail, setDetail] = useState<DetailTarget | null>(null);
+  // O aviso das duas vozes abre o registro direto no convite para completar.
+  const [detail, setDetail] = useState<DetailTarget | null>(() => {
+    const id = takeVoiceFromUrl();
+    return id ? { kind: 'entry', id } : null;
+  });
 
   // A cor principal segue a aba (index.css, data-aba); para o pai, o rosa vira azul (data-papel).
   useEffect(() => {
@@ -514,6 +518,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   };
   const sendThread = (targetType: 'entry' | 'exam', targetId: string, body: string) => run(() => api.mutate('comment', { targetType, targetId, body }), 'Não foi possível enviar o comentário.');
   const deleteThread = (c: ThreadComment) => scheduleDelete('thread', c.id, 'comentário');
+  // A segunda voz num momento da outra pessoa (migração 030).
+  const setVoice = (id: string, body: string) => {
+    if (body) tumtum();
+    patch(d => ({ ...d, journal: d.journal.map(e => (e.id !== id ? e : { ...e, voice_body: body || null, voice_role: body ? author : null, voice_mine: !!body, voice_at: body ? new Date().toISOString() : null })) }));
+    return run(() => api.mutate('setVoice', { id, body }), 'Não foi possível guardar. Se for a primeira vez, rode a migração db/migrations/030_duas_vozes_e_horario.sql no Neon.', body ? 'A sua voz entrou no livro' : undefined);
+  };
 
   // Edições feitas na janela de detalhes.
   const updateSymptom = (id: string, s: NewSymptom) =>
@@ -1277,6 +1287,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onReact={react}
           onThread={sendThread}
           onDeleteThread={deleteThread}
+          onVoice={setVoice}
         />
       )}
 

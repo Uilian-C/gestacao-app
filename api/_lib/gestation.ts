@@ -93,7 +93,9 @@ export async function fetchAll(fid: string, userId: string) {
       // A pasta vem pelo jsonb: antes da migração 012 a coluna não existe e tudo é "momento".
       `SELECT id, entry_date::text AS entry_date, body, visibility, remind_on::text AS remind_on, author_role,
               (user_id = $2) AS mine, created_at::text AS created_at, COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS folder,
-              to_jsonb(j) ->> 'remind_at' AS remind_at
+              to_jsonb(j) ->> 'remind_at' AS remind_at,
+              to_jsonb(j) ->> 'voice_body' AS voice_body, to_jsonb(j) ->> 'voice_role' AS voice_role, to_jsonb(j) ->> 'voice_at' AS voice_at,
+              (to_jsonb(j) ->> 'voice_user_id') = $2 AS voice_mine
        FROM journal_entries j
        WHERE family_id = $1 AND (visibility <> 'private' OR user_id = $2)
        ORDER BY entry_date DESC, created_at DESC`,
@@ -231,7 +233,8 @@ export async function fetchFamilyView(fid: string, userId: string) {
     query(`SELECT dum_date::text AS dum_date, to_jsonb(f) ->> 'baby_tone' AS baby_tone, to_jsonb(f) ->> 'baby_name' AS baby_name, to_jsonb(f) ->> 'baby_name_at' AS baby_name_at, to_jsonb(f) ->> 'care_since' AS care_since FROM families f WHERE id = $1`, [fid]),
     query(
       `SELECT id, entry_date::text AS entry_date, body, visibility, author_role, false AS mine, created_at::text AS created_at,
-              COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS folder
+              COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS folder,
+              to_jsonb(j) ->> 'voice_body' AS voice_body, to_jsonb(j) ->> 'voice_role' AS voice_role, false AS voice_mine
        FROM journal_entries j WHERE family_id = $1 AND visibility = 'family'
        ORDER BY entry_date DESC, created_at DESC`,
       [fid],
