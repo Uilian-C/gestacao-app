@@ -107,13 +107,15 @@ export function localDate(now: Date, offsetDays = 0): string {
 const dayNumber = (iso: string) => Math.round(Date.parse(`${iso}T00:00:00Z`) / 86_400_000);
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
 
-export function planReminders(today: string, families: FamilyRow[], consultations: ConsultationRow[], entries: EntryRow[], tasks: TaskRow[] = []): Notice[] {
+/** `evening`: já é noite (a partir das 19h); só então sai o aviso da véspera da consulta. */
+export function planReminders(today: string, families: FamilyRow[], consultations: ConsultationRow[], entries: EntryRow[], tasks: TaskRow[] = [], evening = true): Notice[] {
   const notices: Notice[] = [];
   const membersOf = new Map(families.map(f => [f.id, f.members]));
 
-  // Consultas: na véspera e na manhã do dia.
+  // Consultas: na noite da véspera e na manhã do dia (de manhã, um aviso de amanhã parece cedo demais).
   for (const c of consultations) {
     const [date, time] = c.local.split(' ');
+    if (date !== today && !evening) continue;
     const when = date === today ? 'hoje' : 'amanhã';
     const details = [c.professional_name, c.location].filter(Boolean).join(' · ');
     notices.push({

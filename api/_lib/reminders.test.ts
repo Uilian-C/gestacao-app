@@ -32,6 +32,17 @@ describe('planReminders', () => {
     expect(dia).toMatchObject({ key: 'consulta:c2:dia', payload: { title: 'Consulta hoje às 14:00' } });
   });
 
+  it('de manhã, só o aviso do dia; a véspera espera a noite', () => {
+    const consultas = [
+      { id: 'c1', family_id: 'f1', local: '2026-10-17 09:30', professional_name: null, location: null },
+      { id: 'c2', family_id: 'f1', local: '2026-10-16 14:00', professional_name: null, location: null },
+    ];
+    const manha = planReminders('2026-10-16', [family()], consultas, [], [], false).filter(n => n.kind === 'consultas');
+    expect(manha.map(n => n.key)).toEqual(['consulta:c2:dia']);
+    const noite = planReminders('2026-10-16', [family()], consultas, [], [], true).filter(n => n.kind === 'consultas');
+    expect(noite.map(n => n.key)).toEqual(['consulta:c1:vespera', 'consulta:c2:dia']);
+  });
+
   it('lembrete de momento particular vai só para quem escreveu', () => {
     const notices = planReminders('2026-10-16', [family()], [], [
       { id: 'e1', family_id: 'f1', user_id: 'mae', visibility: 'private', body: 'Contar para a família' },

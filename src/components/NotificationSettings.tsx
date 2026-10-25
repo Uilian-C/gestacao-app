@@ -6,7 +6,7 @@ import { canInstall, chromeIntentUrl, iosTooOld, isAndroid, isIOS, isStandalone,
 import { Button, Segmented } from './ui';
 
 const KINDS: Array<{ id: NotifyKind; label: string; hint: string }> = [
-  { id: 'consultas', label: 'Consultas', hint: 'Na véspera e na manhã do dia, com horário e endereço.' },
+  { id: 'consultas', label: 'Consultas', hint: 'Na véspera, à noite, e na manhã do dia, com horário e endereço.' },
   { id: 'momentos', label: 'Lembretes do diário e das tarefas', hint: 'No dia que vocês escolheram, às 8h.' },
   { id: 'jornada', label: 'Semana nova e jornada', hint: 'Quando completa a semana e abre a janela de um exame ou vacina.' },
   { id: 'parceiro', label: 'Registros da outra pessoa', hint: 'Sintoma, consulta, dúvida, tarefa ou momento novo.' },

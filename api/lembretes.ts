@@ -31,6 +31,8 @@ export const GET = endpoint(async request => {
   // Antes das 8h, só os lembretes com hora; os do dia esperam a manhã.
   // (Nos testes, LEMBRETES_QUALQUER_HORA=1 libera os do dia a qualquer hora.)
   const daily = hour >= 8 || process.env.LEMBRETES_QUALQUER_HORA === '1';
+  // A véspera da consulta só à noite, a partir das 19h.
+  const evening = hour >= 19 || process.env.LEMBRETES_QUALQUER_HORA === '1';
 
   // Só espaços com alguém que ativou as notificações.
   const [families, consultations, entries, tasks] = await Promise.all([
@@ -91,7 +93,7 @@ export const GET = endpoint(async request => {
   ]);
   const timed: Timed = { entries: timedEntries, tasks: timedTasks, early };
 
-  const notices = [...(daily ? planReminders(today, families, consultations, entries, tasks) : []), ...planTimed(families, timed)];
+  const notices = [...(daily ? planReminders(today, families, consultations, entries, tasks, evening) : []), ...planTimed(families, timed)];
   let sent = 0;
   for (const n of notices) sent += await notify(n.userIds, n.kind, n.payload, n.key).catch(err => (console.error(err), 0));
   return json({ ok: true, today, notices: notices.length, sent });

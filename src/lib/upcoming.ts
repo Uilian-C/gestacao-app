@@ -97,18 +97,18 @@ export function buildUpcoming(input: { consultations: Consultation[]; tasks: Par
     .filter(c => daysBetween(today, localDay(c.scheduled_at)) < 0 || parseTimestamp(c.scheduled_at) <= input.today);
   const past = input.consultations.filter(c => daysBetween(today, localDay(c.scheduled_at)) < 0).sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at));
 
-  // A semana do calendário vai de segunda a domingo: "esta semana" acaba no domingo.
-  const toSunday = (7 - today.getDay()) % 7;
+  // A semana vai de domingo a sábado, como no calendário: "esta semana" acaba no sábado.
+  const toSaturday = 6 - today.getDay();
   return {
     today: items.filter(i => offset(i) === 0),
     /** Os próximos 7 dias (o Início). */
     week: items.filter(i => offset(i) >= 1 && offset(i) <= 7),
-    /** Até domingo (a Agenda). */
-    thisWeek: items.filter(i => offset(i) >= 1 && offset(i) <= toSunday),
-    /** De segunda a domingo da semana que vem. */
-    nextWeek: items.filter(i => offset(i) > toSunday && offset(i) <= toSunday + 7),
+    /** Até sábado (a Agenda). */
+    thisWeek: items.filter(i => offset(i) >= 1 && offset(i) <= toSaturday),
+    /** De domingo a sábado da semana que vem. */
+    nextWeek: items.filter(i => offset(i) > toSaturday && offset(i) <= toSaturday + 7),
     /** Depois da semana que vem. */
-    afterNextWeek: items.filter(i => offset(i) > toSunday + 7),
+    afterNextWeek: items.filter(i => offset(i) > toSaturday + 7),
     later: items.filter(i => offset(i) > 7),
     missingResults,
     past,
