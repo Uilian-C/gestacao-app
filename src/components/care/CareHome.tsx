@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Activity, ChevronDown, ChevronRight, ClipboardList, FileText, FlaskConical, HeartPulse, Plus, Route, Siren } from 'lucide-react';
+import { Activity, CalendarPlus, ChevronDown, ChevronRight, ClipboardList, FileText, FlaskConical, HeartPulse, Plus, Route, Siren } from 'lucide-react';
 import type { ExamItem } from '../../hooks/useGestationData';
 import { appointmentTitle, isConsultation } from '../../lib/appointments';
 import { daysBetween, formatBR, localDay, parseLocalDate, parseTimestamp, toISODate } from '../../lib/dates';
@@ -11,7 +11,6 @@ import type { CareView, Consultation, HealthMetric, PregnancyProfile, QuestionIt
 import AlertSigns from '../AlertSigns';
 import FichaPanel, { type FichaInput } from '../FichaBar';
 import Sheet from '../Sheet';
-import { Button } from '../ui';
 
 // Cuidados numa página só e curta: a próxima consulta (e o que levar), dois
 // atalhos de um toque (os dados da gestação, para responder na hora durante a
@@ -165,16 +164,22 @@ export default function CareHome(props: Props) {
   );
 }
 
+/** A próxima consulta, compacta: a data num bloquinho, o nome, a hora e o que levar, com o "Preparar" ao lado. */
 function NextVisit({ next, today, questions, onPrepare, onSchedule, onOpen }: { next: Consultation | null; today: Date; questions: QuestionItem[]; onPrepare: (c: Consultation) => void; onSchedule: () => void; onOpen: (c: Consultation) => void }) {
+  const box = 'rounded-[24px] bg-gradient-to-br from-verde-soft via-verde-soft/60 to-azul-soft/40 p-3.5';
   if (!next) {
     return (
-      <section aria-label="Próxima consulta" className="rounded-[28px] bg-gradient-to-br from-verde-soft via-verde-soft/60 to-azul-soft/40 p-5 space-y-3">
-        <p className="text-[12px] font-extrabold uppercase tracking-wide text-verde-strong">Próxima consulta</p>
-        <p className="font-display text-[1.35rem] leading-snug text-ink">Nenhuma consulta marcada</p>
-        <p className="text-[14px] text-ink-soft">Marquem a próxima: o app lembra na véspera e ajuda a preparar o que levar.</p>
-        <Button onClick={onSchedule}>
+      <section aria-label="Próxima consulta" className={`${box} flex items-center gap-3`}>
+        <span className="w-12 h-12 rounded-2xl bg-surface/80 text-verde-strong flex items-center justify-center shrink-0">
+          <CalendarPlus className="w-5 h-5" />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block font-semibold text-ink leading-tight">Nenhuma consulta marcada</span>
+          <span className="block text-[12.5px] text-ink-soft">O app lembra na véspera e ajuda a preparar.</span>
+        </span>
+        <button type="button" onClick={onSchedule} className="shrink-0 inline-flex items-center gap-1 rounded-full bg-verde-strong text-on-accent px-3.5 py-2 text-[13px] font-bold">
           <Plus className="w-4 h-4" /> Agendar consulta
-        </Button>
+        </button>
       </section>
     );
   }
@@ -182,19 +187,28 @@ function NextVisit({ next, today, questions, onPrepare, onSchedule, onOpen }: { 
   const days = daysBetween(today, localDay(next.scheduled_at));
   const pending = questions.filter(q => !q.doctor_answer && questionSpecialty(q.specialty) === questionSpecialty(next.specialty)).length;
   return (
-    <section aria-label="Próxima consulta" className="rounded-[28px] bg-gradient-to-br from-verde-soft via-verde-soft/60 to-azul-soft/40 p-5 space-y-3">
-      <p className="text-[12px] font-extrabold uppercase tracking-wide text-verde-strong">Próxima consulta · {inDays(days)}</p>
-      <button type="button" onClick={() => onOpen(next)} className="block text-left">
-        <span className="block font-display text-[1.35rem] leading-snug text-ink">{appointmentTitle(next)}</span>
-        <span className="block text-[14px] text-ink-soft first-letter:uppercase">
-          {when.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })} às {when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-          {next.professional_name && ` · ${next.professional_name}`}
+    <section aria-label="Próxima consulta" className={`${box} space-y-3`}>
+      <button type="button" onClick={() => onOpen(next)} className="w-full flex items-center gap-3 text-left">
+        <span className="w-12 shrink-0 rounded-2xl bg-surface/80 py-1.5 text-center leading-none" aria-hidden>
+          <span className="block text-[10.5px] font-extrabold uppercase text-verde-strong">{when.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
+          <span className="block font-display text-[1.35rem] text-ink tabular mt-0.5">{when.getDate()}</span>
+          <span className="block text-[10px] font-bold uppercase text-ink-mute mt-0.5">{when.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</span>
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-[11.5px] font-extrabold uppercase tracking-wide text-verde-strong">Próxima consulta · {inDays(days)}</span>
+          <span className="block font-display text-[1.15rem] leading-snug text-ink truncate">{appointmentTitle(next)}</span>
+          <span className="block text-[13px] text-ink-soft truncate">
+            {when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            {next.professional_name && ` · ${next.professional_name}`}
+          </span>
         </span>
       </button>
-      <p className="text-[13.5px] text-ink-soft">{pending ? `${pending} ${pending === 1 ? 'dúvida anotada' : 'dúvidas anotadas'} para levar.` : 'Anotem as dúvidas e levem o resumo dos registros.'}</p>
-      <Button onClick={() => onPrepare(next)}>
-        <FileText className="w-4 h-4" /> Preparar a consulta
-      </Button>
+      <div className="flex items-center gap-2 pl-[3.75rem]">
+        <span className="flex-1 min-w-0 text-[12.5px] text-ink-soft">{pending ? `${pending} ${pending === 1 ? 'dúvida anotada' : 'dúvidas anotadas'}` : 'Nenhuma dúvida ainda'}</span>
+        <button type="button" onClick={() => onPrepare(next)} className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-verde-strong text-on-accent px-3.5 py-2 text-[13px] font-bold">
+          <FileText className="w-4 h-4" /> Preparar a consulta
+        </button>
+      </div>
     </section>
   );
 }

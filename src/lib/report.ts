@@ -77,9 +77,9 @@ export const REPORT_PARTS: Array<{ id: ReportPart; label: string }> = [
   { id: 'retafinal', label: 'Reta final' },
 ];
 
-/** Atalhos de período: desde a última consulta, 30 dias, o trimestre atual, a gestação toda (ou uma data escolhida). */
-export type PeriodPreset = 'ultima' | '30d' | 'trimestre' | 'tudo' | 'outra';
-export function presetStart(preset: Exclude<PeriodPreset, 'outra'>, opts: { consultations: Consultation[]; specialtyId: SpecialtyId; today: Date; dumDate: string }): Date {
+/** Atalhos de período (preenchem o "de"; o "até" é hoje): desde a última consulta, 30 dias, o trimestre atual, a gestação toda. */
+export type PeriodPreset = 'ultima' | '30d' | 'trimestre' | 'tudo';
+export function presetStart(preset: PeriodPreset, opts: { consultations: Consultation[]; specialtyId: SpecialtyId; today: Date; dumDate: string }): Date {
   const { today } = opts;
   const dum = parseLocalDate(opts.dumDate);
   const plus = (d: Date, days: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + days);

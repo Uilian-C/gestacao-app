@@ -1,6 +1,6 @@
 import { BabyNameContext } from '../lib/baby';
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronUp, Palette } from 'lucide-react';
+import { Camera, Check, ChevronDown, ChevronUp, Palette } from 'lucide-react';
 import { photoUrl } from '../api';
 import { GROWTH, GROWTH_SOURCE, MEASURE_TEXT, lengthText, stageAt, stageShots, weightText } from '../content/growth';
 import { weekInfo } from '../content/weeks';
@@ -226,7 +226,7 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
                   </button>
                   {shot && (
                     <button type="button" onClick={() => onOpenEntry?.(shot.entryId)} aria-label={`A barriga de vocês na semana ${shot.week}: ver`} className="relative shrink-0 mt-3 mr-3">
-                      <img src={photoUrl(shot.photo.id, shot.photo.thumb)} alt="" loading="lazy" className="w-12 h-12 rounded-full object-cover ring-2 ring-surface shadow-soft" />
+                      <ShotThumb src={photoUrl(shot.photo.id, shot.photo.thumb)} />
                       <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-lilas px-1.5 text-[9.5px] font-extrabold text-white whitespace-nowrap">sem. {shot.week}</span>
                     </button>
                   )}
@@ -243,6 +243,22 @@ export default function BabyGrowth({ currentWeek, hereText = 'vocês estão aqui
       </p>
     </div>
   );
+}
+
+/**
+ * A miniatura da barriga na fase. Sem "lazy": dentro da folha que rola, o
+ * Safari do iPhone às vezes nunca carregava as fotos do começo da lista (e o
+ * círculo ficava vazio). Se mesmo assim falhar, fica uma câmera no lugar.
+ */
+function ShotThumb({ src }: { src: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed)
+    return (
+      <span className="w-12 h-12 rounded-full bg-lilas-soft text-lilas-strong ring-2 ring-surface flex items-center justify-center">
+        <Camera className="w-5 h-5" />
+      </span>
+    );
+  return <img src={src} alt="" decoding="async" onError={() => setFailed(true)} className="w-12 h-12 rounded-full object-cover ring-2 ring-surface shadow-soft bg-lilas-soft" />;
 }
 
 /** Onde fica o trilho na horizontal: depois do desenho (96px) e do espaço (12px), no meio da coluna de 16px. */
