@@ -1,8 +1,8 @@
 import { useContext, useMemo, useState } from 'react';
-import { ArrowLeft, ClipboardCopy, Plus, Printer, Route, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, ClipboardCopy, Plus, Printer, Route, ShieldCheck, Trash2 } from 'lucide-react';
 import { SPECIALTIES, questionSpecialty, type SpecialtyId } from '../../data/specialties';
 import { formatBR, parseLocalDate, parseTimestamp, toISODate, weekOfDay } from '../../lib/dates';
-import { TREND_LABEL, buildReport, defaultReportPeriod, reportToText, type ConsultationReport } from '../../lib/report';
+import { REPORT_PARTS, TREND_LABEL, buildReport, presetStart, reportToText, type ConsultationReport, type PeriodPreset, type ReportPart } from '../../lib/report';
 import { timeOfDayLabel } from '../../lib/symptoms';
 import { buildFicha, fichaToText, type FichaItem } from '../../lib/ficha';
 import { laborReportLines } from '../../lib/labor';
@@ -85,7 +85,7 @@ interface Props {
 }
 
 
-/** Preparar a consulta (ou o resumo para emergência): as dúvidas para levar e o resumo para imprimir. */
+/** Preparar a consulta (ou o relatório dos registros): as dúvidas para levar e o relatório, com período e partes à escolha. */
 export default function ConsultationsTab(props: Props) {
   const today = parseLocalDate(toISODate(new Date()));
   if (!props.report) return null;
@@ -430,7 +430,20 @@ function QuestionsSection({ questions, specialtyId, busy, onCreateQuestion, onAn
 function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
   const { request, today } = props;
   const consultation = props.consultations.find(c => c.id === request.consultationId) ?? null;
-  const [from, setFrom] = useState(() => toISODate(defaultReportPeriod(props.consultations.filter(isConsultation), request.specialtyId, today).from));
+  const presetOpts = { consultations: props.consultations.filter(isConsultation), specialtyId: request.specialtyId, today, dumDate: props.profile.dumDate };
+  const hasPrevious = presetOpts.consultations.some(c => c.specialty === request.specialtyId && parseTimestamp(c.scheduled_at) < today);
+  // Período e partes: nem toda consulta precisa de tudo, nem do mesmo intervalo.
+  const [preset, setPreset] = useState<PeriodPreset>(hasPrevious ? 'ultima' : '30d');
+  const [custom, setCustom] = useState(() => toISODate(presetStart('ultima', presetOpts)));
+  const from = preset === 'outra' ? custom : toISODate(presetStart(preset, presetOpts));
+  const [parts, setParts] = useState<Set<ReportPart>>(() => new Set(REPORT_PARTS.map(p => p.id)));
+  const togglePart = (id: ReportPart) =>
+    setParts(cur => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const report = useMemo(
     () =>
@@ -462,7 +475,7 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
     : [];
 
   const copy = async () => {
-    const text = reportToText(report, fichaToText(ficha)) + (labor.length ? `\n\nRETA FINAL\n${labor.map(l => `- ${l}`).join('\n')}` : '');
+    const text = reportToText(report, fichaToText(ficha), parts) + (labor.length && parts.has('retafinal') ? `\n\nRETA FINAL\n${labor.map(l => `- ${l}`).join('\n')}` : '');
     try {
       await navigator.clipboard.writeText(text);
       props.onNotify('Resumo copiado. Cole no WhatsApp ou no e-mail do profissional.');
@@ -479,8 +492,8 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
           <ArrowLeft className="w-4 h-4" /> Cuidados
         </button>
         <div className="px-1">
-          <p className="text-[12px] font-extrabold uppercase tracking-wide text-verde-strong">{consultation ? 'Preparar a consulta' : 'Resumo para levar'}</p>
-          <h1 className="font-display text-[1.5rem] leading-tight text-ink">{report.specialty.label}</h1>
+          <p className="text-[12px] font-extrabold uppercase tracking-wide text-verde-strong">{consultation ? 'Preparar a consulta' : 'Relatório dos registros'}</p>
+          <h1 className="font-display text-[1.5rem] leading-tight text-ink">{consultation ? report.specialty.label : 'O acompanhamento de vocês'}</h1>
           {when && (
             <p className="text-[14px] text-ink-soft first-letter:uppercase">
               {when.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })} às {when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -494,9 +507,32 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
 
       <section aria-label="O resumo" className="space-y-3">
         <div className="no-print px-1 space-y-2">
-          <h2 className="text-[1.15rem] text-ink">O resumo</h2>
-          <p className="text-[13px] text-ink-soft">Sintomas, peso, pressão, dúvidas e os dados da gestação, com o que importa para essa especialidade. Imprima ou mande para o profissional.</p>
-          <div className="grid grid-cols-2 gap-2">
+          <h2 className="text-[1.15rem] text-ink">{consultation ? 'O resumo' : 'O que levar'}</h2>
+          <p className="text-[13px] text-ink-soft">Escolham o período e as partes: nem toda consulta precisa de tudo. Depois é só imprimir ou mandar para o profissional.</p>
+          <div role="group" aria-label="Período do relatório" className="flex flex-wrap gap-1.5">
+            {PERIOD_PRESETS.filter(o => o.id !== 'ultima' || hasPrevious).map(o => (
+              <OptionChip key={o.id} on={preset === o.id} onClick={() => setPreset(o.id)}>
+                {o.label}
+              </OptionChip>
+            ))}
+          </div>
+          {preset === 'outra' && (
+            <label className="flex flex-wrap items-center gap-2 text-[13px] text-ink-soft">
+              A partir de
+              <input id="inicio-periodo" type="date" min={props.profile.dumDate} max={toISODate(today)} className={`${inputClass} !w-auto !py-1.5 text-sm`} value={custom} onChange={e => e.target.value && setCustom(e.target.value)} />
+            </label>
+          )}
+          <p className="text-[12.5px] text-ink-mute">
+            {formatBR(from)} a {formatBR(toISODate(today))} · semanas {report.weekFrom} a {report.weekTo}
+          </p>
+          <div role="group" aria-label="O que entra no relatório" className="flex flex-wrap gap-1.5 pt-1">
+            {REPORT_PARTS.filter(p => p.id !== 'retafinal' || labor.length > 0).map(p => (
+              <OptionChip key={p.id} check on={parts.has(p.id)} onClick={() => togglePart(p.id)}>
+                {p.label}
+              </OptionChip>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-1">
             <Button onClick={() => window.print()}>
               <Printer className="w-4 h-4" /> Imprimir / PDF
             </Button>
@@ -504,19 +540,31 @@ function ReportScreen(props: Props & { request: ReportRequest; today: Date }) {
               <ClipboardCopy className="w-4 h-4" /> Copiar texto
             </Button>
           </div>
-          <label className="flex flex-wrap items-center gap-2 text-[13px] text-ink-soft">
-            A partir de
-            <input id="inicio-periodo" type="date" max={toISODate(today)} className={`${inputClass} !w-auto !py-1.5 text-sm`} value={from} onChange={e => e.target.value && setFrom(e.target.value)} />
-            <span className="text-ink-mute">desde a última consulta, ou 30 dias</span>
-          </label>
         </div>
-      <ReportDocument report={report} ficha={ficha} labor={labor} />
+        <ReportDocument report={report} ficha={ficha} labor={labor} parts={parts} />
       </section>
     </div>
   );
 }
 
-function ReportDocument({ report: r, ficha, labor }: { report: ConsultationReport; ficha: FichaItem[]; labor: string[] }) {
+const PERIOD_PRESETS: Array<{ id: PeriodPreset; label: string }> = [
+  { id: 'ultima', label: 'Desde a última consulta' },
+  { id: '30d', label: '30 dias' },
+  { id: 'trimestre', label: 'Este trimestre' },
+  { id: 'tudo', label: 'Toda a gestação' },
+  { id: 'outra', label: 'Outra data' },
+];
+
+function OptionChip({ on, check, onClick, children }: { on: boolean; check?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" aria-pressed={on} onClick={onClick} className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] transition ${on ? 'bg-verde-soft text-verde-strong font-bold' : 'bg-surface-2/70 text-ink-soft font-semibold'}`}>
+      {check && on && <Check className="w-3.5 h-3.5" strokeWidth={2.5} aria-hidden />}
+      {children}
+    </button>
+  );
+}
+
+function ReportDocument({ report: r, ficha, labor, parts }: { report: ConsultationReport; ficha: FichaItem[]; labor: string[]; parts: ReadonlySet<ReportPart> }) {
   const kg = (n: number) => `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg`;
   const signed = (n: number) => `${n >= 0 ? '+' : ''}${kg(n)}`;
   const when = r.consultation ? parseTimestamp(r.consultation.scheduled_at) : null;
@@ -524,8 +572,8 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
   return (
     <article className="print-area rounded-[28px] bg-surface p-6 md:p-8 space-y-7 print:space-y-4 print:border-0 print:p-0 print:text-[12px]">
       <header className="space-y-3 border-b border-line pb-5">
-        <p className="text-sm font-semibold text-brand">Tumtum · resumo para consulta</p>
-        <h2 className="text-2xl font-semibold text-ink">{r.specialty.label}</h2>
+        <p className="text-sm font-semibold text-brand">Tumtum · {r.consultation ? 'resumo para consulta' : 'relatório dos registros'}</p>
+        <h2 className="text-2xl font-semibold text-ink">{r.consultation ? r.specialty.label : 'Acompanhamento da gestação'}</h2>
         {when && (
           <p className="text-ink-soft">
             {when.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })} às {when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -536,20 +584,24 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
 
       {/* Dados da gestante: o mesmo cabeçalho de prontuário em todo resumo. */}
       <section className="space-y-3 print:space-y-1.5 rounded-2xl bg-surface-2 p-4 print:p-2.5 break-inside-avoid print:bg-transparent print:border print:border-line">
-        <h3 className="text-sm font-semibold text-ink-soft">Dados da gestante</h3>
-        <FichaGrid items={ficha} compact />
-        <p className="text-xs text-ink-mute border-t border-line pt-2">
+        {parts.has('dados') && (
+          <>
+            <h3 className="text-sm font-semibold text-ink-soft">Dados da gestante</h3>
+            <FichaGrid items={ficha} compact />
+          </>
+        )}
+        <p className={`text-xs text-ink-mute ${parts.has('dados') ? 'border-t border-line pt-2' : ''}`}>
           Período analisado neste resumo: semanas {r.weekFrom} a {r.weekTo} ({formatBR(toISODate(r.period.from))} a {formatBR(toISODate(r.period.to))})
         </p>
       </section>
 
-      {r.insights.length > 0 && (
+      {r.insights.length > 0 && parts.has('atencao') && (
         <ReportSection title="Pontos de atenção">
           <InsightList insights={r.insights} />
         </ReportSection>
       )}
 
-      {r.specialty.symptomCategories !== 'todas' && r.specialty.symptomCategories.length === 0 ? null : (
+      {!parts.has('sintomas') || (r.specialty.symptomCategories !== 'todas' && r.specialty.symptomCategories.length === 0) ? null : (
         <ReportSection title="Sintomas no período" note={r.hiddenSymptomCount > 0 ? `${r.hiddenSymptomCount} ${r.hiddenSymptomCount === 1 ? 'sintoma de outra área foi omitido' : 'sintomas de outras áreas foram omitidos'} neste resumo.` : undefined}>
           {r.symptoms.length === 0 ? (
             <p className="text-ink-soft">Nenhum sintoma registrado no período para esta especialidade.</p>
@@ -582,7 +634,7 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
         </ReportSection>
       )}
 
-      {r.weight && (
+      {r.weight && parts.has('peso') && (
         <ReportSection title="Peso">
           <ul className="space-y-1.5 text-ink">
             <li>
@@ -600,7 +652,7 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
         </ReportSection>
       )}
 
-      {r.bloodPressure && (
+      {r.bloodPressure && parts.has('pressao') && (
         <ReportSection title="Pressão arterial" note={r.bloodPressure.highCount ? `${r.bloodPressure.highCount} ${r.bloodPressure.highCount === 1 ? 'medição' : 'medições'} em 140/90 ou mais.` : 'Nenhuma medição em 140/90 ou mais.'}>
           <div className="flex flex-wrap gap-2">
             {r.bloodPressure.readings.map((b, i) => (
@@ -612,32 +664,34 @@ function ReportDocument({ report: r, ficha, labor }: { report: ConsultationRepor
         </ReportSection>
       )}
 
-      {labor.length > 0 && (
+      {labor.length > 0 && parts.has('retafinal') && (
         <ReportSection title="Reta final">
           <ul className="space-y-1.5 text-ink">{labor.map(l => <li key={l}>{l}</li>)}</ul>
         </ReportSection>
       )}
 
-      <ReportSection title="Dúvidas do casal">
-        {r.pendingQuestions.length === 0 ? (
-          <p className="text-ink-soft">Nenhuma dúvida anotada para esta especialidade.</p>
-        ) : (
-          <ol className="space-y-3">
-            {r.pendingQuestions.map(q => (
-              <li key={q.id} className="flex gap-3">
-                <span className="w-5 h-5 mt-0.5 rounded border-2 border-ink-mute shrink-0" aria-hidden />
-                <div className="flex-1">
-                  <p className="text-ink font-semibold">{q.questions_to_ask}</p>
-                  <p className="text-xs text-ink-mute">{q.category} · anotada por {q.created_by === 'pai' ? 'pai' : 'mãe'} em {formatBR(q.created_at)}</p>
-                  <div className="hidden print:block border-b border-ink-mute/40 h-6" />
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-      </ReportSection>
+      {parts.has('duvidas') && (
+        <ReportSection title="Dúvidas do casal">
+          {r.pendingQuestions.length === 0 ? (
+            <p className="text-ink-soft">Nenhuma dúvida anotada para esta especialidade.</p>
+          ) : (
+            <ol className="space-y-3">
+              {r.pendingQuestions.map(q => (
+                <li key={q.id} className="flex gap-3">
+                  <span className="w-5 h-5 mt-0.5 rounded border-2 border-ink-mute shrink-0" aria-hidden />
+                  <div className="flex-1">
+                    <p className="text-ink font-semibold">{q.questions_to_ask}</p>
+                    <p className="text-xs text-ink-mute">{q.category} · anotada por {q.created_by === 'pai' ? 'pai' : 'mãe'} em {formatBR(q.created_at)}</p>
+                    <div className="hidden print:block border-b border-ink-mute/40 h-6" />
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </ReportSection>
+      )}
 
-      {r.answeredQuestions.length > 0 && (
+      {r.answeredQuestions.length > 0 && parts.has('duvidas') && (
         <ReportSection title="Respondidas no período">
           <ul className="space-y-2 text-sm">
             {r.answeredQuestions.map(q => (

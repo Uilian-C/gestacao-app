@@ -169,6 +169,8 @@ export default function HomeTab(props: Props) {
     onClick: () => openItem(i),
   });
   const overdue = up.today.filter(i => i.overdue);
+  const todayTasks = up.today.filter(i => !isEvent(i) && !i.overdue && (i.task || i.celebrationTask));
+  const todayNotes = up.today.filter(i => !isEvent(i) && !i.overdue && !i.task && !i.celebrationTask);
   const mission = props.firstDays && props.onHideFirstDays ? firstDaysState(missionsDone, props.firstDays, todayIso) : null;
   const topIdeas = props.nameIdeas ? rankIdeas(props.nameIdeas).slice(0, 3) : [];
   const rows: TodayRow[] = [
@@ -176,7 +178,11 @@ export default function HomeTab(props: Props) {
     ...up.today.filter(isEvent).map(i => itemRow(i, 'Hoje')),
     ...up.week.filter(i => i.day === tomorrowIso && isEvent(i)).map(i => itemRow(i, 'Amanhã')),
     ...(overdue.length > 1 ? [{ id: 'atrasadas', tone: 'alert' as const, icon: <ListChecks />, kicker: 'Tarefas atrasadas', title: `${overdue.length} tarefas passaram do prazo`, sub: overdue.slice(0, 2).map(i => i.title).join(' · '), onClick: () => onOpen('tarefas') }] : overdue.map(i => itemRow(i, 'Hoje'))),
-    ...up.today.filter(i => !isEvent(i) && !i.overdue).map(i => itemRow(i, 'Hoje')),
+    // Várias tarefas no mesmo dia viram uma linha só (o detalhe fica na Agenda).
+    ...(todayTasks.length > 1
+      ? [{ id: 'tarefas-hoje', tone: 'azul' as const, icon: <ListChecks />, kicker: 'Hoje · Tarefas', title: `${todayTasks.length} tarefas para hoje`, sub: todayTasks.slice(0, 3).map(i => i.title).join(' · '), onClick: () => onOpen('tarefas') }]
+      : todayTasks.map(i => itemRow(i, 'Hoje'))),
+    ...todayNotes.map(i => itemRow(i, 'Hoje')),
     ...(lateSteps.length ? [{ id: 'jornada', tone: 'verde' as const, icon: <Route />, kicker: 'Para não esquecer', title: `${lateSteps.length} ${lateSteps.length === 1 ? 'item da jornada' : 'itens da jornada'} para conferir`, sub: lateSteps.slice(0, 2).map(s => s.short).join(', '), onClick: () => onOpen('jornada') }] : []),
     ...(up.missingResults.length ? [{ id: 'resultados', tone: 'verde' as const, icon: <ClipboardCheck />, kicker: 'Para não esquecer', title: up.missingResults.length === 1 ? 'Falta guardar 1 resultado' : `Faltam guardar ${up.missingResults.length} resultados`, sub: appointmentTitle(up.missingResults[0]), onClick: () => props.onResult(up.missingResults[0]) }] : []),
     // Os lembretes vêm antes das missões: é um convite só, e é ele que faz os outros avisos chegarem.

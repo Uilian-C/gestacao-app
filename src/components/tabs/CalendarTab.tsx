@@ -161,7 +161,7 @@ export default function CalendarTab(props: Props) {
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <Segmented label="Visualização" size="sm" value={yearOpen ? 'ano' : view} onChange={setView} options={[{ value: 'mes', label: 'Mês' }, { value: 'semana', label: 'Semana' }, { value: 'ano', label: 'Ano' }]} />
-          <button type="button" onClick={goToday} className="inline-flex items-center gap-1.5 rounded-full bg-surface shadow-soft px-3.5 py-1.5 text-[13px] font-bold text-brand-strong">
+          <button type="button" onClick={goToday} className="inline-flex items-center gap-1.5 rounded-full bg-surface/80 px-3.5 py-1.5 text-[13px] font-bold text-brand-strong">
             <CalendarDays className="w-4 h-4" strokeWidth={1.75} /> Hoje
           </button>
         </div>
@@ -228,14 +228,15 @@ export default function CalendarTab(props: Props) {
 const filterEvents = (events: Map<string, CalendarEvent[]>, filter: CalendarFilter) => (filter === 'tudo' ? events : new Map([...events].map(([k, list]) => [k, list.filter(e => matchesFilter(e, filter))])));
 
 /** Os filtros, numa fileira que corre para o lado: um de cada vez. */
+// Filtro discreto: texto leve com o pontinho da cor; o escolhido ganha só um fundo suave, sem sombras.
 function FilterChips({ value, onChange }: { value: CalendarFilter; onChange: (f: CalendarFilter) => void }) {
   return (
-    <div role="group" aria-label="Filtrar o calendário" className="-mx-4 px-4 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div role="group" aria-label="Filtrar o calendário" className="-mx-4 px-4 flex items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {CALENDAR_FILTERS.map(f => {
         const on = value === f.id;
         return (
-          <button key={f.id} type="button" aria-pressed={on} onClick={() => onChange(f.id)} className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold transition ${on ? 'bg-ink text-surface' : 'bg-surface text-ink-soft shadow-soft'}`}>
-            {f.dot && <span className={`w-2 h-2 rounded-full ${f.dot}`} aria-hidden />}
+          <button key={f.id} type="button" aria-pressed={on} onClick={() => onChange(f.id)} className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] transition ${on ? 'bg-brand-soft text-brand-strong font-extrabold' : 'text-ink-soft font-semibold hover:text-ink'}`}>
+            {f.dot && <span className={`w-1.5 h-1.5 rounded-full ${f.dot} ${on ? '' : 'opacity-70'}`} aria-hidden />}
             {f.label}
           </button>
         );
@@ -470,7 +471,7 @@ function YearScreen({ onClose, onToday, filters, children }: { onClose: () => vo
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h2 className="flex-1 font-display text-[1.25rem] text-ink">A gestação de relance</h2>
-          <button type="button" onClick={onToday} className="inline-flex items-center gap-1.5 rounded-full bg-surface shadow-soft px-3.5 py-1.5 text-[13px] font-bold text-brand-strong">
+          <button type="button" onClick={onToday} className="inline-flex items-center gap-1.5 rounded-full bg-surface/80 px-3.5 py-1.5 text-[13px] font-bold text-brand-strong">
             <CalendarDays className="w-4 h-4" strokeWidth={1.75} /> Hoje
           </button>
         </div>

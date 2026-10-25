@@ -13,9 +13,10 @@ import FichaPanel, { type FichaInput } from '../FichaBar';
 import Sheet from '../Sheet';
 import { Button } from '../ui';
 
-// Cuidados numa página só e curta: a próxima consulta (e o que levar), os
-// registros de saúde e uma lista com o pré-natal, os resultados e o que é bom
-// ter à mão, que abre no lugar ou leva à página de cada um (com "voltar").
+// Cuidados numa página só e curta: a próxima consulta (e o que levar), dois
+// atalhos de um toque (os dados da gestação, para responder na hora durante a
+// consulta, e o relatório dos registros), os registros de saúde e uma lista com
+// o pré-natal, os resultados e os sinais de alerta.
 
 const fmt = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const inDays = (n: number) => (n === 0 ? 'hoje' : n === 1 ? 'amanhã' : `em ${n} dias`);
@@ -46,8 +47,8 @@ interface Props {
 export default function CareHome(props: Props) {
   const [sheet, setSheet] = useState<'dados' | 'alerta' | null>(null);
   // Uma linha aberta por vez: o resto fica recolhido.
-  const [open, setOpen] = useState<'prenatal' | 'mao' | null>(null);
-  const toggle = (id: 'prenatal' | 'mao') => setOpen(o => (o === id ? null : id));
+  const [open, setOpen] = useState<'prenatal' | null>(null);
+  const toggle = (id: 'prenatal') => setOpen(o => (o === id ? null : id));
   const today = parseLocalDate(toISODate(new Date()));
   const next = props.consultations.filter(isConsultation).find(c => daysBetween(today, localDay(c.scheduled_at)) >= 0) ?? null;
 
@@ -69,7 +70,13 @@ export default function CareHome(props: Props) {
       {/* 1. A próxima consulta e o que levar. */}
       <NextVisit next={next} today={today} questions={props.questions} onPrepare={props.onPrepare} onSchedule={props.onSchedule} onOpen={props.onOpenConsultation} />
 
-      {/* 2. Os registros de saúde. */}
+      {/* 2. À mão em um toque: na consulta, quando perguntarem algo, os dados estão aqui. */}
+      <div className="grid grid-cols-2 gap-3">
+        <Shortcut icon={<ClipboardList />} title="Dados da gestação" hint={missing.length ? `Faltam ${missing.length} ${missing.length === 1 ? 'item' : 'itens'}` : 'Tipo sanguíneo, DPP…'} warn={missing.length > 0} onClick={() => setSheet('dados')} />
+        <Shortcut icon={<FileText />} title="Relatório" hint="O que levar" onClick={() => props.onReport('obstetra')} />
+      </div>
+
+      {/* 3. Os registros de saúde. */}
       <section aria-labelledby="registros-titulo">
         <h2 id="registros-titulo" className="sr-only">
           Seus registros
@@ -94,7 +101,7 @@ export default function CareHome(props: Props) {
         </div>
       </section>
 
-      {/* 3. O resto numa lista só: cada linha abre no lugar (ou leva à página dela). */}
+      {/* 4. O resto numa lista só: cada linha abre no lugar (ou leva à página dela). */}
       <ul aria-label="Mais de Cuidados" className="rounded-[24px] bg-surface/80 divide-y divide-line/60">
         <Fold
           id="prenatal"
@@ -141,17 +148,11 @@ export default function CareHome(props: Props) {
           onClick={() => props.onOpen('exames')}
         />
 
-        <Fold id="mao" open={open === 'mao'} onToggle={() => toggle('mao')} icon={<ClipboardList />} title="Para ter à mão" hint={missing.length ? `Dados da gestação: faltam ${missing.length}` : 'Dados, resumo para emergência e sinais de alerta'}>
-          <ul className="space-y-1">
-            <HandyRow icon={<ClipboardList />} title="Dados da gestação" hint={missing.length ? `Faltam ${missing.length} ${missing.length === 1 ? 'item' : 'itens'}` : 'Completos'} onClick={() => setSheet('dados')} />
-            <HandyRow icon={<FileText />} title="Resumo para emergência" hint="Para mostrar no pronto-atendimento" onClick={() => props.onReport('obstetra')} />
-            <HandyRow icon={<Siren />} title="Quando procurar a maternidade" hint="Os sinais que não esperam a consulta" tone="alert" onClick={() => setSheet('alerta')} />
-          </ul>
-        </Fold>
+        <Link icon={<Siren />} tone="alert" title="Quando procurar a maternidade" hint="Os sinais que não esperam a consulta" onClick={() => setSheet('alerta')} />
       </ul>
 
       {sheet === 'dados' && (
-        <Sheet title="Dados da gestação" subtitle="Aparecem no topo de todo resumo de consulta" onClose={() => setSheet(null)}>
+        <Sheet title="Dados da gestação" subtitle="Para responder na hora e no topo de todo relatório" onClose={() => setSheet(null)}>
           <FichaPanel profile={props.profile} metrics={props.metrics} busy={props.busy} onSave={props.onSaveFicha} />
         </Sheet>
       )}
@@ -233,11 +234,11 @@ function Fold({ id, open, onToggle, icon, title, hint, extra, children }: { id: 
 }
 
 /** Uma linha da lista que leva a outra página. */
-function Link({ icon, title, hint, onClick }: { icon: React.ReactNode; title: string; hint: string; onClick: () => void }) {
+function Link({ icon, title, hint, tone, onClick }: { icon: React.ReactNode; title: string; hint: string; tone?: 'alert'; onClick: () => void }) {
   return (
     <li>
       <button type="button" onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
-        <RowIcon>{icon}</RowIcon>
+        <RowIcon tone={tone}>{icon}</RowIcon>
         <span className="flex-1 min-w-0">
           <span className="block font-semibold text-ink">{title}</span>
           <span className="block text-[12.5px] text-ink-soft truncate">{hint}</span>
@@ -252,17 +253,15 @@ function RowIcon({ children, tone }: { children: React.ReactNode; tone?: 'alert'
   return <span className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 [&_svg]:w-[18px] [&_svg]:h-[18px] ${tone === 'alert' ? 'bg-alert-soft text-alert' : 'bg-verde-soft text-verde-strong'}`}>{children}</span>;
 }
 
-function HandyRow({ icon, title, hint, tone, onClick }: { icon: React.ReactNode; title: string; hint: string; tone?: 'alert'; onClick: () => void }) {
+/** Atalho de um toque, logo abaixo da consulta. */
+function Shortcut({ icon, title, hint, warn, onClick }: { icon: React.ReactNode; title: string; hint: string; warn?: boolean; onClick: () => void }) {
   return (
-    <li>
-      <button type="button" onClick={onClick} className="w-full flex items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-surface-2/60">
-        <RowIcon tone={tone}>{icon}</RowIcon>
-        <span className="flex-1 min-w-0">
-          <span className="block text-[14px] font-semibold text-ink">{title}</span>
-          <span className="block text-[12.5px] text-ink-soft truncate">{hint}</span>
-        </span>
-        <ChevronRight className="w-4 h-4 text-ink-mute shrink-0" />
-      </button>
-    </li>
+    <button type="button" onClick={onClick} className="flex items-center gap-2.5 rounded-[20px] bg-surface/80 px-3 py-3 text-left min-w-0 transition active:scale-[0.98]">
+      <RowIcon>{icon}</RowIcon>
+      <span className="flex-1 min-w-0">
+        <span className="block text-[14px] font-semibold text-ink leading-tight">{title}</span>
+        <span className={`block text-[12.5px] truncate ${warn ? 'text-warn font-semibold' : 'text-ink-soft'}`}>{hint}</span>
+      </span>
+    </button>
   );
 }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { computeSymptomStats, findPatterns, normalizeSymptomName, timeOfDayFromHour, toEntries } from './symptoms';
 import { bmi, bmiClass, expectedGain, gainStatus } from './weightGain';
-import { buildReport, defaultReportPeriod, reportToText } from './report';
+import { buildReport, defaultReportPeriod, presetStart, reportToText } from './report';
 import { isAlertSymptom } from '../content/symptomCatalog';
-import { parseLocalDate } from './dates';
+import { parseLocalDate, toISODate } from './dates';
 import type { Consultation, HealthMetric, QuestionItem, SymptomItem, TimeOfDay } from '../types';
 
 const TODAY = parseLocalDate('2026-10-15');
@@ -180,8 +180,23 @@ describe('resumo da consulta', () => {
 
   it('gera texto para compartilhar', () => {
     const text = reportToText(buildReport({ ...base, specialtyId: 'obstetra' }));
-    expect(text).toContain('RESUMO PARA CONSULTA · OBSTETRA (PRÉ-NATAL)');
+    expect(text).toContain('RELATÓRIO DOS REGISTROS · OBSTETRA (PRÉ-NATAL)');
     expect(text).toContain('142/88 mmHg ⚠️');
     expect(text).toContain('Quando fazer o morfológico?');
+  });
+
+  it('o texto leva só as partes escolhidas', () => {
+    const text = reportToText(buildReport({ ...base, specialtyId: 'obstetra' }), ['Tipo sanguíneo: O+'], new Set(['peso'] as const));
+    expect(text).not.toContain('PRESSÃO ARTERIAL');
+    expect(text).not.toContain('DADOS DA GESTANTE');
+    expect(text).not.toContain('Quando fazer o morfológico?');
+  });
+
+  it('atalhos de período: 30 dias, trimestre e toda a gestação', () => {
+    const opts = { consultations: [], specialtyId: 'obstetra' as const, today: new Date(2026, 5, 15), dumDate: '2026-01-01' };
+    expect(toISODate(presetStart('30d', opts))).toBe('2026-05-16');
+    expect(toISODate(presetStart('tudo', opts))).toBe('2026-01-01');
+    // 23 semanas: o 2º trimestre começa na semana 14 (01/01 + 98 dias).
+    expect(toISODate(presetStart('trimestre', opts))).toBe('2026-04-09');
   });
 });

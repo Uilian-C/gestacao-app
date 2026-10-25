@@ -329,12 +329,16 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   const saveBirthPlan = (plan: BirthPlan) => run(() => api.mutate('saveBirthPlan', { plan }), undefined, 'Plano de parto salvo');
 
-  const createTask = (t: NewTask) =>
-    run(() =>
+  // A tarefa nova aparece na hora (com um id provisório); o servidor confirma em seguida.
+  const createTask = (t: NewTask) => {
+    const week = t.week ?? (t.dueDate ? weekOfDay(dumDate!, t.dueDate) : currentWeek);
+    patch(d => ({ ...d, tasks: [...d.tasks, { id: `nova-${Date.now()}`, week_number: week, task_title: t.title, assigned_to: t.assignee, is_completed: false, due_date: t.dueDate || null, priority: t.priority, notes: t.notes || null, created_by: author }] }));
+    return run(() =>
       api.mutate('createTask', { week: t.week ?? (t.dueDate ? weekOfDay(dumDate!, t.dueDate) : currentWeek), title: t.title, assignee: t.assignee, priority: t.priority, dueDate: t.dueDate || null, notes: t.notes || null, ...reminderOf(t) }),
       undefined,
       'Tarefa criada',
     );
+  };
 
   // Marcar e desmarcar aparece na hora; o servidor confirma em seguida.
   const toggleTask = (t: PartnerTask) => {

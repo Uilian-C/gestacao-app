@@ -121,9 +121,7 @@ export async function openCare(page, part) {
   await page.getByRole('heading', { level: 1, name: part === 'Jornada' ? 'Jornada do pré-natal' : part }).waitFor();
 }
 
-/** Cuidados → "Para ter à mão": abre a linha recolhida e toca num dos itens. */
+/** Cuidados → atalhos de um toque logo abaixo da consulta (Dados da gestação, Relatório). */
 export async function openHandy(page, name) {
-  const fold = page.getByRole('button', { name: /^Para ter à mão/ });
-  if ((await fold.getAttribute('aria-expanded')) !== 'true') await fold.click();
-  await page.getByRole('button', { name: new RegExp(`^${name}`) }).click();
+  await page.getByRole('button', { name: new RegExp(`^${name}`) }).first().click();
 }

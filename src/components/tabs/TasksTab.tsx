@@ -12,7 +12,7 @@ import { inputClass } from '../styles';
 import DayPicker from '../forms/DayPicker';
 import { Button, Chip, Field, Segmented } from '../ui';
 
-type AssigneeFilter = 'todos' | Assignee;
+type AssigneeFilter = 'todos' | 'mae' | 'pai';
 
 export interface NewTask {
   title: string;
@@ -72,7 +72,8 @@ export default function TasksTab({ tasks, currentWeek, busy, onCreate, onToggle,
   const [showDone, setShowDone] = useState(false);
   const today = toISODate(new Date());
 
-  const byAssignee = tasks.filter(t => assigneeFilter === 'todos' || t.assigned_to === assigneeFilter);
+  // Cada pessoa vê as dela e as dos dois ("Os dois" sozinho seria repetir o "Todos").
+  const byAssignee = tasks.filter(t => assigneeFilter === 'todos' || t.assigned_to === assigneeFilter || t.assigned_to === 'casal');
   const pending = byAssignee.filter(t => !t.is_completed).sort((a, b) => (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
   const completed = byAssignee.filter(t => t.is_completed);
   const total = byAssignee.length;
@@ -102,7 +103,6 @@ export default function TasksTab({ tasks, currentWeek, busy, onCreate, onToggle,
           { value: 'todos', label: 'Todos' },
           { value: 'mae', label: whoName(people, 'mae') },
           { value: 'pai', label: whoName(people, 'pai') },
-          { value: 'casal', label: 'Os dois' },
         ]}
       />
 
@@ -235,7 +235,7 @@ function TaskRow({ task: t, today, onToggle, onOpen }: { task: PartnerTask; toda
   );
 }
 
-/** Adicionar rápido: o nome, quando e quem, sem sair da lista (fica aberto para a próxima). */
+/** Adicionar rápido: o nome, quando e quem, sem sair da lista (fecha ao adicionar). */
 function QuickAdd({ busy, assignee: initialWho, onCreate }: { busy: boolean; assignee: Assignee; onCreate: (t: NewTask) => Promise<boolean> }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -264,10 +264,15 @@ function QuickAdd({ busy, assignee: initialWho, onCreate }: { busy: boolean; ass
     <form
       aria-label="Nova tarefa"
       className="rounded-[24px] bg-surface/80 p-4 space-y-3"
-      onSubmit={async e => {
+      onSubmit={e => {
         e.preventDefault();
         if (!title.trim()) return;
-        if (await onCreate({ title: title.trim(), assignee: who, priority, dueDate: due, notes: '' })) setTitle('');
+        // Fecha na hora: a tarefa já aparece na lista enquanto o servidor confirma.
+        void onCreate({ title: title.trim(), assignee: who, priority, dueDate: due, notes: '' });
+        setTitle('');
+        setDue('');
+        setPriority('Média');
+        setOpen(false);
       }}
     >
       <input aria-label="Tarefa" autoFocus className="w-full bg-transparent text-[1.05rem] text-ink placeholder:text-ink-mute outline-none" placeholder="Ex.: Comprar o carrinho" value={title} onChange={e => setTitle(e.target.value)} maxLength={300} />
