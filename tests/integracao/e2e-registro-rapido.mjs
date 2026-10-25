@@ -11,8 +11,9 @@ const modes = async () => (await dlg.getByRole('group', { name: 'Tipo de registr
 
 // Início: tudo o que dá para registrar
 await plus.click();
-check((await modes()) === 'Sintoma,Diário,Peso e pressão,Agendar,Tarefa,Resultado', `Início oferece todos os registros (${await modes()})`);
+check((await modes()) === 'Diário,Sintoma,Peso e pressão,Agendar,Tarefa,Resultado', `Início oferece todos os registros, o Diário primeiro (${await modes()})`);
 await p.screenshot({ path: `${OUT}rapido-inicio.png` });
+await dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button', { name: 'Sintoma' }).click();
 await dlg.getByLabel('O que ela está sentindo?').fill('Enjoo');
 await dlg.getByRole('button', { name: '3: Moderado' }).click();
 await dlg.getByRole('button', { name: 'Salvar sintoma' }).click();
@@ -34,7 +35,8 @@ await openCare(p, 'Peso e pressão');
 await p.waitForTimeout(500);
 check((await p.getByText(/64[,.]5/).count()) > 0, 'peso aparece em Peso e pressão');
 
-// Diário: só o fichário, já na pasta aberta
+// Diário: só o fichário, já na pasta aberta (depois que a devolutiva do sintoma some)
+await p.getByRole('status').filter({ hasText: 'Enjoo · registrado' }).waitFor({ state: 'hidden', timeout: 15000 });
 await tab('Diário');
 check((await p.getByText('Enjoo').count()) === 0, 'sintoma não aparece no Diário');
 await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Fichário/ }).click();

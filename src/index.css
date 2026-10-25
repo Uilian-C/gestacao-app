@@ -484,6 +484,23 @@
   to { transform: none; opacity: 1; }
 }
 .tt-pagina-frente { animation: tt-virar-frente 380ms cubic-bezier(.2, .8, .2, 1); }
+/* "Entrou no livro": o cartão sobe e a folha recebe a lembrança com uma batida. */
+.tt-carimbo { animation: tt-carimbo-subir 420ms cubic-bezier(.2, .8, .2, 1) both; }
+.tt-carimbo-folha { animation: tt-carimbo-folha 900ms 180ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes tt-carimbo-subir { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes tt-carimbo-folha {
+  0% { transform: translateY(-140%) rotate(-8deg); opacity: 0; }
+  55% { transform: translateY(0) rotate(0); opacity: 1; }
+  70% { transform: scale(1.1); }
+  85% { transform: scale(.97); }
+  100% { transform: scale(1); }
+}
+/* O fio da semana: a bolinha de hoje acende com uma batida. */
+.tt-bolinha-hoje { animation: tt-bolinha 900ms ease-out both; }
+@keyframes tt-bolinha { 0% { transform: scale(.2); } 50% { transform: scale(2.2); } 70% { transform: scale(.9); } 100% { transform: scale(1); } }
+/* O menu com carinho novo: duas batidas a cada 4 segundos, como o coração do Tumtum. */
+.tt-menu-batida { animation: tt-menu-batida 4s ease-in-out infinite; }
+@keyframes tt-menu-batida { 0%, 20%, 100% { transform: scale(1); } 5% { transform: scale(1.18); } 10% { transform: scale(1); } 15% { transform: scale(1.12); } }
 /* O coração do Parto: surge do horizonte, dá uma batida e fica (só na hora de selecionar). */
 .tt-sol-coracao { transform-box: fill-box; transform-origin: 50% 100%; animation: tt-sol-surgir 900ms cubic-bezier(.2, .8, .2, 1) both; }
 @keyframes tt-sol-surgir {
@@ -495,7 +512,7 @@
 }
 .tt-pagina-volta { animation: tt-virar-volta 380ms cubic-bezier(.2, .8, .2, 1); }
 @media (prefers-reduced-motion: reduce) {
-  .tt-pagina-frente, .tt-pagina-volta, .tt-sol-coracao { animation: none; }
+  .tt-pagina-frente, .tt-pagina-volta, .tt-sol-coracao, .tt-carimbo, .tt-carimbo-folha, .tt-bolinha-hoje, .tt-menu-batida { animation: none; }
 }
 
 /* A festa do nome escolhido: coraçõezinhos subindo. */

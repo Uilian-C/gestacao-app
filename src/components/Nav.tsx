@@ -8,8 +8,10 @@ const TABS: Array<{ id: Tab }> = [{ id: 'inicio' }, { id: 'diario' }, { id: 'age
 /**
  * Abas em pílula no computador; no celular, uma barra flutuante ao alcance do polegar.
  * A aba ativa ganha a cor dela (ver data-aba no index.css), ícone cheio e nome em negrito.
+ * Quando há carinho novo (o outro postou ou comentou), o ícone dá a batida do
+ * Tumtum de vez em quando, com um pontinho rosa, no lugar de um número.
  */
-export default function Nav({ active, onChange, badges }: { active: Tab; onChange: (tab: Tab) => void; badges: Partial<Record<Tab, number>> }) {
+export default function Nav({ active, onChange, badges, pulse = {} }: { active: Tab; onChange: (tab: Tab) => void; badges: Partial<Record<Tab, number>>; pulse?: Partial<Record<Tab, boolean>> }) {
   return (
     <>
       <nav className="no-print hidden md:block sticky top-0 z-30 bg-canvas/85 backdrop-blur-md" aria-label="Seções">
@@ -23,8 +25,11 @@ export default function Nav({ active, onChange, badges }: { active: Tab; onChang
                 aria-current={on ? 'page' : undefined}
                 className={`relative flex items-center gap-2 px-4 py-2 rounded-full text-sm transition [&_svg]:w-[18px] [&_svg]:h-[18px] ${on ? 'bg-brand-soft text-brand-strong font-bold shadow-soft' : 'font-medium text-ink-mute hover:text-ink hover:bg-surface'}`}
               >
-                <NavIcon tab={t.id} on={on} />
+                <span className={pulse[t.id] && !on ? 'tt-menu-batida' : undefined}>
+                  <NavIcon tab={t.id} on={on} />
+                </span>
                 {TAB_LABEL[t.id]}
+                {pulse[t.id] && !on && <span className="w-2 h-2 rounded-full bg-rosa" aria-label="novidades" />}
                 {!!badges[t.id] && <span className="min-w-5 h-5 px-1.5 rounded-full bg-warm text-on-accent text-[11px] font-semibold flex items-center justify-center tabular">{badges[t.id]}</span>}
               </button>
             );
@@ -47,10 +52,11 @@ export default function Nav({ active, onChange, badges }: { active: Tab; onChang
                 aria-current={on ? 'page' : undefined}
                 className={`relative flex flex-col items-center gap-1 py-1.5 text-[11px] transition [&_svg]:w-[23px] [&_svg]:h-[23px] ${on ? 'text-brand-strong font-extrabold' : 'text-ink-mute font-semibold'}`}
               >
-                <span className={`flex items-center justify-center w-12 h-8 rounded-full transition ${on ? 'bg-brand-soft' : ''}`}>
+                <span className={`flex items-center justify-center w-12 h-8 rounded-full transition ${on ? 'bg-brand-soft' : ''} ${pulse[t.id] && !on ? 'tt-menu-batida text-rosa' : ''}`}>
                   <NavIcon tab={t.id} on={on} />
                 </span>
                 {TAB_LABEL[t.id]}
+                {pulse[t.id] && !on && <span className="absolute top-1 right-[calc(50%-18px)] w-2 h-2 rounded-full bg-rosa ring-2 ring-surface" aria-label="novidades" />}
                 {!!badges[t.id] && <span className="absolute top-0.5 right-[calc(50%-22px)] min-w-4 h-4 px-1 rounded-full bg-warm text-on-accent text-[10px] font-semibold ring-2 ring-surface flex items-center justify-center tabular">{badges[t.id]}</span>}
               </button>
             );

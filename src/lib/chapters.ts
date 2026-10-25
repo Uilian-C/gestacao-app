@@ -331,3 +331,9 @@ export function bookMonths(book: Chapter[]): MonthChapter[] {
   }
   return months.reverse();
 }
+
+/** "Capítulo 5 · Os primeiros chutinhos": o capítulo em que uma semana do livro está. */
+export function chapterOfWeek(book: Chapter[], week: number): string | null {
+  const m = bookMonths(book).find(x => x.pages.some(p => p.week === week));
+  return m ? `Capítulo ${m.month} · ${m.title}` : null;
+}
