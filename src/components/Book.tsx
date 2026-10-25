@@ -120,24 +120,20 @@ export function ChapterCard({ chapter: c, tone, onOpenEntry, onWrite, showNudge 
 }
 
 /** A página que acabou de fechar, no topo do Mural, com o convite para a próxima. */
-export function FreshChapter({ chapter, tone, onOpenEntry, onWrite, onOpenBook }: { chapter: Chapter; tone: BabyTone; onOpenEntry: (id: string) => void; onWrite?: () => void; onOpenBook: () => void }) {
+/** A página da semana que acabou de fechar, no topo do Livro (o Início avisa e leva até ela). */
+function FreshChapter({ chapter, tone, onOpenEntry, onWrite }: { chapter: Chapter; tone: BabyTone; onOpenEntry: (id: string) => void; onWrite?: () => void }) {
   return (
     <section aria-label="Página da semana" className="space-y-2">
       <p className="flex items-center gap-1.5 px-1 text-[12px] font-extrabold uppercase tracking-wide text-rosa">
         <Sparkles className="w-3.5 h-3.5" /> Uma página nova no livro de vocês
       </p>
       <ChapterCard chapter={chapter} tone={tone} onOpenEntry={onOpenEntry} onWrite={onWrite} showNudge />
-      <div className="flex items-center gap-2 px-1">
-        {onWrite && (
-          <button type="button" onClick={onWrite} className="flex-1 min-w-0 inline-flex items-center gap-2 rounded-full bg-rosa-soft text-rosa-strong px-4 py-2.5 text-[13.5px] font-bold text-left">
-            <PenLine className="w-4 h-4 shrink-0" />
-            <span className="truncate">Começar a semana {chapter.week + 1}</span>
-          </button>
-        )}
-        <button type="button" onClick={onOpenBook} className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-surface shadow-soft px-4 py-2.5 text-[13.5px] font-bold text-ink-soft">
-          <BookOpen className="w-4 h-4" /> Ver o livro
+      {onWrite && (
+        <button type="button" onClick={onWrite} className="w-full inline-flex items-center gap-2 rounded-full bg-rosa-soft text-rosa-strong px-4 py-2.5 text-[13.5px] font-bold text-left">
+          <PenLine className="w-4 h-4 shrink-0" />
+          <span className="truncate">Começar a semana {chapter.week + 1}</span>
         </button>
-      </div>
+      )}
     </section>
   );
 }
@@ -260,7 +256,7 @@ function store(key: string, value: unknown) {
 /** As páginas prontas que ainda não foram impressas (neste aparelho). */
 const newPages = (book: Chapter[], printed: Set<string>) => book.filter(c => !c.quiet && !c.open && !printed.has(signature(c)));
 
-export function BookView({ book, tone, parents, onOpenEntry, onWrite, onNames }: { book: Chapter[]; tone: BabyTone; parents: string; onOpenEntry: (id: string) => void; onWrite?: () => void; onNames?: () => void }) {
+export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, onWrite, onNames }: { book: Chapter[]; tone: BabyTone; parents: string; fresh?: Chapter | null; onOpenEntry: (id: string) => void; onWrite?: () => void; onNames?: () => void }) {
   const name = useContext(BabyNameContext);
   const months = useMemo(() => bookMonths(book), [book]);
   // Para o "Primeiros 7 dias": o livro já foi aberto neste aparelho.
@@ -315,6 +311,8 @@ export function BookView({ book, tone, parents, onOpenEntry, onWrite, onNames }:
           </button>
         )}
       </header>
+
+      {freshPage && <FreshChapter chapter={freshPage} tone={tone} onOpenEntry={onOpenEntry} onWrite={onWrite} />}
 
       {nudge && onWrite && (
         <button type="button" onClick={onWrite} className="w-full flex items-start gap-2 rounded-2xl bg-surface/80 px-4 py-3 text-left text-[13.5px] text-ink">

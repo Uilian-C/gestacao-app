@@ -53,17 +53,13 @@ function Care({ on }: IconProps) {
   );
 }
 
-/** O rostinho do bebê da Jornada: olhinhos fechados, bochechas, sorriso e o cachinho na testa. */
+/** "Dar à luz": o sol nascendo no horizonte. Aceso, o sol fica cheio, com um coraçãozinho vazado. */
 function Birth({ on }: IconProps) {
-  // Aceso, o rosto ganha um tom suave da cor da aba (cheio, ele virava uma bolinha escura e os traços sumiam).
   return (
     <svg {...base} stroke="currentColor">
-      <circle cx="12" cy="12.6" r="8.4" fill={on ? 'currentColor' : 'none'} fillOpacity={on ? 0.22 : undefined} />
-      <path d="M12.4 4.3c-1.5.3-1.9 2.2-.6 2.6.9.3 1.5-.5 1.1-1.1" strokeWidth={1.4} />
-      <path d="M8.2 12.2q1.2 1.1 2.4 0M13.4 12.2q1.2 1.1 2.4 0" strokeWidth={on ? 1.7 : 1.5} />
-      <circle cx="8.3" cy="14.8" r="1" fill="currentColor" stroke="none" opacity={on ? 0.6 : 0.45} />
-      <circle cx="15.7" cy="14.8" r="1" fill="currentColor" stroke="none" opacity={on ? 0.6 : 0.45} />
-      <path d="M10.8 15.6q1.2 1 2.4 0" strokeWidth={on ? 1.6 : 1.4} />
+      <path d="M5.6 17.5a6.4 6.4 0 0 1 12.8 0" fill={on ? 'currentColor' : 'none'} />
+      <path d="M12 8.9V7M16.9 10.4l1.1-1.4M7.1 10.4 6 9M19.9 14.3l1.6-.6M4.1 14.3l-1.6-.6M2.5 17.5h19" />
+      {on && <path d="M12 16.4c-1.3-.85-2-1.5-2-2.35a1 1 0 0 1 2-.45 1 1 0 0 1 2 .45c0 .85-.7 1.5-2 2.35z" fill={CUT} stroke={CUT} strokeWidth={1} />}
     </svg>
   );
 }

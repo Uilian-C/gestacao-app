@@ -137,6 +137,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
   const [diaryView, setDiaryView] = useState<DiaryView>('mural');
+  const [laborReset, setLaborReset] = useState(0);
   // O dia que o atalho do Início pediu para abrir no calendário.
   const [calendarFocus, setCalendarFocus] = useState<string | null>(null);
   const [agendaView, setAgendaView] = useState<AgendaView>(() => {
@@ -801,6 +802,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             setCareView('inicio');
             setReport(null);
           }
+          // O Parto também volta para a página das fases.
+          if (tab === 'parto') setLaborReset(n => n + 1);
           navigate(tab);
         }}
         badges={{
@@ -1091,6 +1094,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
         {activeTab === 'parto' && (
           <LaborTab
+            key={laborReset}
             author={author}
             currentWeek={currentWeek}
             motherName={data.profile.motherName}

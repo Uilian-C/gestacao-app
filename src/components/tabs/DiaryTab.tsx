@@ -104,15 +104,13 @@ export default function DiaryTab(props: Props) {
           onComment={props.onComment}
           onOpen={id => props.onOpen({ kind: 'entry', id })}
           onWrite={props.onWrite}
-          fresh={freshChapter(props.book, props.dumDate, new Date())}
-          babyTone={props.babyTone}
-          onOpenBook={() => props.onView('livro')}
         />
       ) : props.view === 'livro' ? (
         <BookView
           book={props.book}
           tone={props.babyTone}
           parents={coupleNames(props.members.map(m => m.name))}
+          fresh={freshChapter(props.book, props.dumDate, new Date())}
           onOpenEntry={id => props.onOpen({ kind: 'entry', id })}
           onWrite={props.journalAvailable ? () => props.onWrite() : undefined}
           onNames={props.onOpenNames}
