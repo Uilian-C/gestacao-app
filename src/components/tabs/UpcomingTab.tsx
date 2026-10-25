@@ -1,4 +1,5 @@
-import { Bell, CheckSquare, ChevronRight, FileCheck2 } from 'lucide-react';
+import { useState } from 'react';
+import { Bell, CheckSquare, ChevronDown, ChevronRight, FileCheck2 } from 'lucide-react';
 import type { DetailTarget } from '../../lib/details';
 import { appointmentTitle, kindInfo, kindOf, resultOf } from '../../lib/appointments';
 import { formatBR, localDay, toISODate } from '../../lib/dates';
@@ -68,10 +69,10 @@ export default function UpcomingTab(props: Props) {
 
       {empty && <p className="px-1 text-[14px] text-ink-soft">Nada marcado por enquanto. Toquem em <strong>Agendar</strong> para pôr consultas, exames, ultrassons e vacinas aqui, com lembrete na véspera.</p>}
 
-      {up.today.length > 0 && <Group title="Hoje">{up.today.map(i => <Row key={i.id} item={i} today onOpen={() => open(i)} />)}</Group>}
-      {up.thisWeek.length > 0 && <Group title="Esta semana">{up.thisWeek.map(i => <Row key={i.id} item={i} onOpen={() => open(i)} />)}</Group>}
-      {up.nextWeek.length > 0 && <Group title="Semana que vem">{up.nextWeek.map(i => <Row key={i.id} item={i} onOpen={() => open(i)} />)}</Group>}
-      {up.afterNextWeek.length > 0 && <Group title="Mais para frente">{up.afterNextWeek.map(i => <Row key={i.id} item={i} onOpen={() => open(i)} />)}</Group>}
+      {up.today.length > 0 && <Group title="Hoje"><Rows items={up.today} today onOpen={open} /></Group>}
+      {up.thisWeek.length > 0 && <Group title="Esta semana"><Rows items={up.thisWeek} onOpen={open} /></Group>}
+      {up.nextWeek.length > 0 && <Group title="Semana que vem"><Rows items={up.nextWeek} onOpen={open} /></Group>}
+      {up.afterNextWeek.length > 0 && <Group title="Mais para frente"><Rows items={up.afterNextWeek} onOpen={open} /></Group>}
 
       {up.past.length > 0 && (
         <details className="rounded-[24px] bg-surface/60 px-4 py-3">
@@ -106,6 +107,71 @@ function Group({ title, tone = 'text-ink-mute', children }: { title: string; ton
       <h2 className={`px-1 text-[12px] font-extrabold uppercase tracking-wider font-sans ${tone}`}>{title}</h2>
       <div className="rounded-[24px] bg-surface/80 divide-y divide-line/60 overflow-hidden">{children}</div>
     </section>
+  );
+}
+
+/**
+ * As linhas de um grupo. Duas ou mais tarefas no mesmo dia viram uma linha só
+ * ("3 tarefas"), que abre no lugar: o dia não vira uma tripa de tarefas.
+ */
+function Rows({ items, today = false, onOpen }: { items: UpcomingItem[]; today?: boolean; onOpen: (i: UpcomingItem) => void }) {
+  const isTask = (i: UpcomingItem) => !!(i.task || i.celebrationTask);
+  const out: React.ReactNode[] = [];
+  const seen = new Set<string>();
+  for (const i of items) {
+    if (!isTask(i)) {
+      out.push(<Row key={i.id} item={i} today={today} onOpen={() => onOpen(i)} />);
+      continue;
+    }
+    if (seen.has(i.day)) continue;
+    seen.add(i.day);
+    const same = items.filter(x => isTask(x) && x.day === i.day);
+    out.push(same.length > 1 ? <TaskBundle key={`tarefas-${i.day}`} items={same} today={today} onOpen={onOpen} /> : <Row key={i.id} item={i} today={today} onOpen={() => onOpen(i)} />);
+  }
+  return <>{out}</>;
+}
+
+function TaskBundle({ items, today, onOpen }: { items: UpcomingItem[]; today: boolean; onOpen: (i: UpcomingItem) => void }) {
+  const [open, setOpen] = useState(false);
+  const chip = dayChip(items[0].day);
+  const late = items.filter(i => i.overdue).length;
+  return (
+    <div>
+      <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open} className="w-full text-left px-4 py-3 flex items-center gap-3">
+        <span className="w-14 shrink-0 text-center">
+          {today ? (
+            <CheckSquare className={`w-6 h-6 mx-auto ${late ? 'text-alert' : 'text-azul-strong'}`} aria-hidden />
+          ) : (
+            <span className="block leading-tight">
+              <span className="block text-[11px] font-extrabold uppercase text-ink-mute">{chip.weekday}</span>
+              <span className="block font-display text-[1.25rem] font-semibold text-ink tabular">{chip.day}</span>
+              <span className="block text-[10px] font-bold uppercase text-ink-mute">{chip.month}</span>
+            </span>
+          )}
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className={`block text-[11px] font-extrabold uppercase tracking-wide ${late ? 'text-alert' : 'text-azul-strong'}`}>{late ? `Tarefas · ${late} ${late === 1 ? 'atrasada' : 'atrasadas'}` : 'Tarefas'}</span>
+          <span className="block font-bold text-ink">{items.length} tarefas</span>
+          <span className="block text-xs text-ink-mute truncate">{items.map(i => i.title).join(' · ')}</span>
+        </span>
+        <ChevronDown className={`w-4 h-4 text-ink-mute shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <ul className="pb-2">
+          {items.map(i => (
+            <li key={i.id}>
+              <button type="button" onClick={() => onOpen(i)} aria-label={`${i.label}: ${i.title}: ver detalhes`} className="w-full text-left pl-[5.5rem] pr-4 py-2 flex items-center gap-2 hover:bg-surface-2/40">
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[14px] font-semibold text-ink truncate">{i.title}</span>
+                  {i.detail && <span className="block text-xs text-ink-mute truncate">{i.detail}</span>}
+                </span>
+                <ChevronRight className="w-4 h-4 text-ink-mute shrink-0" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

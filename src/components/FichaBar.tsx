@@ -27,7 +27,7 @@ interface Props {
   onSave: (input: FichaInput) => Promise<boolean>;
 }
 
-/** Dados da gestação (Cuidados → Para ter à mão): a ficha inteira e o botão para editar. */
+/** Dados da gestação (Cuidados, atalho logo abaixo da consulta): a ficha inteira e o botão para editar. */
 export default function FichaPanel({ profile, metrics, busy, onSave }: Props) {
   const [editing, setEditing] = useState(false);
   const items = buildFicha(profile, metrics);

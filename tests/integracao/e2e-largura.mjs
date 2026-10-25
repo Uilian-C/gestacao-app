@@ -16,7 +16,7 @@ for (const width of [300, 360, 412]) {
     }),
   );
   await p.reload();
-  // Os dados da gestação moram em Cuidados → Para ter à mão, numa folha.
+  // Os dados da gestação moram em Cuidados, num atalho logo abaixo da consulta (abre numa folha).
   await openCare(p);
   await openHandy(p, 'Dados da gestação');
   await p.getByRole('dialog', { name: 'Dados da gestação' }).getByText('Anabela Cristina de Souza').waitFor();

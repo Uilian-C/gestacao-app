@@ -1,6 +1,6 @@
 // Cuidados numa página só: a próxima consulta (preparar com as dúvidas e o
-// resumo), os registros, o pré-natal, os resultados e o que ter à mão. Cada
-// parte abre numa página com "voltar"; o menu Cuidados sempre volta ao topo.
+// resumo), atalhos para os dados da gestação e o relatório (com período e
+// partes à escolha), os registros, o pré-natal e os resultados.
 import { check, finish, launch, OUT, openCare, phone, quickAccount, openHandy } from './lib.mjs';
 
 const b = await launch();
@@ -64,17 +64,30 @@ await folds.getByRole('button', { name: /^Pré-natal/ }).click();
 check(await p.getByRole('button', { name: 'Ver a jornada completa ›' }).isVisible(), 'o pré-natal abre no lugar, com o que fazer agora');
 await p.screenshot({ path: `${OUT}cuidados-lista.png` });
 
-// ---- Para ter à mão (recolhido: abre no lugar) ----
-check((await p.getByRole('button', { name: /^Resumo para emergência/ }).count()) === 0, '"Para ter à mão" começa recolhido');
+// ---- À mão em um toque: dados da gestação e relatório ----
+await p.getByRole('button', { name: /^Cuidados/ }).first().click();
+check(await p.getByRole('button', { name: /^Dados da gestação/ }).isVisible() && (await p.getByRole('button', { name: /^Relatório/ }).isVisible()), 'dados da gestação e relatório a um toque, logo abaixo da consulta');
 await openHandy(p, 'Dados da gestação');
 check(await dlg.getByRole('button', { name: /Editar dados/ }).isVisible(), 'os dados da gestação abrem numa folha, com editar');
 await p.keyboard.press('Escape');
 await p.getByRole('button', { name: /^Quando procurar a maternidade/ }).click();
 check(await dlg.getByText('Sangramento vaginal').isVisible(), 'os sinais de alerta a um toque');
 await p.keyboard.press('Escape');
-await p.getByRole('button', { name: /^Resumo para emergência/ }).click();
+await openHandy(p, 'Relatório');
 await p.locator('.print-area').waitFor();
-check((await p.locator('section[aria-labelledby="duvidas-titulo"]').count()) === 0 && (await p.getByText('Resumo para levar').isVisible()), 'o resumo para emergência vai direto ao resumo');
+check((await p.locator('section[aria-labelledby="duvidas-titulo"]').count()) === 0 && (await p.getByText('Relatório dos registros').first().isVisible()), 'o relatório vai direto ao que levar, sem a parte de dúvidas da consulta');
+const periodo = p.getByRole('group', { name: 'Período do relatório' });
+const partes = p.getByRole('group', { name: 'O que entra no relatório' });
+check((await periodo.getByRole('button', { name: 'Toda a gestação' }).isVisible()) && (await partes.getByRole('button', { name: /Sintomas/ }).getAttribute('aria-pressed')) === 'true', 'escolhe o período e as partes (todas marcadas de início)');
+await periodo.getByRole('button', { name: 'Toda a gestação' }).click();
+check(await p.getByText(/semanas 0 a \d+/).first().isVisible(), 'toda a gestação: desde a semana 0');
+await partes.getByRole('button', { name: /Sintomas/ }).click();
+await partes.getByRole('button', { name: /Dados da gestação/ }).click();
+const doc = p.locator('.print-area');
+check((await doc.getByRole('heading', { name: 'Sintomas no período' }).count()) === 0 && (await doc.getByRole('heading', { name: 'Dados da gestante' }).count()) === 0 && (await doc.getByRole('heading', { name: 'Peso' }).count()) === 1, 'tirar sintomas e dados: somem do relatório, o resto fica');
+await periodo.getByRole('button', { name: 'Outra data' }).click();
+check(await p.locator('#inicio-periodo').isVisible(), 'outra data: aparece o campo para escolher o início');
+await p.screenshot({ path: `${OUT}cuidados-relatorio.png` });
 
 await b.close();
 finish();

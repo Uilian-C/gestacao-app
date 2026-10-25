@@ -65,6 +65,31 @@ export function defaultReportPeriod(consultations: Consultation[], specialtyId: 
   return { from, to: today };
 }
 
+/** As partes do relatório que o casal escolhe levar (nem toda consulta precisa de tudo). */
+export type ReportPart = 'dados' | 'atencao' | 'sintomas' | 'peso' | 'pressao' | 'duvidas' | 'retafinal';
+export const REPORT_PARTS: Array<{ id: ReportPart; label: string }> = [
+  { id: 'dados', label: 'Dados da gestação' },
+  { id: 'atencao', label: 'Pontos de atenção' },
+  { id: 'sintomas', label: 'Sintomas' },
+  { id: 'peso', label: 'Peso' },
+  { id: 'pressao', label: 'Pressão' },
+  { id: 'duvidas', label: 'Dúvidas' },
+  { id: 'retafinal', label: 'Reta final' },
+];
+
+/** Atalhos de período: desde a última consulta, 30 dias, o trimestre atual, a gestação toda (ou uma data escolhida). */
+export type PeriodPreset = 'ultima' | '30d' | 'trimestre' | 'tudo' | 'outra';
+export function presetStart(preset: Exclude<PeriodPreset, 'outra'>, opts: { consultations: Consultation[]; specialtyId: SpecialtyId; today: Date; dumDate: string }): Date {
+  const { today } = opts;
+  const dum = parseLocalDate(opts.dumDate);
+  const plus = (d: Date, days: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + days);
+  if (preset === 'ultima') return defaultReportPeriod(opts.consultations, opts.specialtyId, today).from;
+  if (preset === '30d') return plus(today, -30);
+  if (preset === 'tudo') return dum;
+  const week = weekAt(opts.dumDate, today);
+  return plus(dum, (week >= 28 ? 28 : week >= 14 ? 14 : 0) * 7);
+}
+
 export function buildReport(input: ReportInput): ConsultationReport {
   const specialty = specialtyOf(input.specialtyId);
   const { period } = input;
@@ -143,26 +168,29 @@ const one = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 
 export const TREND_LABEL = { subindo: 'piorando', descendo: 'melhorando', estavel: 'estável', novo: 'novo no período' } as const;
 
 /** Versão em texto para mandar por WhatsApp ou e-mail ao profissional. */
-export function reportToText(r: ConsultationReport, ficha: string[] = []): string {
+export function reportToText(r: ConsultationReport, ficha: string[] = [], parts?: ReadonlySet<ReportPart>): string {
+  const has = (p: ReportPart) => !parts || parts.has(p);
   const lines: string[] = [];
-  lines.push(`RESUMO PARA CONSULTA · ${r.specialty.label.toUpperCase()}`);
+  lines.push(`${r.consultation ? 'RESUMO PARA CONSULTA' : 'RELATÓRIO DOS REGISTROS'} · ${r.specialty.label.toUpperCase()}`);
   if (r.consultation) {
     const when = parseTimestamp(r.consultation.scheduled_at);
     lines.push(`Consulta: ${when.toLocaleDateString('pt-BR')} às ${when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}${r.consultation.professional_name ? ` · ${r.consultation.professional_name}` : ''}`);
   }
-  if (ficha.length) {
+  if (ficha.length && has('dados')) {
     lines.push('', 'DADOS DA GESTANTE', ...ficha.map(l => `- ${l}`), '');
   } else if (r.age) {
     lines.push(`Idade gestacional hoje: ${r.age.weeks} semanas e ${r.age.days} dias · DPP ${r.age.dpp.toLocaleDateString('pt-BR')}`);
   }
   lines.push(`Período analisado: ${formatBR(toISODate(r.period.from))} a ${formatBR(toISODate(r.period.to))} (semanas ${r.weekFrom} a ${r.weekTo})`);
 
-  if (r.insights.length) {
+  if (r.insights.length && has('atencao')) {
     lines.push('', 'PONTOS DE ATENÇÃO');
     for (const i of r.insights) lines.push(`- ${i.title}. ${i.detail}`);
   }
 
-  if (r.symptoms.length) {
+  if (!has('sintomas')) {
+    // Os sintomas ficaram de fora desta vez.
+  } else if (r.symptoms.length) {
     lines.push('', 'SINTOMAS NO PERÍODO');
     for (const s of r.symptoms) {
       const parts = [`${s.count}x`, `intensidade média ${one(s.avgIntensity)}/5 (máx. ${s.maxIntensity})`];
@@ -176,7 +204,7 @@ export function reportToText(r: ConsultationReport, ficha: string[] = []): strin
     lines.push('', 'Nenhum sintoma registrado no período para esta especialidade.');
   }
 
-  if (r.weight) {
+  if (r.weight && has('peso')) {
     lines.push('', 'PESO');
     lines.push(`- ${kg(r.weight.first.kg)} (sem. ${r.weight.first.week}) → ${kg(r.weight.last.kg)} (sem. ${r.weight.last.week}): ${signedKg(r.weight.periodDelta)} no período`);
     if (r.weight.totalGain !== null) {
@@ -187,12 +215,12 @@ export function reportToText(r: ConsultationReport, ficha: string[] = []): strin
     }
   }
 
-  if (r.bloodPressure) {
+  if (r.bloodPressure && has('pressao')) {
     lines.push('', 'PRESSÃO ARTERIAL');
     for (const b of r.bloodPressure.readings) lines.push(`- ${formatBR(b.date)} (sem. ${b.week}): ${b.systolic}/${b.diastolic} mmHg${b.high ? ' ⚠️' : ''}`);
   }
 
-  if (r.pendingQuestions.length) {
+  if (r.pendingQuestions.length && has('duvidas')) {
     lines.push('', 'DÚVIDAS DO CASAL');
     for (const q of r.pendingQuestions) lines.push(`- ${q.questions_to_ask}`);
   }
