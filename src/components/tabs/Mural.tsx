@@ -1,9 +1,9 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { ChevronRight, Heart, Lock, MessageCircle, PenLine, Send, Users } from 'lucide-react';
+import { ChevronRight, Heart, Lock, MessageCircle, Send, Users } from 'lucide-react';
 import { photoUrl, type FamilyMember, type Relative, type SpaceRole } from '../../api';
 import type { Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { daysBetween, hhmmOf, parseLocalDate, parseTimestamp, stampText, toISODate } from '../../lib/dates';
-import { FOLDER, TONE, shortDate, weekOn } from '../../lib/folders';
+import { FOLDER, FOLDERS, TONE, shortDate, weekOn } from '../../lib/folders';
 import { mentionsMe } from '../../lib/mentions';
 import { FreshEntryContext, PeopleContext, RelativesContext, authorOf, firstName, speakerOf } from '../../lib/people';
 import { useMention } from '../../lib/useMention';
@@ -15,8 +15,9 @@ import type { Chapter } from '../../lib/chapters';
 import type { BabyTone } from '../../content/babyTones';
 
 // O Mural do diário: tudo o que vocês guardam, do mais novo ao mais antigo, como
-// uma rede social só de vocês dois. Foto grande, quem postou, abraço e conversa
-// ali mesmo. As pastas continuam no Fichário, para guardar e procurar.
+// uma rede social só de vocês dois, separado pelas semanas da gestação. Foto
+// grande, quem postou e o abraço; a conversa abre ali mesmo, quando tocada.
+// As pastas continuam no Fichário, para guardar e procurar.
 // Os familiares (migração 023) veem aqui só os posts para a família, e só
 // abraçam e comentam.
 
@@ -65,21 +66,27 @@ export default function Mural(props: Props) {
   return (
     // Uma coluna de leitura: no tablet e no computador o post não estica até a borda.
     <div className="space-y-4 max-w-[560px] mx-auto">
-      {onWrite && <button
-        type="button"
-        disabled={!props.journalAvailable}
-        onClick={() => onWrite()}
-        className="w-full flex items-center gap-3 rounded-[26px] bg-surface shadow-soft p-3 pr-4 text-left transition hover:brightness-[0.99] disabled:opacity-60"
-      >
-        <Avatar member={me} role={props.role} className="w-11 h-11 text-base" />
-        <span className="flex-1 min-w-0 rounded-full bg-surface-2 px-4 py-2.5 text-[15px] text-ink-mute truncate">O que vocês querem guardar hoje?</span>
-        <PenLine className="w-5 h-5 text-brand shrink-0" aria-hidden />
-      </button>}
+      {onWrite && (
+        <div className="rounded-[26px] bg-surface/80 p-3 space-y-2.5">
+          <button type="button" disabled={!props.journalAvailable} onClick={() => onWrite()} className="w-full flex items-center gap-3 text-left disabled:opacity-60">
+            <Avatar member={me} role={props.role} className="w-10 h-10 text-base" />
+            <span className="flex-1 min-w-0 rounded-full bg-surface-2 px-4 py-2.5 text-[15px] text-ink-mute truncate">O que vocês querem guardar hoje?</span>
+          </button>
+          {/* Um toque e o formulário já abre na pasta certa. */}
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar pl-[3.25rem]" role="group" aria-label="Guardar direto numa pasta">
+            {FOLDERS.map(f => (
+              <button key={f.id} type="button" disabled={!props.journalAvailable} onClick={() => onWrite(f.id)} className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12.5px] font-bold ${TONE[f.tone].soft} ${TONE[f.tone].text} disabled:opacity-60`}>
+                <f.Icon className="w-3.5 h-3.5" /> {f.singular}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {props.fresh && props.onOpenBook && <FreshChapter chapter={props.fresh} tone={props.babyTone ?? 'tumtum'} onOpenEntry={props.onOpen} onWrite={onWrite && (() => onWrite())} onOpenBook={props.onOpenBook} />}
 
       {props.entries.length === 0 ? (
-        <div className="rounded-[26px] bg-surface shadow-soft p-6 text-center space-y-1">
+        <div className="rounded-[26px] bg-surface/80 p-6 text-center space-y-1">
           {onWrite ? (
             <>
               <p className="font-display text-[1.25rem] text-ink">O mural de vocês começa aqui</p>
@@ -94,20 +101,36 @@ export default function Mural(props: Props) {
         </div>
       ) : (
         <ol className="space-y-4" aria-label="Mural">
-          {list.map(e => (
-            <li key={e.id}>
-              <Post {...props} entry={e} me={me} />
-            </li>
-          ))}
+          {list.map((e, i) => {
+            const week = weekOn(props.dumDate, e.entry_date);
+            const first = i === 0 || weekOn(props.dumDate, list[i - 1].entry_date) !== week;
+            return (
+              <li key={e.id}>
+                {first && <WeekMark week={week} current={weekOn(props.dumDate, toISODate(new Date()))} />}
+                <Post {...props} entry={e} me={me} />
+              </li>
+            );
+          })}
         </ol>
       )}
 
       {props.entries.length > shown && (
-        <button type="button" onClick={() => setShown(n => n + PAGE)} className="w-full rounded-full bg-surface shadow-soft py-3 text-sm font-bold text-ink-soft hover:text-ink">
+        <button type="button" onClick={() => setShown(n => n + PAGE)} className="w-full rounded-full bg-surface/80 py-3 text-sm font-bold text-ink-soft hover:text-ink">
           Ver mais antigos
         </button>
       )}
     </div>
+  );
+}
+
+/** Um marcador discreto entre as semanas: o Mural vira a linha do tempo da gestação. */
+function WeekMark({ week, current }: { week: number; current: number }) {
+  return (
+    <p className="flex items-center gap-2 px-1 pb-2 text-[12px] font-extrabold uppercase tracking-wide text-ink-mute">
+      Semana {week}
+      {week === current && <span className="normal-case tracking-normal font-bold text-rosa-strong">· esta semana</span>}
+      <span className="flex-1 h-px bg-line/70" aria-hidden />
+    </p>
   );
 }
 
@@ -129,6 +152,8 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
   const letter = e.folder === 'carta';
   const serif = e.folder === 'momento' || letter;
   const open = () => onOpen(e.id);
+  // O campo de comentar só aparece quando pedido: o Mural fica leve.
+  const [replying, setReplying] = useState(false);
   const others = [...new Set(hugs.filter(r => !r.mine).map(r => speakerOf(members, relatives, r).label))];
   const fromMe = hugs.some(r => r.mine);
   const hugText = !others.length ? 'Você reagiu' : `${hugs.length === 1 ? 'Abraço' : 'Reações'} de ${others.join(' e ')}${fromMe ? ' e sua' : ''}`;
@@ -137,7 +162,7 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
     <article
       ref={ref}
       data-fresh={fresh || undefined}
-      className={`rounded-[26px] bg-surface shadow-soft overflow-hidden cursor-pointer transition-shadow duration-700 ${fresh ? 'ring-2 ring-brand ring-offset-2 ring-offset-canvas tt-novo' : ''}`}
+      className={`rounded-[26px] bg-surface/80 overflow-hidden cursor-pointer transition-shadow duration-700 ${fresh ? 'ring-2 ring-brand ring-offset-2 ring-offset-canvas tt-novo' : ''}`}
       aria-label={`${f.singular} de ${name}`}
       // O post inteiro abre os detalhes; abraço, comentário e marcação continuam com o próprio toque.
       onClick={ev => {
@@ -155,7 +180,7 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
             <span className={`inline-flex items-center gap-1 font-bold ${t.text}`}>
               <f.Icon className="w-3 h-3" /> {f.singular}
             </span>
-            · {when(e.entry_date)}{sameDay(e) && `, ${hhmmOf(e.created_at)}`} · semana {weekOn(dumDate, e.entry_date)}
+            · {when(e.entry_date)}{sameDay(e) && `, ${hhmmOf(e.created_at)}`}
             {e.visibility === 'family' && role !== 'familia' && (
               <span className="inline-flex items-center gap-0.5">
                 · <Users className="w-3 h-3" /> família
@@ -194,8 +219,8 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
           >
             <Heart className={`w-[22px] h-[22px] ${hugged ? 'fill-rosa' : ''}`} /> Abraço
           </button>
-          <button type="button" onClick={open} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-bold text-ink-soft hover:bg-surface-2">
-            <MessageCircle className="w-[22px] h-[22px]" /> {comments.length > 0 ? comments.length : 'Comentar'}
+          <button type="button" onClick={() => setReplying(v => !v)} aria-expanded={replying} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-bold text-ink-soft hover:bg-surface-2">
+            <MessageCircle className="w-[22px] h-[22px]" /> Comentar{comments.length > 0 && <span className="tabular text-ink-mute">· {comments.length}</span>}
           </button>
         </div>
       )}
@@ -228,7 +253,7 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
         </div>
       )}
 
-      {social ? <Reply entryId={e.id} me={me} role={role} onComment={onComment} /> : <div className="h-4" />}
+      {social && replying ? <Reply entryId={e.id} me={me} role={role} onComment={onComment} /> : <div className="h-3" />}
     </article>
   );
 }
@@ -313,8 +338,9 @@ function Reply({ entryId, me, role, onComment }: { entryId: string; me?: FamilyM
         <Avatar member={me} role={role} className="w-7 h-7 text-[11px]" />
         <input
           ref={fieldRef}
-          aria-label="Comentar"
-          placeholder="Comentar... (@ para marcar)"
+          aria-label="Escrever um comentário"
+          autoFocus
+          placeholder="Escreva com carinho… (@ para marcar)"
           value={draft}
           onChange={ev => {
             setDraft(ev.target.value);

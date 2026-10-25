@@ -34,7 +34,7 @@ await mae.screenshot({ path: `${OUT}nomes-inicio.png` });
 
 await mae.getByRole('button', { name: /^Diário/ }).first().click();
 const tabs = mae.getByRole('navigation', { name: 'Pastas do diário' });
-check((await tabs.getByRole('button').count()) === 4, 'o Diário tem quatro lugares: Mural, Fichário, Livro e Celebrações');
+check((await tabs.getByRole('button').count()) === 3, 'o Diário tem três lugares: Mural, Fichário e Livro');
 const capitulo = mae.getByRole('region', { name: 'Página da semana' });
 await capitulo.waitFor();
 check(await capitulo.getByText('Uma página nova no livro de vocês').isVisible(), 'a semana que acabou de fechar aparece no Mural como página nova do livro');

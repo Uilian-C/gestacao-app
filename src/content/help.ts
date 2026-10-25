@@ -43,7 +43,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'diario',
     title: 'Diário e livro',
     items: [
-      { q: 'Qual a diferença entre Mural e Fichário?', a: 'O Mural é o dia a dia de vocês, como uma conversa. O Fichário guarda tudo organizado por pastas (momentos, cartas, barriguinha, humor) e por mês, semana ou trimestre.', go: { target: 'mural', label: 'Abrir o Mural' } },
+      { q: 'Qual a diferença entre Mural e Fichário?', a: 'O Mural é o dia a dia de vocês, como uma conversa. O Fichário guarda tudo organizado por pastas (momentos, cartas, barriguinha, humor e as celebrações) e por mês, semana ou trimestre. No Mural, os atalhos embaixo do campo abrem o formulário já na pasta certa.', go: { target: 'mural', label: 'Abrir o Mural' } },
       { q: 'Quem vê o que eu escrevo?', a: 'Você escolhe em cada registro: "Só eu", "Nós dois" ou "Família". O que é "Só eu" fica só com você, inclusive no livro.' },
       { q: 'Como funciona a barriguinha?', a: 'Uma foto por semana, sempre do mesmo jeito. O app monta a evolução da barriga para vocês verem (e guardarem) depois.', go: { target: 'barriga', label: 'Abrir a Barriguinha' } },
       { q: 'O que é o livro de vocês?', a: 'Cada mês da gestação vira um capítulo, contado como uma história, com o bebê daquela fase e as lembranças de vocês. Dá para ler como um e-book e baixar em PDF para imprimir.', go: { target: 'livro', label: 'Abrir o livro' } },
@@ -54,7 +54,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'celebracoes',
     title: 'Celebrações e nome do bebê',
     items: [
-      { q: 'Como organizo o chá de bebê?', a: 'Em Diário → Celebrações, toque em "Nova celebração". Ela já vem com um roteiro de tarefas com prazos contados a partir da data, além de fornecedores, convidados (com o tamanho de fralda de cada um) e ideias.', go: { target: 'celebracoes', label: 'Abrir as Celebrações' } },
+      { q: 'Como organizo o chá de bebê?', a: 'Em Diário → Fichário → Celebrações, toque em "Nova celebração". Ela já vem com um roteiro de tarefas com prazos contados a partir da data, além de fornecedores, convidados (com o tamanho de fralda de cada um) e ideias.', go: { target: 'celebracoes', label: 'Abrir as Celebrações' } },
       { q: 'Como acompanho o orçamento da festa?', a: 'Ao marcar um orçamento previsto, a régua mostra quanto já está combinado e pago e avisa quando está perto do limite ou passou dele.' },
       { q: 'Como funciona o caderno de nomes?', a: 'Cada ideia de nome ganha uma página com o porquê, quem curtiu e a conversa sobre ele. A família pode dar palpite, mas quem escolhe são vocês.', go: { target: 'nomes', label: 'Abrir o caderno de nomes' } },
     ],

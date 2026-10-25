@@ -279,9 +279,9 @@ export function BookView({ book, tone, parents, onOpenEntry, onWrite, onNames }:
 
   return (
     <div className="space-y-4 max-w-[560px] mx-auto">
-      <header className="rounded-[28px] bg-gradient-to-b from-rosa-soft to-surface px-5 pt-5 pb-4 shadow-soft">
+      <header className="rounded-[28px] bg-gradient-to-b from-rosa-soft/80 to-surface/80 px-5 pt-5 pb-4">
         <p className="text-[12px] font-extrabold uppercase tracking-wide text-rosa">O livro de {name ?? 'vocês'}</p>
-        <h2 className="font-display text-[1.45rem] leading-snug text-ink text-balance">
+        <h2 className="font-display text-[1.25rem] leading-snug text-ink text-balance">
           {written.length === 0 ? 'A primeira página espera por vocês.' : `Um dia vocês vão ler estas páginas juntos, com ${babyCall(name)} no colo.`}
         </h2>
         {/* A lombada: uma marquinha por semana, cheia quando a página tem lembranças. */}
@@ -317,7 +317,7 @@ export function BookView({ book, tone, parents, onOpenEntry, onWrite, onNames }:
       </header>
 
       {nudge && onWrite && (
-        <button type="button" onClick={onWrite} className="w-full flex items-start gap-2 rounded-2xl bg-surface shadow-soft px-4 py-3 text-left text-[13.5px] text-ink">
+        <button type="button" onClick={onWrite} className="w-full flex items-start gap-2 rounded-2xl bg-surface/80 px-4 py-3 text-left text-[13.5px] text-ink">
           <PenLine className="w-4 h-4 mt-0.5 shrink-0 text-rosa-strong" />
           <span>{nudge.nudge}</span>
         </button>

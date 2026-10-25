@@ -38,7 +38,7 @@ check((await p.getByText(/64[,.]5/).count()) > 0, 'peso aparece em Peso e press�
 await tab('Diário');
 check((await p.getByText('Enjoo').count()) === 0, 'sintoma não aparece no Diário');
 await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Fichário/ }).click();
-await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Ideias/ }).click();
+await p.getByRole('button', { name: 'Abrir a pasta Ideias e planos' }).click();
 await plus.click();
 check((await dlg.getByRole('group', { name: 'Tipo de registro' }).count()) === 0, 'Diário abre direto o registro do fichário');
 check((await dlg.getByRole('radio', { name: /Ideias/ }).getAttribute('aria-checked')) === 'true', 'registro abre na pasta que estava aberta');
