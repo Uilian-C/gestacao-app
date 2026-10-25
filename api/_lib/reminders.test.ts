@@ -65,6 +65,14 @@ describe('planReminders', () => {
     expect(notices).toEqual([{ userIds: ['mae', 'pai'], kind: 'jornada', key: 'vespera-semana:f1:24', payload: { title: 'Amanhã, 24 semanas', body: expect.stringContaining('presente'), url: '/', tag: 'semana' } }]);
   });
 
+  it('modo cuidado: nada de semana nova nem véspera, para o casal e para a família; a consulta marcada continua', () => {
+    const care = family({ care: true, relatives: ['avo'] });
+    expect(planReminders('2026-10-16', [care], [], [])).toEqual([]);
+    expect(planReminders('2026-10-15', [care], [], [])).toEqual([]);
+    const consulta = planReminders('2026-10-16', [care], [{ id: 'c1', family_id: 'f1', local: '2026-10-17 09:30', professional_name: null, location: null }], []);
+    expect(consulta.map(n => n.kind)).toEqual(['consultas']);
+  });
+
   it('fora da virada da semana, sem aviso de semana', () => {
     expect(planReminders('2026-10-17', [family()], [], [])).toEqual([]);
     expect(planReminders('2026-10-16', [family({ dum_date: null })], [], [])).toEqual([]);

@@ -39,6 +39,8 @@ export interface FamilyView {
   babyName?: string | null;
   babyNameAt?: string | null;
   nameIdeas?: NameIdea[] | null;
+  /** Modo cuidado (migração 029): o casal passou por uma perda. */
+  careSince?: string | null;
 }
 
 interface Props {
@@ -154,10 +156,15 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
           </header>
 
           <main className="max-w-[640px] mx-auto px-4 py-5 space-y-5 pb-16">
-            {dumDate ? <BabyWeek dumDate={dumDate} tone={view.babyTone ?? 'tumtum'} parents={couple} belly={bellyShots(view.journal, dumDate)} onOpenEntry={setOpen} /> : <p className="rounded-[24px] bg-surface shadow-soft p-5 text-sm text-ink-soft">O casal ainda não informou a data da gestação. Logo a semana do bebê aparece aqui.</p>}
+            {view.careSince ? (
+              <section className="rounded-[24px] bg-lilas-soft p-5 text-center space-y-2">
+                <p className="font-display text-[1.25rem] text-ink">Um momento delicado</p>
+                <p className="text-[14px] leading-relaxed text-ink-soft">{couple ? `${couple} ${couple.includes(' e ') ? 'estão' : 'está'}` : 'O casal está'} passando por um momento difícil. O que quiserem dividir continua aqui. Um abraço e uma mensagem carinhosa fazem diferença.</p>
+              </section>
+            ) : dumDate ? <BabyWeek dumDate={dumDate} tone={view.babyTone ?? 'tumtum'} parents={couple} belly={bellyShots(view.journal, dumDate)} onOpenEntry={setOpen} /> : <p className="rounded-[24px] bg-surface shadow-soft p-5 text-sm text-ink-soft">O casal ainda não informou a data da gestação. Logo a semana do bebê aparece aqui.</p>}
             {/* A família também dá palpite no nome (quem escolhe é o casal); depois, vê a história dele. */}
-            {view.nameIdeas && !view.babyName && <NameTeaser ideas={view.nameIdeas} onOpen={() => setNames(true)} />}
-            {view.nameIdeas && view.babyName && (
+            {!view.careSince && view.nameIdeas && !view.babyName && <NameTeaser ideas={view.nameIdeas} onOpen={() => setNames(true)} />}
+            {!view.careSince && view.nameIdeas && view.babyName && (
               <button type="button" onClick={() => setNames(true)} className="w-full rounded-[22px] bg-surface shadow-soft px-5 py-3 text-left text-[14px] font-bold text-rosa-strong">
                 A história do nome de {view.babyName} ›
               </button>
@@ -182,7 +189,7 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
               />
             )}
             {reveal && <NameReveal name={reveal} tone={view.babyTone ?? 'tumtum'} week={babyWeek} onDone={closeReveal} />}
-            {dumDate && <Belly entries={view.journal} dumDate={dumDate} onOpen={setOpen} />}
+            {dumDate && !view.careSince && <Belly entries={view.journal} dumDate={dumDate} onOpen={setOpen} />}
             <PushPrompt relative />
             <section aria-labelledby="mural-familia" className="space-y-3">
               <h2 id="mural-familia" className="text-[1.2rem] text-ink">Mural da família</h2>

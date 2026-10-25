@@ -21,12 +21,15 @@ interface Props {
   onFamilyChange: (family: FamilyState | null) => void;
   onSignOut: () => void;
   onAccountDeleted: () => void;
+  /** Modo cuidado (migração 029): o dia em que foi ligado (null desligado) e como ligar ou desligar. */
+  careSince?: string | null;
+  onCareMode?: (on: boolean) => Promise<boolean>;
 }
 
 const ROLE_LABEL: Record<Author, string> = { mae: 'Mãe', pai: 'Pai' };
 
 /** "Nosso espaço": quem participa, convite para o(a) parceiro(a), a família e a conta. */
-export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSignOut, onAccountDeleted }: Props) {
+export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSignOut, onAccountDeleted, careSince, onCareMode }: Props) {
   const [invite, setInvite] = useState<{ code: string; expiresAt: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -296,6 +299,8 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
           )}
         </section>
 
+        {onCareMode && <CareModeSection since={careSince ?? null} onChange={onCareMode} />}
+
         <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-4">
           <div>
             <h3 className="text-base">Seus dados</h3>
@@ -500,6 +505,55 @@ function FamilySection({ family, onFamilyChange }: { family: CoupleFamilyState; 
         </Button>
       )}
       {error && <p role="alert" className="text-sm text-alert bg-alert-soft rounded-2xl px-4 py-2.5">{error}</p>}
+    </section>
+  );
+}
+
+/**
+ * O modo cuidado (migração 029), para quando a gestação é interrompida: pausa
+ * para os dois e para a família os avisos de semana, as contagens e as
+ * celebrações. Pede confirmação para ligar; desligar é um toque.
+ */
+function CareModeSection({ since, onChange }: { since: string | null; onChange: (on: boolean) => Promise<boolean> }) {
+  const [asking, setAsking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const change = async (on: boolean) => {
+    setSaving(true);
+    if (await onChange(on)) setAsking(false);
+    setSaving(false);
+  };
+  return (
+    <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-3" aria-labelledby="cuidado-title">
+      <h3 id="cuidado-title" className="text-base flex items-center gap-2">
+        <HeartHandshake className="w-4 h-4 text-lilas-strong" /> Modo cuidado
+      </h3>
+      {since ? (
+        <>
+          <p className="text-sm text-ink-soft">Ligado desde {formatBR(since)}. Os avisos de semana, as contagens e as celebrações estão pausados para vocês dois e para a família.</p>
+          <Button tone="soft" disabled={saving} onClick={() => change(false)}>
+            Desligar o modo cuidado
+          </Button>
+        </>
+      ) : asking ? (
+        <div className="rounded-2xl bg-lilas-soft p-4 space-y-3">
+          <p className="text-sm text-ink">Sentimos muito. O modo cuidado vale para vocês dois e para a família, e nada do que vocês guardaram se perde. Dá para desligar quando quiserem.</p>
+          <div className="flex gap-2">
+            <Button disabled={saving} onClick={() => change(true)}>
+              Ligar o modo cuidado
+            </Button>
+            <Button tone="ghost" disabled={saving} onClick={() => setAsking(false)}>
+              Agora não
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm text-ink-soft">Se a gestação foi interrompida, o Tumtum pausa os avisos de semana, as contagens e as celebrações, e o Início vira um lugar de acolhimento. Tudo o que vocês viveram continua guardado.</p>
+          <button type="button" onClick={() => setAsking(true)} className="text-sm font-bold text-lilas-strong hover:underline">
+            Passamos por uma perda
+          </button>
+        </>
+      )}
     </section>
   );
 }

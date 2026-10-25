@@ -64,6 +64,8 @@ export interface GestationData {
   babyNameAt?: string | null;
   /** Celebrações (migração 028); null antes da migração. */
   celebrations?: Celebration[] | null;
+  /** Modo cuidado (migração 029): o dia em que foi ligado; null desligado. */
+  careSince?: string | null;
   /** Ideias de nome do bebê (migração 026); null antes da migração. */
   nameIdeas?: NameIdea[] | null;
 }

@@ -90,6 +90,13 @@ export const HELP_TOPICS: HelpTopic[] = [
     ],
   },
   {
+    id: 'cuidado',
+    title: 'Momentos difíceis',
+    items: [
+      { q: 'Perdemos o bebê. O que acontece com o app?', a: 'Sentimos muito. Em Nosso espaço, no fim, fica o modo cuidado. Ele pausa para vocês dois e para a família os avisos de semana, as contagens e as celebrações, e o Início vira um lugar de acolhimento, com apoio e cuidados com o corpo. Tudo o que vocês guardaram continua aqui, e qualquer um dos dois pode desligar quando quiser.', go: { target: 'espaco', label: 'Abrir Nosso espaço' } },
+    ],
+  },
+  {
     id: 'privacidade',
     title: 'Privacidade e dados',
     items: [

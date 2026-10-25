@@ -12,6 +12,7 @@ import type { OnReact } from './components/Social';
 import { takeTabFromUrl, takeViewFromUrl } from './lib/pwa';
 import { api, ApiError, type CoupleFamilyState, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
+import CareModeHome from './components/home/CareModeHome';
 import Header from './components/Header';
 import HelpCenter from './components/HelpCenter';
 import type { HelpTarget } from './content/help';
@@ -141,7 +142,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const { data, loadState, refresh, replace, patch, retry } = useGestationData(onAccessLost, me.data);
   const author = family.role;
   const [spaceOpen, setSpaceOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>(() => takeTabFromUrl() ?? 'inicio');
+  const [tabState, setActiveTab] = useState<Tab>(() => takeTabFromUrl() ?? 'inicio');
+  // Modo cuidado (migração 029): sem Parto, sem semana no cabeçalho; o Início vira acolhimento.
+  const care = !!data?.careSince;
+  const activeTab: Tab = care && tabState === 'parto' ? 'inicio' : tabState;
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
   const [diaryView, setDiaryView] = useState<DiaryView>('mural');
@@ -559,9 +563,13 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       onOpenSpace={() => setSpaceOpen(true)}
       onHelp={() => setHelpOpen(true)}
       title={activeTab === 'inicio' || !age ? undefined : TITLE[activeTab]}
-      week={age ? currentWeek : null}
+      week={age && !care ? currentWeek : null}
     />
   );
+  const setCareMode = (on: boolean) => {
+    patch(d => ({ ...d, careSince: on ? (d.careSince ?? today) : null }));
+    return run(() => api.mutate('setCareMode', { on }), 'Não foi possível mudar o modo cuidado. Se for a primeira vez, rode a migração db/migrations/029_modo_cuidado.sql no Neon.');
+  };
   const spaceSheet = (
     <>
       {spaceOpen && (
@@ -572,6 +580,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onFamilyChange={onFamilyChange}
           onSignOut={onSignOut}
           onAccountDeleted={onSignOut}
+          careSince={data.careSince ?? null}
+          onCareMode={setCareMode}
         />
       )}
     </>
@@ -836,6 +846,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           navigate(tab);
         }}
         pulse={{ diario: diaryNews }}
+        hidden={care ? ['parto'] : []}
         badges={{
           agenda: overdueTasks,
           cuidados: questions.filter(q => !q.doctor_answer).length,
@@ -856,7 +867,20 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           </p>
         )}
 
-        {activeTab === 'inicio' && (
+        {activeTab === 'inicio' && care && (
+          <CareModeHome
+            role={author}
+            partnerName={partnerName}
+            checkins={data.checkins ?? []}
+            hugs={data.hugs ?? []}
+            checkinAvailable={data.checkinAvailable ?? false}
+            onCheckin={checkin}
+            onHug={hug}
+            onWrite={writeEntry}
+            onBook={() => openFromHome('livro')}
+          />
+        )}
+        {activeTab === 'inicio' && !care && (
           <HomeTab
             firstDays={firstDaysPrefs.hidden ? null : firstDaysPrefs.start}
             onHideFirstDays={() => saveFirstDays({ ...firstDaysPrefs, hidden: true })}
@@ -1125,7 +1149,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           </CarePage>
         )}
 
-        {activeTab === 'parto' && (
+        {activeTab === 'parto' && !care && (
           <LaborTab
             key={laborReset}
             author={author}
