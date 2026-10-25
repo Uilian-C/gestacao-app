@@ -37,17 +37,22 @@ const tabs = mae.getByRole('navigation', { name: 'Pastas do diário' });
 check((await tabs.getByRole('button').count()) === 3, 'o Diário tem três lugares: Mural, Fichário e Livro');
 check((await mae.getByRole('region', { name: 'Página da semana' }).count()) === 0 && (await mae.getByRole('list', { name: 'Mural' }).isVisible()), 'o Mural é só o mural: as postagens, sem o resumo do livro');
 await tabs.getByRole('button', { name: 'Livro' }).click();
-const capitulo = mae.getByRole('region', { name: 'Página da semana' });
-await capitulo.waitFor();
-check(await capitulo.getByText('Uma página nova no livro de vocês').isVisible(), 'a semana que acabou de fechar abre o Livro como página nova');
+const capa = mae.getByRole('button', { name: 'Ler a página nova' });
+await capa.waitFor();
+check(await capa.getByText('Página nova: “Ouvimos o coração pela primeira vez!”').isVisible(), 'a capa do livro chama para a página que acabou de fechar, com o título nas palavras deles');
+await mae.screenshot({ path: `${OUT}livro-capa.png` });
+await capa.click();
+const lendo = mae.getByRole('dialog', { name: /^O livro de/ });
+await lendo.waitFor();
 check(
-  await capitulo.getByText('Depois de uma semana quieta, vocês voltaram a guardar lembranças. Teve um momento daqueles que a gente não esquece, a primeira carta para o bebê, uma foto nova e abraços trocados.').isVisible(),
-  'a semana contada como história, comparada com a anterior e sem números (nem o que é "Só eu")',
+  await lendo.getByText('Depois de uma semana quieta, vocês voltaram a guardar lembranças. Teve um momento daqueles que a gente não esquece, a primeira carta para o bebê, uma foto nova e abraços trocados.').isVisible(),
+  'um toque na capa abre o livro na página nova: a semana contada como história, sem números (nem o que é "Só eu")',
 );
-check(await capitulo.getByText('“Ouvimos o coração pela primeira vez!”').isVisible(), 'o título da página é o momento mais abraçado, nas palavras deles');
-check(await capitulo.getByText('O bebê na semana 21').isVisible() && (await capitulo.getByText(/Do tamanho de uma manga/).isVisible()), 'com o bebê daquela semana');
-check(await capitulo.getByRole('button', { name: 'Começar a semana 22' }).isVisible(), 'e o convite para a próxima');
-await mae.screenshot({ path: `${OUT}livro-mural.png` });
+check(await lendo.getByRole('heading', { name: '“Ouvimos o coração pela primeira vez!”' }).isVisible() && (await lendo.getByText(/Do tamanho de uma manga/).isVisible()), 'com o título nas palavras deles e o bebê daquela semana');
+check((await lendo.getByRole('button', { name: /Virar a página/ }).count()) === 0 && (await lendo.getByText(/página \d+ de \d+/).count()) === 0, 'um jeito só de folhear, sem "página X de Y"');
+await lendo.getByRole('button', { name: 'Fechar o livro' }).click();
+check(await mae.getByRole('button', { name: 'Continuar da semana 21' }).isVisible(), 'lida a página nova, a capa passa a continuar de onde pararam');
+
 
 // ---- O livro: capítulos por mês ----
 const livro = mae.getByRole('list', { name: 'Capítulos' });
@@ -120,10 +125,10 @@ await aberto.getByRole('button', { name: 'Próxima página' }).click();
 check(await aberto.getByRole('heading', { name: '“Ouvimos o coração pela primeira vez!”' }).isVisible() && (await aberto.getByText('Querido bebê, já te amamos.').isVisible()), 'a página seguinte é a semana, com tudo o que escreveram');
 check(await aberto.getByText(/^Carta · \d{2}\/\d{2}\/\d{4}$/).isVisible(), 'cada registro com a data');
 check(await aberto.getByText(/^Ninguém contou como estava nesta semana/).isVisible(), 'e o humor da semana (aqui, o convite para contar)');
-check(await aberto.getByText(/página 4 de 6/).isVisible(), 'o rodapé diz em que página do livro vocês estão');
+check(await aberto.locator('footer').getByText('Semana 21').isVisible(), 'o rodapé diz a semana em que vocês estão');
 await mae.screenshot({ path: `${OUT}livro-pagina.png` });
 await aberto.getByRole('button', { name: 'Próxima página' }).click();
-check(await aberto.getByText(/Semana 22 · sendo escrita/).isVisible() && (await aberto.getByText(/^Momento · \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}$/).isVisible()), 'e a semana de hoje, sendo escrita, com o nome escolhido (e a hora do post)');
+check(await aberto.getByText(/Semana 22 · sendo escrita/).first().isVisible() && (await aberto.getByText(/^Momento · \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}$/).isVisible()), 'e a semana de hoje, sendo escrita, com o nome escolhido (e a hora do post)');
 await aberto.getByRole('button', { name: 'Próxima página' }).click();
 const paginaNome = aberto.getByRole('region', { name: 'A página do nome: Helena' });
 check(await paginaNome.isVisible() && (await paginaNome.getByText('“Era o nome da bisavó”').isVisible()), 'a semana da escolha ganha a página do nome, com o porquê');
