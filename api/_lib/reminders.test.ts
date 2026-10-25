@@ -91,6 +91,11 @@ describe('planReminders', () => {
 });
 
 describe('planTimed', () => {
+  it('"Como foi a consulta?": para o casal, com o link para responder', () => {
+    const [n] = planTimed([family()], { entries: [], tasks: [], early: [], after: [{ id: 'c9', family_id: 'f1', local: '2026-10-16 09:00', professional_name: null, location: null, kind: 'ultrassom' }] });
+    expect(n).toMatchObject({ userIds: ['mae', 'pai'], kind: 'consultas', key: 'comofoi:c9', payload: { title: 'Como foi o ultrassom?', url: '/?comofoi=c9' } });
+  });
+
   it('lembretes com hora: diário (particular só para quem escreveu), tarefa para quem cuida e aviso antes da consulta', () => {
     const notices = planTimed([family()], {
       entries: [{ id: 'e1', family_id: 'f1', user_id: 'mae', visibility: 'private', body: 'Ligar para a doula', at: '2026-10-20 17:30:00+00' }],

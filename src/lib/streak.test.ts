@@ -44,3 +44,23 @@ describe('as primeiras vezes', () => {
     expect(nextFirstTime(album, 10)?.ft.id).toBe('contar');
   });
 });
+
+import { countdownTitle, nextCountdown } from './countdown';
+import type { Consultation } from '../types';
+
+describe('a contagem para os marcos', () => {
+  const today = new Date(2026, 9, 25, 10, 0);
+  const at = (day: string) => new Date(`${day}T09:00:00`).toISOString();
+  const c = (over: Partial<Consultation>): Consultation => ({ id: 'u', scheduled_at: at('2026-10-28'), specialty: 'ultrassom', created_by: 'mae', kind: 'ultrassom', title: 'Ultrassom morfológico', ...over });
+  it('o morfológico daqui a 3 dias, com o rostinho', () => {
+    const n = nextCountdown({ consultations: [c({})], dpp: null, babyName: null, today })!;
+    expect(countdownTitle(n)).toBe('Faltam 3 dias para o morfológico');
+    expect(n.why).toBe('vocês vão ver o rostinho');
+    expect(n.progress).toBeGreaterThan(0.8);
+  });
+  it('fora da janela, nada; a chegada do bebê nos últimos 30 dias', () => {
+    expect(nextCountdown({ consultations: [c({ scheduled_at: at('2026-12-30') })], dpp: null, babyName: null, today })).toBeNull();
+    const n = nextCountdown({ consultations: [], dpp: new Date(2026, 10, 4), babyName: 'Helena', today })!;
+    expect(countdownTitle(n)).toBe('Faltam 10 dias para a chegada de Helena');
+  });
+});

@@ -173,6 +173,7 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('deleteCelebrationItem'), id: uuid }),
   z.object({ op: z.literal('setBabyName'), name: z.string().trim().max(40).nullable() }),
   z.object({ op: z.literal('setCareMode'), on: z.boolean() }),
+  z.object({ op: z.literal('visitFeedback'), id, status: z.enum(['bem', 'duvida', 'novidade']) }),
   z.object({ op: z.literal('setVoice'), id, body: z.string().trim().max(2000) }),
   z.object({ op: z.literal('setBabyTone'), tone: z.enum(['tumtum', 'tom1', 'tom2', 'tom3', 'tom4', 'tom5']).nullable() }),
   // Check-in do dia (migração 014): o humor de cada um; null apaga.
@@ -583,6 +584,12 @@ async function apply(m: Member, o: Op) {
       if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
       return rows;
     }
+    case 'visitFeedback':
+      // "Como foi a consulta?": a resposta vale para os dois (ninguém é perguntado de novo).
+      return query('UPDATE consultations SET after_status = $1 WHERE id::text = $2 AND family_id = $3 RETURNING id::text AS id', [o.status, o.id, fid]).catch(err => {
+        if ((err as { code?: string }).code === '42703') throw new HttpError(503, '"Como foi a consulta?" ainda não está ligado no servidor. Rode a migração db/migrations/032_como_foi_a_consulta.sql no Neon.');
+        throw err;
+      });
     case 'setCareMode':
       return query('UPDATE families SET care_since = CASE WHEN $2 THEN COALESCE(care_since, CURRENT_DATE) ELSE NULL END WHERE id = $1', [fid, o.on]).catch(err => {
         if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'O modo cuidado ainda não está ligado no servidor. Rode a migração db/migrations/029_modo_cuidado.sql no Neon.');

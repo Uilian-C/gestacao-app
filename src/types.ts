@@ -72,6 +72,10 @@ export interface Consultation {
   attendees?: Assignee | null;
   /** Aviso a mais antes do horário, em minutos (migração 018). */
   remind_before?: number | null;
+  /** "Como foi a consulta?" (migração 032): a resposta de um dos dois. */
+  after_status?: 'bem' | 'duvida' | 'novidade' | null;
+  /** Quando foi agendado (para a barrinha da contagem). */
+  created_at?: string | null;
 }
 
 export type AppointmentKind = 'consulta' | 'exame' | 'ultrassom' | 'vacina';

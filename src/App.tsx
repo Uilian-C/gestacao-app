@@ -9,10 +9,11 @@ import type { Celebration, CelebrationItem } from './lib/celebrations';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
-import { takeTabFromUrl, takeViewFromUrl, takeVoiceFromUrl } from './lib/pwa';
-import { api, ApiError, type CoupleFamilyState, type FamilyState, type Me } from './api';
+import { takeTabFromUrl, takeViewFromUrl, takeVisitFromUrl, takeVoiceFromUrl } from './lib/pwa';
+import { api, ApiError, photoUrl, type CoupleFamilyState, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
 import CareModeHome from './components/home/CareModeHome';
+import type { VisitStatus } from './components/home/VisitFeedback';
 import { firstTimeOf, type FirstTimeId } from './content/firstTimes';
 import Header from './components/Header';
 import HelpCenter from './components/HelpCenter';
@@ -48,7 +49,7 @@ const JourneyTab = lazy(() => import('./components/tabs/JourneyTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
 import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, parseTimestamp, toISODate, weekOfDay } from './lib/dates';
-import { FOLDER, weekOn } from './lib/folders';
+import { FOLDER, bellyShots, weekOn } from './lib/folders';
 import { buildBook, chapterOfWeek } from './lib/chapters';
 import { BabyNameContext, markNameSeen, nameSeen } from './lib/baby';
 import { pressureInsights } from './lib/health';
@@ -169,6 +170,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [recording, setRecording] = useState<QuickMode[] | null>(null);
   const [recordStart, setRecordStart] = useState<QuickMode | null>(null);
   /** Pasta (e ideia) com que o diário abre no registro. */
+  // "Como foi a consulta?" pelo aviso: o Início abre já na pergunta.
+  const [askVisit] = useState(takeVisitFromUrl);
   // O Início aberto numa janela (a Jornada do bebê ou os Primeiros 7 dias): a chave remonta o Início.
   const [homeStart, setHomeStart] = useState<{ start: 'bebe' | 'missoes'; n: number } | null>(null);
   const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string; firstTime?: FirstTimeId }>({});
@@ -523,6 +526,19 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const sendThread = (targetType: 'entry' | 'exam', targetId: string, body: string) => run(() => api.mutate('comment', { targetType, targetId, body }), 'Não foi possível enviar o comentário.');
   const deleteThread = (c: ThreadComment) => scheduleDelete('thread', c.id, 'comentário');
   // A segunda voz num momento da outra pessoa (migração 030).
+  // "Como foi a consulta?" (migração 032): guarda a resposta e leva ao próximo passo.
+  const visitFeedback = (c: Consultation, status: VisitStatus) => {
+    patch(d => ({ ...d, consultations: d.consultations.map(x => (x.id === c.id ? { ...x, after_status: status } : x)) }));
+    void run(() => api.mutate('visitFeedback', { id: c.id, status }), 'Não foi possível guardar. Se for a primeira vez, rode a migração db/migrations/032_como_foi_a_consulta.sql no Neon.', status === 'bem' ? 'Que bom! Fica guardado na jornada de vocês' : undefined);
+    if (status === 'duvida') {
+      const next = consultations.filter(x => (x.kind ?? 'consulta') === 'consulta' && parseTimestamp(x.scheduled_at).getTime() > Date.now()).sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))[0];
+      return next ? prepareReport(next) : openCare('inicio');
+    }
+    if (status === 'novidade') {
+      const ultra = c.kind === 'ultrassom';
+      writeEntry('momento', ultra ? 'No ultrassom de hoje, ' : 'Na consulta de hoje, ', ultra && !journal.some(e => e.first_time === 'ultrassom') ? 'ultrassom' : undefined);
+    }
+  };
   const setVoice = (id: string, body: string) => {
     if (body) tumtum();
     patch(d => ({ ...d, journal: d.journal.map(e => (e.id !== id ? e : { ...e, voice_body: body || null, voice_role: body ? author : null, voice_mine: !!body, voice_at: body ? new Date().toISOString() : null })) }));
@@ -948,6 +964,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             userId={me.user.id}
             reactions={data.reactions ?? []}
             onWrite={writeEntry}
+            onVisitFeedback={visitFeedback}
+            askVisit={askVisit}
+            openQuestions={questions.filter(q => !q.doctor_answer).length}
           />
         )}
 
@@ -1253,6 +1272,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           dumDate={dumDate}
           entryFolder={entryStart.folder}
           entryIdea={entryStart.idea}
+          lastBelly={(() => {
+            const last = [...bellyShots(journal, dumDate)].sort((a, b) => b.week - a.week)[0];
+            return last ? { src: photoUrl(last.photo.id, last.photo.thumb), week: last.week } : null;
+          })()}
           onCreateSymptom={createSymptom}
           onCreateMetric={createMetric}
           metrics={metrics}

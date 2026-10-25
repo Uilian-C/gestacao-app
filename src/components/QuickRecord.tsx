@@ -37,6 +37,8 @@ export interface QuickRecordProps {
   /** Pasta em que o diário abre (a que estava aberta) e um texto para começar. */
   entryFolder?: Folder;
   entryIdea?: string;
+  /** A última foto da barriga (o guia da pose). */
+  lastBelly?: { src: string; week: number } | null;
   onCreateSymptom: (s: NewSymptom) => Promise<boolean>;
   onCreateMetric: (m: NewMetric) => Promise<boolean>;
   /** Medições, para mostrar a última ao lado do campo. */
@@ -97,7 +99,7 @@ export default function QuickRecord({ modes, initial, onClose, ...p }: QuickReco
             last={{ weight: [...p.metrics].reverse().find(m => m.weight_kg !== null) ?? null, pressure: [...p.metrics].reverse().find(m => m.systolic_bp !== null) ?? null }}
           />
         )}
-        {mode === 'momento' && <EntryForm busy={p.busy} available={p.journalAvailable} photosAvailable={p.photosAvailable} dumDate={p.dumDate} folder={p.entryFolder} idea={p.entryIdea} onSave={done(p.onCreateEntry)} />}
+        {mode === 'momento' && <EntryForm busy={p.busy} available={p.journalAvailable} photosAvailable={p.photosAvailable} dumDate={p.dumDate} folder={p.entryFolder} idea={p.entryIdea} lastBelly={p.lastBelly} onSave={done(p.onCreateEntry)} />}
         {mode === 'consulta' && <ScheduleForm busy={p.busy} startOpen onCreate={done(p.onCreateConsultation)} onClose={onClose} />}
         {mode === 'tarefa' && <TaskForm selectedWeek={p.selectedWeek} busy={p.busy} onCreate={done(p.onCreateTask)} onCancel={onClose} />}
         {mode === 'exame' &&

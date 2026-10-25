@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { Baby, BellRing, BookOpen, Camera, ChevronLeft, ChevronRight, ClipboardCheck, Flag, Footprints, HandHeart, ListChecks, NotebookPen, PartyPopper, Pencil, Route, Siren, Sparkles, Stethoscope, X } from 'lucide-react';
+import { Baby, BellRing, BookOpen, Camera, ChevronLeft, ChevronRight, ClipboardCheck, Flag, Footprints, HandHeart, Hourglass, ListChecks, NotebookPen, PartyPopper, Pencil, Route, Siren, Sparkles, Stethoscope, X } from 'lucide-react';
 import { weekInfo } from '../../content/weeks';
 import { WEEK_CARDS_SOURCE, weekCards } from '../../content/weekCards';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, parseTimestamp, toISODate, type GestationalAge } from '../../lib/dates';
@@ -38,6 +38,8 @@ import { InsightList } from '../InsightList';
 import { PeopleContext, RelativesContext, speakerOf } from '../../lib/people';
 import { discoveryOf } from '../../content/dailyDiscovery';
 import WeekGift from '../home/WeekGift';
+import VisitFeedback, { type VisitStatus } from '../home/VisitFeedback';
+import { countdownTitle, nextCountdown, type Countdown } from '../../lib/countdown';
 import { openWeekGift, weekGiftPending } from '../../lib/weekGift';
 import { dismissSince, previousVisit, rememberReactions, resumeVisit, sinceParts } from '../../lib/since';
 import { BabyNameContext, rankIdeas } from '../../lib/baby';
@@ -108,6 +110,11 @@ interface Props {
   onWrite: (folder: Folder) => void;
   /** Abrir já numa janela (vindo da Ajuda). */
   start?: 'bebe' | 'missoes' | null;
+  /** "Como foi a consulta?" (migração 032): responder; o aviso pode abrir já numa consulta. */
+  onVisitFeedback?: (c: Consultation, status: VisitStatus) => void;
+  askVisit?: string | null;
+  /** Dúvidas ainda sem resposta (para o "Como foi?"). */
+  openQuestions?: number;
 }
 
 export default function HomeTab(props: Props) {
@@ -116,6 +123,8 @@ export default function HomeTab(props: Props) {
   // A Ajuda pode abrir o Início já na Jornada do bebê ou nos Primeiros 7 dias.
   const [growth, setGrowth] = useState(props.start === 'bebe');
   const [sheet, setSheet] = useState<'alerta' | 'missoes' | 'lembretes' | 'resumo' | null>(props.start === 'missoes' ? 'missoes' : null);
+  // "Como foi a consulta?": a que está sendo respondida.
+  const [visitId, setVisitId] = useState<string | null>(props.askVisit ?? null);
   const openGrowth = () => setGrowth(true);
   const info = weekInfo(selectedWeek);
   const stage = stageAt(selectedWeek);
@@ -223,7 +232,19 @@ export default function HomeTab(props: Props) {
   const todayNotes = up.today.filter(i => !isEvent(i) && !i.overdue && !i.task && !i.celebrationTask);
   const mission = props.firstDays && props.onHideFirstDays ? firstDaysState(missionsDone, props.firstDays, todayIso) : null;
   const topIdeas = props.nameIdeas ? rankIdeas(props.nameIdeas).slice(0, 3) : [];
+  // Consultas e ultrassons que já passaram (há 1 hora ou mais, até 2 dias), ainda sem "como foi".
+  const visits = props.onVisitFeedback
+    ? props.consultations.filter(c => {
+        if ((c.kind ?? 'consulta') !== 'consulta' && c.kind !== 'ultrassom') return false;
+        if (c.after_status) return false;
+        const ago = now.getTime() - parseTimestamp(c.scheduled_at).getTime();
+        return ago >= 3_600_000 && ago <= 2 * 86_400_000;
+      })
+    : [];
+  const askedVisit = visitId ? props.consultations.find(c => c.id === visitId && !c.after_status) : undefined;
+  const countdown = nextCountdown({ consultations: props.consultations, celebrations: props.celebrations, dpp: age.daysToDpp >= 0 ? age.dpp : null, babyName });
   const rows: TodayRow[] = [
+    ...visits.slice(0, 1).map(c => ({ id: `comofoi-${c.id}`, tone: 'verde' as const, icon: <Stethoscope />, kicker: 'Depois da consulta', title: c.kind === 'ultrassom' ? 'Como foi o ultrassom?' : 'Como foi a consulta?', sub: `${appointmentTitle(c)} · um toque para contar`, onClick: () => setVisitId(c.id) })),
     ...(alerts.length ? [{ id: 'alerta', tone: 'alert' as const, icon: <Siren />, kicker: 'Atenção à saúde', title: alerts[0].title, sub: alerts.length > 1 ? `e mais ${alerts.length - 1} ${alerts.length === 2 ? 'ponto' : 'pontos'} para conversar com a equipe` : alerts[0].detail, onClick: () => setSheet('alerta') }] : []),
     ...up.today.filter(isEvent).map(i => itemRow(i, 'Hoje')),
     ...(overdue.length > 1 ? [{ id: 'atrasadas', tone: 'alert' as const, icon: <ListChecks />, kicker: 'Tarefas atrasadas', title: `${overdue.length} tarefas passaram do prazo`, sub: overdue.slice(0, 2).map(i => i.title).join(' · '), onClick: () => onOpen('tarefas') }] : overdue.map(i => itemRow(i, 'Hoje'))),
@@ -393,6 +414,12 @@ export default function HomeTab(props: Props) {
           {selectedWeek === currentWeek ? 'Nesta semana' : `Na semana ${selectedWeek}`}
         </h2>
         <ul className="-mx-4 px-4 flex gap-2.5 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1">
+          {countdown && selectedWeek === currentWeek && (
+            <CountdownCard
+              countdown={countdown}
+              onClick={() => (countdown.kind === 'ultrassom' ? props.onOpenDetail({ kind: 'consultation', id: countdown.targetId! }) : countdown.kind === 'celebracao' ? props.onOpenCelebration?.(countdown.targetId!) : openGrowth())}
+            />
+          )}
           {summary && <WeekCard tone="bg-gradient-to-br from-rosa-soft to-azul-soft" label="Resumo da semana" labelTone="text-rosa-strong" icon={<Sparkles />} title={summaryHeadline(summary)} onClick={() => setSheet('resumo')} />}
           <WeekCard tone="bg-rosa-soft" label="O bebê" labelTone="text-rosa-strong" icon={<Baby />} title={info.milestone} onClick={openGrowth} />
           {upcoming && <WeekCard tone="bg-lilas-soft" label="Próximo marco" labelTone="text-lilas-strong" icon={<Flag />} title={upcoming.milestone.title} meta={inDays(upcoming.days)} ariaLabel={`Próximo marco ${inDays(upcoming.days)}: ${upcoming.milestone.title}. Ver na jornada do bebê`} onClick={openGrowth} />}
@@ -459,6 +486,11 @@ export default function HomeTab(props: Props) {
           </div>
         </Sheet>
       )}
+      {askedVisit && props.onVisitFeedback && (
+        <Sheet title={askedVisit.kind === 'ultrassom' ? 'Como foi o ultrassom?' : 'Como foi a consulta?'} onClose={() => setVisitId(null)}>
+          <VisitFeedback visit={askedVisit} questions={props.openQuestions ?? 0} onAnswer={s => (setVisitId(null), props.onVisitFeedback!(askedVisit, s))} />
+        </Sheet>
+      )}
       {sheet === 'resumo' && summary && (
         <Sheet title="A semana de vocês" onClose={() => setSheet(null)}>
           <WeekSummaryCard summary={summary} week={currentWeek} onMood={() => (setSheet(null), onOpen('humor'))} onMural={() => (setSheet(null), onOpen('mural'))} />
@@ -470,6 +502,27 @@ export default function HomeTab(props: Props) {
 
 // Um cartão pequeno do carrossel: ícone, rótulo, título curto e um detalhe.
 // Quem não leva a outro lugar (corpo, pai) abre o texto inteiro numa folha.
+/** A contagem para o próximo marco: o número grande, o quê e o porquê, e a barra enchendo. */
+function CountdownCard({ countdown, onClick }: { countdown: Countdown; onClick: () => void }) {
+  return (
+    <li className="snap-start shrink-0 w-[156px] h-[160px] overflow-hidden rounded-[22px] bg-gradient-to-br from-lilas-soft to-rosa-soft">
+      <button type="button" onClick={onClick} aria-label={`${countdownTitle(countdown)}: ${countdown.why}`} className="w-full h-full text-left p-3.5 flex flex-col transition active:scale-[0.98]">
+        <span className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-lilas-strong">
+          <Hourglass className="w-3.5 h-3.5" /> Contagem
+        </span>
+        <span className="mt-1.5 font-display text-ink leading-none">
+          <span className="text-[30px]">{countdown.days}</span> <span className="text-[15px]">{countdown.days === 1 ? 'dia' : 'dias'}</span>
+        </span>
+        <span className="mt-1 text-[13.5px] font-bold text-ink leading-snug line-clamp-2">para {countdown.what}</span>
+        <span className="mt-auto block text-[12px] text-ink-soft leading-snug line-clamp-2">{countdown.why}</span>
+        <span className="mt-1.5 block shrink-0 h-1.5 rounded-full bg-surface/70 overflow-hidden" aria-hidden>
+          <span className="block h-full rounded-full bg-gradient-to-r from-lilas to-rosa" style={{ width: `${Math.round(countdown.progress * 100)}%` }} />
+        </span>
+      </button>
+    </li>
+  );
+}
+
 function WeekCard({ tone, label, labelTone, icon, title, text, meta, photo, ariaLabel, onClick }: { tone: string; label: string; labelTone: string; icon: React.ReactNode; title: string; text?: string; meta?: string; photo?: string; ariaLabel?: string; onClick?: () => void }) {
   const [open, setOpen] = useState(false);
   return (

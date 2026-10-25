@@ -54,6 +54,8 @@ export interface Timed {
   tasks: Array<TaskRow & { at: string }>;
   /** Agendamentos com aviso a mais antes do horário (minutos). */
   early: Array<ConsultationRow & { before: number }>;
+  /** Consultas e ultrassons que terminaram há umas 3 horas, ainda sem "como foi" (migração 032). */
+  after?: ConsultationRow[];
 }
 
 const BEFORE_TEXT: Record<number, string> = { 30: 'em 30 minutos', 60: 'em 1 hora', 120: 'em 2 horas', 1440: 'amanhã' };
@@ -86,6 +88,16 @@ export function planTimed(families: FamilyRow[], timed: Timed): Notice[] {
         url: '/?aba=proximos',
         tag: `consulta-${c.id}`,
       },
+    });
+  }
+  // "Como foi a consulta?": algumas horas depois, um toque para contar.
+  for (const c of timed.after ?? []) {
+    const ultra = c.kind === 'ultrassom';
+    notices.push({
+      userIds: membersOf.get(c.family_id) ?? [],
+      kind: 'consultas',
+      key: `comofoi:${c.id}`,
+      payload: { title: ultra ? 'Como foi o ultrassom?' : 'Como foi a consulta?', body: ultra ? 'Um toque para contar, e a foto do bebê pode virar página do livro.' : 'Um toque para contar, e as dúvidas que vocês levaram.', url: `/?comofoi=${c.id}`, tag: `comofoi-${c.id}` },
     });
   }
   return notices.filter(n => n.userIds.length > 0);

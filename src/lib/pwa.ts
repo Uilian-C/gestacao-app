@@ -54,6 +54,16 @@ export function takeVoiceFromUrl(): string | null {
   return id;
 }
 
+/** A consulta que o aviso "Como foi a consulta?" pede para responder (/?comofoi=id). */
+export function takeVisitFromUrl(): string | null {
+  const url = new URL(window.location.href);
+  const id = url.searchParams.get('comofoi');
+  if (!id) return null;
+  url.searchParams.delete('comofoi');
+  window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  return id;
+}
+
 /** Parte da aba pedida pelo link (/?aba=exames abre Cuidados em Exames). */
 export function takeViewFromUrl(): string | null {
   takeTabFromUrl();
