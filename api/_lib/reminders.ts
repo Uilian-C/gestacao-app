@@ -148,6 +148,21 @@ export function planReminders(today: string, families: FamilyRow[], consultation
     });
   }
 
+  // Véspera da semana nova: um convite para voltar amanhã (a semana chega embrulhada no Início).
+  for (const f of families) {
+    if (!f.dum_date) continue;
+    const days = dayNumber(today) - dayNumber(f.dum_date) + 1;
+    if (days <= 0 || days % 7 !== 0) continue;
+    const week = days / 7;
+    if (week < 5 || week > 40) continue;
+    notices.push({
+      userIds: f.members,
+      kind: 'jornada',
+      key: `vespera-semana:${f.id}:${week}`,
+      payload: { title: `Amanhã, ${week} semanas`, body: 'Tem um presente esperando por vocês no Tumtum: a semana nova chega embrulhada.', url: '/', tag: 'semana' },
+    });
+  }
+
   // Semana nova: no dia em que completa a semana, com o que abre na jornada.
   for (const f of families) {
     if (!f.dum_date) continue;

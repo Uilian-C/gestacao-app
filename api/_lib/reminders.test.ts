@@ -60,6 +60,11 @@ describe('planReminders', () => {
     expect(feito.payload.body).toBe('Uma nova semana começou. Veja o que muda para vocês e para o bebê.');
   });
 
+  it('na véspera da semana nova, um convite para voltar amanhã (só para o casal)', () => {
+    const notices = planReminders('2026-10-15', [family({ relatives: ['avo'] })], [], []);
+    expect(notices).toEqual([{ userIds: ['mae', 'pai'], kind: 'jornada', key: 'vespera-semana:f1:24', payload: { title: 'Amanhã, 24 semanas', body: expect.stringContaining('presente'), url: '/', tag: 'semana' } }]);
+  });
+
   it('fora da virada da semana, sem aviso de semana', () => {
     expect(planReminders('2026-10-17', [family()], [], [])).toEqual([]);
     expect(planReminders('2026-10-16', [family({ dum_date: null })], [], [])).toEqual([]);

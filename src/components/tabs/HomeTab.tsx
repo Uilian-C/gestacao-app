@@ -1,9 +1,9 @@
-import { useContext, useState } from 'react';
-import { Baby, BellRing, BookOpen, Camera, ChevronLeft, ChevronRight, ClipboardCheck, Flag, Footprints, HandHeart, ListChecks, NotebookPen, PartyPopper, Pencil, Route, Siren, Sparkles, Stethoscope } from 'lucide-react';
+import { useContext, useEffect, useState } from 'react';
+import { Baby, BellRing, BookOpen, Camera, ChevronLeft, ChevronRight, ClipboardCheck, Flag, Footprints, HandHeart, ListChecks, NotebookPen, PartyPopper, Pencil, Route, Siren, Sparkles, Stethoscope, X } from 'lucide-react';
 import { weekInfo } from '../../content/weeks';
 import { WEEK_CARDS_SOURCE, weekCards } from '../../content/weekCards';
 import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, parseTimestamp, toISODate, type GestationalAge } from '../../lib/dates';
-import type { Checkin, ExamItem, Hug, JournalEntry, Mood, NameIdea } from '../../hooks/useGestationData';
+import type { Checkin, ExamItem, Folder, Hug, JournalEntry, Mood, NameIdea, Reaction } from '../../hooks/useGestationData';
 import type { DetailTarget } from '../../lib/details';
 import { phaseOf } from '../../lib/journey';
 import type { PlanItem } from '../../content/prenatalPlan';
@@ -35,7 +35,10 @@ import { BOOK_SEEN_KEY } from '../Book';
 import { showsWeekSummary, summaryHeadline, weekSummary } from '../../lib/weekSummary';
 import { Button, LinkButton } from '../ui';
 import { InsightList } from '../InsightList';
-import { PeopleContext } from '../../lib/people';
+import { PeopleContext, RelativesContext, speakerOf } from '../../lib/people';
+import { discoveryOf } from '../../content/dailyDiscovery';
+import WeekGift, { openWeekGift, weekGiftPending } from '../home/WeekGift';
+import { dismissSince, previousVisit, rememberReactions, resumeVisit, sinceParts } from '../../lib/since';
 import { BabyNameContext, rankIdeas } from '../../lib/baby';
 import { bookMonths, freshChapter, type Chapter } from '../../lib/chapters';
 import { pendingTasks, upcomingCelebration, type Celebration } from '../../lib/celebrations';
@@ -96,6 +99,12 @@ interface Props {
   bellyAvailable: boolean;
   onBellyPhoto: () => void;
   symptoms: SymptomItem[];
+  /** Quem está logado (o que fica guardado só neste aparelho: a semana aberta, a última visita). */
+  userId: string;
+  /** Reações nos registros (para o "Desde a última vez"). */
+  reactions: Reaction[];
+  /** Abre o registro do diário numa pasta (o convite da descoberta do dia). */
+  onWrite: (folder: Folder) => void;
 }
 
 export default function HomeTab(props: Props) {
@@ -121,6 +130,44 @@ export default function HomeTab(props: Props) {
   const lateSteps = props.lateSteps;
   const members = useContext(PeopleContext);
   const babyName = useContext(BabyNameContext);
+  const relatives = useContext(RelativesContext);
+  const isToday = selectedWeek === currentWeek;
+  // A semana nova embrulhada (uma vez por semana) e, depois de aberta, o bebê aparecendo.
+  const [gift, setGift] = useState(() => weekGiftPending(props.userId, currentWeek));
+  const [revealed, setRevealed] = useState(false);
+  const wrapped = gift && isToday;
+  const unwrap = () => {
+    openWeekGift(props.userId, currentWeek);
+    setGift(false);
+    setRevealed(true);
+  };
+  // Desde a última vez: o que aconteceu enquanto a pessoa esteve fora.
+  const [visit, setVisit] = useState(() => previousVisit(props.userId));
+  useEffect(() => rememberReactions(props.userId, props.reactions), [props.userId, props.reactions]);
+  useEffect(() => {
+    // O app ficou horas em segundo plano: ao voltar, conta como uma nova volta.
+    const back = () => {
+      if (document.visibilityState !== 'visible') return;
+      resumeVisit(props.userId);
+      setVisit(previousVisit(props.userId));
+    };
+    document.addEventListener('visibilitychange', back);
+    return () => document.removeEventListener('visibilitychange', back);
+  }, [props.userId]);
+  const since = visit
+    ? sinceParts({
+        since: visit.at,
+        seenReactions: visit.reactions,
+        dumDate: props.dumDate,
+        partnerName: props.partnerName,
+        journal: props.journal,
+        checkins: props.checkins,
+        hugs: props.hugs,
+        reactions: props.reactions,
+        reactor: r => speakerOf(members, relatives, r).name,
+      })
+    : [];
+  const closeSince = () => (dismissSince(props.userId), setVisit(null));
   // As missões dos primeiros dias se marcam sozinhas, pelo que já aconteceu de verdade.
   const bookSeen = (() => {
     try {
@@ -203,11 +250,30 @@ export default function HomeTab(props: Props) {
   const chapter = props.book?.length ? bookMonths(props.book)[0] : undefined;
   const freshPage = props.book?.length ? freshChapter(props.book, props.dumDate, now) : null;
   const dadFirst = props.role === 'pai';
+  const discovery = discoveryOf(dayOfPregnancy, babyName);
+  // A foto da barriga desta semana já foi tirada: o convite vira guardar um momento.
+  const invite = discovery.invite.kind === 'barriga' && (bellyDone || !props.bellyAvailable) ? { kind: 'momento' as const, label: 'Guardar um momento' } : discovery.invite;
 
   return (
     <div className="space-y-8">
       {/* 1. O bebê: o dia, a semana no calendário e o bebê no centro, sem caixa, sobre um halo suave. */}
       <div className="space-y-4">
+        {since.length > 0 && (
+          <div role="status" className="tt-carimbo flex items-start gap-2 rounded-2xl bg-surface/70 pl-3.5 pr-1 py-1.5 shadow-[0_1px_0_var(--color-line)]">
+            <button type="button" onClick={() => (closeSince(), onOpen('mural'))} className="flex-1 py-1 text-left text-[13px] leading-snug text-ink-soft">
+              <span className="font-extrabold text-rosa-strong">Desde a última vez</span>
+              {since.map(p => (
+                <span key={p}>
+                  <span aria-hidden className="text-ink-mute"> · </span>
+                  {p}
+                </span>
+              ))}
+            </button>
+            <button type="button" onClick={closeSince} aria-label="Fechar o que aconteceu desde a última vez" className="w-8 h-8 shrink-0 rounded-full text-ink-mute hover:bg-surface-2 flex items-center justify-center">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
         {props.onOpenCalendar ? (
           <WeekStrip now={now} dumDate={props.dumDate} consultations={props.consultations} tasks={props.tasks} journal={props.journal} results={props.exams} celebrations={props.celebrations} onOpen={props.onOpenCalendar} />
         ) : (
@@ -220,9 +286,13 @@ export default function HomeTab(props: Props) {
             <button type="button" onClick={() => onSelectWeek(selectedWeek - 1)} disabled={selectedWeek <= FIRST_WEEK} aria-label="Semana anterior" className="w-9 h-9 rounded-full text-ink-mute hover:text-ink hover:bg-surface/60 flex items-center justify-center disabled:opacity-30">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <button type="button" onClick={openGrowth} aria-label={`Semana ${selectedWeek} de 40: abrir a jornada do bebê`} className="rounded-full">
-              <BabyArt week={selectedWeek} beat={selectedWeek === currentWeek} tone={props.babyTone} className="w-40 h-40 sm:w-44 sm:h-44" />
-            </button>
+            {wrapped ? (
+              <WeekGift week={currentWeek} onOpen={unwrap} />
+            ) : (
+              <button type="button" onClick={openGrowth} aria-label={`Semana ${selectedWeek} de 40: abrir a jornada do bebê`} className={`rounded-full ${revealed && isToday ? 'tt-revelar' : ''}`}>
+                <BabyArt week={selectedWeek} beat={selectedWeek === currentWeek} tone={props.babyTone} className="w-40 h-40 sm:w-44 sm:h-44" />
+              </button>
+            )}
             <button type="button" onClick={() => onSelectWeek(selectedWeek + 1)} disabled={selectedWeek >= LAST_WEEK} aria-label="Próxima semana" className="w-9 h-9 rounded-full text-ink-mute hover:text-ink hover:bg-surface/60 flex items-center justify-center disabled:opacity-30">
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -232,11 +302,25 @@ export default function HomeTab(props: Props) {
               {selectedWeek === currentWeek ? `${age.weeks} semanas${age.days ? ` e ${age.days} ${age.days === 1 ? 'dia' : 'dias'}` : ''}` : `Semana ${selectedWeek}`}
             </p>
             {babyName && <p className="font-display text-[1.1rem] leading-none text-rosa-strong">{babyName}</p>}
-            <h2 className="font-display text-[1.65rem] leading-tight text-ink text-balance">{stage.title}</h2>
-            <p className="text-[14px] text-ink-soft">
-              Do tamanho de {info.fruit}
-              {selectedWeek !== currentWeek && <span className="text-ink-mute"> · espiando outra semana</span>}
-            </p>
+            {wrapped ? (
+              <>
+                <h2 className="font-display text-[1.65rem] leading-tight text-ink text-balance">Uma semana nova chegou</h2>
+                <p className="text-[14px] text-ink-soft">Toque no presente para ver como {babyName ?? 'o bebê'} está agora</p>
+              </>
+            ) : (
+              <>
+                <h2 className="font-display text-[1.65rem] leading-tight text-ink text-balance">{stage.title}</h2>
+                <p className="text-[14px] text-ink-soft">
+                  Do tamanho de {info.fruit}
+                  {selectedWeek !== currentWeek && <span className="text-ink-mute"> · espiando outra semana</span>}
+                </p>
+              </>
+            )}
+            {revealed && isToday && (
+              <p className="tt-revelar-texto mx-auto max-w-[300px] pt-1.5 text-[14px] leading-snug text-rosa-strong">
+                <span className="font-extrabold">Novidade da semana {currentWeek}:</span> {info.milestone}
+              </p>
+            )}
           </div>
 
           {/* A gestação inteira numa linha fina, com quanto falta. */}
@@ -265,6 +349,7 @@ export default function HomeTab(props: Props) {
           </div>
           {props.partnerName && partnerToday && <p className="relative mt-1 text-[12.5px] text-ink-mute">{props.partnerName} já passou por aqui hoje 💛</p>}
 
+
           {editingDum && (
             <div className="relative mt-3 text-left">
               <DumForm
@@ -278,6 +363,20 @@ export default function HomeTab(props: Props) {
           )}
           {age.isPostTerm && <p className="relative mt-3 text-left text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">Vocês passaram das 40 semanas. Combinem com o obstetra a frequência das avaliações a partir de agora.</p>}
         </section>
+        {/* A descoberta do dia: uma frase nova por dia, que termina num convite para registrar. */}
+        {isToday && !wrapped && age.daysToDpp >= 0 && (
+          <section aria-label="Descoberta de hoje" className="mx-auto w-full max-w-[340px] rounded-[22px] bg-surface/75 px-4 py-3 text-left shadow-[0_1px_0_var(--color-line)]">
+            <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-lilas-strong">
+              <Sparkles className="w-3.5 h-3.5" aria-hidden />
+              Descoberta de hoje
+            </p>
+            <p className="mt-1 text-[14.5px] leading-snug text-ink">{discovery.text}</p>
+            <button type="button" onClick={() => (invite.kind === 'barriga' ? props.onBellyPhoto() : props.onWrite(invite.kind === 'carta' ? 'carta' : 'momento'))} className="mt-1.5 -ml-1 inline-flex items-center gap-1 rounded-full px-1 py-1 text-[13.5px] font-bold text-rosa-strong hover:underline">
+              {invite.label}
+              <ChevronRight className="w-3.5 h-3.5" aria-hidden />
+            </button>
+          </section>
+        )}
       </div>
 
       {/* 2. Como você está: logo depois de ver o bebê, um toque para contar (e o abraço). */}

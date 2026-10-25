@@ -900,6 +900,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             bellyAvailable={!!data.journalAvailable && (data.photosAvailable ?? false)}
             onBellyPhoto={() => writeEntry('barriga')}
             symptoms={symptoms}
+            userId={me.user.id}
+            reactions={data.reactions ?? []}
+            onWrite={writeEntry}
           />
         )}
 
