@@ -3,7 +3,7 @@ import { Bell, BellOff, Check, Copy, Download, ExternalLink, Loader2, Share, Squ
 import { usePush } from '../hooks/usePush';
 import type { NotifyKind } from '../lib/notifications';
 import { canInstall, chromeIntentUrl, iosTooOld, isAndroid, isIOS, isStandalone, limitedBrowser, onInstallChange, promptInstall } from '../lib/pwa';
-import { Button } from './ui';
+import { Button, Segmented } from './ui';
 
 const KINDS: Array<{ id: NotifyKind; label: string; hint: string }> = [
   { id: 'consultas', label: 'Consultas', hint: 'Na véspera e na manhã do dia, com horário e endereço.' },
@@ -108,7 +108,7 @@ export function InstallButton({ className = '' }: { className?: string }) {
 
 /** Seção "Notificações" do Nosso espaço. */
 export default function NotificationSettings({ relative = false }: { relative?: boolean }) {
-  const { state, busy, error, notice, enable, disable, test, setPref } = usePush();
+  const { state, busy, error, notice, enable, disable, test, setPref, setBestTime } = usePush();
 
   return (
     <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-4" aria-labelledby="notif-title">
@@ -175,6 +175,14 @@ export default function NotificationSettings({ relative = false }: { relative?: 
             </label>
           ))}
         </fieldset>
+      )}
+
+      {'prefs' in state && (
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium text-ink-soft">Melhor horário para as novidades</p>
+          <Segmented label="Melhor horário para as novidades" value={state.bestTime} onChange={setBestTime} full options={[{ value: 'manha', label: 'Manhã' }, { value: 'tarde', label: 'Tarde' }, { value: 'noite', label: 'Noite' }]} />
+          <p className="text-xs text-ink-mute">Semana nova e novidades chegam nesse horário, no máximo uma por dia. De madrugada, nada da outra pessoa: fica esperando no app. Consultas e lembretes chegam sempre na hora.</p>
+        </div>
       )}
 
       {notice && <p className="text-sm text-ok" role="status">{notice}</p>}

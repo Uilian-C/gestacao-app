@@ -18,6 +18,7 @@ import { PeopleContext, authorOf, firstName, whoName } from '../lib/people';
 import Avatar from './Avatar';
 import { reminderTime, timeLabel } from '../lib/reminders';
 import PhotoViewer from './PhotoViewer';
+import { SecondVoice } from './SecondVoice';
 import { EntryForm, type NewEntry } from './forms/EntryForm';
 import { MetricForm, SymptomForm, type NewMetric, type NewSymptom } from './forms/RecordForms';
 import IntensityDots from './IntensityDots';
@@ -64,6 +65,8 @@ export interface DetailHandlers {
   onReact: OnReact;
   onThread: (targetType: 'entry' | 'exam', targetId: string, body: string) => Promise<boolean>;
   onDeleteThread: (c: ThreadComment) => void;
+  /** A segunda voz num registro do diário (migração 030); sem ela, o convite não aparece. */
+  onVoice?: (entryId: string, body: string) => Promise<boolean>;
   /** Agendamento ligado a um item da jornada: abre o item na jornada (Cuidados). */
   onOpenJourney: (itemId: string) => void;
   /** Nome do item da jornada (inclui os itens do casal). */
@@ -215,6 +218,7 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
                 {letter && <p className="font-display italic text-ink-soft text-right mt-3">— {e.author_role === 'mae' ? 'mãe' : 'pai'}</p>}
               </div>
             )}
+            {h.onVoice && (e.folder === 'momento' || e.folder === 'dia' || e.folder === 'carta') && <SecondVoice key={e.id} entry={e} onSave={body => h.onVoice!(e.id, body)} />}
             <div className="flex flex-wrap gap-2 mt-4">
               {h.photosAvailable && (
                 <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full ${t.soft} ${t.text}`}>

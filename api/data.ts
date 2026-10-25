@@ -173,6 +173,7 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('deleteCelebrationItem'), id: uuid }),
   z.object({ op: z.literal('setBabyName'), name: z.string().trim().max(40).nullable() }),
   z.object({ op: z.literal('setCareMode'), on: z.boolean() }),
+  z.object({ op: z.literal('setVoice'), id, body: z.string().trim().max(2000) }),
   z.object({ op: z.literal('setBabyTone'), tone: z.enum(['tumtum', 'tom1', 'tom2', 'tom3', 'tom4', 'tom5']).nullable() }),
   // Check-in do dia (migração 014): o humor de cada um; null apaga.
   z.object({ op: z.literal('checkin'), day: isoDate, mood: z.enum(['otima', 'bem', 'cansada', 'enjoada', 'ansiosa']).nullable() }),
@@ -559,6 +560,23 @@ async function apply(m: Member, o: Op) {
         if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'O nome do bebê ainda não está ligado no servidor. Rode a migração db/migrations/025_nome_do_bebe.sql no Neon.');
         throw err;
       });
+    case 'setVoice': {
+      // A segunda voz é de quem não escreveu o registro; vazio apaga.
+      const rows = await query<{ id: string }>(
+        `UPDATE journal_entries
+            SET voice_body = $1, voice_user_id = CASE WHEN $1::text IS NULL THEN NULL ELSE $2 END,
+                voice_role = CASE WHEN $1::text IS NULL THEN NULL ELSE $5 END, voice_at = CASE WHEN $1::text IS NULL THEN NULL ELSE NOW() END
+          WHERE id::text = $3 AND family_id = $4 AND user_id <> $2 AND visibility <> 'private'
+            AND (voice_user_id IS NULL OR voice_user_id = $2)
+          RETURNING id::text AS id`,
+        [o.body || null, m.userId, o.id, fid, who],
+      ).catch(err => {
+        if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'As duas vozes ainda não estão ligadas no servidor. Rode a migração db/migrations/030_duas_vozes_e_horario.sql no Neon.');
+        throw err;
+      });
+      if (rows.length === 0) throw new HttpError(404, 'Registro não encontrado.');
+      return rows;
+    }
     case 'setCareMode':
       return query('UPDATE families SET care_since = CASE WHEN $2 THEN COALESCE(care_since, CURRENT_DATE) ELSE NULL END WHERE id = $1', [fid, o.on]).catch(err => {
         if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'O modo cuidado ainda não está ligado no servidor. Rode a migração db/migrations/029_modo_cuidado.sql no Neon.');
@@ -608,7 +626,7 @@ async function apply(m: Member, o: Op) {
 
 // Aviso para a outra pessoa do espaço. Sem detalhes de saúde no texto: a
 // notificação aparece na tela bloqueada; o conteúdo fica dentro do app.
-function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } | null {
+function partnerMessage(o: Op, createdId?: string): Omit<PushPayload, 'title'> & { action: string } | null {
   switch (o.op) {
     case 'createSymptom':
       return { action: 'registrou um sintoma', body: 'Toque para ver e deixar um carinho.', url: '/?aba=saude', tag: 'parceiro-diario' };
@@ -620,8 +638,23 @@ function partnerMessage(o: Op): Omit<PushPayload, 'title'> & { action: string } 
       return { action: 'anotou uma dúvida para a consulta', body: 'Toque para ver a lista de perguntas.', url: '/?aba=duvidas', tag: 'parceiro-duvida' };
     case 'createTask':
       return { action: 'criou uma tarefa', body: o.title.length > 80 ? `${o.title.slice(0, 79)}…` : o.title, url: '/?aba=agenda', tag: 'parceiro-tarefa' };
-    case 'createEntry':
-      return o.visibility === 'shared' ? { action: ENTRY_TEXT[o.folder ?? 'momento'], body: 'Toque para ver no diário.', url: '/?aba=diario', tag: 'parceiro-momento' } : null;
+    case 'createEntry': {
+      if (o.visibility !== 'shared') return null;
+      // Momento, dia ou carta: o convite para a segunda voz, com um trecho do que foi guardado.
+      const folder = o.folder ?? 'momento';
+      if (createdId && o.body && (folder === 'momento' || folder === 'dia' || folder === 'carta')) {
+        const quote = o.body.length > 60 ? `${o.body.slice(0, 59).trimEnd()}…` : o.body;
+        return {
+          action: folder === 'carta' ? 'escreveu uma carta para o bebê' : `guardou "${quote}"`,
+          body: folder === 'carta' ? 'Quer escrever a sua parte?' : 'Quer completar com o que você sentiu?',
+          url: `/?aba=diario&voz=${createdId}`,
+          tag: 'parceiro-momento',
+        };
+      }
+      return { action: ENTRY_TEXT[folder], body: 'Toque para ver no diário.', url: '/?aba=diario', tag: 'parceiro-momento' };
+    }
+    case 'setVoice':
+      return o.body ? { action: 'completou a sua lembrança', body: 'Toque para ler as duas vozes.', url: '/?aba=diario', tag: `voz-${o.id}` } : null;
     case 'addNameIdea':
       return { action: `sugeriu um nome: ${o.name}`, body: 'Toque para curtir ou sugerir outro.', url: '/', tag: 'nomes' };
     case 'commentNameIdea':
@@ -727,7 +760,7 @@ async function inConversation(fid: string, entryId: string, people: Person[]) {
   return people.filter(p => !p.me && p.role === 'familia' && ids.has(p.user_id)).map(p => p.user_id);
 }
 
-async function notifyPartners(m: Member, o: Op, prev: Before) {
+async function notifyPartners(m: Member, o: Op, prev: Before, createdId?: string) {
   const rows = await peopleOf(m);
   // O casal recebe tudo como antes; os familiares, só os posts para a família e a conversa neles.
   const partners = rows.filter(r => !r.me && r.role !== 'familia');
@@ -746,7 +779,7 @@ async function notifyPartners(m: Member, o: Op, prev: Before) {
   if (partners.length === 0) return;
   const tag = tagged(o, partners, prev);
   const marked = new Set((tag?.people ?? []).map(p => p.user_id));
-  const message = partnerMessage(o);
+  const message = partnerMessage(o, createdId);
   const rest = partners.filter(p => !marked.has(p.user_id)).map(p => p.user_id);
   await Promise.all([
     // Quem foi marcado recebe um aviso só, o da marcação.
@@ -867,7 +900,7 @@ export const POST = endpoint(async request => {
   // O aviso para a outra pessoa sai ao mesmo tempo; se falhar, o registro continua salvo.
   const [data] = await Promise.all([
     fetchAll(member.familyId, member.userId),
-    repeated ? undefined : notifyPartners(member, parsed.data, prev).catch(err => console.error('Aviso ao parceiro não enviado', err)),
+    repeated ? undefined : notifyPartners(member, parsed.data, prev, createdId).catch(err => console.error('Aviso ao parceiro não enviado', err)),
   ]);
   return json({ ok: true, data, ...(createdId ? { id: createdId } : {}) });
 });

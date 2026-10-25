@@ -17,16 +17,23 @@ async function prefsOf(userId: string) {
   return rows[0] ?? { consultas: true, momentos: true, jornada: true, parceiro: true };
 }
 
+/** O melhor horário para as novidades (migração 030); null antes da migração ou sem escolha. */
+async function bestTimeOf(userId: string) {
+  const rows = await query<{ best: string | null }>("SELECT to_jsonb(p) ->> 'best_time' AS best FROM notification_prefs p WHERE user_id = $1", [userId]);
+  return rows[0]?.best ?? 'manha';
+}
+
 export const GET = endpoint(async request => {
   const member = await requireSpace(request);
   await ready();
-  const [{ publicKey }, prefs, devices] = await Promise.all([
+  const [{ publicKey }, prefs, devices, bestTime] = await Promise.all([
     vapidKeys(),
     prefsOf(member.userId),
     query<{ endpoint: string }>('SELECT endpoint FROM push_subscriptions WHERE user_id = $1', [member.userId]),
+    bestTimeOf(member.userId),
   ]);
   // A lista de aparelhos volta só para o app saber se este aparelho já está ativo.
-  return json({ publicKey, prefs, endpoints: devices.map(d => d.endpoint) });
+  return json({ publicKey, prefs, endpoints: devices.map(d => d.endpoint), bestTime });
 });
 
 const subscription = z.object({
@@ -39,6 +46,7 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('unsubscribe'), endpoint: z.string().max(1000) }),
   z.object({ op: z.literal('prefs'), consultas: z.boolean(), momentos: z.boolean(), jornada: z.boolean(), parceiro: z.boolean() }),
   z.object({ op: z.literal('test') }),
+  z.object({ op: z.literal('bestTime'), value: z.enum(['manha', 'tarde', 'noite']) }),
 ]);
 
 export const POST = endpoint(async request => {
@@ -68,6 +76,16 @@ export const POST = endpoint(async request => {
         [me, ...NOTIFY_KINDS.map(k => o[k])],
       );
       break;
+    case 'bestTime':
+      await query(
+        `INSERT INTO notification_prefs (user_id, best_time, updated_at) VALUES ($1, $2, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET best_time = $2, updated_at = NOW()`,
+        [me, o.value],
+      ).catch(err => {
+        if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'O horário dos avisos ainda não está ligado no servidor. Rode a migração db/migrations/030_duas_vozes_e_horario.sql no Neon.');
+        throw err;
+      });
+      return json({ ok: true, bestTime: o.value });
     case 'test': {
       // Um teste por minuto: vários avisos iguais em sequência parecem spam para o navegador.
       const fresh = await query(

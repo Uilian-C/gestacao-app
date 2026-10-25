@@ -7,10 +7,14 @@ import { isIOS, isStandalone, limitedBrowser } from './pwa';
 export type NotifyKind = 'consultas' | 'momentos' | 'jornada' | 'parceiro';
 export type NotifyPrefs = Record<NotifyKind, boolean>;
 
+export type BestTime = 'manha' | 'tarde' | 'noite';
+
 export interface PushStatus {
   publicKey: string;
   prefs: NotifyPrefs;
   endpoints: string[];
+  /** Melhor horário para as novidades (migração 030). */
+  bestTime?: BestTime;
 }
 
 /**
@@ -42,6 +46,7 @@ async function call<T>(body?: unknown): Promise<T> {
 
 export const pushStatus = () => call<PushStatus>();
 export const savePrefs = (prefs: NotifyPrefs) => call<{ prefs: NotifyPrefs }>({ op: 'prefs', ...prefs });
+export const saveBestTime = (value: BestTime) => call<{ bestTime: BestTime }>({ op: 'bestTime', value });
 export const sendTest = () => call<{ sent: number }>({ op: 'test' });
 
 async function registration() {

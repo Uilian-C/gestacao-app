@@ -44,6 +44,16 @@ function readTab(): Tab | null {
   return TABS.includes(tab) ? tab : null;
 }
 
+/** O registro que o aviso "Quer completar com o que você sentiu?" pede para abrir (/?voz=id). */
+export function takeVoiceFromUrl(): string | null {
+  const url = new URL(window.location.href);
+  const id = url.searchParams.get('voz');
+  if (!id) return null;
+  url.searchParams.delete('voz');
+  window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  return id;
+}
+
 /** Parte da aba pedida pelo link (/?aba=exames abre Cuidados em Exames). */
 export function takeViewFromUrl(): string | null {
   takeTabFromUrl();

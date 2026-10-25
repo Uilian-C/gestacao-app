@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../api';
-import { currentEndpoint, disablePush, enablePush, permission, pushStatus, pushSupport, savePrefs, sendTest, type NotifyPrefs } from '../lib/notifications';
+import { currentEndpoint, disablePush, enablePush, permission, pushStatus, pushSupport, saveBestTime, savePrefs, sendTest, type BestTime, type NotifyPrefs } from '../lib/notifications';
 
 export type PushState =
   | { phase: 'carregando' }
   | { phase: 'ios-instalar' | 'outro-navegador' | 'sem-suporte' }
   | { phase: 'servidor-pendente'; message: string }
-  | { phase: 'bloqueado' | 'desligado' | 'ligado'; prefs: NotifyPrefs; publicKey: string };
+  | { phase: 'bloqueado' | 'desligado' | 'ligado'; prefs: NotifyPrefs; publicKey: string; bestTime: BestTime };
 
 /** Estado das notificações neste aparelho e as ações para mudar. */
 export function usePush() {
@@ -21,7 +21,7 @@ export function usePush() {
     try {
       const [status, endpoint] = await Promise.all([pushStatus(), currentEndpoint()]);
       const on = !!endpoint && status.endpoints.includes(endpoint) && permission() === 'granted';
-      setState({ phase: permission() === 'denied' ? 'bloqueado' : on ? 'ligado' : 'desligado', prefs: status.prefs, publicKey: status.publicKey });
+      setState({ phase: permission() === 'denied' ? 'bloqueado' : on ? 'ligado' : 'desligado', prefs: status.prefs, publicKey: status.publicKey, bestTime: status.bestTime ?? 'manha' });
     } catch (err) {
       setState({ phase: 'servidor-pendente', message: err instanceof ApiError ? err.message : 'Não foi possível verificar as notificações.' });
     }
@@ -75,5 +75,12 @@ export function usePush() {
       setState(s => ('prefs' in s ? { ...s, prefs: saved.prefs } : s));
     });
 
-  return { state, busy, error, notice, enable, disable, test, setPref };
+  const setBestTime = (value: BestTime) =>
+    run(async () => {
+      if (!('prefs' in state)) return;
+      setState({ ...state, bestTime: value });
+      await saveBestTime(value);
+    });
+
+  return { state, busy, error, notice, enable, disable, test, setPref, setBestTime };
 }
