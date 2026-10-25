@@ -169,6 +169,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [recording, setRecording] = useState<QuickMode[] | null>(null);
   const [recordStart, setRecordStart] = useState<QuickMode | null>(null);
   /** Pasta (e ideia) com que o diário abre no registro. */
+  // O Início aberto numa janela (a Jornada do bebê ou os Primeiros 7 dias): a chave remonta o Início.
+  const [homeStart, setHomeStart] = useState<{ start: 'bebe' | 'missoes'; n: number } | null>(null);
   const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string; firstTime?: FirstTimeId }>({});
   const [namesOpen, setNamesOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -761,6 +763,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const shareMood = (body: string) =>
     run(() => api.mutate('createEntry', { date: today, body, visibility: 'shared', remindOn: null, folder: 'dia' }), 'Não foi possível postar no Mural.', 'Postado no Mural');
   // "Ir para lá" da Central de Ajuda: fecha a ajuda e leva à tela certa.
+  const openHome = (start: 'bebe' | 'missoes') => {
+    setHomeStart(h => ({ start, n: (h?.n ?? 0) + 1 }));
+    navigate('inicio');
+  };
   const goHelp = (target: HelpTarget) => {
     setHelpOpen(false);
     if (target === 'espaco') return setSpaceOpen(true);
@@ -771,10 +777,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       setAgendaView('calendario');
       return navigate('agenda');
     }
-    if (target === 'celebracoes') {
-      setDiaryView('celebracoes');
+    if (target === 'celebracoes' || target === 'fichario') {
+      setDiaryView(target === 'fichario' ? 'tudo' : 'celebracoes');
       return navigate('diario');
     }
+    if (target === 'bebe') return openHome('bebe');
     openFromHome(target);
   };
   const openFromHome = (target: HomeTarget, planItem?: string) => {
@@ -894,6 +901,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         )}
         {activeTab === 'inicio' && !care && (
           <HomeTab
+            key={homeStart?.n ?? 0}
+            start={homeStart?.start ?? null}
             firstDays={firstDaysPrefs.hidden ? null : firstDaysPrefs.start}
             onHideFirstDays={() => saveFirstDays({ ...firstDaysPrefs, hidden: true })}
             onInvite={() => setSpaceOpen(true)}
@@ -1325,7 +1334,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onFirstDays={() => {
             saveFirstDays({ ...firstDaysPrefs, hidden: false });
             setHelpOpen(false);
-            navigate('inicio');
+            openHome('missoes');
           }}
         />
       )}

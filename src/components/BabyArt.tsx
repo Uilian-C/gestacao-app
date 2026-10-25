@@ -9,8 +9,9 @@ import { TONES, type BabyTone } from '../content/babyTones';
 // uma bolha em forma de coração, abraçado pelo eco do símbolo do Tumtum: a
 // assinatura do app.
 //
-// Ele muda com a gestação: uma sementinha luminosa (até a 7ª
-// semana), um feijãozinho de carinha grande (8ª a 11ª) e, a partir da 12ª, o
+// Ele muda com a gestação, no tamanho de cada fase: uma sementinha de luz (4ª e
+// 5ª semana), um grãozinho curvado ainda sem rosto (6ª e 7ª), um feijãozinho de
+// carinha grande que cresce semana a semana (8ª a 11ª) e, a partir da 12ª, o
 // bebê encolhido que vai ganhando bochecha, dobrinha e um cachinho de cabelo.
 
 /**
@@ -113,20 +114,28 @@ export default function BabyArt({ week, beat = false, tone = 'tumtum', className
 
       {/* O bebê, um pouco menor, para caber no coração */}
       <g transform="translate(60 61) scale(0.74) translate(-60 -60)">
-      {week < 8 ? (
-        // Sementinha: o feijãozinho bem pequeno, aninhado numa luz quente, com o coração já batendo.
+      {week < 6 ? (
+        // Sementinha (4ª e 5ª semana, 1 a 2 mm): só uma luz quente, um pontinho que mal se vê, e o brilho que pulsa.
         <g>
-          <circle cx={60} cy={62} r={34} fill={`url(#${glow})`} opacity={0.55} />
-          <g transform="translate(60 64) scale(0.72) translate(-62 -70)">
-            <path d="M50 62 C64 56 84 66 84 82 C84 96 70 102 60 97 C50 92 46 76 50 62 Z" fill={`url(#${shade})`} />
-            <circle cx={53} cy={47} r={24} fill={`url(#${skin})`} />
-            <Face x={52} y={49} s={0.82} feature={SKIN.feature} blush={SKIN.blush} />
+          <circle cx={60} cy={62} r={26} fill={`url(#${glow})`} opacity={0.65} />
+          <circle cx={60} cy={62} r={13} fill={`url(#${glow})`} opacity={0.9} />
+          <circle cx={60} cy={62} r={10.5} fill="none" stroke={SKIN.deep} strokeWidth={0.8} opacity={0.35} />
+          <ellipse cx={60} cy={62} rx={5.2} ry={6} fill={`url(#${shade})`} />
+          <circle cx={60} cy={62} r={1.6} fill="#fff" opacity={0.9} className={beat ? 'tt-bebe-batida' : undefined} />
+        </g>
+      ) : week < 8 ? (
+        // Grãozinho (6ª e 7ª semana, menos de 1 cm): um embrião curvadinho, ainda sem rosto, com o coração já batendo.
+        <g>
+          <circle cx={60} cy={62} r={26} fill={`url(#${glow})`} opacity={0.6} />
+          <g transform="translate(60 62) rotate(-18) scale(1.15)">
+            <path d="M-2 -9 C6 -11 11 -4 10 3 C9 10 2 13 -3 11 C-1 8 3 6 3 2 C3 -2 -1 -4 -5 -3 C-6 -6 -5 -8 -2 -9 Z" fill={`url(#${shade})`} />
+            <circle cx={-3} cy={-6} r={6.2} fill={`url(#${skin})`} />
           </g>
-          <circle cx={70} cy={76} r={3.2} fill="#fff" opacity={0.85} className={beat ? 'tt-bebe-batida' : undefined} />
+          <circle cx={63} cy={64} r={1.7} fill="#fff" opacity={0.9} className={beat ? 'tt-bebe-batida' : undefined} />
         </g>
       ) : week < 12 ? (
-        // Feijãozinho: carinha grande e o corpinho curvado como um feijão.
-        <g>
+        // Feijãozinho (8ª a 11ª semana, de 1,6 a 4 cm): carinha grande e o corpinho curvado, crescendo semana a semana.
+        <g transform={`translate(62 72) scale(${0.5 + (week - 8) * 0.09}) translate(-62 -72)`}>
           <path d="M50 62 C64 56 84 66 84 82 C84 96 70 102 60 97 C50 92 46 76 50 62 Z" fill={`url(#${shade})`} />
           <ellipse cx={71} cy={93} rx={8} ry={5.5} transform="rotate(-25 71 93)" fill={SKIN.mid} />
           <circle cx={53} cy={47} r={24} fill={`url(#${skin})`} />

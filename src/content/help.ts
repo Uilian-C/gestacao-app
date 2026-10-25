@@ -1,7 +1,7 @@
 // A Central de Ajuda: perguntas de verdade, respondidas em poucas linhas e no
 // tom do app. Cada resposta pode levar direto à tela certa ("Ir para lá").
 
-export type HelpTarget = 'agenda' | 'calendario' | 'tarefas' | 'jornada' | 'mural' | 'livro' | 'barriga' | 'celebracoes' | 'saude' | 'exames' | 'nomes' | 'espaco' | 'parto';
+export type HelpTarget = 'agenda' | 'calendario' | 'tarefas' | 'jornada' | 'bebe' | 'mural' | 'fichario' | 'livro' | 'barriga' | 'celebracoes' | 'saude' | 'exames' | 'nomes' | 'espaco' | 'parto';
 
 export interface HelpItem {
   q: string;
@@ -24,7 +24,18 @@ export const HELP_TOPICS: HelpTopic[] = [
       { q: 'Errei a DUM. Como corrijo?', a: 'No Início, no cartão do bebê, toque no lápis ao lado de "faltam X dias" e escolha a data certa. Tudo se ajusta sozinho: semanas, jornada, calendário e livro.' },
       { q: 'Como convido meu parceiro ou minha parceira?', a: 'Toque nas fotinhas no alto da tela (Nosso espaço) e em "Convidar". O convite vale 7 dias e pode ser usado uma vez. Vocês dois veem e editam tudo.', go: { target: 'espaco', label: 'Abrir Nosso espaço' } },
       { q: 'Dá para instalar no celular, como um app?', a: 'Sim. No iPhone, abra no Safari, toque em Compartilhar e em "Adicionar à Tela de Início". No Android, o Chrome oferece "Instalar app" (ou use o menu ⋮ → "Adicionar à tela inicial").' },
-      { q: 'O que é o botão "Registrar"?', a: 'É o atalho para guardar algo rápido de onde você estiver: um momento, um sintoma, uma medida, uma foto. Ele muda conforme a aba.' },
+      { q: 'O que é o botão "Registrar"?', a: 'É o atalho para guardar algo de onde você estiver. Ele segue a aba: no Início, abre no Diário (um momento, uma foto, uma carta); em Cuidados, sintoma, peso e resultado; na Agenda, agendar e tarefa. Voltando de uma consulta no mesmo dia, ele já abre em "Resultado".' },
+    ],
+  },
+  {
+    id: 'inicio',
+    title: 'O Início e o bebê',
+    items: [
+      { q: 'O que é a Jornada do bebê?', a: 'Toque no bebê, no alto do Início: abre a linha do crescimento da 4ª à 40ª semana, com o tamanho e o peso de cada fase e as fotos da barriga de vocês. Ali também dá para escolher o tom do bebê desenhado.', go: { target: 'bebe', label: 'Abrir a Jornada do bebê' } },
+      { q: 'O que é a "Descoberta de hoje"?', a: 'Uma frase nova a cada dia da gestação, logo abaixo do bebê, sobre o que está acontecendo com ele ou com vocês. Ela termina num convite para guardar o dia: contar para o bebê, escrever uma carta ou tirar a foto da barriga.' },
+      { q: 'Por que a semana apareceu embrulhada?', a: 'No primeiro acesso da semana nova, ela chega como um presente. Um toque abre: o coração sobe e o bebê aparece com a novidade da semana. Na véspera, chega um aviso para vocês voltarem.' },
+      { q: 'O que é o "Desde a última vez"?', a: 'Quando você volta depois de algumas horas, uma linha no topo conta o que aconteceu enquanto esteve fora: quanto o bebê cresceu, o que a outra pessoa guardou, os abraços e as reações ao que você postou. Some depois de vista.' },
+      { q: 'Para que serve contar como estou?', a: 'Em "Como vocês estão hoje?", um toque guarda o humor do dia e a outra pessoa vê. Os dias seguidos em que os dois contam aparecem ali, e cada semana inteira assim ganha um coração no livro. Falhar um dia não apaga nada.' },
     ],
   },
   {
@@ -43,10 +54,12 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'diario',
     title: 'Diário e livro',
     items: [
-      { q: 'Qual a diferença entre Mural e Fichário?', a: 'O Mural é o dia a dia de vocês, como uma conversa. O Fichário guarda tudo organizado por pastas (momentos, cartas, barriguinha, humor e as celebrações) e por mês, semana ou trimestre. No Mural, os atalhos embaixo do campo abrem o formulário já na pasta certa.', go: { target: 'mural', label: 'Abrir o Mural' } },
+      { q: 'Qual a diferença entre Mural, Fichário e Livro?', a: 'O Mural é o dia a dia de vocês, como uma conversa, com abraço e comentários. O Fichário guarda tudo em pastas, como um álbum: primeiras vezes, momentos, dia a dia, ideias, cartas, barriguinha, humor e celebrações. O Livro conta a história, um capítulo por mês.', go: { target: 'mural', label: 'Abrir o Mural' } },
+      { q: 'O que são as "páginas a duas vozes"?', a: 'Quando um dos dois guarda um momento, o outro recebe o convite para completar com o que sentiu. A resposta fica no mesmo momento, embaixo da primeira, e aparece assim no Mural e no livro.', go: { target: 'mural', label: 'Abrir o Mural' } },
+      { q: 'O que são as "Primeiras vezes"?', a: 'Um álbum no Fichário com os marcos da gestação: contar para a família, ouvir o coração, o primeiro chute, a primeira roupinha e outros. Alguns já se marcam sozinhos, como o nome escolhido e a primeira foto da barriga. Cada um guardado vira uma página especial do livro.', go: { target: 'fichario', label: 'Abrir o Fichário' } },
       { q: 'Quem vê o que eu escrevo?', a: 'Você escolhe em cada registro: "Só eu", "Nós dois" ou "Família". O que é "Só eu" fica só com você, inclusive no livro.' },
       { q: 'Como funciona a barriguinha?', a: 'Uma foto por semana, sempre do mesmo jeito. O app monta a evolução da barriga para vocês verem (e guardarem) depois.', go: { target: 'barriga', label: 'Abrir a Barriguinha' } },
-      { q: 'O que é o livro de vocês?', a: 'Cada mês da gestação vira um capítulo, contado como uma história, com o bebê daquela fase e as lembranças de vocês. Dá para ler como um e-book e baixar em PDF para imprimir.', go: { target: 'livro', label: 'Abrir o livro' } },
+      { q: 'O que é o livro de vocês?', a: 'Cada mês da gestação vira um capítulo, contado como uma história, com o bebê daquela fase, as lembranças de vocês e o humor de cada semana. Toda lembrança nova "entra no livro" na hora. Dá para ler como um e-book, passando as páginas, e imprimir ou salvar em PDF.', go: { target: 'livro', label: 'Abrir o livro' } },
       { q: 'Posso imprimir só algumas páginas?', a: 'Sim. No livro, toque em imprimir e escolha os capítulos. O app lembra o que já foi impresso e avisa quando há páginas novas.' },
     ],
   },
@@ -63,9 +76,9 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'saude',
     title: 'Saúde',
     items: [
-      { q: 'Onde registro sintomas, peso e pressão?', a: 'Em Cuidados, pelo botão "Registrar". Tocando em Sintomas ou em Peso e pressão, vocês veem a evolução, o que os registros mostram e cada registro.', go: { target: 'saude', label: 'Abrir Cuidados' } },
+      { q: 'Onde registro sintomas, peso e pressão?', a: 'Em Cuidados, pelo botão "Registrar". Logo depois de guardar um sintoma, o app mostra o que costuma ajudar e se ele se repetiu na semana. Tocando em Sintomas ou em Peso e pressão, vocês veem a evolução e cada registro.', go: { target: 'saude', label: 'Abrir Cuidados' } },
       { q: 'Como preparo a consulta?', a: 'Em Cuidados, no cartão da próxima consulta, toque em "Preparar a consulta". Ali vocês anotam as dúvidas para levar e têm o resumo pronto (sintomas, peso, pressão e os dados da gestação) para imprimir, salvar em PDF ou mandar para o profissional. Depois, anotem as respostas.', go: { target: 'saude', label: 'Abrir Cuidados' } },
-      { q: 'Como escolho o que levar no relatório?', a: 'Em Cuidados, toque em "Relatório" (logo abaixo da consulta). Escolham o período (desde a última consulta, 30 dias, o trimestre, a gestação toda ou outra data) e as partes que entram: dados da gestação, pontos de atenção, sintomas, peso, pressão e dúvidas. Depois é só imprimir, salvar em PDF ou copiar o texto.', go: { target: 'saude', label: 'Abrir Cuidados' } },
+      { q: 'Como escolho o que levar no relatório?', a: 'Em Cuidados, toque em "Relatório" (logo abaixo da consulta). Escolham o período com as datas de início e fim (ou um atalho: desde a última consulta, últimos 30 dias, este trimestre, toda a gestação) e as partes que entram: dados da gestação, pontos de atenção, sintomas, peso, pressão e dúvidas. Depois é só imprimir, salvar em PDF ou copiar o texto.', go: { target: 'saude', label: 'Abrir Cuidados' } },
       { q: 'Onde acho os dados da gestação durante a consulta?', a: 'Em Cuidados, logo abaixo da próxima consulta, no atalho "Dados da gestação": um toque e aparecem tipo sanguíneo, DPP, alergias e o resto, para responder na hora.', go: { target: 'saude', label: 'Abrir Cuidados' } },
       { q: 'O que é a Jornada?', a: 'É o roteiro do pré-natal, semana a semana: consultas, exames e vacinas recomendados. Fica em Cuidados, no cartão Pré-natal. Quando vocês agendam ou guardam um resultado, ela se marca sozinha.', go: { target: 'jornada', label: 'Abrir a Jornada' } },
       { q: 'O app avisa sobre sinais de alerta?', a: 'Sim. Alguns sintomas (como sangramento, dor forte, pressão alta ou o bebê mexendo menos) aparecem em destaque no Início, com a orientação de procurar atendimento. Em Cuidados, "Quando procurar a maternidade" lista todos os sinais. O app não substitui a equipe de saúde: na dúvida, ligue para o seu médico ou vá à maternidade.' },
@@ -85,7 +98,8 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'avisos',
     title: 'Avisos no celular',
     items: [
-      { q: 'Como ligo os avisos?', a: 'Em Nosso espaço, na parte de avisos, toque para ativar e aceite no celular. Dá para escolher o que receber: consultas, tarefas, lembretes e novidades do parceiro.', go: { target: 'espaco', label: 'Abrir Nosso espaço' } },
+      { q: 'Como ligo os avisos?', a: 'Em Nosso espaço, em "Notificações no celular", toque em "Ativar neste aparelho" e aceite. Dá para escolher o que receber: consultas, lembretes do diário e das tarefas, semana nova e os registros da outra pessoa.', go: { target: 'espaco', label: 'Abrir Nosso espaço' } },
+      { q: 'Posso escolher a hora dos avisos?', a: 'Sim. Em Notificações, escolha o melhor horário para as novidades: manhã, tarde ou noite. A semana nova e as novidades chegam nesse horário, no máximo uma por dia, e nada da outra pessoa chega de madrugada. Consultas e lembretes chegam sempre na hora.', go: { target: 'espaco', label: 'Abrir Nosso espaço' } },
       { q: 'Não estou recebendo os avisos. E agora?', a: 'Confira se as notificações do navegador ou do app instalado estão permitidas nas configurações do celular. No iPhone, os avisos só funcionam com o app adicionado à Tela de Início.' },
     ],
   },

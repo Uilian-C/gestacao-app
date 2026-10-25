@@ -63,6 +63,18 @@ await p.getByRole('button', { name: 'Ajuda', exact: true }).click();
 await ajuda.getByRole('button', { name: /Primeiros 7 dias com o Tumtum/ }).click();
 await row.waitFor();
 check(await row.getByText('Primeiros 7 dias · 3 de 7').isVisible(), 'pela ajuda, os primeiros 7 dias voltam ao Início, com o que já foi feito');
+check(await p.getByRole('dialog').getByRole('region', { name: 'Primeiros 7 dias com o Tumtum' }).isVisible(), 'e já abrem as missões (mesmo que o cartão do Início não apareça)');
+await p.keyboard.press('Escape');
+
+// As novidades das ondas estão na ajuda, e a Jornada do bebê abre direto.
+await p.getByRole('button', { name: 'Ajuda', exact: true }).click();
+await ajuda.getByLabel('Buscar na ajuda').fill('duas vozes');
+check(await ajuda.getByText(/páginas a duas vozes/).isVisible(), 'a ajuda explica as páginas a duas vozes');
+await ajuda.getByLabel('Buscar na ajuda').fill('jornada do bebe');
+await ajuda.getByRole('button', { name: 'Abrir a Jornada do bebê' }).click();
+await p.getByRole('dialog', { name: 'Jornada do bebê' }).waitFor();
+check(true, '"Abrir a Jornada do bebê" abre a linha do crescimento');
+await p.keyboard.press('Escape');
 
 // Modo escuro.
 const escuro = await phone(b, { colorScheme: 'dark' });
