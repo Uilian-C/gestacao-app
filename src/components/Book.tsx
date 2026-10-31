@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { BookOpen, Check, ChevronLeft, ChevronRight, Heart, List, PenLine, Printer, X } from 'lucide-react';
-import { photoUrl } from '../api';
+import { stillUrl } from '../api';
 import type { BabyTone } from '../content/babyTones';
 import { stageAt } from '../content/growth';
 import type { JournalEntry } from '../hooks/useGestationData';
@@ -68,11 +68,11 @@ function MoodOfWeek({ chapter: c }: { chapter: Chapter }) {
 /** Fotos inteiras, sem cortar: uma grande, ou duas por linha no tamanho de cada uma. */
 function BookPhotos({ photos }: { photos: JournalEntry['photos'] }) {
   if (photos.length === 0) return null;
-  if (photos.length === 1) return <img src={photoUrl(photos[0].id)} alt="" className="tt-livro-foto block mx-auto w-auto max-w-full h-auto max-h-[70vh] rounded-2xl" />;
+  if (photos.length === 1) return <img src={stillUrl(photos[0])} alt="" className="tt-livro-foto block mx-auto w-auto max-w-full h-auto max-h-[70vh] rounded-2xl" />;
   return (
     <span className="grid grid-cols-2 gap-2 items-start">
       {photos.map(p => (
-        <img key={p.id} src={photoUrl(p.id)} alt="" className="tt-livro-foto block w-full h-auto rounded-xl" />
+        <img key={p.id} src={stillUrl(p)} alt="" className="tt-livro-foto block w-full h-auto rounded-xl" />
       ))}
     </span>
   );
@@ -90,7 +90,7 @@ function MonthOpening({ month: m, tone, print = false }: { month: MonthChapter; 
         {m.name} {name ? `de ${name}` : 'da gestação'}
       </p>
       <BabyArt week={artWeek(last?.week ?? 4)} tone={tone} className="w-44 h-44" />
-      {m.cover && <img src={photoUrl(m.cover.photo.id)} alt="" className="tt-livro-foto block mx-auto w-auto max-w-full h-auto max-h-[40vh] rounded-2xl" />}
+      {m.cover && <img src={stillUrl(m.cover.photo)} alt="" className="tt-livro-foto block mx-auto w-auto max-w-full h-auto max-h-[40vh] rounded-2xl" />}
       <p className="font-display text-[1.1rem] leading-relaxed text-ink max-w-[440px]">{m.story}</p>
       {m.moodArc && <p className="text-[14px] italic text-ink-soft max-w-[440px]">{m.moodArc}</p>}
     </section>

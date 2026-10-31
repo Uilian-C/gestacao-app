@@ -1,4 +1,5 @@
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import VideoPlayer from '../VideoPlayer';
 import { ChevronRight, Heart, Lock, MessageCircle, PenLine, Send, Users } from 'lucide-react';
 import { photoUrl, type FamilyMember, type Relative, type SpaceRole } from '../../api';
 import type { Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
@@ -286,6 +287,7 @@ function Photos({ entry: e, week, onOpen }: { entry: JournalEntry; week: number 
   const [ratio, setRatio] = useState(MIN_RATIO);
   const [loaded, setLoaded] = useState<Set<string>>(() => new Set());
   const many = e.photos.length > 1;
+  const fit = useCallback((r: number) => setRatio(Math.min(MAX_RATIO, Math.max(MIN_RATIO, r))), []);
   return (
     <div className="relative bg-surface-2 overflow-hidden" style={{ aspectRatio: String(ratio) }}>
       <div
@@ -295,22 +297,35 @@ function Photos({ entry: e, week, onOpen }: { entry: JournalEntry; week: number 
           setAt(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
         }}
       >
-        {e.photos.map((p, i) => (
-          <button key={p.id} type="button" onClick={onOpen} aria-label={`Foto ${i + 1} de ${e.photos.length}: abrir`} className="snap-center shrink-0 w-full h-full">
-            <img
-              src={photoUrl(p.id)}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              onLoad={ev => {
-                const img = ev.currentTarget;
-                if (i === 0 && img.naturalWidth && img.naturalHeight) setRatio(Math.min(MAX_RATIO, Math.max(MIN_RATIO, img.naturalWidth / img.naturalHeight)));
-                setLoaded(prev => new Set(prev).add(p.id));
-              }}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${loaded.has(p.id) ? 'opacity-100' : 'opacity-0'}`}
-            />
-          </button>
-        ))}
+        {e.photos.map((p, i) =>
+          p.video ? (
+            // O vídeo toca no próprio Mural, com a capa até alguém tocar.
+            <div key={p.id} className="snap-center shrink-0 w-full h-full">
+              <VideoPlayer
+                src={photoUrl(p.id)}
+                poster={p.thumb ? photoUrl(p.id, true) : undefined}
+                label={`Vídeo ${i + 1} de ${e.photos.length}`}
+                onSize={i === 0 ? fit : undefined}
+                className="w-full h-full object-contain"
+              />
+            </div>
+          ) : (
+            <button key={p.id} type="button" onClick={onOpen} aria-label={`Foto ${i + 1} de ${e.photos.length}: abrir`} className="snap-center shrink-0 w-full h-full">
+              <img
+                src={photoUrl(p.id)}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                onLoad={ev => {
+                  const img = ev.currentTarget;
+                  if (i === 0 && img.naturalWidth && img.naturalHeight) setRatio(Math.min(MAX_RATIO, Math.max(MIN_RATIO, img.naturalWidth / img.naturalHeight)));
+                  setLoaded(prev => new Set(prev).add(p.id));
+                }}
+                className={`w-full h-full object-cover transition-opacity duration-300 ${loaded.has(p.id) ? 'opacity-100' : 'opacity-0'}`}
+              />
+            </button>
+          ),
+        )}
       </div>
       {week != null && <span className="absolute left-3 top-3 rounded-full bg-black/55 text-white text-xs font-extrabold px-2.5 py-1">Semana {week}</span>}
       {many && (

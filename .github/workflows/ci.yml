@@ -28,7 +28,8 @@ jobs:
   # serviço de push falso. Pegam o que os testes rápidos não pegam: isolamento
   # entre famílias, permissões, LGPD, notificações e os fluxos de tela.
   integracao:
-    runs-on: ubuntu-latest
+    # Fixo no 24.04: no Ubuntu 26 (o novo ubuntu-latest) o Playwright ainda não instala as dependências do navegador.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16

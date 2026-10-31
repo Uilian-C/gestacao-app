@@ -12,6 +12,7 @@ import * as fotos from '../api/fotos.ts';
 import * as lembretes from '../api/lembretes.ts';
 import * as places from '../api/places.ts';
 import * as push from '../api/push.ts';
+import * as videos from '../api/videos.ts';
 
 type Handler = (request: Request) => Response | Promise<Response>;
 const routes: Record<string, Partial<Record<string, Handler>>> = {
@@ -24,6 +25,7 @@ const routes: Record<string, Partial<Record<string, Handler>>> = {
   '/api/lembretes': lembretes,
   '/api/places': places,
   '/api/push': push,
+  '/api/videos': videos,
 };
 
 const port = Number(process.env.API_PORT ?? 3001);

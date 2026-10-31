@@ -63,8 +63,8 @@ export function client() {
     return { status: res.status, data };
   };
   /** GET sem ler como JSON: para arquivos. */
-  const raw = async path => {
-    const res = await fetch(BASE + path, { headers: { cookie: [...jar.values()].join('; ') } });
+  const raw = async (path, extra = {}) => {
+    const res = await fetch(BASE + path, { headers: { cookie: [...jar.values()].join('; '), ...extra } });
     return { status: res.status, headers: res.headers, bytes: Buffer.from(await res.arrayBuffer()) };
   };
   return { call, raw };
