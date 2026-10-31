@@ -18,6 +18,7 @@ import { PeopleContext, authorOf, firstName, whoName } from '../lib/people';
 import Avatar from './Avatar';
 import { reminderTime, timeLabel } from '../lib/reminders';
 import PhotoViewer from './PhotoViewer';
+import VideoPlayer from './VideoPlayer';
 import { SecondVoice } from './SecondVoice';
 import { EntryForm, type NewEntry } from './forms/EntryForm';
 import { MetricForm, SymptomForm, type NewMetric, type NewSymptom } from './forms/RecordForms';
@@ -189,6 +190,8 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
     const t = TONE[f.tone];
     const week = weekOn(h.dumDate, e.entry_date);
     const letter = e.folder === 'carta';
+    // Só as fotos abrem em tela cheia; os vídeos tocam no próprio registro.
+    const stills = e.photos.filter(p => !p.video);
     return (
       <Sheet
         icon={<f.Icon />}
@@ -202,12 +205,17 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
           <>
             {e.photos.length > 0 && (
               <div className={`grid gap-2 mb-4 ${e.photos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                {e.photos.map((p, i) => (
-                  <button key={p.id} type="button" onClick={() => setPhoto(i)} aria-label={`Ver foto ${i + 1} em tela cheia`} className={`block overflow-hidden rounded-2xl ${e.photos.length === 1 ? 'mx-auto w-fit max-w-full' : 'bg-surface-2'}`}>
-                    {/* Uma foto: inteira e nítida, no tamanho dela (sem faixas cinzas dos lados). Várias: quadradinhos. */}
-                    <img src={e.photos.length === 1 ? photoUrl(p.id) : photoUrl(p.id, p.thumb)} alt="" decoding="async" className={e.photos.length === 1 ? 'block w-auto max-w-full h-auto max-h-[55vh]' : 'w-full aspect-square object-cover'} />
-                  </button>
-                ))}
+                {e.photos.map((p, i) =>
+                  p.video ? (
+                    // O vídeo toca ali mesmo; nos quadradinhos, ocupa a linha inteira.
+                    <VideoPlayer key={p.id} src={photoUrl(p.id)} poster={p.thumb ? photoUrl(p.id, true) : undefined} label={`Vídeo ${i + 1}`} className={`block w-full max-h-[55vh] rounded-2xl ${e.photos.length > 1 ? 'col-span-2' : ''}`} />
+                  ) : (
+                    <button key={p.id} type="button" onClick={() => setPhoto(stills.findIndex(s => s.id === p.id))} aria-label={`Ver foto ${i + 1} em tela cheia`} className={`block overflow-hidden rounded-2xl ${e.photos.length === 1 ? 'mx-auto w-fit max-w-full' : 'bg-surface-2'}`}>
+                      {/* Uma foto: inteira e nítida, no tamanho dela (sem faixas cinzas dos lados). Várias: quadradinhos. */}
+                      <img src={e.photos.length === 1 ? photoUrl(p.id) : photoUrl(p.id, p.thumb)} alt="" decoding="async" className={e.photos.length === 1 ? 'block w-auto max-w-full h-auto max-h-[55vh]' : 'w-full aspect-square object-cover'} />
+                    </button>
+                  ),
+                )}
               </div>
             )}
             {e.body && (
@@ -235,12 +243,12 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
               </div>
             )}
             {e.mine ? <Actions onEdit={() => setEditing(true)} onDelete={remove} /> : <p className="text-xs text-ink-mute mt-5">Só quem escreveu pode editar ou excluir este registro.</p>}
-            {photo !== null && e.photos.length > 0 && (
+            {photo !== null && stills.length > 0 && (
               <PhotoViewer
                 title={e.folder === 'barriga' ? `Barriguinha · semana ${week}` : f.singular}
                 subtitle={formatBR(e.entry_date)}
-                photos={e.photos.map(p => ({ id: p.id, src: photoUrl(p.id) }))}
-                index={Math.min(photo, e.photos.length - 1)}
+                photos={stills.map(p => ({ id: p.id, src: photoUrl(p.id) }))}
+                index={Math.min(photo, stills.length - 1)}
                 onIndex={setPhoto}
                 onClose={() => setPhoto(null)}
               />

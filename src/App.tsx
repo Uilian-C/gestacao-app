@@ -10,6 +10,7 @@ import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
 import { takeTabFromUrl, takeViewFromUrl, takeVisitFromUrl, takeVoiceFromUrl } from './lib/pwa';
+import { uploadVideo } from './lib/videos';
 import { api, ApiError, photoUrl, type CoupleFamilyState, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
 import CareModeHome from './components/home/CareModeHome';
@@ -416,8 +417,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       if (entryId) {
         for (const photoId of e.removePhotos) await api.photos('delete', { id: photoId });
         for (let i = 0; i < e.photos.length; i++) {
-          setSavingLabel(e.photos.length > 1 ? `Enviando foto ${i + 1} de ${e.photos.length}` : 'Enviando a foto...');
-          await api.photos('add', { entryId, data: e.photos[i].data, thumb: e.photos[i].thumb });
+          const p = e.photos[i];
+          const what = p.video ? 'o vídeo' : 'a foto';
+          const label = e.photos.length > 1 ? `Enviando ${i + 1} de ${e.photos.length}` : `Enviando ${what}...`;
+          setSavingLabel(label);
+          if (p.video) await uploadVideo('entry', entryId, p.video, pct => setSavingLabel(`${label.replace(/\.\.\.$/, '')} · ${pct}%`));
+          else await api.photos('add', { entryId, data: p.data, thumb: p.thumb });
         }
       }
       await refresh();
@@ -440,7 +445,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       const reason = err instanceof ApiError ? err.message : 'Verifique a conexão e tente de novo.';
       // O registro novo já existe: o formulário fecha e o aviso diz o que faltou.
       if (entryId && !id) {
-        showToast({ text: `Guardado, mas uma foto não foi enviada. ${reason}`, tone: 'error' });
+        showToast({ text: `Guardado, mas uma foto ou vídeo não foi enviado. ${reason}`, tone: 'error' });
         return true;
       }
       showToast({ text: `Não foi possível guardar. ${reason}`, tone: 'error' });
@@ -463,8 +468,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     try {
       if (!id && exam) id = (await api.exams<{ ok: true; id: string }>('create', { ...exam })).id;
       for (let i = 0; i < files.length; i++) {
-        setSavingLabel(files.length > 1 ? `Enviando ${i + 1} de ${files.length}...` : 'Enviando o arquivo...');
-        await api.exams('addFile', { examId: id, contentType: files[i].contentType, data: files[i].data });
+        const label = files.length > 1 ? `Enviando ${i + 1} de ${files.length}` : files[i].video ? 'Enviando o vídeo' : 'Enviando o arquivo';
+        setSavingLabel(`${label}...`);
+        const video = files[i].video;
+        if (video) await uploadVideo('exam', id!, video, pct => setSavingLabel(`${label} · ${pct}%`));
+        else await api.exams('addFile', { examId: id, contentType: files[i].contentType, data: files[i].data });
         onProgress(i + 1);
       }
       if (exam?.planItem && !data?.checks.some(c => c.list === 'prenatal' && c.item_id === exam.planItem)) await api.mutate('setCheck', { list: 'prenatal', itemId: exam.planItem, done: true }).catch(() => undefined);

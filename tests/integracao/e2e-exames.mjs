@@ -34,7 +34,7 @@ check(await chip.isVisible(), 'morfológico do 2º tri aparece "na janela agora"
 await chip.click();
 check((await p.getByLabel('Nome').inputValue()) === 'Ultrassom morfológico do 2º trimestre', 'nome vem da jornada');
 
-await p.getByLabel('Escolher fotos ou PDF').setInputFiles([
+await p.getByLabel(/Escolher fotos/).setInputFiles([
   { name: 'ultrassom.png', mimeType: 'image/png', buffer: photo },
   { name: 'laudo.pdf', mimeType: 'application/pdf', buffer: pdf },
 ]);
@@ -76,7 +76,7 @@ await p.keyboard.press('Escape');
 check(!(await viewer.isVisible()) && (await sheet.isVisible()), 'Esc fecha a foto e volta para o resultado');
 
 // Juntar mais um arquivo a um exame que já existe.
-await p.getByLabel('Escolher fotos ou PDF').last().setInputFiles({ name: 'pagina2.png', mimeType: 'image/png', buffer: photo });
+await p.getByLabel(/Escolher fotos/).last().setInputFiles({ name: 'pagina2.png', mimeType: 'image/png', buffer: photo });
 await p.waitForFunction(() => document.querySelectorAll('[aria-label^="Abrir foto de"]').length === 2, null, { timeout: 15000 });
 check(true, 'arquivo novo entra no mesmo exame');
 

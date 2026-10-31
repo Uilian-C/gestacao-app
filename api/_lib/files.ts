@@ -4,8 +4,8 @@ import { query } from './db.js';
 
 /** Tamanho máximo de cada arquivo. O app reduz as fotos antes de enviar; isto vale para PDFs. */
 export const MAX_FILE_BYTES = 3 * 1024 * 1024;
-/** Espaço total por família (exames e diário juntos), para os custos de armazenamento não escaparem. */
-export const FAMILY_QUOTA_BYTES = 200 * 1024 * 1024;
+/** Espaço total por família (exames e diário juntos, vídeos inclusive), para os custos de armazenamento não escaparem. */
+export const FAMILY_QUOTA_BYTES = 1024 * 1024 * 1024;
 export const QUOTA_MESSAGE = 'O espaço de arquivos de vocês está cheio. Apaguem fotos ou arquivos que não precisam mais.';
 
 /** Confere o tipo pelo começo do arquivo, não pelo que o navegador diz. */
@@ -16,7 +16,25 @@ export const FILE_TYPES = {
   'application/pdf': (b: Buffer) => b.toString('latin1', 0, 5) === '%PDF-',
 } as const;
 export type FileType = keyof typeof FILE_TYPES;
-export const EXTENSION: Record<FileType, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' };
+export const EXTENSION: Record<FileType | VideoType, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf', 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm' };
+
+// ---- Vídeos (o ultrassom em vídeo, o primeiro chute...) ----
+// A Vercel aceita até 4,5 MB por chamada, então o vídeo vai e volta em pedaços
+// de 2,5 MB (em base64 cabem folgados). O tamanho do pedaço nunca muda: é com
+// ele que se acha qual pedaço tem cada parte do vídeo.
+
+export const VIDEO_CHUNK_BYTES = 2.5 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+export const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'] as const;
+export type VideoType = (typeof VIDEO_TYPES)[number];
+export const isVideo = (type: string) => type.startsWith('video/');
+
+/** Confere pelo começo do arquivo: MP4 e MOV (iPhone) têm "ftyp" logo no início; WebM, a marca do Matroska. */
+export function sniffVideo(b: Buffer): VideoType | null {
+  if (b.length >= 12 && b.toString('latin1', 4, 8) === 'ftyp') return b.toString('latin1', 8, 10) === 'qt' ? 'video/quicktime' : 'video/mp4';
+  if (b.length >= 4 && b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return 'video/webm';
+  return null;
+}
 
 /** Base64 que cabe em `bytes` depois de decodificado. */
 export const base64Max = (bytes: number) => Math.ceil((bytes * 4) / 3) + 8;
@@ -35,11 +53,11 @@ export async function familyUsedBytes(familyId: string) {
 export function privateFileHeaders(type: string, name: string): Record<string, string> {
   return {
     'Content-Type': type,
-    'Content-Disposition': `inline; filename="${name}.${EXTENSION[type as FileType] ?? 'bin'}"`,
+    'Content-Disposition': `inline; filename="${name}.${EXTENSION[type as FileType | VideoType] ?? 'bin'}"`,
     // Só o navegador de quem pediu guarda uma cópia, e por pouco tempo.
     'Cache-Control': 'private, max-age=3600',
     'X-Content-Type-Options': 'nosniff',
-    // Fotos abertas sozinhas não executam nada. (Nos PDFs isso desligaria o leitor de PDF do navegador.)
-    ...(type === 'application/pdf' ? {} : { 'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox" }),
+    // Fotos abertas sozinhas não executam nada. (Nos PDFs e vídeos isso desligaria o leitor do navegador.)
+    ...(type === 'application/pdf' || isVideo(type) ? {} : { 'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox" }),
   };
 }

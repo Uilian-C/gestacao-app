@@ -1,3 +1,5 @@
+import { isVideoFile, prepareVideo, type PreparedVideo } from './videos';
+
 // Prepara fotos e PDFs de exames para enviar: fotos são reduzidas no próprio
 // celular (uma foto de câmera tem 4 a 12 MB; reduzida fica com 300 a 800 KB e
 // continua legível), PDFs vão como estão, até 3 MB.
@@ -7,13 +9,15 @@ export const MAX_FILE_BYTES = 3 * 1024 * 1024;
 export const MAX_SIDE = 2000;
 
 export interface PreparedFile {
-  contentType: 'image/jpeg' | 'application/pdf';
+  contentType: 'image/jpeg' | 'application/pdf' | 'video';
   /** Conteúdo em base64, sem o prefixo "data:". */
   data: string;
   size: number;
   /** Miniatura local para mostrar antes de enviar (só fotos). */
   preview: string | null;
   name: string;
+  /** Um vídeo (o ultrassom gravado): vai em pedaços, sem reduzir; `preview` é a capa. */
+  video?: PreparedVideo;
 }
 
 export class FileProblem extends Error {}
@@ -74,12 +78,16 @@ async function shrinkPhoto(file: File, maxSide = MAX_SIDE, maxBytes = MAX_FILE_B
 }
 
 export async function prepareFile(file: File): Promise<PreparedFile> {
+  if (isVideoFile(file)) {
+    const video = await prepareVideo(file);
+    return { contentType: 'video', data: '', size: file.size, preview: video.preview, name: file.name, video };
+  }
   if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
     if (file.size > MAX_FILE_BYTES) throw new FileProblem(`O PDF "${file.name}" tem mais de 3 MB. Tire fotos das páginas ou salve o PDF em tamanho menor.`);
     return { contentType: 'application/pdf', data: await toBase64(file), size: file.size, preview: null, name: file.name };
   }
   if (!file.type.startsWith('image/') && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)) {
-    throw new FileProblem(`"${file.name}" não é foto nem PDF.`);
+    throw new FileProblem(`"${file.name}" não é foto, vídeo nem PDF.`);
   }
   const blob = await shrinkPhoto(file);
   return { contentType: 'image/jpeg', data: await toBase64(blob), size: blob.size, preview: URL.createObjectURL(blob), name: file.name };
@@ -101,9 +109,15 @@ export interface PreparedPhoto {
   /** Miniatura local para mostrar antes de enviar. */
   preview: string;
   name: string;
+  /** Um vídeo (vai em pedaços, sem reduzir); `thumb` e `preview` são a capa dele. */
+  video?: PreparedVideo;
 }
 
 export async function preparePhoto(file: File): Promise<PreparedPhoto> {
+  if (isVideoFile(file)) {
+    const video = await prepareVideo(file);
+    return { data: '', thumb: video.poster, preview: video.preview, name: file.name, video };
+  }
   if (!file.type.startsWith('image/') && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)) {
     throw new FileProblem(`"${file.name}" não é uma foto.`);
   }

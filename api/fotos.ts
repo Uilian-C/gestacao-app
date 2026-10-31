@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { query } from './_lib/db.js';
-import { FAMILY_QUOTA_BYTES, FILE_TYPES, MAX_FILE_BYTES, QUOTA_MESSAGE, base64Max, familyUsedBytes, privateFileHeaders } from './_lib/files.js';
+import { FAMILY_QUOTA_BYTES, FILE_TYPES, MAX_FILE_BYTES, QUOTA_MESSAGE, base64Max, familyUsedBytes, isVideo, privateFileHeaders } from './_lib/files.js';
 import { familyState } from './_lib/family.js';
 import { fetchAll } from './_lib/gestation.js';
 import { COUPLE_ONLY, HttpError, endpoint, isCouple, json, readJson, requireSpace, type SpaceMember } from './_lib/http.js';
 import { deleteFiles, getFile, putFile, storageReady } from './_lib/storage.js';
+import { serveVideo } from './_lib/videos.js';
 
 // Fotos do diário (a barriga semana a semana, o enxoval, o quarto...).
 // Quem vê a foto é quem vê o registro: do espaço, ou só quem escreveu se for
@@ -72,16 +73,18 @@ export const GET = endpoint(async request => {
   const fileId = params.get('id') ?? '';
   if (!id.safeParse(fileId).success) throw new HttpError(400, 'Foto inválida.');
   await ready();
-  const rows = await query<{ path: string; thumb_path: string | null; content_type: string }>(
-    `SELECT f.path, f.thumb_path, f.content_type FROM journal_files f JOIN journal_entries e ON e.id = f.entry_id
+  const rows = await query<{ path: string; thumb_path: string | null; content_type: string; size_bytes: number }>(
+    `SELECT f.path, f.thumb_path, f.content_type, f.size_bytes FROM journal_files f JOIN journal_entries e ON e.id = f.entry_id
      WHERE f.id::text = $1 AND f.family_id = $2 AND ${isCouple(member) ? "(e.visibility <> 'private' OR e.user_id = $3)" : "e.visibility = 'family' AND $3::text IS NOT NULL"}`,
     [fileId, member.familyId, member.userId],
   );
   if (!rows[0]) throw new HttpError(404, 'Foto não encontrada.');
-  const path = params.get('mini') === '1' && rows[0].thumb_path ? rows[0].thumb_path : rows[0].path;
-  const file = await getFile(path);
+  const mini = params.get('mini') === '1' && rows[0].thumb_path;
+  // Vídeo: a miniatura é a capa (JPG); o vídeo em si sai aos trechos.
+  if (isVideo(rows[0].content_type) && !mini) return serveVideo(request, { path: rows[0].path, size: rows[0].size_bytes, type: rows[0].content_type }, 'video');
+  const file = await getFile(mini ? rows[0].thumb_path! : rows[0].path);
   if (!file) throw new HttpError(404, 'Foto não encontrada.');
-  return new Response(file.body as BodyInit, { headers: privateFileHeaders(rows[0].content_type, 'foto') });
+  return new Response(file.body as BodyInit, { headers: privateFileHeaders(mini && isVideo(rows[0].content_type) ? 'image/jpeg' : rows[0].content_type, 'foto') });
 });
 
 async function ownEntry(m: SpaceMember, entryId: string) {

@@ -4,8 +4,9 @@ import { query } from './_lib/db.js';
 import { fetchAll } from './_lib/gestation.js';
 import { HttpError, endpoint, json, readJson, requireMember, type Member } from './_lib/http.js';
 import { notify } from './_lib/push.js';
-import { EXTENSION, FAMILY_QUOTA_BYTES, FILE_TYPES, MAX_FILE_BYTES, QUOTA_MESSAGE, base64Max, familyUsedBytes, privateFileHeaders, type FileType } from './_lib/files.js';
+import { EXTENSION, FAMILY_QUOTA_BYTES, FILE_TYPES, MAX_FILE_BYTES, QUOTA_MESSAGE, base64Max, familyUsedBytes, isVideo, privateFileHeaders, type FileType } from './_lib/files.js';
 import { deleteFiles, getFile, putFile, storageReady } from './_lib/storage.js';
+import { serveVideo } from './_lib/videos.js';
 
 // Exames e ultrassons: o registro (título, data, tipo) e as fotos ou PDFs.
 // Os arquivos nunca têm endereço público: saem só por aqui, para quem é do
@@ -67,18 +68,25 @@ async function notifyPartners(m: Member) {
   await notify(rows.map(r => r.user_id), 'parceiro', { title: `${who} guardou um exame`, body: 'Toque para ver em Cuidados, na parte de exames.', url: '/?aba=exames', tag: 'parceiro-exame' });
 }
 
-/** Arquivo de um exame: GET /api/exames?arquivo=<id> */
+/** Arquivo de um exame: GET /api/exames?arquivo=<id> (num vídeo, &capa=1 traz a imagem de capa). */
 export const GET = endpoint(async request => {
   const member = await requireMember(request);
-  const fileId = new URL(request.url).searchParams.get('arquivo') ?? '';
+  const params = new URL(request.url).searchParams;
+  const fileId = params.get('arquivo') ?? '';
   if (!id.safeParse(fileId).success) throw new HttpError(400, 'Arquivo inválido.');
   await ready();
-  const rows = await query<{ path: string; content_type: string }>(
-    `SELECT f.path, f.content_type FROM exam_files f JOIN exams e ON e.id = f.exam_id
+  const rows = await query<{ path: string; content_type: string; size_bytes: number }>(
+    `SELECT f.path, f.content_type, f.size_bytes FROM exam_files f JOIN exams e ON e.id = f.exam_id
      WHERE f.id::text = $1 AND f.family_id = $2 AND (e.visibility = 'shared' OR e.user_id = $3)`,
     [fileId, member.familyId, member.userId],
   );
   if (!rows[0]) throw new HttpError(404, 'Arquivo não encontrado.');
+  if (isVideo(rows[0].content_type)) {
+    if (params.get('capa') !== '1') return serveVideo(request, { path: rows[0].path, size: rows[0].size_bytes, type: rows[0].content_type }, 'exame');
+    const cover = await getFile(`${rows[0].path}capa`);
+    if (!cover) throw new HttpError(404, 'Capa não encontrada.');
+    return new Response(cover.body as BodyInit, { headers: privateFileHeaders('image/jpeg', 'capa') });
+  }
   const file = await getFile(rows[0].path);
   if (!file) throw new HttpError(404, 'Arquivo não encontrado.');
   return new Response(file.body as BodyInit, { headers: privateFileHeaders(rows[0].content_type, 'exame') });

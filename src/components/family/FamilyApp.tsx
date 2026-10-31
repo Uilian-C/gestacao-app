@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import VideoPlayer from '../VideoPlayer';
 import { ChevronRight, CloudRain, Loader2, Ruler, Scale } from 'lucide-react';
 import { api, ApiError, photoUrl, type FamilyState, type Me } from '../../api';
 import type { JournalEntry, NameIdea, Reaction, ReactionKind, ThreadComment } from '../../hooks/useGestationData';
@@ -213,9 +214,13 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
           {entry && (
             <Sheet title={FOLDER[entry.folder].singular} subtitle={dumDate ? `Semana ${weekOn(dumDate, entry.entry_date)}` : undefined} onClose={() => setOpen(null)}>
               <div className="space-y-4">
-                {entry.photos.map(p => (
-                  <img key={p.id} src={photoUrl(p.id)} alt="" className="w-full rounded-2xl bg-surface-2" />
-                ))}
+                {entry.photos.map(p =>
+                  p.video ? (
+                    <VideoPlayer key={p.id} src={photoUrl(p.id)} poster={p.thumb ? photoUrl(p.id, true) : undefined} className="w-full rounded-2xl" />
+                  ) : (
+                    <img key={p.id} src={photoUrl(p.id)} alt="" className="w-full rounded-2xl bg-surface-2" />
+                  ),
+                )}
                 {entry.body && <p className="text-ink whitespace-pre-line">{entry.body}</p>}
                 {view.socialAvailable && (
                   <>
