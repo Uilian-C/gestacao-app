@@ -19,7 +19,7 @@ export const SYMPTOM_TIPS: Record<string, string> = {
   ansiedade: 'Respiração lenta (4 segundos entrando, 4 saindo) e conversar sobre o que preocupa aliviam. Anote para levar à consulta.',
   insonia: 'Desligar as telas uma hora antes, deitar de lado com apoio na barriga e um banho morno ajudam a pegar no sono.',
   'dor de cabeca': 'Descanso, água e um ambiente escuro costumam ajudar. Dor forte com visão embaçada ou inchaço é sinal de alerta.',
-  'inchaco nos pes': 'Pés para cima no fim do dia e caminhar um pouco ajudam. Inchaço de repente no rosto e nas mãos pede consulta.',
+  inchaco: 'Pés para cima no fim do dia e caminhar um pouco ajudam. Inchaço de repente no rosto e nas mãos pede consulta.',
   'falta de ar': 'É comum no fim da gestação. Postura ereta e travesseiros para dormir ajudam; falta de ar forte ou súbita pede atendimento.',
   'contracoes de treinamento': 'Mudar de posição, beber água e descansar costumam acalmar. Se ficarem regulares, use o marcador de contrações.',
   'dor pelvica': 'Descanso, evitar carregar peso e uma cinta de gestante podem aliviar. Converse sobre isso na consulta.',

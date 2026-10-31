@@ -20,6 +20,7 @@ import { useScrollLock } from '../../hooks/useScrollLock';
 import BabyArt from '../BabyArt';
 import { weekInfo } from '../../content/weeks';
 import { gestationMonth } from '../../lib/ficha';
+import { canonSymptom } from '../../lib/symptomCanon';
 
 // O calendário do Tumtum: o lugar de tudo o que tem data, sem virar uma salada.
 // Três jeitos de ver: o Mês (rolando de um mês para o outro, como uma agenda de
@@ -681,7 +682,7 @@ function EventText({ event: e }: { event: CalendarEvent }) {
 }
 
 function RecordLine({ records }: { records: DayRecords }) {
-  const names = [...new Set(records.symptoms.map(s => s.symptom_name))];
+  const names = [...new Set(records.symptoms.map(s => canonSymptom(s.symptom_name).name))];
   return (
     <div className="flex items-start gap-2 text-sm text-ink-soft">
       <NotebookPen className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--c-int-3)' }} />

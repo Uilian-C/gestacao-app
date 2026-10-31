@@ -4,6 +4,7 @@ import { isAlertSymptom } from '../../content/symptomCatalog';
 
 import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure } from '../../lib/health';
 import { normalizeSymptomName, timeOfDayLabel } from '../../lib/symptoms';
+import { symptomShown } from '../../lib/symptomCanon';
 import type { HealthMetric, PartnerComment, SymptomItem } from '../../types';
 import type { Reaction } from '../../hooks/useGestationData';
 import { SocialCount } from '../Social';
@@ -73,20 +74,21 @@ const ROW = 'w-full text-left rounded-2xl px-4 py-3 flex items-start gap-3 trans
 
 function SymptomRow({ symptom: s, comments, reactions, onOpen }: { symptom: SymptomItem; comments: number; reactions: number; onOpen: () => void }) {
   const alert = isAlertSymptom(normalizeSymptomName(s.symptom_name), s.intensity);
+  const shown = symptomShown(s);
   return (
-    <button type="button" onClick={onOpen} className={`${ROW} ${alert ? 'bg-alert-soft' : 'bg-surface'}`} aria-label={`${s.symptom_name}, ${INTENSITY[s.intensity - 1].toLowerCase()}: ver detalhes`}>
+    <button type="button" onClick={onOpen} className={`${ROW} ${alert ? 'bg-alert-soft' : 'bg-surface'}`} aria-label={`${shown.name}, ${INTENSITY[s.intensity - 1].toLowerCase()}: ver detalhes`}>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="font-semibold text-ink">{s.symptom_name}</span>
+          <span className="font-semibold text-ink">{shown.name}</span>
           <IntensityDots value={s.intensity} />
           {alert && <Pill tone="alert"><AlertTriangle className="w-3 h-3" /> alerta</Pill>}
         </div>
         <p className="text-xs text-ink-mute mt-0.5 flex flex-wrap items-center gap-x-1.5">
-          <span>{INTENSITY[s.intensity - 1]}</span>·<span>{s.category}</span>
+          <span>{INTENSITY[s.intensity - 1]}</span>·<span>{shown.category}</span>
           {s.time_of_day && <>·<span>{timeOfDayLabel(s.time_of_day)}</span></>}
           <AuthorBadge role={s.created_by} />
         </p>
-        {s.notes && <p className="text-sm text-ink-soft mt-1 line-clamp-1">{s.notes}</p>}
+        {(shown.phrase || s.notes) && <p className="text-sm text-ink-soft mt-1 line-clamp-1">{[shown.phrase && `"${shown.phrase}"`, s.notes].filter(Boolean).join(' · ')}</p>}
       </div>
       <span className="shrink-0 flex items-center gap-1.5 self-center">
         <SocialCount reactions={reactions} comments={0} />

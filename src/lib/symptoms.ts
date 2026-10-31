@@ -1,6 +1,7 @@
 import { isAlertSymptom } from '../content/symptomCatalog';
 import type { Author, PartnerComment, SymptomItem, TimeOfDay } from '../types';
 import { daysBetween, formatBR, parseLocalDate, toISODate } from './dates';
+import { canonSymptom, normalizeSymptomName } from './symptomCanon';
 
 export const TIME_OF_DAY: Array<{ id: TimeOfDay; label: string; hint: string }> = [
   { id: 'manha', label: 'Manhã', hint: '6h-12h' },
@@ -20,20 +21,16 @@ export function timeOfDayFromHour(hour: number): TimeOfDay {
   return 'noite';
 }
 
-/** "Azia ", "azia" e "AZIA" viram o mesmo sintoma. */
-export function normalizeSymptomName(name: string): string {
-  return name
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+export { normalizeSymptomName } from './symptomCanon';
 
 export interface SymptomEntry {
   id: string;
+  /** O sintoma por trás do que foi escrito ("enjoada nesta manhã" → "enjoo"): é por ela que tudo se agrupa. */
   key: string;
+  /** O nome do sintoma ("Enjoo"). */
   name: string;
+  /** O que foi escrito, sem acento e em minúsculas: é aqui que se procuram os sinais de alerta. */
+  text: string;
   category: string;
   date: Date;
   week: number;
@@ -45,18 +42,22 @@ export interface SymptomEntry {
 
 export function toEntries(items: SymptomItem[]): SymptomEntry[] {
   return items
-    .map(s => ({
-      id: s.id,
-      key: normalizeSymptomName(s.symptom_name),
-      name: s.symptom_name.trim(),
-      category: s.category,
-      date: parseLocalDate(s.log_date),
-      week: s.week_number,
-      intensity: Number(s.intensity),
-      timeOfDay: s.time_of_day ?? null,
-      author: s.created_by,
-      notes: s.notes ?? null,
-    }))
+    .map(s => {
+      const canon = canonSymptom(s.symptom_name);
+      return {
+        id: s.id,
+        key: canon.key,
+        name: canon.name,
+        text: normalizeSymptomName(s.symptom_name),
+        category: canon.category ?? s.category,
+        date: parseLocalDate(s.log_date),
+        week: s.week_number,
+        intensity: Number(s.intensity),
+        timeOfDay: s.time_of_day ?? null,
+        author: s.created_by,
+        notes: s.notes ?? null,
+      };
+    })
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
@@ -92,7 +93,7 @@ export interface SymptomStats {
 
 const average = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
 
-/** O nome mais usado entre as grafias registradas. */
+/** O nome mais usado entre as grafias que ficaram juntas. */
 function mostCommonName(entries: SymptomEntry[]): string {
   const counts = new Map<string, number>();
   for (const e of entries) counts.set(e.name, (counts.get(e.name) ?? 0) + 1);
@@ -153,7 +154,7 @@ export function computeSymptomStats(entries: SymptomEntry[], period: Period): Sy
         .sort((a, b) => a[0] - b[0])
         .map(([week, values]) => ({ week, avg: average(values), max: Math.max(...values), count: values.length })),
       entries: list,
-      isAlert: list.some(e => isAlertSymptom(e.key, e.intensity)),
+      isAlert: list.some(e => isAlertSymptom(e.text, e.intensity)),
     });
   }
 
@@ -183,7 +184,7 @@ export function findPatterns(entries: SymptomEntry[], period: Period): Insight[]
   const insights: Insight[] = [];
 
   for (const s of stats) {
-    const alertEntry = [...s.entries].reverse().find(e => isAlertSymptom(e.key, e.intensity));
+    const alertEntry = [...s.entries].reverse().find(e => isAlertSymptom(e.text, e.intensity));
     if (alertEntry && daysBetween(alertEntry.date, period.to) < TREND_WINDOW_DAYS) {
       insights.push({
         id: `alerta-${s.key}`,
