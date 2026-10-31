@@ -7,6 +7,7 @@ import { formatBR, isOverdue, localDay, parseLocalDate, parseTimestamp, stampTex
 import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure } from '../lib/health';
 import { INTENSITY } from '../lib/intensity';
 import { normalizeSymptomName, timeOfDayLabel } from '../lib/symptoms';
+import { symptomShown } from '../lib/symptomCanon';
 import type { Detail } from '../lib/details';
 import type { Author, Consultation, PartnerComment, PartnerTask, SymptomItem } from '../types';
 import { photoUrl, type FamilyMember } from '../api';
@@ -129,8 +130,9 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
   if (detail.kind === 'symptom') {
     const s = detail.item;
     const alert = isAlertSymptom(normalizeSymptomName(s.symptom_name), s.intensity);
+    const shown = symptomShown(s);
     return (
-      <Sheet icon={<NotebookPen />} title={editing ? 'Editar sintoma' : s.symptom_name} subtitle={editing ? null : <span className="flex flex-wrap items-center gap-2">{formatBR(s.log_date)} · semana {s.week_number} <AuthorBadge role={s.created_by} />{s.created_at && <span className="w-full text-[11.5px] text-ink-mute">Registrado {stampText(s.created_at)}</span>}</span>} onClose={editing ? () => setEditing(false) : onClose}>
+      <Sheet icon={<NotebookPen />} title={editing ? 'Editar sintoma' : shown.name} subtitle={editing ? null : <span className="flex flex-wrap items-center gap-2">{formatBR(s.log_date)} · semana {s.week_number} <AuthorBadge role={s.created_by} />{s.created_at && <span className="w-full text-[11.5px] text-ink-mute">Registrado {stampText(s.created_at)}</span>}</span>} onClose={editing ? () => setEditing(false) : onClose}>
         {editing ? (
           <SymptomForm initial={s} author={h.author} dumDate={h.dumDate} trimester={h.trimester} history={h.symptoms} busy={h.busy} onCreate={async v => saved(await h.onUpdateSymptom(s.id, v))} />
         ) : (
@@ -143,10 +145,11 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
             <Facts
               items={[
                 ['Intensidade', <span className="flex items-center gap-2">{INTENSITY[s.intensity - 1]} <IntensityDots value={s.intensity} /></span>],
-                ['Tipo', s.category],
+                ['Tipo', shown.category],
                 ['Período', s.time_of_day ? timeOfDayLabel(s.time_of_day) : '—'],
               ]}
             />
+            {shown.phrase && <p className="text-[15px] text-ink-soft italic mt-4">"{shown.phrase}"</p>}
             {s.notes && <p className="text-[15px] text-ink mt-4 whitespace-pre-line">{s.notes}</p>}
             {h.socialAvailable && (
               <div className="mt-4">

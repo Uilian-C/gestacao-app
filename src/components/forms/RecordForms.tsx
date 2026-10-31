@@ -4,6 +4,7 @@ import { COMMON_SYMPTOMS, SYMPTOM_CATEGORIES, isAlertSymptom } from '../../conte
 import { parseMetricInput, type ParsedMetric } from '../../lib/health';
 import { INTENSITY } from '../../lib/intensity';
 import { TIME_OF_DAY, normalizeSymptomName, timeOfDayFromHour, timeOfDayLabel } from '../../lib/symptoms';
+import { canonSymptom, symptomToSave, timeOfDayIn } from '../../lib/symptomCanon';
 import type { Author, HealthMetric, SymptomItem, TimeOfDay } from '../../types';
 import { inputClass } from '../styles';
 import { formatBR, toISODate } from '../../lib/dates';
@@ -22,11 +23,10 @@ export interface NewSymptom {
   notes: string;
 }
 
-/** Categoria conhecida de um sintoma: histórico do casal primeiro, depois o catálogo. */
+/** Categoria de um sintoma que o Tumtum não conhece, pelo que o casal já registrou com o mesmo nome. */
 function knownCategories(history: SymptomItem[]) {
   const map = new Map<string, string>();
-  for (const list of Object.values(COMMON_SYMPTOMS)) for (const c of list) map.set(normalizeSymptomName(c.name), c.category);
-  for (const s of history) map.set(normalizeSymptomName(s.symptom_name), s.category);
+  for (const s of history) map.set(canonSymptom(s.symptom_name).key, s.category);
   return map;
 }
 
@@ -38,28 +38,35 @@ export function SymptomForm({ author, dumDate, trimester, history, busy, onCreat
   const [categoryTouched, setCategoryTouched] = useState(!!initial);
   const [intensity, setIntensity] = useState(initial?.intensity ?? 0);
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(() => initial?.time_of_day ?? timeOfDayFromHour(new Date().getHours()));
+  const [timeTouched, setTimeTouched] = useState(!!initial);
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [editing, setEditing] = useState<'tipo' | 'quando' | 'obs' | null>(initial?.notes ? 'obs' : null);
 
-  // Atalhos: os mais registrados pelo casal primeiro, depois os comuns do trimestre.
+  // Atalhos: os mais registrados pelo casal primeiro (cada sintoma uma vez, como quer que tenha sido escrito), depois os comuns do trimestre.
   const shortcuts = useMemo(() => {
     const counts = new Map<string, { name: string; count: number }>();
     for (const s of history) {
-      const key = normalizeSymptomName(s.symptom_name);
-      counts.set(key, { name: counts.get(key)?.name ?? s.symptom_name.trim(), count: (counts.get(key)?.count ?? 0) + 1 });
+      const { key, name } = canonSymptom(s.symptom_name);
+      counts.set(key, { name, count: (counts.get(key)?.count ?? 0) + 1 });
     }
     const mine = [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 5).map(m => m.name);
-    const seen = new Set(mine.map(normalizeSymptomName));
-    const common = COMMON_SYMPTOMS[trimester].map(c => c.name).filter(n => !seen.has(normalizeSymptomName(n)));
+    const seen = new Set(mine.map(n => canonSymptom(n).key));
+    const common = COMMON_SYMPTOMS[trimester].map(c => c.name).filter(n => !seen.has(canonSymptom(n).key));
     return [...mine, ...common].slice(0, 10);
   }, [history, trimester]);
   const categories = useMemo(() => knownCategories(history), [history]);
+  const canon = canonSymptom(name);
+  // "Vai entrar como Enjoo": quando o que foi escrito vira outro nome.
+  const becomes = name.trim() !== '' && normalizeSymptomName(name) !== normalizeSymptomName(canon.name) ? canon.name : null;
 
   const pick = (value: string) => {
     setName(value);
-    // O tipo se ajusta sozinho ao sintoma, a menos que a pessoa já tenha escolhido.
-    const known = categories.get(normalizeSymptomName(value));
+    const c = canonSymptom(value);
+    // O tipo e o período se ajustam sozinhos ao que foi escrito, a menos que a pessoa já tenha escolhido.
+    const known = c.category ?? categories.get(c.key);
     if (known && !categoryTouched) setCategory(known);
+    const when = timeOfDayIn(value);
+    if (when && !timeTouched) setTimeOfDay(when);
   };
 
   const alert = name.trim() !== '' && intensity > 0 && isAlertSymptom(normalizeSymptomName(name), intensity);
@@ -68,7 +75,7 @@ export function SymptomForm({ author, dumDate, trimester, history, busy, onCreat
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ready) return;
-    if ((await onCreate({ date, name: name.trim(), category, intensity, timeOfDay, notes: notes.trim() })) && !initial) {
+    if ((await onCreate({ date, ...symptomToSave(name, notes), category, intensity, timeOfDay })) && !initial) {
       setName('');
       setNotes('');
       setIntensity(0);
@@ -91,9 +98,16 @@ export function SymptomForm({ author, dumDate, trimester, history, busy, onCreat
           onChange={e => pick(e.target.value)}
           autoComplete="off"
         />
+        <p className="text-xs text-ink-mute min-h-4 px-1" aria-live="polite">
+          {becomes && (
+            <>
+              Vai entrar como <strong className="text-ink-soft">{becomes}</strong>, junto com os outros registros dele.
+            </>
+          )}
+        </p>
         <div className="-mx-1 px-1 flex gap-1.5 overflow-x-auto no-scrollbar" aria-label="Sugestões">
           {shortcuts.map(s => {
-            const active = normalizeSymptomName(name) === normalizeSymptomName(s);
+            const active = name.trim() !== '' && canon.key === canonSymptom(s).key;
             return (
               <button
                 key={s}
@@ -168,6 +182,7 @@ export function SymptomForm({ author, dumDate, trimester, history, busy, onCreat
           value={timeOfDay}
           onChange={v => {
             setTimeOfDay(v);
+            setTimeTouched(true);
             setEditing(null);
           }}
           options={TIME_OF_DAY.map(t => ({ value: t.id, label: t.label }))}

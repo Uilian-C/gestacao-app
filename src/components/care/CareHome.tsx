@@ -11,6 +11,7 @@ import type { CareView, Consultation, HealthMetric, PregnancyProfile, QuestionIt
 import AlertSigns from '../AlertSigns';
 import FichaPanel, { type FichaInput } from '../FichaBar';
 import Sheet from '../Sheet';
+import { canonSymptom } from '../../lib/symptomCanon';
 
 // Cuidados numa página só e curta: a próxima consulta (e o que levar), dois
 // atalhos de um toque (os dados da gestação, para responder na hora durante a
@@ -53,7 +54,7 @@ export default function CareHome(props: Props) {
 
   // Registros: as últimas 4 semanas de sintomas e a última medida.
   const recent = props.symptoms.filter(s => daysBetween(parseLocalDate(s.log_date.slice(0, 10)), today) <= 27);
-  const top = [...recent.reduce((m, s) => m.set(s.symptom_name, (m.get(s.symptom_name) ?? 0) + 1), new Map<string, number>()).entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const top = [...recent.map(s => canonSymptom(s.symptom_name).name).reduce((m, n) => m.set(n, (m.get(n) ?? 0) + 1), new Map<string, number>()).entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   const byDate = [...props.metrics].sort((a, b) => b.recorded_at.localeCompare(a.recorded_at));
   const weight = byDate.find(m => m.weight_kg !== null);
   const bp = byDate.find(m => m.systolic_bp !== null && m.diastolic_bp !== null);

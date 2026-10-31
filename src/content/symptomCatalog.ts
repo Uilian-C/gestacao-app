@@ -3,8 +3,8 @@ export interface CommonSymptom {
   category: 'Físico' | 'Digestivo' | 'Emocional' | 'Sono';
 }
 
-// Sintomas frequentes por trimestre. Servem de atalho no registro e mantêm os
-// nomes padronizados, o que deixa o painel de padrões mais preciso.
+// Sintomas frequentes por trimestre. Servem de atalho no registro; os nomes
+// são os mesmos de lib/symptomCanon.ts, que junta as variações de cada um.
 export const COMMON_SYMPTOMS: Record<1 | 2 | 3, CommonSymptom[]> = {
   1: [
     { name: 'Enjoo', category: 'Digestivo' },
@@ -29,7 +29,7 @@ export const COMMON_SYMPTOMS: Record<1 | 2 | 3, CommonSymptom[]> = {
   3: [
     { name: 'Azia', category: 'Digestivo' },
     { name: 'Dor lombar', category: 'Físico' },
-    { name: 'Inchaço nos pés', category: 'Físico' },
+    { name: 'Inchaço', category: 'Físico' },
     { name: 'Falta de ar', category: 'Físico' },
     { name: 'Insônia', category: 'Sono' },
     { name: 'Contrações de treinamento', category: 'Físico' },
