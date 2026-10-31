@@ -4,9 +4,12 @@ import { ChevronLeft, ChevronRight, ExternalLink, Trash2, X } from 'lucide-react
 export interface ViewerPhoto {
   id: string;
   src: string;
+  /** Um vídeo (toca ali, com a capa em `poster`). */
+  video?: boolean;
+  poster?: string;
 }
 
-/** Foto em tela cheia, com as outras do mesmo registro ao lado (exames e diário). */
+/** Foto (ou vídeo) em tela cheia, com as outras do mesmo registro ao lado (exames e diário). */
 export default function PhotoViewer({ title, subtitle, photos, index, onIndex, onClose, onDelete }: {
   title: string;
   subtitle: string;
@@ -51,7 +54,7 @@ export default function PhotoViewer({ title, subtitle, photos, index, onIndex, o
           <ExternalLink className="w-5 h-5" />
         </a>
         {onDelete && (
-          <button type="button" onClick={() => onDelete(photo)} aria-label="Excluir esta foto" className="p-2 rounded-full hover:bg-white/10">
+          <button type="button" onClick={() => onDelete(photo)} aria-label={photo.video ? 'Excluir este vídeo' : 'Excluir esta foto'} className="p-2 rounded-full hover:bg-white/10">
             <Trash2 className="w-5 h-5" />
           </button>
         )}
@@ -60,7 +63,11 @@ export default function PhotoViewer({ title, subtitle, photos, index, onIndex, o
         </button>
       </div>
       <div className="relative flex-1 min-h-0 flex items-center justify-center p-2" onClick={ev => ev.target === ev.currentTarget && onClose()}>
-        <img key={photo.id} src={photo.src} alt={`Foto de ${title}`} className="max-w-full max-h-full object-contain select-none" />
+        {photo.video ? (
+          <video key={photo.id} src={photo.src} poster={photo.poster} controls autoPlay playsInline aria-label={`Vídeo de ${title}`} className="max-w-full max-h-full" />
+        ) : (
+          <img key={photo.id} src={photo.src} alt={`Foto de ${title}`} className="max-w-full max-h-full object-contain select-none" />
+        )}
         {photos.length > 1 && (
           <>
             <button type="button" onClick={() => go(-1)} aria-label="Foto anterior" className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-black/50 text-white flex items-center justify-center">

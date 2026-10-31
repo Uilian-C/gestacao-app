@@ -79,15 +79,20 @@ export const api = {
   exams: <T = { ok: true; id?: string; data?: unknown }>(op: string, payload: Record<string, unknown> = {}) => request<T>('/api/exames', { op, ...payload }),
   /** Fotos do diário: add, delete. Ver api/fotos.ts. */
   photos: (op: 'add' | 'delete', payload: Record<string, unknown>) => request<{ ok: true; data?: unknown }>('/api/fotos', { op, ...payload }),
+  /** Vídeos do diário e dos exames, em pedaços: part, finish, discard. Ver api/videos.ts e lib/videos.ts. */
+  videos: (op: 'part' | 'finish' | 'discard', payload: Record<string, unknown>) => request<{ ok: true; id?: string; data?: unknown }>('/api/videos', { op, ...payload }),
   /** Foto de perfil de quem está logado: trocar (data) ou tirar (null). */
   avatar: (data: string | null) => request<{ ok: true; family: FamilyState }>('/api/fotos', data ? { op: 'avatar', data } : { op: 'removeAvatar' }),
 };
 
-/** Endereço de uma foto ou PDF de exame (só abre para quem é do espaço). */
-export const examFileUrl = (fileId: string) => `/api/exames?arquivo=${encodeURIComponent(fileId)}`;
+/** Endereço de uma foto, PDF ou vídeo de exame (só abre para quem é do espaço); `cover` pede a capa do vídeo. */
+export const examFileUrl = (fileId: string, cover = false) => `/api/exames?arquivo=${encodeURIComponent(fileId)}${cover ? '&capa=1' : ''}`;
 
-/** Endereço de uma foto do diário; `mini` pede a miniatura (listas). */
+/** Endereço de uma foto (ou vídeo) do diário; `mini` pede a miniatura (listas), que num vídeo é a capa. */
 export const photoUrl = (photoId: string, mini = false) => `/api/fotos?id=${encodeURIComponent(photoId)}${mini ? '&mini=1' : ''}`;
+
+/** Uma imagem parada de um item do registro: a foto, ou a capa quando é vídeo. */
+export const stillUrl = (p: { id: string; thumb: boolean; video?: boolean }, mini = false) => photoUrl(p.id, p.video ? p.thumb : mini && p.thumb);
 
 /** Foto de perfil de alguém do espaço; `version` muda a cada troca, para não mostrar a antiga. */
 export const avatarUrl = (userId: string, version: string) => `/api/fotos?perfil=${encodeURIComponent(userId)}&v=${encodeURIComponent(version)}`;

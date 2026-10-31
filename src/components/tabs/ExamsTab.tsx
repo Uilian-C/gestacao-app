@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { VideoBadge } from '../VideoBadge';
 import { Camera, ChevronDown, ChevronRight, FileText, FlaskConical, ImagePlus, Loader2, Lock, Paperclip, Plus, ScanHeart, Search, Trash2, Users, X } from 'lucide-react';
 import { examFileUrl } from '../../api';
 import { PLAN_ITEMS, type PlanItem } from '../../content/prenatalPlan';
@@ -64,6 +65,9 @@ export interface ExamSocial {
 const KIND_LABEL: Record<ExamKind, string> = { ultrassom: 'Ultrassom', exame: 'Exame', outro: 'Outro' };
 const KIND_ICON: Record<ExamKind, typeof ScanHeart> = { ultrassom: ScanHeart, exame: FlaskConical, outro: FileText };
 const isImage = (f: ExamFile) => f.content_type.startsWith('image/');
+const isVideo = (f: ExamFile) => f.content_type.startsWith('video/');
+/** O que abre em tela cheia: fotos e vídeos (o PDF abre no leitor do navegador). */
+const isMedia = (f: ExamFile) => isImage(f) || isVideo(f);
 
 const kindFor = (item: PlanItem): ExamKind => (item.id.startsWith('morfo') ? 'ultrassom' : 'exame');
 
@@ -90,7 +94,7 @@ export default function ExamsTab(props: Props) {
 
   // Se o exame aberto no visualizador sumir (apagado), fecha.
   const viewing = viewer && props.exams.find(e => e.id === viewer.exam.id);
-  const viewerImages = viewing ? viewing.files.filter(isImage) : [];
+  const viewerImages = viewing ? viewing.files.filter(isMedia) : [];
 
   return (
     <div className="space-y-5">
@@ -240,7 +244,7 @@ export default function ExamsTab(props: Props) {
         <PhotoViewer
           title={viewing.title}
           subtitle={formatBR(viewing.exam_date)}
-          photos={viewerImages.map(f => ({ id: f.id, src: examFileUrl(f.id) }))}
+          photos={viewerImages.map(f => ({ id: f.id, src: examFileUrl(f.id), ...(isVideo(f) ? { video: true, poster: examFileUrl(f.id, true) } : {}) }))}
           index={Math.min(viewer!.index, viewerImages.length - 1)}
           onIndex={index => setViewer({ exam: viewing, index })}
           onClose={() => setViewer(null)}
@@ -251,7 +255,7 @@ export default function ExamsTab(props: Props) {
   );
 }
 
-/** Escolher fotos e PDFs: a câmera direto ou a galeria/arquivos. */
+/** Escolher fotos, vídeos e PDFs: a câmera direto ou a galeria/arquivos. */
 function FilePicker({ onAdd, disabled, compact = false }: { onAdd: (files: File[]) => void; disabled: boolean; compact?: boolean }) {
   const camera = useRef<HTMLInputElement>(null);
   const gallery = useRef<HTMLInputElement>(null);
@@ -266,12 +270,12 @@ function FilePicker({ onAdd, disabled, compact = false }: { onAdd: (files: File[
   return (
     <div className={compact ? 'flex flex-wrap gap-2' : 'flex gap-3'}>
       <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" onChange={take} aria-label="Tirar foto" />
-      <input ref={gallery} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={take} aria-label="Escolher fotos ou PDF" />
+      <input ref={gallery} type="file" accept="image/*,video/*,application/pdf" multiple className="hidden" onChange={take} aria-label="Escolher fotos, vídeos ou PDF" />
       <button type="button" disabled={disabled} onClick={() => camera.current?.click()} className={button}>
         <Camera className={compact ? 'w-3.5 h-3.5' : 'w-6 h-6'} /> Tirar foto
       </button>
       <button type="button" disabled={disabled} onClick={() => gallery.current?.click()} className={button}>
-        {compact ? <Paperclip className="w-3.5 h-3.5" /> : <ImagePlus className="w-6 h-6" />} {compact ? 'Juntar arquivo' : 'Fotos ou PDF'}
+        {compact ? <Paperclip className="w-3.5 h-3.5" /> : <ImagePlus className="w-6 h-6" />} {compact ? 'Juntar arquivo' : 'Fotos, vídeo ou PDF'}
       </button>
     </div>
   );
@@ -321,7 +325,10 @@ function PreparedList({ files, onRemove }: { files: PreparedFile[]; onRemove: (i
       {files.map((f, i) => (
         <li key={`${f.name}-${i}`} className="relative aspect-square rounded-xl overflow-hidden bg-surface-2">
           {f.preview ? (
-            <img src={f.preview} alt={f.name} className="w-full h-full object-cover" />
+            <>
+              <img src={f.preview} alt={f.name} className="w-full h-full object-cover" />
+              {f.video && <VideoBadge />}
+            </>
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-1 p-2 text-center">
               <FileText className="w-6 h-6 text-ink-mute" />
@@ -455,7 +462,8 @@ function KindIcon({ kind }: { kind: ExamKind }) {
 function ExamRow({ exam: e, dumDate, social, onOpen }: { exam: ExamItem; dumDate: string; social: ExamSocial; onOpen: () => void }) {
   const week = gestationalAge(dumDate, parseLocalDate(e.exam_date))?.weeks;
   const photos = e.files.filter(isImage).length;
-  const pdfs = e.files.length - photos;
+  const videos = e.files.filter(isVideo).length;
+  const pdfs = e.files.length - photos - videos;
   const plan = e.plan_item ? PLAN_ITEMS.find(i => i.id === e.plan_item) : null;
   const reactions = social.available ? social.reactions.filter(r => r.target_type === 'exam' && r.target_id === e.id).length : 0;
   const comments = social.available ? social.threads.filter(c => c.target_type === 'exam' && c.target_id === e.id).length : 0;
@@ -468,6 +476,7 @@ function ExamRow({ exam: e, dumDate, social, onOpen }: { exam: ExamItem; dumDate
           {formatBR(e.exam_date)}
           {week !== undefined && week >= 1 && ` · ${week} sem.`}
           {photos > 0 && ` · ${photos} ${photos === 1 ? 'foto' : 'fotos'}`}
+          {videos > 0 && ` · ${videos} ${videos === 1 ? 'vídeo' : 'vídeos'}`}
           {pdfs > 0 && ` · ${pdfs} PDF`}
           {plan && ` · jornada`}
         </span>
@@ -485,7 +494,7 @@ function ExamCard({ exam: e, dumDate, busy, social, onSave, onOpen, onDelete, on
   const Icon = KIND_ICON[e.kind];
   const week = gestationalAge(dumDate, parseLocalDate(e.exam_date))?.weeks;
   const plan = e.plan_item ? PLAN_ITEMS.find(i => i.id === e.plan_item) : null;
-  const images = e.files.filter(isImage);
+  const images = e.files.filter(isMedia);
   const [step, setStep] = useState<'preparando' | 'enviando' | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -543,7 +552,14 @@ function ExamCard({ exam: e, dumDate, busy, social, onSave, onOpen, onDelete, on
       {e.files.length > 0 && (
         <ul className="grid grid-cols-3 sm:grid-cols-5 gap-2">
           {e.files.map(f =>
-            isImage(f) ? (
+            isVideo(f) ? (
+              <li key={f.id}>
+                <button type="button" onClick={() => onOpen(images.indexOf(f))} className="relative block w-full aspect-square rounded-xl overflow-hidden bg-surface focus:outline-none focus:ring-4 focus:ring-brand/20" aria-label={`Ver vídeo de ${e.title}`}>
+                  <img src={examFileUrl(f.id, true)} alt="" loading="lazy" className="w-full h-full object-cover" />
+                  <VideoBadge />
+                </button>
+              </li>
+            ) : isImage(f) ? (
               <li key={f.id}>
                 <button type="button" onClick={() => onOpen(images.indexOf(f))} className="block w-full aspect-square rounded-xl overflow-hidden bg-surface focus:outline-none focus:ring-4 focus:ring-brand/20" aria-label={`Abrir foto de ${e.title}`}>
                   <img src={examFileUrl(f.id)} alt="" loading="lazy" className="w-full h-full object-cover" />

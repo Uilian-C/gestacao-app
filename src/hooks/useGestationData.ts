@@ -193,6 +193,8 @@ export type Folder = 'momento' | 'dia' | 'ideia' | 'carta' | 'barriga';
 export interface EntryPhoto {
   id: string;
   thumb: boolean;
+  /** É um vídeo (a miniatura é a capa). */
+  video?: boolean;
 }
 
 export interface CheckItem {

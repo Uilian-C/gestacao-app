@@ -128,8 +128,8 @@ export async function fetchAll(fid: string, userId: string) {
       [fid, userId],
     ).catch(() => null),
     // Fotos do diário (migração 012), só dos registros que esta pessoa vê.
-    query<{ entry_id: string; id: string; thumb: boolean }>(
-      `SELECT f.entry_id::text AS entry_id, f.id::text AS id, (f.thumb_path IS NOT NULL) AS thumb
+    query<{ entry_id: string; id: string; thumb: boolean; video: boolean }>(
+      `SELECT f.entry_id::text AS entry_id, f.id::text AS id, (f.thumb_path IS NOT NULL) AS thumb, f.content_type LIKE 'video/%' AS video
        FROM journal_files f JOIN journal_entries e ON e.id = f.entry_id
        WHERE f.family_id = $1 AND (e.visibility <> 'private' OR e.user_id = $2)
        ORDER BY f.created_at`,
@@ -191,7 +191,7 @@ export async function fetchAll(fid: string, userId: string) {
     laborAvailable: true,
     checks: checks ?? [],
     checksAvailable: checks !== null,
-    journal: (journal ?? []).map(e => ({ ...e, photos: (photos ?? []).filter(p => p.entry_id === e.id).map(p => ({ id: p.id, thumb: p.thumb })) })),
+    journal: (journal ?? []).map(e => ({ ...e, photos: (photos ?? []).filter(p => p.entry_id === e.id).map(p => ({ id: p.id, thumb: p.thumb, ...(p.video ? { video: true } : {}) })) })),
     journalAvailable: journal !== null,
     photosAvailable: photos !== null,
     checkins: checkins ?? [],
@@ -240,8 +240,8 @@ export async function fetchFamilyView(fid: string, userId: string) {
        ORDER BY entry_date DESC, created_at DESC`,
       [fid],
     ).catch(() => []),
-    query<{ entry_id: string; id: string; thumb: boolean }>(
-      `SELECT f.entry_id::text AS entry_id, f.id::text AS id, (f.thumb_path IS NOT NULL) AS thumb
+    query<{ entry_id: string; id: string; thumb: boolean; video: boolean }>(
+      `SELECT f.entry_id::text AS entry_id, f.id::text AS id, (f.thumb_path IS NOT NULL) AS thumb, f.content_type LIKE 'video/%' AS video
        FROM journal_files f JOIN journal_entries e ON e.id = f.entry_id
        WHERE f.family_id = $1 AND e.visibility = 'family' ORDER BY f.created_at`,
       [fid],
@@ -266,7 +266,7 @@ export async function fetchFamilyView(fid: string, userId: string) {
     babyNameAt: (family[0]?.baby_name_at as string | null | undefined) ?? null,
     careSince: (family[0]?.care_since as string | null | undefined) ?? null,
     nameIdeas: await nameIdeas,
-    journal: journal.map(e => ({ ...e, photos: photos.filter(p => p.entry_id === e.id).map(p => ({ id: p.id, thumb: p.thumb })) })),
+    journal: journal.map(e => ({ ...e, photos: photos.filter(p => p.entry_id === e.id).map(p => ({ id: p.id, thumb: p.thumb, ...(p.video ? { video: true } : {}) })) })),
     reactions: social?.[0].reactions ?? [],
     threads: social?.[0].threads ?? [],
     socialAvailable: social !== null,

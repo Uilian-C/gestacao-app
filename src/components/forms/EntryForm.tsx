@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { Bell, Camera, HeartHandshake, ImagePlus, Loader2, Lock, Users, X } from 'lucide-react';
+import { VideoBadge } from '../VideoBadge';
 import { photoUrl } from '../../api';
 import { WORK_RIGHTS, WORK_RIGHTS_SOURCE, WORK_TERMS } from '../../content/workRights';
 import type { Folder, JournalEntry, Visibility } from '../../hooks/useGestationData';
@@ -17,7 +18,7 @@ import { useMention } from '../../lib/useMention';
 import { inputClass } from '../styles';
 import { Button, Segmented } from '../ui';
 
-// Registro do fichário: a pasta, o texto, as fotos (até 4), quem vê e um
+// Registro do fichário: a pasta, o texto, as fotos e vídeos (até 4), quem vê e um
 // lembrete opcional. Com `initial`, abre preenchido para editar.
 // Sem pasta escolhida (quem escreve pelo Mural ou pelo Registrar), a pasta
 // acompanha o texto: o Tumtum sugere e a pessoa só toca se quiser trocar.
@@ -30,7 +31,7 @@ export interface NewEntry {
   /** Dia e hora do lembrete (ISO); undefined quando o app ainda não pergunta a hora. */
   remindAt?: string | null;
   folder: Folder;
-  /** Fotos novas, já reduzidas no celular. */
+  /** Fotos novas, já reduzidas no celular (e vídeos, que vão como estão). */
   photos: PreparedPhoto[];
   /** Fotos que já estavam no registro e devem sair. */
   removePhotos: string[];
@@ -111,7 +112,7 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
 
   const addFiles = async (files: File[]) => {
     setProblem(null);
-    if (files.length > room) setProblem(`Cada registro guarda até ${MAX_PHOTOS} fotos.`);
+    if (files.length > room) setProblem(`Cada registro guarda até ${MAX_PHOTOS} fotos ou vídeos.`);
     setPreparing(true);
     try {
       for (const file of files.slice(0, Math.max(0, room))) {
@@ -120,7 +121,7 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
         setPhotos(list => [...list, p]);
       }
     } catch (err) {
-      setProblem(err instanceof FileProblem ? err.message : 'Não foi possível abrir a foto. Tente outra.');
+      setProblem(err instanceof FileProblem ? err.message : 'Não foi possível abrir o arquivo. Tente outro.');
     } finally {
       setPreparing(false);
     }
@@ -148,10 +149,10 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2" aria-label="Fotos do registro">
         {kept.map(p => (
-          <Thumb key={p.id} src={photoUrl(p.id, p.thumb)} onRemove={() => setRemoved(r => [...r, p.id])} />
+          <Thumb key={p.id} src={photoUrl(p.id, p.thumb)} video={p.video} onRemove={() => setRemoved(r => [...r, p.id])} />
         ))}
         {photos.map((p, i) => (
-          <Thumb key={p.preview} src={p.preview} onRemove={() => setPhotos(list => list.filter((_, j) => j !== i))} />
+          <Thumb key={p.preview} src={p.preview} video={!!p.video} onRemove={() => setPhotos(list => list.filter((_, j) => j !== i))} />
         ))}
         {room > 0 && !(belly && !hasPhoto) && (
           <>
@@ -189,9 +190,9 @@ export function EntryForm({ busy, available, photosAvailable, dumDate, folder: s
           <PickButton big onClick={() => picker.current?.click()} disabled={preparing || busy} tone={tone.text} Icon={ImagePlus} label="Da galeria" />
         </div>
       )}
-      {/* A câmera abre direto (no celular); a galeria deixa escolher várias. */}
+      {/* A câmera abre direto (no celular); a galeria deixa escolher várias fotos e vídeos (na barriga, só fotos). */}
       <input ref={camera} type="file" accept="image/*" capture="environment" hidden aria-label="Tirar foto" onChange={pick} />
-      <input ref={picker} type="file" accept="image/*" multiple hidden aria-label="Escolher fotos" onChange={pick} />
+      <input ref={picker} type="file" accept={belly ? 'image/*' : 'image/*,video/*'} multiple hidden aria-label={belly ? 'Escolher fotos' : 'Escolher fotos ou vídeos'} onChange={pick} />
       {problem && <p className="text-sm font-semibold text-alert" role="alert">{problem}</p>}
     </div>
   );
@@ -352,11 +353,12 @@ function PickButton({ big = false, label, Icon, spin = false, tone, disabled, on
   );
 }
 
-function Thumb({ src, onRemove }: { src: string; onRemove: () => void }) {
+function Thumb({ src, video = false, onRemove }: { src: string; video?: boolean; onRemove: () => void }) {
   return (
     <span className="relative w-20 h-20 shrink-0">
       <img src={src} alt="" className="w-20 h-20 rounded-2xl object-cover bg-surface-2" />
-      <button type="button" onClick={onRemove} aria-label="Tirar esta foto" className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-ink text-surface flex items-center justify-center shadow-soft">
+      {video && <VideoBadge />}
+      <button type="button" onClick={onRemove} aria-label={video ? 'Tirar este vídeo' : 'Tirar esta foto'} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-ink text-surface flex items-center justify-center shadow-soft">
         <X className="w-3.5 h-3.5" />
       </button>
     </span>
