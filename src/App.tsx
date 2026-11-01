@@ -1,10 +1,10 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CloudRain, Sprout } from 'lucide-react';
-import QuickRecord, { type QuickMode } from './components/QuickRecord';
+import type { QuickMode } from './components/QuickRecord';
 import Skeleton from './components/Skeleton';
-import DetailSheet from './components/Details';
-import NameSpace, { NameReveal, type NameActions } from './components/BabyNames';
-import { CelebrationSpace, type CelebrationActions } from './components/Celebrations';
+
+import type { NameActions } from './components/BabyNames';
+import type { CelebrationActions } from './components/Celebrations';
 import type { Celebration, CelebrationItem } from './lib/celebrations';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, JournalEntry, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
@@ -15,17 +15,17 @@ import { finalistsCard, nameCard, placarCard, revealCard, surpriseCard, teaserCa
 import { EsperaSheet, SexReveal } from './components/espera/Espera';
 import { bolaoUrl, envelopeUrl, isTwins, percents, questionFor, rightCount, SEX_WORD, tally, teamsOf, type Sex, type SexPlan } from './lib/espera';
 import { entryShare } from './lib/shareEntry';
-import ShareSheet, { type ShareRequest } from './components/ShareSheet';
+import type { ShareRequest } from './components/ShareSheet';
 import { authorOf, firstName } from './lib/people';
-import DayClose from './components/home/DayClose';
+
 import { uploadVideo } from './lib/videos';
 import { api, ApiError, photoUrl, type CoupleFamilyState, type FamilyState, type Me } from './api';
-import SpaceSheet from './components/auth/SpaceSheet';
-import CareModeHome from './components/home/CareModeHome';
+
+
 import type { VisitStatus } from './components/home/VisitFeedback';
 import { firstTimeOf, type FirstTimeId } from './content/firstTimes';
 import Header from './components/Header';
-import HelpCenter from './components/HelpCenter';
+
 import type { HelpTarget } from './content/help';
 import type { FichaInput } from './components/FichaBar';
 import Nav from './components/Nav';
@@ -37,19 +37,37 @@ import type { BabyTone } from './content/babyTones';
 import { FreshEntryContext } from './lib/people';
 import type { BirthPlan } from './lib/birthPlan';
 import HomeTab, { type HomeTarget } from './components/tabs/HomeTab';
-import DiaryTab from './components/tabs/DiaryTab';
+
 import type { NewSymptom } from './components/forms/RecordForms';
-import RecordList from './components/care/RecordList';
+
 import CareHome from './components/care/CareHome';
 import CarePage from './components/care/CarePage';
-import UpcomingTab from './components/tabs/UpcomingTab';
+
 import type { NewEntry } from './components/forms/EntryForm';
 import type { NewConsultation, ReportRequest } from './components/tabs/ConsultationsTab';
 // Exames vêm junto com o botão "+" (que tem o formulário de exame).
-import ExamsTab, { type SaveExam } from './components/tabs/ExamsTab';
-import TasksTab, { type NewTask } from './components/tabs/TasksTab';
+import type { SaveExam } from './components/tabs/ExamsTab';
+import type { NewTask } from './components/tabs/TasksTab';
 
 // Abas com gráficos, relatório e calendário carregam só quando abertas: o app abre mais rápido no celular.
+// Carregadas só quando abertas: as folhas (nomes, celebrações, compartilhar,
+// detalhes, ajuda, nosso espaço, fechar o dia, registrar) e as partes que não
+// aparecem na abertura (Diário, Agenda, Tarefas, Resultados, Saúde).
+const QuickRecord = lazy(() => import('./components/QuickRecord'));
+const DetailSheet = lazy(() => import('./components/Details'));
+const NameSpace = lazy(() => import('./components/BabyNames'));
+const NameReveal = lazy(() => import('./components/BabyNames').then(m => ({ default: m.NameReveal })));
+const CelebrationSpace = lazy(() => import('./components/Celebrations').then(m => ({ default: m.CelebrationSpace })));
+const ShareSheet = lazy(() => import('./components/ShareSheet'));
+const DayClose = lazy(() => import('./components/home/DayClose'));
+const SpaceSheet = lazy(() => import('./components/auth/SpaceSheet'));
+const CareModeHome = lazy(() => import('./components/home/CareModeHome'));
+const HelpCenter = lazy(() => import('./components/HelpCenter'));
+const DiaryTab = lazy(() => import('./components/tabs/DiaryTab'));
+const RecordList = lazy(() => import('./components/care/RecordList'));
+const UpcomingTab = lazy(() => import('./components/tabs/UpcomingTab'));
+const ExamsTab = lazy(() => import('./components/tabs/ExamsTab'));
+const TasksTab = lazy(() => import('./components/tabs/TasksTab'));
 const DashboardTab = lazy(() => import('./components/tabs/DashboardTab'));
 const ConsultationsTab = lazy(() => import('./components/tabs/ConsultationsTab'));
 const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
@@ -288,11 +306,22 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
    * Com `done`, confirma com um aviso curto ("Sintoma registrado"); no erro, o
    * aviso fica até a pessoa fechar, com "Tentar de novo".
    */
+  // Depois de toques leves, uma sincronização só, em segundo plano, para vários toques seguidos.
+  const syncTimer = useRef<number | null>(null);
+  const syncSoon = () => {
+    if (syncTimer.current) window.clearTimeout(syncTimer.current);
+    syncTimer.current = window.setTimeout(() => {
+      syncTimer.current = null;
+      refresh().catch(() => undefined);
+    }, 2500);
+  };
   const run = async (action: () => Promise<unknown>, errorText = 'Não foi possível salvar. Verifique a conexão e tente de novo.', done?: string): Promise<boolean> => {
     setBusy(true);
     try {
-      const result = (await action()) as { data?: unknown } | undefined;
+      const result = (await action()) as { lite?: boolean; data?: unknown } | undefined;
       if (result?.data) replace(result.data);
+      // Toque leve: a tela já mostra a mudança; sincroniza depois, sem esperar.
+      else if (result?.lite) syncSoon();
       else await refresh();
       if (done) showToast({ text: done, tone: 'success' });
       return true;
@@ -628,7 +657,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     return run(() => api.mutate('setCareMode', { on }), 'Não foi possível mudar o modo cuidado. Se for a primeira vez, rode a migração db/migrations/029_modo_cuidado.sql no Neon.');
   };
   const spaceSheet = (
-    <>
+    <Suspense fallback={null}>
       {spaceOpen && (
         <SpaceSheet
           me={me}
@@ -642,7 +671,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onHelp={() => (setSpaceOpen(false), setHelpOpen(true))}
         />
       )}
-    </>
+    </Suspense>
   );
 
   if (!dumDate || !age) {
@@ -1402,6 +1431,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         </Suspense>
       </main>
 
+      <Suspense fallback={null}>
       {celebrationOpen && data.celebrations?.some(c => c.id === celebrationOpen) && (
         <CelebrationSpace celebration={data.celebrations.find(c => c.id === celebrationOpen)!} actions={celebrationActions} onClose={() => setCelebrationOpen(null)} />
       )}
@@ -1573,6 +1603,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           }}
         />
       )}
+      </Suspense>
     </div>
     </TimedRemindersReady.Provider>
     </TaskRemindersReady.Provider>
