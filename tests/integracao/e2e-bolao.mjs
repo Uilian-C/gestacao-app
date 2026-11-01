@@ -13,7 +13,7 @@ await pai.goto(BASE);
 await post(pai, '/api/auth/sign-up/email', { name: 'Caio', email: `caio${Date.now()}@ex.com`, password: 'senha-forte-1' });
 await post(pai, '/api/family', { op: 'consent', version: '2026-10-16' });
 await post(pai, '/api/family', { op: 'join', code, role: 'pai' });
-await post(mae, '/api/data', { op: 'setSexPlan', plan: 'descobrir', testDate: null });
+await post(mae, '/api/data', { op: 'setSexPlan', plan: 'descobrir', testDate: await mae.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 10); return d.toLocaleDateString('en-CA'); }) });
 await post(mae, '/api/data', { op: 'guessSex', guess: 'menina' });
 
 // O compartilhar do celular: guarda o texto que sairia no WhatsApp.

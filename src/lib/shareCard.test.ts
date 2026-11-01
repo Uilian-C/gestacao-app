@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countdownCard, letterCard, nameCard, revealCard, weekCard, wrapLines } from './shareCard';
+import { countdownCard, letterCard, nameCard, placarCard, revealCard, weekCard, wrapLines } from './shareCard';
 
 const measure = (s: string) => s.length * 10;
 
@@ -37,6 +37,12 @@ describe('cartões para compartilhar', () => {
     expect(revealCard({ sex: 'menino', week: 20, date: '', right: 2, share: 50 }).sub).toBe('Empate no bolão, e deu Time Menino! · semana 20');
     expect(revealCard({ sex: 'menina', week: 20, date: '', right: 1, share: 30 }).sub).toMatch(/^Zebra!/);
     expect(revealCard({ sex: 'menina', week: 20, date: '', right: 6, share: 70, winners: ['Ana', 'Bia', 'Léo', 'Rosa', 'Caio', 'Lu'] }).sign).toBe('6 pessoas acertaram: Ana, Bia, Léo, Rosa e mais 2');
+  });
+
+  it('o cartão do placar: a data vai para a linha de baixo, não para o título pequeno', () => {
+    const c = placarCard({ menina: 2, menino: 0, teams: { menina: ['Uil', 'Pai'], menino: [] }, testDate: '11 de novembro' });
+    expect(c.kicker).toBe('O bolão');
+    expect(c.sub).toBe('A gente descobre em 11 de novembro. Menina: Uil, Pai');
   });
 
   it('quebra o texto em linhas e corta com reticências', () => {

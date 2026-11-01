@@ -156,10 +156,10 @@ export function placarCard(o: { menina: number; menino: number; teams: { menina:
   const few = (xs: string[]) => (xs.length > 3 ? `${xs.slice(0, 3).join(', ')} e mais ${xs.length - 3}` : xs.join(', '));
   const lines = [o.teams.menina.length ? `Menina: ${few(o.teams.menina)}` : '', o.teams.menino.length ? `Menino: ${few(o.teams.menino)}` : ''].filter(Boolean);
   return {
-    kicker: o.surprise ? 'O bolão · surpresa até o parto' : o.testDate ? `O bolão · a gente descobre em ${o.testDate}` : 'O bolão',
+    kicker: 'O bolão',
     name: 'Menino ou menina?',
     bar: { menina: o.menina, menino: o.menino },
-    sub: lines.join(' · ') || 'Seja o primeiro palpite!',
+    sub: [o.surprise ? 'Vai ser surpresa até o parto.' : o.testDate ? `A gente descobre em ${o.testDate}.` : '', lines.join(' · ') || 'Seja o primeiro palpite!'].filter(Boolean).join(' '),
     sign: `Vote também: ${SITE}`,
     tone: 'lilas',
   };
@@ -265,8 +265,15 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: numb
  */
 function layoutText(ctx: CanvasRenderingContext2D, c: CardContent, accent: string, left: number, width: number, story: boolean, photoCount: number, y: number, draw: boolean): number {
   ctx.fillStyle = accent;
-  ctx.font = `800 40px ${SANS}`;
-  if (draw) ctx.fillText(c.kicker.toUpperCase(), left, y);
+  // O título pequeno nunca passa da largura: diminui até caber (e, no limite, corta com reticências).
+  let kickerSize = 40;
+  const kicker = c.kicker.toUpperCase();
+  ctx.font = `800 ${kickerSize}px ${SANS}`;
+  while (kickerSize > 28 && ctx.measureText(kicker).width > width) {
+    kickerSize -= 2;
+    ctx.font = `800 ${kickerSize}px ${SANS}`;
+  }
+  if (draw) ctx.fillText(wrapLines(t => ctx.measureText(t).width, kicker, width, 1)[0], left, y);
 
   if (c.name) {
     const big = !c.title && !c.quote && !c.big && !photoCount;
@@ -324,7 +331,8 @@ function layoutText(ctx: CanvasRenderingContext2D, c: CardContent, accent: strin
     y += 40;
     if (draw) {
       const h = 44;
-      const split = Math.max(h, Math.min(width - h, (width * pm) / 100));
+      // Com 100% de um lado, a barra é toda daquela cor (sem a pontinha do outro time).
+      const split = pm >= 100 ? width : pm <= 0 ? 0 : Math.max(h, Math.min(width - h, (width * pm) / 100));
       ctx.save();
       roundRect(ctx, left, y, width, h, h / 2);
       ctx.clip();
@@ -332,8 +340,10 @@ function layoutText(ctx: CanvasRenderingContext2D, c: CardContent, accent: strin
       ctx.fillRect(left, y, split, h);
       ctx.fillStyle = '#5fb0f5';
       ctx.fillRect(left + split, y, width - split, h);
-      ctx.fillStyle = 'rgba(255,255,255,.9)';
-      ctx.fillRect(left + split - 3, y, 6, h);
+      if (split > 0 && split < width) {
+        ctx.fillStyle = 'rgba(255,255,255,.9)';
+        ctx.fillRect(left + split - 3, y, 6, h);
+      }
       ctx.restore();
       if (total) {
         ctx.font = `800 34px ${SANS}`;
