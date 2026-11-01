@@ -306,6 +306,18 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
    * Com `done`, confirma com um aviso curto ("Sintoma registrado"); no erro, o
    * aviso fica até a pessoa fechar, com "Tentar de novo".
    */
+  // Depois que o Início aparece, as partes mais usadas já vêm em segundo plano,
+  // para estarem prontas no primeiro toque (sem pesar na abertura).
+  useEffect(() => {
+    const warm = () => {
+      for (const load of [() => import('./components/QuickRecord'), () => import('./components/Details'), () => import('./components/tabs/DiaryTab'), () => import('./components/tabs/UpcomingTab'), () => import('./components/ShareSheet'), () => import('./components/home/DayClose'), () => import('./components/auth/SpaceSheet')]) load().catch(() => undefined);
+    };
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    const id = idle ? idle(warm) : window.setTimeout(warm, 1200);
+    return () => {
+      if (!idle) window.clearTimeout(id);
+    };
+  }, []);
   // Depois de toques leves, uma sincronização só, em segundo plano, para vários toques seguidos.
   const syncTimer = useRef<number | null>(null);
   const syncSoon = () => {
@@ -1431,13 +1443,12 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         </Suspense>
       </main>
 
-      <Suspense fallback={null}>
       {celebrationOpen && data.celebrations?.some(c => c.id === celebrationOpen) && (
-        <CelebrationSpace celebration={data.celebrations.find(c => c.id === celebrationOpen)!} actions={celebrationActions} onClose={() => setCelebrationOpen(null)} />
+        <Suspense fallback={null}><CelebrationSpace celebration={data.celebrations.find(c => c.id === celebrationOpen)!} actions={celebrationActions} onClose={() => setCelebrationOpen(null)} /></Suspense>
       )}
-      {namesOpen && <NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} onShare={shareName} onShareFinalists={shareFinalists} espera={data.espera ?? null} secondPending={isTwins(data.espera) && data.babyName && !data.baby2Name ? data.babyName : null} />}
+      {namesOpen && <Suspense fallback={null}><NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} onShare={shareName} onShareFinalists={shareFinalists} espera={data.espera ?? null} secondPending={isTwins(data.espera) && data.babyName && !data.baby2Name ? data.babyName : null} /></Suspense>}
       {reveal && (
-        <NameReveal
+        <Suspense fallback={null}><NameReveal
           name={reveal}
           tone={data.babyTone ?? 'tumtum'}
           week={currentWeek}
@@ -1447,10 +1458,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             setRevealSeen(reveal);
             setReveal(null);
           }}
-        />
+        /></Suspense>
       )}
       {recording && (
-        <QuickRecord
+        <Suspense fallback={null}><QuickRecord
           modes={recording}
           initial={recordStart && recording.includes(recordStart) ? recordStart : recording[0]}
           direct={!!recordStart && recording.includes(recordStart)}
@@ -1479,11 +1490,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           bloodType={data.profile.bloodType}
           examsAvailable={data.examsAvailable ?? false}
           onSaveExam={saveExam}
-        />
+        /></Suspense>
       )}
 
       {openDetail && (
-        <DetailSheet
+        <Suspense fallback={null}><DetailSheet
           key={`${openDetail.kind}:${openDetail.item.id}`}
           detail={openDetail}
           onClose={() => setDetail(null)}
@@ -1517,7 +1528,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onDeleteThread={deleteThread}
           onVoice={setVoice}
           onShareEntry={shareEntry}
-        />
+        /></Suspense>
       )}
 
       {esperaOpen && data.espera && !care && (
@@ -1545,7 +1556,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {/* Por cima de tudo, até das revelações (que ficam em z-60). */}
       {shareReq && (
         <div className="relative z-[70]">
-        <ShareSheet
+        <Suspense fallback={null}><ShareSheet
           request={shareReq}
           onClose={() => setShareReq(null)}
           onDone={(kind, how) => {
@@ -1553,7 +1564,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             setShareReq(null);
             if (how === 'downloaded') showToast({ text: 'Imagem salva. É só postar 💛', tone: 'success' });
           }}
-        />
+        /></Suspense>
         </div>
       )}
       <Toast toast={toast} onClose={() => setToast(null)} />
@@ -1569,7 +1580,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         />
       )}
       {ritualOpen && (
-        <DayClose
+        <Suspense fallback={null}><DayClose
           role={author}
           mood={(data.checkins ?? []).find(c => c.mine && c.day === today)?.mood ?? null}
           partnerName={partnerName}
@@ -1577,7 +1588,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           busy={busy}
           onSave={closeDay}
           onClose={() => setRitualOpen(false)}
-        />
+        /></Suspense>
       )}
       {stamp && (
         <BookStamp
@@ -1593,7 +1604,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       )}
       {spaceSheet}
       {helpOpen && (
-        <HelpCenter
+        <Suspense fallback={null}><HelpCenter
           onClose={() => setHelpOpen(false)}
           onGo={goHelp}
           onFirstDays={() => {
@@ -1601,9 +1612,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             setHelpOpen(false);
             openHome('missoes');
           }}
-        />
+        /></Suspense>
       )}
-      </Suspense>
     </div>
     </TimedRemindersReady.Provider>
     </TaskRemindersReady.Provider>
