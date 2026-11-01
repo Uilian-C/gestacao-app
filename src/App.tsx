@@ -11,9 +11,9 @@ import type { Folder, JournalEntry, ListItem, Mood, ThreadComment } from './hook
 import type { OnReact } from './components/Social';
 import { takeFlagFromUrl, takeRitualFromUrl, takeTabFromUrl, takeViewFromUrl, takeVisitFromUrl, takeVoiceFromUrl } from './lib/pwa';
 import { dayClosed, markClosed, partnerDay } from './lib/ritual';
-import { finalistsCard, nameCard, revealCard, surpriseCard, teaserCard, type CardContent, type ShareKind } from './lib/shareCard';
+import { finalistsCard, nameCard, placarCard, revealCard, surpriseCard, teaserCard, type CardContent, type ShareKind } from './lib/shareCard';
 import { EsperaSheet, SexReveal } from './components/espera/Espera';
-import { bolaoUrl, envelopeUrl, rightCount, SEX_WORD, tally, type Sex, type SexPlan } from './lib/espera';
+import { bolaoUrl, envelopeUrl, rightCount, SEX_WORD, shares, tally, teamsOf, type Sex, type SexPlan } from './lib/espera';
 import { entryShare } from './lib/shareEntry';
 import ShareSheet, { type ShareRequest } from './components/ShareSheet';
 import { authorOf, firstName } from './lib/people';
@@ -793,7 +793,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       setEsperaOpen(false);
       setRevealSexOpen(true);
     },
-    onBolaoLink: () => void sendLink('bolaoLink', bolaoUrl, 'Menino ou menina? 💌 Dá seu palpite no nosso bolão:', 'Link do bolão copiado. É só colar no WhatsApp 💛'),
+    onInvite: () => void inviteToBolao(),
     onEnvelopeLink: () => void sendLink('envelopeLink', envelopeUrl, 'Você foi escolhida(o) para guardar o nosso segredo 💌 Quando souber se é menino ou menina, registre aqui (a gente só vai ver na hora do chá):', 'Link do envelope copiado. Mande só para quem vai guardar o segredo 💌'),
   };
   /** Cria o link (bolão ou envelope) e abre o compartilhar do celular; sem ele, copia. */
@@ -821,12 +821,39 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       showToast({ text: link, tone: 'success' });
     }
   };
+  /** Chamar mais gente: garante o link do bolão aberto e abre o cartão do placar, com o link junto. */
+  const inviteToBolao = async () => {
+    let token = data.espera?.bolaoToken ?? undefined;
+    let fresh = data.espera;
+    if (!token) {
+      const ok = await run(async () => {
+        const res = (await api.mutate('bolaoLink', {})) as { data?: { espera?: typeof data.espera } };
+        fresh = res.data?.espera ?? fresh;
+        token = fresh?.bolaoToken ?? undefined;
+        return res;
+      }, ESPERA_MISSING);
+      if (!ok || !token) return;
+    }
+    if (!fresh) return;
+    const link = bolaoUrl(token);
+    const t = tally(fresh);
+    const couple = family.members.map(m => firstName(m.name)).filter(Boolean).join(' e ');
+    setShareReq({
+      card: placarCard({ menina: t.menina, menino: t.menino, teams: teamsOf(fresh, firstName(family.members.find(m => m.me)?.name ?? '') || 'Eu'), testDate: fresh.testDate ? longDate(fresh.testDate) : null, surprise: fresh.plan === 'surpresa' }),
+      kind: 'cartao_espera',
+      fileName: 'tumtum-bolao',
+      text: `Menino ou menina? 💌 Entra no bolão${couple ? ` de ${couple}` : ''} e escolhe o seu time: ${link}`,
+      link,
+    });
+  };
   const shareEspera = (kind: 'teaser' | 'surpresa' | 'revelacao') => {
     const e = data.espera;
     if (!e) return;
     if (kind === 'revelacao' && e.sex) {
       const day = e.knownAt ? toISODate(parseTimestamp(e.knownAt)) : today;
-      return share(revealCard({ sex: e.sex, week: dumDate ? weekOn(dumDate, day) : currentWeek, date: longDate(day), right: rightCount(e) }), 'cartao_revelacao');
+      const t = tally(e);
+      const winners = teamsOf(e, firstName(family.members.find(m => m.me)?.name ?? '') || 'Eu')[e.sex];
+      return share(revealCard({ sex: e.sex, week: dumDate ? weekOn(dumDate, day) : currentWeek, date: longDate(day), right: rightCount(e), winners, share: shares(t.menina, t.menino)[e.sex] }), 'cartao_revelacao');
     }
     if (kind === 'surpresa') return share(surpriseCard({ daysToDpp: age?.daysToDpp ?? 0 }), 'cartao_espera');
     const t = tally(e);

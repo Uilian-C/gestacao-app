@@ -33,13 +33,13 @@ await mae.waitForTimeout(400);
 await mae.screenshot({ path: `${OUT}espera-folha.png` });
 
 // ---- O cartão de suspense ----
-await folha.getByRole('button', { name: 'Compartilhar: menino ou menina?' }).click();
+await folha.getByRole('button', { name: 'Chamar mais gente' }).click();
 const share = mae.getByRole('dialog', { name: 'Compartilhar' });
 await share.getByRole('img', { name: 'Prévia do cartão para compartilhar' }).waitFor();
 let d = mae.waitForEvent('download');
 await share.getByRole('button', { name: 'Salvar' }).click();
 await (await d).saveAs(`${OUT}cartao-espera.png`);
-check(true, 'o cartão "Menino ou menina?" sai para os stories');
+check(true, 'o cartão do placar do bolão sai para os stories');
 await mae.keyboard.press('Escape').catch(() => {});
 await mae.waitForTimeout(300);
 
@@ -48,7 +48,7 @@ await post(pai, '/api/data', { op: 'guessSex', guess: 'menino' });
 await mae.goto(BASE);
 const contagem = voces(mae).getByRole('button', { name: /^Faltam 5 dias para saber: abrir/ });
 await contagem.scrollIntoViewIfNeeded();
-check(await contagem.getByText('Mãe: menina').isVisible() && (await contagem.getByText('Pai: menino').isVisible()), 'o Início mostra a contagem para o exame e os palpites dos dois');
+check(await contagem.getByRole('img', { name: 'Placar: Time Menina 1, Time Menino 1' }).isVisible(), 'o Início mostra a contagem para o exame e a mini barra do placar');
 await voces(mae).screenshot({ path: `${OUT}espera-bolao.png` });
 
 // ---- Ana descobre e guarda no envelope para o Caio ----

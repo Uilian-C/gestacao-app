@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, Loader2, Share2 } from 'lucide-react';
+import { Download, Link2, Loader2, Share2 } from 'lucide-react';
 import { drawCard, shareImage, type CardContent, type CardFormat, type ShareKind } from '../lib/shareCard';
 import Sheet from './Sheet';
 import { Button, Segmented } from './ui';
@@ -12,6 +12,10 @@ export interface ShareRequest {
   card: CardContent;
   kind: ShareKind;
   fileName: string;
+  /** O texto que vai junto (com o link do bolão, por exemplo). */
+  text?: string;
+  /** Um link para mandar sozinho, sem a imagem ("Só o link"). */
+  link?: string;
 }
 
 const FORMAT_KEY = 'tumtum:formato-cartao';
@@ -62,7 +66,7 @@ export default function ShareSheet({ request, onClose, onDone }: { request: Shar
     if (!ready) return;
     setSending(true);
     try {
-      const how = await shareImage(ready.blob, `${request.fileName}-${format === 'story' ? 'stories' : 'post'}`, download);
+      const how = await shareImage(ready.blob, `${request.fileName}-${format === 'story' ? 'stories' : 'post'}`, download, request.text);
       if (how !== 'cancelled') onDone(request.kind, how);
     } finally {
       setSending(false);
@@ -100,6 +104,24 @@ export default function ShareSheet({ request, onClose, onDone }: { request: Shar
             <Download /> Salvar
           </Button>
         </div>
+        {request.link && (
+          <button
+            type="button"
+            onClick={async () => {
+              const text = `${request.text ?? ''}`.trim() || request.link!;
+              try {
+                if (navigator.share) await navigator.share({ text });
+                else await navigator.clipboard.writeText(text);
+                onDone(request.kind, 'shared');
+              } catch {
+                /* cancelou: tudo bem */
+              }
+            }}
+            className="w-full inline-flex items-center justify-center gap-1.5 text-[13.5px] font-extrabold text-ink-soft"
+          >
+            <Link2 className="w-4 h-4" /> Mandar só o link
+          </button>
+        )}
       </div>
     </Sheet>
   );

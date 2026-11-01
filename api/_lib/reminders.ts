@@ -230,3 +230,36 @@ export function planRitual(today: string, families: FamilyRow[], closed: Set<str
     },
   ];
 }
+
+export interface BolaoDay {
+  family_id: string;
+  /** Palpites novos nas últimas 24 horas (sem contar os do casal). */
+  fresh: number;
+  menina: number;
+  menino: number;
+}
+
+/**
+ * O bolão vivo: no fim da tarde, para o casal, quando chegou palpite novo no
+ * dia ("3 palpites novos no bolão hoje"). Um por dia, no máximo.
+ */
+export function planBolao(today: string, families: FamilyRow[], days: BolaoDay[]): Notice[] {
+  return days.flatMap(d => {
+    const f = families.find(x => x.id === d.family_id);
+    if (!f || f.care || d.fresh <= 0 || f.members.length === 0) return [];
+    const lead = d.menina === d.menino ? 'Empate!' : d.menina > d.menino ? 'O Time Menina está na frente.' : 'O Time Menino está na frente.';
+    return [
+      {
+        userIds: f.members,
+        kind: 'parceiro' as const,
+        key: `bolao:${today}:${f.id}`,
+        payload: {
+          title: d.fresh === 1 ? '1 palpite novo no bolão hoje' : `${d.fresh} palpites novos no bolão hoje`,
+          body: `Time Menina ${d.menina} × ${d.menino} Time Menino. ${lead}`,
+          url: '/?espera=1',
+          tag: 'bolao',
+        },
+      },
+    ];
+  });
+}

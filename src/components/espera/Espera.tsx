@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { CalendarHeart, Check, ChevronRight, Heart, Loader2, Lock, NotebookPen, Send, Share2, Sparkles } from 'lucide-react';
-import { daysToTest, esperaStage, rightGuesses, SEX_WORD, tally, type Espera, type GuessRole, type Sex, type SexPlan } from '../../lib/espera';
+import { daysToTest, esperaStage, latestVote, rightGuesses, SEX_WORD, tally, teamsOf, type Espera, type GuessRole, type Sex, type SexPlan } from '../../lib/espera';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import BrandMark from '../BrandMark';
 import Sheet from '../Sheet';
 import { Button, Segmented } from '../ui';
+import Placar, { PlacarBar } from './Placar';
 
 // A espera: menino ou menina? O cartão do Início muda com a jornada de cada
 // casal (a pergunta, o bolão, a contagem para o exame, a surpresa até o parto,
@@ -75,7 +76,7 @@ export function EsperaCard({ espera, today, babyName, partnerName, finalists, id
       : stage === 'pergunta'
         ? 'Já sabem, vão descobrir ou vai ser surpresa?'
         : t.total
-          ? `Bolão: ${t.menina} menina · ${t.menino} menino`
+          ? `${t.total} ${t.total === 1 ? 'palpite' : 'palpites'} no bolão`
           : 'Qual é o seu palpite? Abra o bolão';
   return (
     <button type="button" onClick={known ? onNames : onOpen} aria-label={`${title}: abrir`} className={`w-full flex items-center gap-3 rounded-[26px] px-5 py-4 text-left shadow-soft transition active:scale-[0.99] ${known ? `${SEX_TONE[known].soft}` : 'bg-gradient-to-br from-rosa-soft via-lilas-soft to-azul-soft'}`}>
@@ -85,15 +86,9 @@ export function EsperaCard({ espera, today, babyName, partnerName, finalists, id
         </span>
         <span className="block font-display text-[1.25rem] leading-snug text-ink">{title}</span>
         <span className="block text-[13px] text-ink-soft">{sub}</span>
-        {!known && stage !== 'pergunta' && stage !== 'guardado' && (t.mae || t.pai) && (
-          <span className="mt-1.5 flex flex-wrap gap-1.5">
-            {(['mae', 'pai'] as const).map(r =>
-              t[r] ? (
-                <span key={r} className={`rounded-full px-2.5 py-0.5 text-[12px] font-bold ${SEX_TONE[t[r]!].soft} ${SEX_TONE[t[r]!].strong} ring-1 ring-surface`}>
-                  {ROLE_WORD[r]}: {t[r]}
-                </span>
-              ) : null,
-            )}
+        {!known && stage !== 'pergunta' && stage !== 'guardado' && t.total > 0 && (
+          <span className="mt-2 block">
+            <PlacarBar menina={t.menina} menino={t.menino} size="sm" />
           </span>
         )}
       </span>
@@ -109,8 +104,8 @@ export interface EsperaActions {
   onShare: (kind: 'teaser' | 'surpresa' | 'revelacao') => void;
   onNames: () => void;
   onReveal: () => void;
-  /** O bolão aberto: cria (se preciso) e envia o link. */
-  onBolaoLink?: () => void;
+  /** Chamar mais gente: o cartão do placar com o link do bolão aberto. */
+  onInvite?: () => void;
   /** O envelope do chá: cria um link para quem vai guardar o segredo. */
   onEnvelopeLink?: () => void;
 }
@@ -198,11 +193,17 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
         )}
 
         {!known && stage !== 'envelope' && (
-          <section aria-labelledby="espera-bolao" className="space-y-3">
-            <h3 id="espera-bolao" className="text-[15px] font-bold text-ink">
-              O bolão
-            </h3>
-            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Seu palpite">
+          <section aria-labelledby="espera-bolao" className="rounded-[24px] bg-surface shadow-soft px-4 py-4 space-y-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <h3 id="espera-bolao" className="font-display text-[1.25rem] text-ink">
+                O bolão
+              </h3>
+              {t.total > 0 && <span className="text-[12.5px] font-bold text-ink-mute">{t.total} {t.total === 1 ? 'palpite' : 'palpites'}</span>}
+            </div>
+            <Placar teams={teamsOf(espera)} latest={latestVote(espera)} highlight="Você" />
+            {/* O seu palpite: um toque entra para um time (de novo, sai). */}
+            <div role="group" aria-label="Seu palpite" className="flex items-center gap-2">
+              <span className="text-[13px] font-bold text-ink-soft shrink-0">Seu time:</span>
               {(['menina', 'menino'] as const).map(s => {
                 const on = t.mine === s;
                 return (
@@ -212,50 +213,21 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
                     aria-pressed={on}
                     disabled={busy}
                     onClick={() => void actions.onGuess(on ? null : s)}
-                    className={`rounded-[20px] px-4 py-3.5 text-center transition active:scale-95 ${on ? `${SEX_TONE[s].soft} ring-2 ${SEX_TONE[s].ring}` : 'bg-surface-2'}`}
+                    className={`flex-1 rounded-full px-3 py-2 text-[14px] font-extrabold transition active:scale-95 ${on ? `${SEX_TONE[s].bg} text-white shadow-soft` : `${SEX_TONE[s].soft} ${SEX_TONE[s].strong}`}`}
                   >
-                    <span className={`block font-display text-[1.2rem] ${on ? SEX_TONE[s].strong : 'text-ink'}`}>{s === 'menina' ? 'Menina' : 'Menino'}</span>
-                    <span className="block text-[12px] font-bold text-ink-mute">
-                      {s === 'menina' ? t.menina : t.menino} {(s === 'menina' ? t.menina : t.menino) === 1 ? 'palpite' : 'palpites'}
-                    </span>
+                    {s === 'menina' ? 'Menina' : 'Menino'}
                   </button>
                 );
               })}
             </div>
-            {espera.guesses.length > 0 && (
-              <ul className="flex flex-wrap gap-1.5" aria-label="Palpites">
-                {espera.guesses
-                  .filter(g => g.author_role !== 'familia')
-                  .map(g => (
-                    <li key={g.user_id} className={`rounded-full px-3 py-1 text-[12.5px] font-bold ${SEX_TONE[g.guess].soft} ${SEX_TONE[g.guess].strong}`}>
-                      {names(partnerName, g.author_role, g.mine, 'Você')}: {g.guess}
-                    </li>
-                  ))}
-                {t.family > 0 && <li className="rounded-full bg-surface-2 px-3 py-1 text-[12.5px] font-bold text-ink-soft">Família e amigos: {t.family} {t.family === 1 ? 'palpite' : 'palpites'}</li>}
-              </ul>
-            )}
-            {actions.onBolaoLink && (
-              <div className="rounded-[20px] bg-lilas-soft/60 px-4 py-3 space-y-2">
-                <p className="text-[13.5px] leading-snug text-ink-soft">
-                  <span className="font-bold text-ink">O bolão aberto:</span> um link para a família e os amigos votarem pelo WhatsApp, sem baixar nada. Quando vocês descobrirem, cada um vê se acertou.
-                </p>
-                {(espera.publicVotes?.length ?? 0) > 0 && (
-                  <ul className="flex flex-wrap gap-1.5" aria-label="Palpites pelo link">
-                    {espera.publicVotes!.slice(-8).map((v, i) => (
-                      <li key={`${v.name}-${i}`} className={`rounded-full px-2.5 py-0.5 text-[12px] font-bold ${SEX_TONE[v.guess].soft} ${SEX_TONE[v.guess].strong}`}>
-                        {v.name}: {v.guess}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <button type="button" onClick={actions.onBolaoLink} className="inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-[13.5px] font-extrabold text-lilas-strong shadow-soft">
-                  <Send className="w-4 h-4" /> {espera.bolaoToken ? 'Enviar o link do bolão' : 'Abrir o bolão para a família e os amigos'}
-                </button>
+            {actions.onInvite && (
+              <div className="space-y-1.5">
+                <Button onClick={actions.onInvite} className="w-full">
+                  <Send /> Chamar mais gente
+                </Button>
+                <p className="text-center text-[12px] text-ink-mute">O link do bolão vai junto com o placar: quem recebe vota pelo WhatsApp, sem baixar nada.</p>
               </div>
             )}
-            <button type="button" onClick={() => actions.onShare(espera.plan === 'surpresa' ? 'surpresa' : 'teaser')} className="inline-flex items-center gap-1.5 text-[13.5px] font-extrabold text-lilas-strong">
-              <Share2 className="w-4 h-4" /> {espera.plan === 'surpresa' ? 'Compartilhar: vai ser surpresa' : 'Compartilhar: menino ou menina?'}
-            </button>
           </section>
         )}
 

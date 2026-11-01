@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countdownCard, letterCard, nameCard, weekCard, wrapLines } from './shareCard';
+import { countdownCard, letterCard, nameCard, revealCard, weekCard, wrapLines } from './shareCard';
 
 const measure = (s: string) => s.length * 10;
 
@@ -30,6 +30,13 @@ describe('cartões para compartilhar', () => {
     const c = letterCard({ body: 'palavra '.repeat(60), role: 'mae', babyName: null, week: 20 });
     expect(c.quote!.length).toBeLessThanOrEqual(260);
     expect(c.quote!.endsWith('palavra…')).toBe(true);
+  });
+
+  it('o resultado do bolão: vitória, empate e zebra', () => {
+    expect(revealCard({ sex: 'menina', week: 20, date: '1 de novembro', right: 8, share: 62, winners: ['Ana', 'Bia'] }).sub).toBe('O Time Menina venceu com 62% · descobrimos na semana 20');
+    expect(revealCard({ sex: 'menino', week: 20, date: '', right: 2, share: 50 }).sub).toBe('Empate no bolão, e deu Time Menino! · semana 20');
+    expect(revealCard({ sex: 'menina', week: 20, date: '', right: 1, share: 30 }).sub).toMatch(/^Zebra!/);
+    expect(revealCard({ sex: 'menina', week: 20, date: '', right: 6, share: 70, winners: ['Ana', 'Bia', 'Léo', 'Rosa', 'Caio', 'Lu'] }).sign).toBe('6 pessoas acertaram: Ana, Bia, Léo, Rosa e mais 2');
   });
 
   it('quebra o texto em linhas e corta com reticências', () => {

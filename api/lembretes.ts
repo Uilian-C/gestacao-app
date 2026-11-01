@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { query } from './_lib/db.js';
 import { HttpError, endpoint, json } from './_lib/http.js';
 import { notify } from './_lib/push.js';
-import { TIME_ZONE, localDate, planReminders, planRitual, planTimed, type ConsultationRow, type EntryRow, type FamilyRow, type TaskRow, type Timed } from './_lib/reminders.js';
+import { TIME_ZONE, localDate, planBolao, planReminders, planRitual, planTimed, type BolaoDay, type ConsultationRow, type EntryRow, type FamilyRow, type TaskRow, type Timed } from './_lib/reminders.js';
 
 // Lembretes. Este endereço é chamado a cada 15 minutos (GitHub Actions, ver
 // .github/workflows/lembretes.yml) e toda manhã pela Vercel ("crons" no
@@ -118,7 +118,21 @@ export const GET = endpoint(async request => {
       )
     : null;
 
+  // O bolão vivo: às 19h, o placar para quem recebeu palpite novo no dia (migração 036).
+  const bolaoHour = hour === 19 || process.env.LEMBRETES_QUALQUER_HORA === '1';
+  const bolao = bolaoHour
+    ? await query<BolaoDay>(
+        `SELECT f.id::text AS family_id,
+                (SELECT COUNT(*)::int FROM bolao_votes v WHERE v.family_id = f.id AND v.created_at > NOW() - INTERVAL '24 hours')
+                  + (SELECT COUNT(*)::int FROM sex_guesses g WHERE g.family_id = f.id AND g.author_role = 'familia' AND g.created_at > NOW() - INTERVAL '24 hours') AS fresh,
+                (SELECT COUNT(*)::int FROM bolao_votes v WHERE v.family_id = f.id AND v.guess = 'menina') + (SELECT COUNT(*)::int FROM sex_guesses g WHERE g.family_id = f.id AND g.guess = 'menina') AS menina,
+                (SELECT COUNT(*)::int FROM bolao_votes v WHERE v.family_id = f.id AND v.guess = 'menino') + (SELECT COUNT(*)::int FROM sex_guesses g WHERE g.family_id = f.id AND g.guess = 'menino') AS menino
+         FROM families f WHERE f.bolao_token IS NOT NULL AND (f.baby_sex IS NULL OR f.sex_sealed OR f.sex_secret_by IS NOT NULL)`,
+      ).catch(() => [] as BolaoDay[])
+    : [];
+
   const notices = [
+    ...planBolao(today, families, bolao),
     ...(daily ? planReminders(today, families, consultations, entries, tasks, evening) : []),
     ...planTimed(families, timed),
     ...(closed ? planRitual(today, families, closed) : []),
