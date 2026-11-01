@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { query } from './_lib/db.js';
 import { HttpError, endpoint, json } from './_lib/http.js';
 import { notify } from './_lib/push.js';
-import { TIME_ZONE, localDate, planReminders, planTimed, type ConsultationRow, type EntryRow, type FamilyRow, type TaskRow, type Timed } from './_lib/reminders.js';
+import { TIME_ZONE, localDate, planReminders, planRitual, planTimed, type ConsultationRow, type EntryRow, type FamilyRow, type TaskRow, type Timed } from './_lib/reminders.js';
 
 // Lembretes. Este endereço é chamado a cada 15 minutos (GitHub Actions, ver
 // .github/workflows/lembretes.yml) e toda manhã pela Vercel ("crons" no
@@ -104,7 +104,25 @@ export const GET = endpoint(async request => {
   ]);
   const timed: Timed = { entries: timedEntries, tasks: timedTasks, early, after };
 
-  const notices = [...(daily ? planReminders(today, families, consultations, entries, tasks, evening) : []), ...planTimed(families, timed)];
+  // O Tumtum de hoje: às 21h, para quem ainda não fechou o dia (nem contou como está).
+  const ritualHour = hour === 21 || process.env.LEMBRETES_QUALQUER_HORA === '1';
+  const closed = ritualHour
+    ? new Set(
+        (
+          await query<{ user_id: string }>(
+            `SELECT user_id FROM checkins WHERE day = $1::date
+             UNION SELECT user_id FROM product_events WHERE kind = 'ritual' AND (created_at AT TIME ZONE $2)::date = $1::date`,
+            [today, TIME_ZONE],
+          ).catch(() => query<{ user_id: string }>('SELECT user_id FROM checkins WHERE day = $1::date', [today]).catch(() => []))
+        ).map(r => r.user_id),
+      )
+    : null;
+
+  const notices = [
+    ...(daily ? planReminders(today, families, consultations, entries, tasks, evening) : []),
+    ...planTimed(families, timed),
+    ...(closed ? planRitual(today, families, closed) : []),
+  ];
   let sent = 0;
   for (const n of notices) sent += await notify(n.userIds, n.kind, n.payload, n.key).catch(err => (console.error(err), 0));
   return json({ ok: true, today, notices: notices.length, sent });

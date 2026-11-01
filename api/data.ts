@@ -178,6 +178,10 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('setBabyTone'), tone: z.enum(['tumtum', 'tom1', 'tom2', 'tom3', 'tom4', 'tom5']).nullable() }),
   // Check-in do dia (migração 014): o humor de cada um; null apaga.
   z.object({ op: z.literal('checkin'), day: isoDate, mood: z.enum(['otima', 'bem', 'cansada', 'enjoada', 'ansiosa']).nullable() }),
+  // O Tumtum de hoje: fechar o dia com o humor e uma frase, que vira a página do dia no livro.
+  z.object({ op: z.literal('closeDay'), day: isoDate, mood: z.enum(['otima', 'bem', 'cansada', 'enjoada', 'ansiosa']).nullable(), body: z.string().trim().max(280) }),
+  // Contagens de uso sem conteúdo (migração 033): o que mostra se o Tumtum faz diferença.
+  z.object({ op: z.literal('track'), kind: z.enum(['cartao_semana', 'cartao_contagem', 'livro_impresso']) }),
   // Abraço para a outra pessoa (do cartão "Vocês dois hoje"): um por dia.
   z.object({ op: z.literal('hug'), day: isoDate }),
   z.object({ op: z.literal('delete'), kind: z.enum(['task', 'symptom', 'question', 'comment', 'metric', 'consultation', 'kick', 'contraction']), id }),
@@ -286,6 +290,11 @@ function planWeeksMissing(err: unknown): never {
 }
 
 /** Sintoma e medição são do que já aconteceu: o dia não pode estar no futuro (folga de um dia pelo fuso). */
+/** Conta um uso (migração 033); antes da migração, ou se falhar, segue sem contar. */
+async function track(m: Member, kind: 'ritual' | 'cartao_semana' | 'cartao_contagem' | 'livro_impresso') {
+  await query('INSERT INTO product_events (family_id, user_id, kind) VALUES ($1, $2, $3)', [m.familyId, m.userId, kind]).catch(() => undefined);
+}
+
 function notInFuture(iso: string) {
   const limit = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
   if (iso > limit) throw new HttpError(400, 'Escolha um dia que já passou (ou hoje).');
@@ -526,6 +535,29 @@ async function apply(m: Member, o: Op) {
          RETURNING (xmax = 0) AS inserted`,
         [fid, m.userId, who, o.day, o.mood],
       ).catch(checkinMissing);
+    case 'closeDay': {
+      notInFuture(o.day);
+      if (o.mood) {
+        await query(
+          `INSERT INTO checkins (family_id, user_id, author_role, day, mood) VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (user_id, day) DO UPDATE SET mood = EXCLUDED.mood, family_id = EXCLUDED.family_id, updated_at = NOW()`,
+          [fid, m.userId, who, o.day, o.mood],
+        ).catch(checkinMissing);
+      }
+      // A frase do dia vira um registro do Dia a dia, que os dois veem (e entra no livro).
+      const created = o.body
+        ? await withFolder(
+            'dia',
+            () => query<{ id: string }>(`INSERT INTO journal_entries (family_id, user_id, author_role, entry_date, body, visibility, folder) VALUES ($1, $2, $3, $4, $5, 'shared', 'dia') RETURNING id::text AS id`, [fid, m.userId, who, o.day, o.body]),
+            () => query<{ id: string }>(`INSERT INTO journal_entries (family_id, user_id, author_role, entry_date, body, visibility) VALUES ($1, $2, $3, $4, $5, 'shared') RETURNING id::text AS id`, [fid, m.userId, who, o.day, o.body]),
+          )
+        : [];
+      await track(m, 'ritual');
+      return created;
+    }
+    case 'track':
+      await track(m, o.kind);
+      return [];
     case 'addNameIdea':
       return addNameIdea(fid, m.userId, who, o.name, o.note);
     case 'noteNameIdea':
@@ -678,6 +710,10 @@ function partnerMessage(o: Op, createdId?: string): Omit<PushPayload, 'title'> &
       return { action: 'mandou um abraço', body: 'Toque para ver como vocês estão hoje.', url: '/', tag: 'abraco' };
     case 'checkin':
       return o.mood ? { action: 'contou como está hoje', body: 'Toque para ver no Início.', url: '/', tag: 'checkin' } : null;
+    case 'closeDay': {
+      const quote = o.body.length > 60 ? `${o.body.slice(0, 59).trimEnd()}…` : o.body;
+      return { action: quote ? `fechou o dia: "${quote}"` : 'fechou o dia', body: 'E o seu? Um minuto para fechar o Tumtum de hoje.', url: '/?ritual=1', tag: 'ritual' };
+    }
     case 'react':
       return o.on ? { action: REACTION_TEXT[o.kind], body: 'Toque para ver.', url: REACTION_URL[o.targetType], tag: `reacao-${o.targetId}` } : null;
     case 'comment':
@@ -902,6 +938,7 @@ export const POST = endpoint(async request => {
   const prev = await before(member, parsed.data);
   const result = await apply(member, parsed.data);
   const repeated =
+    parsed.data.op === 'track' ||
     (parsed.data.op === 'react' && parsed.data.on && Array.isArray(result) && result.length === 0) ||
     // Um abraço por dia: o segundo não avisa de novo.
     (parsed.data.op === 'hug' && Array.isArray(result) && result.length === 0) ||

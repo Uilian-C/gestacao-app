@@ -165,3 +165,12 @@ export function chromeIntentUrl(href = window.location.href) {
   const url = new URL(href);
   return `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=${url.protocol.replace(':', '')};package=com.android.chrome;end`;
 }
+
+/** O aviso das 21h ("Como foi o dia de vocês?") abre direto o Tumtum de hoje (/?ritual=1). */
+export function takeRitualFromUrl(): boolean {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('ritual')) return false;
+  url.searchParams.delete('ritual');
+  window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  return true;
+}

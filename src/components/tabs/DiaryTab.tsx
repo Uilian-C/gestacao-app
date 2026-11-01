@@ -64,6 +64,8 @@ interface Props {
   onOpenCelebration?: (id: string) => void;
   /** Abre a escolha do nome do bebê (vai para a capa do livro). */
   onOpenNames?: () => void;
+  /** "Quero o livro impresso": conta o interesse. */
+  onWantPrinted?: () => void;
 }
 
 export default function DiaryTab(props: Props) {
@@ -122,6 +124,7 @@ export default function DiaryTab(props: Props) {
           onOpenEntry={id => props.onOpen({ kind: 'entry', id })}
           onWrite={props.journalAvailable ? () => props.onWrite() : undefined}
           onNames={props.onOpenNames}
+          onWantPrinted={props.onWantPrinted}
         />
       ) : props.view === 'celebracoes' ? (
         <SubPage title="Celebrações" hint="Os encontros que vão fazer parte da história de vocês" onBack={back}>

@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { BookOpen, Check, ChevronLeft, ChevronRight, Heart, List, PenLine, Printer, X } from 'lucide-react';
+import { BookHeart, BookOpen, Check, ChevronLeft, ChevronRight, Heart, List, PenLine, Printer, X } from 'lucide-react';
 import { stillUrl } from '../api';
 import type { BabyTone } from '../content/babyTones';
 import { stageAt } from '../content/growth';
@@ -159,6 +159,7 @@ function NamePageView({ page: n, tone, week }: { page: NonNullable<Chapter['name
 const FIRST = 4;
 const LAST = 40;
 const PRINTED_KEY = 'tumtum-livro-impresso';
+const WANT_PRINTED_KEY = 'tumtum-quero-livro-impresso';
 const READING_KEY = 'tumtum-livro-lendo';
 /** A última página nova que já foi lida (a capa deixa de chamar para ela). */
 const FRESH_READ_KEY = 'tumtum-livro-pagina-nova-lida';
@@ -186,7 +187,7 @@ function store(key: string, value: unknown) {
 /** As páginas prontas que ainda não foram impressas (neste aparelho). */
 const newPages = (book: Chapter[], printed: Set<string>) => book.filter(c => !c.quiet && !c.open && !printed.has(signature(c)));
 
-export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, onWrite, onNames }: { book: Chapter[]; tone: BabyTone; parents: string; fresh?: Chapter | null; onOpenEntry: (id: string) => void; onWrite?: () => void; onNames?: () => void }) {
+export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, onWrite, onNames, onWantPrinted }: { book: Chapter[]; tone: BabyTone; parents: string; fresh?: Chapter | null; onOpenEntry: (id: string) => void; onWrite?: () => void; onNames?: () => void; onWantPrinted?: () => void }) {
   const name = useContext(BabyNameContext);
   const months = useMemo(() => bookMonths(book), [book]);
   // Para o "Primeiros 7 dias": o livro já foi aberto neste aparelho.
@@ -196,6 +197,7 @@ export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, o
   const [lastRead, setLastRead] = useState<number | null>(() => readStored<number | null>(READING_KEY, null));
   const [freshRead, setFreshRead] = useState<number | null>(() => readStored<number | null>(FRESH_READ_KEY, null));
   const [choosing, setChoosing] = useState(false);
+  const [wantPrinted, setWantPrinted] = useState(() => readStored<boolean>(WANT_PRINTED_KEY, false));
   const [printed, setPrinted] = useState(() => new Set(readStored<string[]>(PRINTED_KEY, [])));
   const fresh = newPages(book, printed);
   const written = book.filter(c => !c.quiet);
@@ -292,6 +294,36 @@ export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, o
           </button>
         )}
       </div>
+
+      {/* O livro impresso: ainda em preparo. O toque conta o interesse (só o número, sem conteúdo). */}
+      {onWantPrinted && written.length > 0 && (
+        <section aria-labelledby="impresso-titulo" className="rounded-[24px] bg-gradient-to-br from-rosa-soft to-lilas-soft px-5 py-4 space-y-2">
+          <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-rosa-strong">
+            <BookHeart className="w-3.5 h-3.5" aria-hidden /> Em breve
+          </p>
+          <h3 id="impresso-titulo" className="font-display text-[1.2rem] leading-snug text-ink">
+            O livro de vocês, impresso
+          </h3>
+          <p className="text-[13.5px] leading-snug text-ink-soft">Capa dura, as fotos e as frases de cada semana, do jeito que estão aqui. Para a estante, e para {name ?? 'o bebê'} ler um dia.</p>
+          {wantPrinted ? (
+            <p role="status" className="inline-flex items-center gap-1.5 text-[13.5px] font-extrabold text-rosa-strong">
+              <Check className="w-4 h-4" aria-hidden /> Anotado! Vocês vão ser os primeiros a saber 💛
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                onWantPrinted();
+                store(WANT_PRINTED_KEY, true);
+                setWantPrinted(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-[13.5px] font-extrabold text-rosa-strong shadow-soft transition active:scale-95"
+            >
+              <BookHeart className="w-4 h-4" aria-hidden /> Quero o livro impresso
+            </button>
+          )}
+        </section>
+      )}
 
       {reading && (
         <BookReader

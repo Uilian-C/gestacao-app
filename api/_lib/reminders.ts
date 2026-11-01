@@ -212,3 +212,21 @@ export function planReminders(today: string, families: FamilyRow[], consultation
 
   return notices.filter(n => n.userIds.length > 0);
 }
+
+/**
+ * O Tumtum de hoje: às 21h, um convite para fechar o dia, para quem do casal
+ * ainda não fechou (nem contou como está). Nunca no modo cuidado. A chave é por
+ * dia: sai uma vez só, mesmo que o envio rode de novo.
+ */
+export function planRitual(today: string, families: FamilyRow[], closed: Set<string>): Notice[] {
+  const userIds = families.filter(f => f.dum_date && !f.care).flatMap(f => f.members.filter(u => !closed.has(u)));
+  if (userIds.length === 0) return [];
+  return [
+    {
+      userIds,
+      kind: 'momentos',
+      key: `ritual:${today}`,
+      payload: { title: 'Como foi o dia de vocês?', body: 'Um minuto para fechar o Tumtum de hoje: vira uma página do livro.', url: '/?ritual=1', tag: 'ritual' },
+    },
+  ];
+}
