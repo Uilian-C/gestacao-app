@@ -200,6 +200,9 @@ export function finalistsCard(o: { names: string[]; sex: Sex | null }): CardCont
   };
 }
 
+/** Quanto o texto encolhe para caber acima da assinatura (1 = do tamanho normal; no mínimo 60%). */
+export const fitScale = (need: number, room: number) => (need > room ? Math.max(0.6, room / need) : 1);
+
 /** Quebra o texto em linhas que cabem na largura (no máximo `max` linhas, com reticências). */
 export function wrapLines(measure: (s: string) => number, text: string, width: number, max = 3): string[] {
   const words = text.split(/\s+/).filter(Boolean);
@@ -522,15 +525,26 @@ export async function drawCard(c: CardContent, format: CardFormat = 'story'): Pr
   } else {
     y += 60;
   }
-  y = layoutText(ctx, c, t.accent, left, width, story, photos.length, y, true);
+  // O texto nunca encosta na assinatura: se não couber (o post é mais baixo que os
+  // stories), o bloco inteiro encolhe por igual, sem cortar nada.
+  const room = foot - 130 - y;
+  const need = layoutText(ctx, c, t.accent, 0, width, story, photos.length, 0, false);
+  const scale = fitScale(need, room);
+  if (scale < 1) {
+    ctx.save();
+    ctx.translate(left, y);
+    ctx.scale(scale, scale);
+    y += layoutText(ctx, c, t.accent, 0, width / scale, story, photos.length, 0, true) * scale;
+    ctx.restore();
+  } else y = layoutText(ctx, c, t.accent, left, width, story, photos.length, y, true);
 
   // O coração da marca, grande e suave, no espaço que sobra.
   const { icon, heart } = await loadMarks();
-  const room = foot - 140 - y;
-  if (heart && room > 240) {
-    const size = Math.min(room, 460);
+  const spare = foot - 140 - y;
+  if (heart && spare > 240) {
+    const size = Math.min(spare, 460);
     ctx.globalAlpha = 0.9;
-    ctx.drawImage(heart, (W - size) / 2, y + 40 + (room - size) / 2, size, size);
+    ctx.drawImage(heart, (W - size) / 2, y + 40 + (spare - size) / 2, size, size);
     ctx.globalAlpha = 1;
   }
   // A assinatura: o símbolo, "tumtum" e o endereço, sempre no mesmo lugar.
