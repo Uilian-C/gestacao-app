@@ -66,7 +66,7 @@ const track = (fid: string, kind: 'bolao_visita' | 'bolao_voto' | 'bolao_conhece
 
 async function bolaoView(f: FamilyRow, voter: string | null) {
   const couple = await coupleOf(f.id);
-  const [inside, outside] = await Promise.all([
+  const [insideAll, outsideAll] = await Promise.all([
     query<{ guess: Sex; name: string; role: string; at: string }>(
       `SELECT g.guess, split_part(trim(COALESCE(u.name, '')), ' ', 1) AS name, g.author_role AS role, g.created_at::text AS at
        FROM sex_guesses g LEFT JOIN "user" u ON u.id = g.user_id WHERE g.family_id = $1`,
@@ -74,6 +74,10 @@ async function bolaoView(f: FamilyRow, voter: string | null) {
     ),
     query<{ name: string; guess: Sex; voter: string; at: string }>('SELECT name, guess, voter, created_at::text AS at FROM bolao_votes WHERE family_id = $1 ORDER BY created_at DESC', [f.id]),
   ]);
+  // Só contam os palpites que valem para quantos bebês são (os outros ficam guardados).
+  const valid = optionsOf(f);
+  const inside = insideAll.filter(g => valid.includes(g.guess));
+  const outside = outsideAll.filter(v => valid.includes(v.guess));
   // Os times: o casal primeiro, depois a família e quem votou pelo link (os mais recentes primeiro).
   const pair = inside.filter(g => g.role !== 'familia');
   const team = (s: Sex) => [...pair.filter(g => g.guess === s).map(g => g.name), ...inside.filter(g => g.role === 'familia' && g.guess === s).map(g => g.name), ...outside.filter(v => v.guess === s).map(v => v.name)].filter(Boolean);

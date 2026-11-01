@@ -41,6 +41,8 @@ export interface Espera {
   publicVotes?: Array<{ name: string; guess: Sex; at?: string }>;
   /** Quantos bebês: 1, ou 2 para gêmeos (migração 037). */
   babies?: number;
+  /** Palpites guardados fora do placar (de quando era um bebê, ou gêmeos): voltam se o casal desfizer a mudança. */
+  parked?: number;
 }
 
 /** Em que ponto da espera o casal está. */

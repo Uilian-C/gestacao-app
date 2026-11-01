@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarHeart, Check, ChevronRight, Heart, Loader2, Lock, NotebookPen, Send, Share2, Sparkles } from 'lucide-react';
+import { AlertTriangle, CalendarHeart, Check, ChevronRight, Heart, Loader2, Lock, NotebookPen, Send, Share2, Sparkles } from 'lucide-react';
 import { daysToTest, esperaStage, isTwins, latestVote, OPTION, questionFor, rightGuesses, SEX_WORD, tally, teamsOf, type Espera, type GuessRole, type Sex, type SexPlan } from '../../lib/espera';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import BrandMark from '../BrandMark';
@@ -125,6 +125,79 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
   const [date, setDate] = useState(espera.testDate ?? '');
   const right = rightGuesses(espera);
   const known = espera.sex && (stage === 'sabem' || stage === 'guardado') ? espera.sex : null;
+  // Com o plano já escolhido (ao abrir a folha), ele vira uma linha com "Mudar" e
+  // o bolão ganha o destaque. Na primeira vez, fica aberto até marcarem a data.
+  const [configured] = useState(espera.plan !== null);
+  const [editing, setEditing] = useState(false);
+  const [confirmBabies, setConfirmBabies] = useState<1 | 2 | null>(null);
+  const planControls = (
+<section aria-labelledby="espera-plano" className="space-y-3">
+            <h3 id="espera-plano" className={configured ? 'sr-only' : 'text-[15px] font-bold text-ink'}>
+              Como vai ser a espera de vocês?
+            </h3>
+            {actions.onBabies && (
+              <Segmented
+                value={t.options.length === 3 ? 'gemeos' : 'um'}
+                label="Quantos bebês"
+                full
+                onChange={v => {
+                  const n = v === 'gemeos' ? 2 : 1;
+                  if (n === (isTwins(espera) ? 2 : 1)) return;
+                  // Com palpites no placar, confirma antes: as opções do bolão mudam.
+                  if (t.total > 0) setConfirmBabies(n);
+                  else void actions.onBabies!(n);
+                }}
+                options={[
+                  { value: 'um', label: 'Um bebê' },
+                  { value: 'gemeos', label: 'Gêmeos 👶👶' },
+                ]}
+              />
+            )}
+            {confirmBabies && (
+              <div role="alertdialog" aria-label="Mudar a quantidade de bebês" className="rounded-2xl bg-lilas-soft px-4 py-3 space-y-2.5">
+                <p className="text-[13.5px] leading-snug text-ink">
+                  <span className="font-bold">{confirmBabies === 2 ? 'Mudar para gêmeos?' : 'Mudar para um bebê?'}</span> O bolão passa a ser {confirmBabies === 2 ? 'duas meninas, um casal ou dois meninos' : 'menina ou menino'}. Os {t.total} {t.total === 1 ? 'palpite de agora fica guardado' : 'palpites de agora ficam guardados'} e {t.total === 1 ? 'volta' : 'voltam'} se vocês desfizerem a mudança.
+                </p>
+                <div className="flex gap-2">
+                  <button type="button" disabled={busy} onClick={() => void actions.onBabies!(confirmBabies).then(() => setConfirmBabies(null))} className="flex-1 rounded-full bg-lilas-strong px-4 py-2 text-[13.5px] font-extrabold text-white disabled:opacity-60">
+                    Sim, mudar
+                  </button>
+                  <button type="button" onClick={() => setConfirmBabies(null)} className="flex-1 rounded-full bg-surface px-4 py-2 text-[13.5px] font-bold text-ink-soft">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+            <Segmented
+              value={espera.plan ?? ('nenhum' as SexPlan)}
+              label="O plano"
+              full
+              onChange={p => void actions.onPlan(p, p === 'descobrir' ? date || null : null)}
+              options={[
+                { value: 'descobrir', label: 'Vamos descobrir' },
+                { value: 'surpresa', label: 'Surpresa até o parto' },
+              ]}
+            />
+            {espera.plan === 'descobrir' && (
+              <label className="flex items-center gap-3 rounded-2xl bg-surface-2 px-4 py-2.5">
+                <CalendarHeart className="w-5 h-5 shrink-0 text-lilas-strong" aria-hidden />
+                <span className="flex-1 text-[14px] text-ink-soft">Quando vão descobrir?</span>
+                <input
+                  type="date"
+                  aria-label="Dia do exame ou do ultrassom"
+                  value={date}
+                  min={today}
+                  onChange={e => {
+                    setDate(e.target.value);
+                    void actions.onPlan('descobrir', e.target.value || null);
+                  }}
+                  className="bg-transparent text-[14px] font-bold text-ink outline-none"
+                />
+              </label>
+            )}
+            {espera.plan === 'surpresa' && <p className="text-[13.5px] text-ink-soft">Bonito! O app fica neutro até o parto, e o bolão segue aberto para a família palpitar.</p>}
+          </section>
+  );
 
   return (
     <Sheet title="A espera" subtitle={`${questionFor(isTwins(espera))} Cada casal vive de um jeito.`} icon={<Sparkles />} onClose={onClose}>
@@ -161,54 +234,7 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
           </section>
         )}
 
-        {!known && stage !== 'envelope' && (
-          <section aria-labelledby="espera-plano" className="space-y-3">
-            <h3 id="espera-plano" className="text-[15px] font-bold text-ink">
-              Como vai ser a espera de vocês?
-            </h3>
-            {actions.onBabies && (
-              <Segmented
-                value={t.options.length === 3 ? 'gemeos' : 'um'}
-                label="Quantos bebês"
-                full
-                onChange={v => void actions.onBabies!(v === 'gemeos' ? 2 : 1)}
-                options={[
-                  { value: 'um', label: 'Um bebê' },
-                  { value: 'gemeos', label: 'Gêmeos 👶👶' },
-                ]}
-              />
-            )}
-            <Segmented
-              value={espera.plan ?? ('nenhum' as SexPlan)}
-              label="O plano"
-              full
-              onChange={p => void actions.onPlan(p, p === 'descobrir' ? date || null : null)}
-              options={[
-                { value: 'descobrir', label: 'Vamos descobrir' },
-                { value: 'surpresa', label: 'Surpresa até o parto' },
-              ]}
-            />
-            {espera.plan === 'descobrir' && (
-              <label className="flex items-center gap-3 rounded-2xl bg-surface-2 px-4 py-2.5">
-                <CalendarHeart className="w-5 h-5 shrink-0 text-lilas-strong" aria-hidden />
-                <span className="flex-1 text-[14px] text-ink-soft">Quando vão descobrir?</span>
-                <input
-                  type="date"
-                  aria-label="Dia do exame ou do ultrassom"
-                  value={date}
-                  min={today}
-                  onChange={e => {
-                    setDate(e.target.value);
-                    void actions.onPlan('descobrir', e.target.value || null);
-                  }}
-                  className="bg-transparent text-[14px] font-bold text-ink outline-none"
-                />
-              </label>
-            )}
-            {espera.plan === 'surpresa' && <p className="text-[13.5px] text-ink-soft">Bonito! O app fica neutro até o parto, e o bolão segue aberto para a família palpitar.</p>}
-          </section>
-        )}
-
+        {!known && stage !== 'envelope' && !configured && planControls}
         {!known && stage !== 'envelope' && (
           <section aria-labelledby="espera-bolao" className="rounded-[24px] bg-surface shadow-soft px-4 py-4 space-y-4">
             <div className="flex items-baseline justify-between gap-2">
@@ -244,6 +270,36 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
                 </Button>
                 <p className="text-center text-[12px] text-ink-mute">O link do bolão vai junto com o placar: quem recebe vota pelo WhatsApp, sem baixar nada.</p>
               </div>
+            )}
+          </section>
+        )}
+
+        {!known && stage !== 'envelope' && configured && (
+          <section aria-label="Como vai ser a espera" className="rounded-[22px] bg-surface-2 px-4 py-3 space-y-3">
+            {!editing ? (
+              <div className="flex items-center gap-3">
+                <CalendarHeart className="w-5 h-5 shrink-0 text-lilas-strong" aria-hidden />
+                <p className="flex-1 min-w-0 text-[13.5px] text-ink-soft">
+                  <span className="font-bold text-ink">{isTwins(espera) ? 'Gêmeos' : 'Um bebê'}</span>
+                  {' · '}
+                  {espera.plan === 'surpresa' ? 'Surpresa até o parto' : espera.testDate ? `Descobrem em ${new Date(`${espera.testDate}T12:00:00`).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }).replace('.', '')}` : 'Vão descobrir'}
+                  {!!espera.parked && <span className="block text-[12px] text-ink-mute">{espera.parked} {espera.parked === 1 ? 'palpite guardado' : 'palpites guardados'} de antes da mudança</span>}
+                </p>
+                <button type="button" onClick={() => setEditing(true)} className="shrink-0 rounded-full bg-surface px-3 py-1.5 text-[12.5px] font-extrabold text-ink-soft shadow-soft">
+                  Mudar
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="flex items-start gap-2 rounded-2xl bg-surface px-3 py-2.5 text-[12.5px] leading-snug text-ink-soft" role="note">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-lilas-strong" aria-hidden />
+                  <span>Quem já votou vê as mudanças. Trocar entre um bebê e gêmeos muda as opções do bolão.</span>
+                </p>
+                {planControls}
+                <button type="button" onClick={() => (setEditing(false), setConfirmBabies(null))} className="w-full rounded-full bg-surface px-4 py-2 text-[13.5px] font-extrabold text-ink-soft shadow-soft">
+                  Pronto
+                </button>
+              </>
             )}
           </section>
         )}

@@ -37,8 +37,8 @@ export async function setBabies(fid: string, babies: 1 | 2) {
   });
   if (before === babies) return;
   const valid = optionsFor(babies);
-  await query('DELETE FROM sex_guesses WHERE family_id = $1 AND NOT (guess = ANY($2))', [fid, valid]).catch(() => undefined);
-  await query('DELETE FROM bolao_votes WHERE family_id = $1 AND NOT (guess = ANY($2))', [fid, valid]).catch(() => undefined);
+  // Os palpites não são apagados: os que não valem para a nova quantidade ficam
+  // guardados (fora do placar) e voltam se o casal desfizer a mudança.
   await query(`UPDATE families SET baby_sex = NULL, sex_known_at = NULL, sex_secret_by = NULL, sex_sealed = false WHERE id = $1 AND NOT (baby_sex = ANY($2))`, [fid, valid]).catch(() => undefined);
 }
 
@@ -68,6 +68,8 @@ export interface Espera {
   publicVotes?: Array<{ name: string; guess: Sex; at: string }>;
   /** Quantos bebês: 1, ou 2 para gêmeos (migração 037). */
   babies?: number;
+  /** Palpites guardados fora do placar (de quando era um bebê, ou gêmeos): voltam se o casal desfizer a mudança. */
+  parked?: number;
 }
 
 export const ESPERA_MISSING = 'A espera (menino ou menina) ainda não está ligada no servidor. Rode a migração db/migrations/035_a_espera.sql no Neon.';
@@ -97,7 +99,11 @@ export async function fetchEspera(fid: string, userId: string): Promise<Espera |
     const secret = (!!f.secret_by && !!f.sex) || sealed;
     const secretMine = secret && !sealed && f.secret_by === userId;
     const hidden = secret && !secretMine;
-    return { plan: f.plan, testDate: f.test_date, sex: hidden ? null : f.sex, knownAt: hidden ? null : f.known_at, secret, secretMine, guesses, sealed, bolaoToken: f.bolao, envelopeToken: f.envelope, publicVotes, babies: await babiesOf(fid) };
+    const babies = await babiesOf(fid);
+    const valid = optionsFor(babies);
+    const ok = (g: { guess: Sex }) => valid.includes(g.guess);
+    const parked = guesses.filter(g => !ok(g)).length + publicVotes.filter(v => !ok(v)).length;
+    return { plan: f.plan, testDate: f.test_date, sex: hidden ? null : f.sex, knownAt: hidden ? null : f.known_at, secret, secretMine, guesses: guesses.filter(ok), sealed, bolaoToken: f.bolao, envelopeToken: f.envelope, publicVotes: publicVotes.filter(ok), babies, parked };
   } catch {
     return null;
   }
