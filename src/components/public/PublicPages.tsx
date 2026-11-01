@@ -90,6 +90,7 @@ export function BolaoPage({ token }: { token: string }) {
   // O nome é obrigatório: sem ele, o campo chama a atenção (treme e mostra o aviso logo embaixo).
   const [nameMissing, setNameMissing] = useState(0);
   const [justVoted, setJustVoted] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const doneRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -124,6 +125,21 @@ export function BolaoPage({ token }: { token: string }) {
         /* sem armazenamento: só não lembra */
       }
       tumtum();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  /** Sair do bolão: apaga o palpite (o nome sai do placar). */
+  const leave = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setView(await call<BolaoView>('POST', '', { op: 'unvote', t: token }));
+      setLeaving(false);
+      setJustVoted(false);
+      setChanging(false);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -179,6 +195,23 @@ export function BolaoPage({ token }: { token: string }) {
                 Mudar
               </button>
             </div>
+            {leaving ? (
+              <div className="mt-3 rounded-2xl bg-surface/80 px-4 py-3 space-y-2" role="group" aria-label="Sair do bolão">
+                <p className="text-[13.5px] text-ink">Tirar o seu palpite? Seu nome sai do placar.</p>
+                <div className="flex justify-center gap-2">
+                  <button type="button" disabled={busy} onClick={() => void leave()} className="rounded-full bg-alert px-4 py-1.5 text-[13px] font-extrabold text-white disabled:opacity-60">
+                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sim, sair do bolão'}
+                  </button>
+                  <button type="button" onClick={() => setLeaving(false)} className="rounded-full px-4 py-1.5 text-[13px] font-bold text-ink-soft">
+                    Ficar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setLeaving(true)} className="mt-2 text-[12.5px] font-bold text-ink-mute underline-offset-2 hover:underline">
+                Sair do bolão
+              </button>
+            )}
           </section>
         ) : (
           <section aria-labelledby="seu-palpite" className="rounded-[24px] bg-surface/90 px-5 py-5 shadow-soft space-y-4">

@@ -56,6 +56,15 @@ for (const scheme of ['light', 'dark']) {
   await visita.waitForTimeout(800);
   check(true, `${scheme}: votou sem conta`);
   await visita.screenshot({ path: `${OUT}bolao-votou-${scheme}.png`, fullPage: true });
+  if (scheme === 'dark') {
+    // Sair do bolão (com confirmação) e voltar.
+    await visita.getByRole('button', { name: 'Sair do bolão' }).click();
+    await visita.getByRole('button', { name: 'Sim, sair do bolão' }).click();
+    await visita.getByRole('heading', { name: 'Dê o seu palpite' }).waitFor();
+    check((await visita.getByRole('list', { name: 'Time Menino' }).getByText('Léo').count()) === 0, 'quem sai do bolão some do placar');
+    await visita.getByRole('button', { name: 'Time Menino', exact: true }).click();
+    await visita.getByRole('status', { name: 'Palpite registrado' }).waitFor();
+  }
   if (scheme === 'light') globalThis.bia = visita;
 }
 await mae.reload();
