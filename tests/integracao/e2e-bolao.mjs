@@ -37,7 +37,7 @@ check(!!link && texto.startsWith('Menino ou menina? 💌 Entra no bolão de Ana 
 
 // ---- Quem não tem o app vota ----
 for (const scheme of ['light', 'dark']) {
-  const visita = await phone(b, { colorScheme: scheme });
+  const visita = await phone(b, { colorScheme: scheme, acceptDownloads: true });
   await visita.goto(link.replace(/^https?:\/\/[^/]+/, BASE));
   await visita.getByRole('heading', { name: 'Menino ou menina?' }).waitFor();
   check(await visita.getByText(/^Ana e Caio · semana \d+$/).isVisible(), `${scheme}: a página aberta mostra o casal e a semana, sem login`);
@@ -56,6 +56,14 @@ for (const scheme of ['light', 'dark']) {
   await visita.waitForTimeout(800);
   check(true, `${scheme}: votou sem conta`);
   await visita.screenshot({ path: `${OUT}bolao-votou-${scheme}.png`, fullPage: true });
+  if (scheme === 'light') {
+    // Quem votou posta o próprio cartão (sem app): baixa a imagem do "Eu sou do Time Menina!".
+    const dv = visita.waitForEvent('download');
+    await visita.getByRole('button', { name: 'Salvar imagem' }).click();
+    const arq = await dv;
+    await arq.saveAs(`${OUT}cartao-votante.png`);
+    check(arq.suggestedFilename() === 'bolao-time-menina.png', 'quem votou pelo link posta o próprio cartão, com a marca');
+  }
   if (scheme === 'dark') {
     // Sair do bolão (com confirmação) e voltar.
     await visita.getByRole('button', { name: 'Sair do bolão' }).click();

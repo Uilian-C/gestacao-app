@@ -165,6 +165,18 @@ export function placarCard(o: { menina: number; menino: number; teams: { menina:
   };
 }
 
+/** O cartão de quem votou pelo link (sem app): "Eu sou do Time Menina!", o placar e o convite para votar. */
+export function voterCard(o: { guess: 'menina' | 'menino'; couple: string; menina: number; menino: number }): CardContent {
+  return {
+    kicker: `O bolão de ${o.couple}`,
+    name: `Eu sou do Time ${o.guess === 'menina' ? 'Menina' : 'Menino'}!`,
+    bar: { menina: o.menina, menino: o.menino },
+    sub: 'Menino ou menina? E você, qual é o seu time?',
+    sign: `Vote também: ${SITE}`,
+    tone: o.guess === 'menina' ? 'rosa' : 'azul',
+  };
+}
+
 /** Para quem escolheu esperar até o parto. */
 export function surpriseCard(o: { daysToDpp: number }): CardContent {
   return {
