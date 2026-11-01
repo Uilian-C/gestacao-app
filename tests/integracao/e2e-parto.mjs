@@ -27,7 +27,7 @@ check(await p.getByRole('button', { name: /^Parto$/ }).first().isVisible(), 'a f
 await p.getByRole('button', { name: /^Parto/ }).last().click();
 await fase.waitFor();
 check(true, 'o menu Parto volta para as fases');
-await p.getByRole('button', { name: /^Quando ir para a maternidade/ }).click();
+await p.getByRole('button', { name: /^Quando procurar a maternidade/ }).click();
 check(await p.getByRole('dialog').getByText('Sangramento vaginal').isVisible(), 'os sinais de quando ir, a um toque');
 await p.keyboard.press('Escape');
 

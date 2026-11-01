@@ -205,27 +205,24 @@ function Post({ entry: e, me, members, role, dumDate, reactions, threads, social
         )
       )}
 
+      {/* O abraço e o comentário numa linha só, com quem reagiu ao lado: o post fica mais curto. */}
       {social && (
-        <div className="px-3 pt-2 pb-1 flex items-center gap-1">
+        <div className="px-2.5 pt-1.5 pb-0.5 flex items-center gap-0.5">
           <button
             type="button"
             onClick={() => onReact('entry', e.id, 'abraco', !hugged)}
             aria-pressed={hugged}
             aria-label={hugged ? 'Tirar o abraço' : 'Mandar um abraço'}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-bold transition active:scale-90 ${hugged ? 'text-rosa' : 'text-ink-soft hover:bg-surface-2'}`}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition active:scale-90 ${hugged ? 'text-rosa' : 'text-ink-soft hover:bg-surface-2'}`}
           >
-            <Heart className={`w-[22px] h-[22px] ${hugged ? 'fill-rosa' : ''}`} /> Abraço
+            <Heart className={`w-[22px] h-[22px] ${hugged ? 'fill-rosa' : ''}`} />
           </button>
-          <button type="button" onClick={() => setReplying(v => !v)} aria-expanded={replying} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-bold text-ink-soft hover:bg-surface-2">
-            <MessageCircle className="w-[22px] h-[22px]" /> Comentar{comments.length > 0 && <span className="tabular text-ink-mute">· {comments.length}</span>}
+          <button type="button" onClick={() => setReplying(v => !v)} aria-expanded={replying} aria-label="Comentar" className="h-10 min-w-10 px-2 rounded-full inline-flex items-center justify-center gap-1 text-ink-soft hover:bg-surface-2">
+            <MessageCircle className="w-[22px] h-[22px]" />
+            {comments.length > 0 && <span className="tabular text-[13px] font-bold">{comments.length}</span>}
           </button>
+          {hugs.length > 0 && <p className="ml-1 min-w-0 truncate text-[13px] text-ink-soft">{hugText}</p>}
         </div>
-      )}
-
-      {social && hugs.length > 0 && (
-        <p className="px-4 text-[13px] text-ink-soft">
-          <Heart className="inline w-3.5 h-3.5 fill-rosa text-rosa -mt-0.5" /> {hugText}
-        </p>
       )}
 
       {social && comments.length > 0 && (

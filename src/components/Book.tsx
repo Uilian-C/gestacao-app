@@ -187,7 +187,7 @@ function store(key: string, value: unknown) {
 /** As páginas prontas que ainda não foram impressas (neste aparelho). */
 const newPages = (book: Chapter[], printed: Set<string>) => book.filter(c => !c.quiet && !c.open && !printed.has(signature(c)));
 
-export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, onWrite, onNames, onWantPrinted }: { book: Chapter[]; tone: BabyTone; parents: string; fresh?: Chapter | null; onOpenEntry: (id: string) => void; onWrite?: () => void; onNames?: () => void; onWantPrinted?: () => void }) {
+export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, onWrite, onNames, onWantPrinted, folders }: { book: Chapter[]; tone: BabyTone; parents: string; fresh?: Chapter | null; onOpenEntry: (id: string) => void; onWrite?: () => void; onNames?: () => void; onWantPrinted?: () => void; /** As pastas do fichário, dentro do livro. */ folders?: React.ReactNode }) {
   const name = useContext(BabyNameContext);
   const months = useMemo(() => bookMonths(book), [book]);
   // Para o "Primeiros 7 dias": o livro já foi aberto neste aparelho.
@@ -236,6 +236,7 @@ export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, o
               {written.length === 0 ? 'A primeira página espera por vocês.' : `Um dia vocês vão ler estas páginas juntos, com ${babyCall(name)} no colo.`}
             </span>
             {freshPage && <span className="block text-[13px] text-ink-soft line-clamp-2">Página nova: {titleOf(freshPage)}</span>}
+            {written.length > 0 && <span className="block text-[12px] font-extrabold text-rosa-strong tabular">{written.length} {written.length === 1 ? 'página escrita' : 'páginas escritas'}</span>}
           </span>
           <BabyArt week={artWeek(current)} beat tone={tone} className="w-24 h-24 shrink-0" />
         </span>
@@ -261,13 +262,22 @@ export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, o
         </button>
       )}
 
-      {/* O sumário: um capítulo por mês; tocar abre o livro ali. */}
+      {folders && (
+        <section aria-labelledby="pastas-titulo" className="space-y-2">
+          <h3 id="pastas-titulo" className="px-1 text-[12px] font-extrabold uppercase tracking-wide text-ink-mute">
+            As pastas
+          </h3>
+          {folders}
+        </section>
+      )}
+
+      {/* O sumário: um capítulo por mês, na ordem do livro; tocar abre o livro ali. */}
       <section aria-labelledby="sumario-titulo" className="space-y-2">
         <h3 id="sumario-titulo" className="px-1 text-[12px] font-extrabold uppercase tracking-wide text-ink-mute">
           Sumário
         </h3>
         <ol className="rounded-[24px] bg-surface/80 divide-y divide-line/60" aria-label="Capítulos">
-          {months.map(m => (
+          {[...months].reverse().map(m => (
             <li key={m.month}>
               <MonthRow month={m} onOpen={() => setReading({ month: m.month })} />
             </li>

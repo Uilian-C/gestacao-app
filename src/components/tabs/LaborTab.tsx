@@ -166,7 +166,7 @@ function LaborHome(props: Props & { onOpen: (t: Tool) => void }) {
     ],
     hora: [
       { id: 'contracoes', icon: <Timer />, title: 'Contrações', hint: contractionsToday ? `${contractionsToday} hoje` : 'Um sente, o outro marca', onClick: () => props.onOpen('contracoes') },
-      { id: 'sinais', icon: <Siren />, title: 'Quando ir para a maternidade', hint: 'Os sinais que não esperam', tone: 'alert', onClick: () => setSigns(true) },
+      { id: 'sinais', icon: <Siren />, title: 'Quando procurar a maternidade', hint: 'Os sinais que não esperam', tone: 'alert', onClick: () => setSigns(true) },
     ],
   };
 
@@ -222,7 +222,7 @@ function LaborHome(props: Props & { onOpen: (t: Tool) => void }) {
       ))}
 
       {signs && (
-        <Sheet title="Quando ir para a maternidade" onClose={() => setSigns(false)}>
+        <Sheet title="Quando procurar a maternidade" onClose={() => setSigns(false)}>
           <AlertSigns open />
         </Sheet>
       )}

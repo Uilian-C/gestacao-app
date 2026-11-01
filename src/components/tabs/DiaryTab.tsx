@@ -25,10 +25,10 @@ import { firstTimesAlbum, nextFirstTime } from '../../lib/firstTimes';
 import type { FirstTimeId } from '../../content/firstTimes';
 import { BabyNameContext } from '../../lib/baby';
 
-// O Diário é o fichário afetivo da gestação, em três lugares só: o Mural (tudo
-// junto, do mais novo ao mais antigo, como uma rede social de vocês dois), o
-// Fichário (as pastas, com as Celebrações e o Humor como pastas especiais) e o
-// Livro (a história de vocês). Cada pasta abre como uma página com "voltar".
+// O Diário em dois lugares: o Livro (a história de vocês, com as pastas do
+// fichário dentro: primeiras vezes, momentos, cartas, barriguinha, celebrações
+// e humor) e o Mural (a conversa, do mais novo ao mais antigo, com a família).
+// Cada pasta abre como uma página com "voltar".
 
 interface Props {
   view: DiaryView;
@@ -78,21 +78,20 @@ export default function DiaryTab(props: Props) {
     comments: props.threads.filter(c => c.target_type === 'entry' && c.target_id === e.id).length,
   });
 
-  const inFichario = props.view !== 'mural' && props.view !== 'livro';
-  const back = () => props.onView('tudo');
-  const top = inFichario ? 'tudo' : props.view;
+  // Duas partes: o Livro (a memória, com as pastas dentro) e o Mural (a conversa).
+  const back = () => props.onView('livro');
+  const top = props.view === 'mural' ? 'mural' : 'livro';
 
   return (
     <div>
       <nav aria-label="Pastas do diário">
         <SubTabs
           label="Parte do diário"
-          value={top as 'mural' | 'tudo' | 'livro'}
+          value={top as 'mural' | 'livro'}
           onChange={props.onView}
           options={[
-            { value: 'mural', label: 'Mural' },
-            { value: 'tudo', label: 'Fichário' },
             { value: 'livro', label: 'Livro' },
+            { value: 'mural', label: 'Mural' },
           ]}
         />
       </nav>
@@ -115,8 +114,9 @@ export default function DiaryTab(props: Props) {
           onOpen={id => props.onOpen({ kind: 'entry', id })}
           onWrite={props.onWrite}
         />
-      ) : props.view === 'livro' ? (
+      ) : props.view === 'livro' || props.view === 'tudo' ? (
         <BookView
+          folders={<Fichario {...props} count={count} />}
           book={props.book}
           tone={props.babyTone}
           parents={coupleNames(props.members.map(m => m.name))}
@@ -134,8 +134,6 @@ export default function DiaryTab(props: Props) {
             <p className="rounded-[24px] bg-surface/80 p-5 text-sm text-ink-soft">Para planejar as celebrações, rode a migração db/migrations/028_celebracoes.sql no Neon.</p>
           )}
         </SubPage>
-      ) : props.view === 'tudo' ? (
-        <Fichario {...props} count={count} />
       ) : (
         <FolderPage {...props} folder={props.view} entries={entries.filter(e => inFolder(e, props.view as Folder))} social={social} />
       )}
@@ -149,7 +147,7 @@ function SubPage({ title, hint, onBack, action, children }: { title: string; hin
     <div className="space-y-4">
       <div className="space-y-2">
         <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-sm font-bold text-ink-soft">
-          <ArrowLeft className="w-4 h-4" /> Fichário
+          <ArrowLeft className="w-4 h-4" /> Livro
         </button>
         <div className="flex items-end justify-between gap-3 px-1">
           <div className="min-w-0">
@@ -301,18 +299,25 @@ function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView,
           })}
       </div>
 
-      {/* As pastas especiais, numa linha: as celebrações e o humor de vocês. */}
+      {/* As pastas especiais: as celebrações e o humor de vocês. */}
       {(celebrations !== undefined || photosAvailable) && (
-        <div className="flex flex-wrap gap-2 px-1">
+        <div className="grid grid-cols-2 gap-2">
           {celebrations !== undefined && (
-            <button type="button" onClick={() => onView('celebracoes')} aria-label="Abrir a pasta Celebrações" className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-rosa-soft px-3 py-1.5 text-[13px] font-bold text-rosa-strong">
-              <PartyPopper className="w-3.5 h-3.5 shrink-0" aria-hidden />
-              <span className="truncate">Celebrações{next ? ` · ${nextHint}` : ''}</span>
+            <button type="button" onClick={() => onView('celebracoes')} aria-label="Abrir a pasta Celebrações" className="flex items-start gap-2 rounded-[20px] bg-rosa-soft px-3 py-2.5 text-left">
+              <PartyPopper className="w-4 h-4 mt-0.5 shrink-0 text-rosa-strong" aria-hidden />
+              <span className="min-w-0">
+                <span className="block text-[13.5px] font-extrabold text-rosa-strong">Celebrações</span>
+                <span className="block text-[12px] leading-snug text-ink-soft line-clamp-2">{next ? nextHint : 'Chá, revelação, ensaio…'}</span>
+              </span>
             </button>
           )}
           {photosAvailable && (
-            <button type="button" onClick={() => onView('humor')} aria-label="Abrir a pasta Humor" className="inline-flex items-center gap-1.5 rounded-full bg-warm-soft px-3 py-1.5 text-[13px] font-bold text-warm">
-              <Smile className="w-3.5 h-3.5" aria-hidden /> Humor de vocês
+            <button type="button" onClick={() => onView('humor')} aria-label="Abrir a pasta Humor" className="flex items-start gap-2 rounded-[20px] bg-warm-soft px-3 py-2.5 text-left">
+              <Smile className="w-4 h-4 mt-0.5 shrink-0 text-warm" aria-hidden />
+              <span className="min-w-0">
+                <span className="block text-[13.5px] font-extrabold text-warm">Humor de vocês</span>
+                <span className="block text-[12px] leading-snug text-ink-soft">Semana a semana</span>
+              </span>
             </button>
           )}
         </div>
@@ -388,7 +393,7 @@ function FolderPage({ folder, entries: all, dumDate, journalAvailable, onOpen, o
     <SubPage
       title={moments ? 'Momentos' : f.title}
       hint={moments ? 'Os momentos especiais, o dia a dia e as ideias de vocês.' : f.hint}
-      onBack={() => onView('tudo')}
+      onBack={() => onView('livro')}
       action={
         <button type="button" disabled={!journalAvailable} onClick={() => onWrite(writeIn)} className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13.5px] font-bold transition active:scale-[0.98] disabled:opacity-50 ${t.solid}`}>
           {folder === 'barriga' ? <Images className="w-4 h-4" /> : <Plus className="w-4 h-4" />}

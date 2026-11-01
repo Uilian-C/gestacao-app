@@ -38,7 +38,7 @@ for (const width of [300, 360, 412]) {
     check(sw <= cw, `${width}px, Cuidados → ${part}: nada passa da largura (${sw} ≤ ${cw})`);
   }
   await p.getByRole('button', { name: /^Diário/ }).first().click();
-  await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Fichário/ }).click();
+  await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Livro/ }).click();
   await p.getByRole('button', { name: /^Abrir a pasta Barriguinha/ }).click();
   await p.waitForTimeout(400);
   [sw, cw] = await p.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);

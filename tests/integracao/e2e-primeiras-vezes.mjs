@@ -19,7 +19,7 @@ const dlg = mae.getByRole('dialog').first();
 // ---- O álbum das primeiras vezes ----
 await mae.reload();
 await mae.getByRole('button', { name: /^Diário/ }).first().click();
-await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Fichário/ }).click();
+await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Livro/ }).click();
 const pasta = mae.getByRole('button', { name: 'Abrir o álbum das primeiras vezes' });
 check(await pasta.getByText(/^1 de 12/).isVisible(), 'o álbum começa com a descoberta marcada (1 de 12)');
 await pasta.click();
@@ -83,7 +83,7 @@ await mae.screenshot({ path: `${OUT}primeiras-livro.png` });
 
 await mae.emulateMedia({ colorScheme: 'dark' });
 await mae.keyboard.press('Escape');
-await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Fichário/ }).click();
+await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Livro/ }).click();
 await pasta.click();
 await mae.waitForTimeout(300);
 await mae.screenshot({ path: `${OUT}primeiras-album-escuro.png` });

@@ -79,7 +79,7 @@ export default function Nav({ active, onChange, onRecord, badges, pulse = {}, hi
                 </span>
                 {TAB_LABEL[t.id]}
                 {pulse[t.id] && !on && <span className="absolute top-1 right-[calc(50%-18px)] w-2 h-2 rounded-full bg-rosa ring-2 ring-surface" aria-label="novidades" />}
-                {!!badges[t.id] && <span className="absolute top-0.5 right-[calc(50%-22px)] min-w-4 h-4 px-1 rounded-full bg-warm text-on-accent text-[10px] font-semibold ring-2 ring-surface flex items-center justify-center tabular">{badges[t.id]}</span>}
+                {!!badges[t.id] && <span aria-label={`${badges[t.id]} ${badges[t.id] === 1 ? 'tarefa atrasada' : 'tarefas atrasadas'}`} className="absolute top-0.5 right-[calc(50%-22px)] min-w-4 h-4 px-1 rounded-full bg-warm text-on-accent text-[10px] font-semibold ring-2 ring-surface flex items-center justify-center tabular">{badges[t.id]}</span>}
               </button>
             );
           })}

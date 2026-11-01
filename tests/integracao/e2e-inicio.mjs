@@ -117,7 +117,6 @@ await pai.screenshot({ path: `${OUT}inicio-pai.png`, fullPage: true });
 await mae.reload();
 await card.getByText('Caio mandou um abraço para você hoje.').waitFor({ timeout: 10000 });
 check(await card.getByText('Ótimo', { exact: true }).isVisible(), 'mãe recebe o abraço e vê "Caio: Ótimo"');
-check(await mae.getByText(/Caio já passou por aqui hoje/).isVisible(), 'mãe vê que o Caio passou por aqui hoje');
 
 // ---- Diário → Humor: a linha do humor, semana a semana (não é calendário) ----
 await card.getByText('Registrado. Caio vai ver.').waitFor({ state: 'hidden', timeout: 10000 });

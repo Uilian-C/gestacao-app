@@ -36,6 +36,8 @@ export const TODAY_LIMIT = 3;
 export default function TodayCard({ rows, onAgenda }: { rows: TodayRow[]; onAgenda: () => void }) {
   const shown = rows.slice(0, TODAY_LIMIT);
   const more = rows.length - shown.length;
+  // Sem nada para hoje, o cartão nem aparece: o Início fica mais curto.
+  if (shown.length === 0) return null;
   return (
     <section aria-labelledby="hoje-titulo" className="rounded-[28px] bg-surface/80 px-3 pt-4 pb-2">
       <div className="flex items-baseline justify-between gap-3 px-2 pb-1">

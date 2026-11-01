@@ -78,5 +78,8 @@ export function summaryHeadline(s: WeekSummary): string {
   if (!both && total >= 5) return 'Você esteve presente quase todos os dias. Que tal convidar quem vai viver isso com você?';
   if (s.posts >= 3) return 'Uma semana cheia de momentos guardados.';
   if (total === 0 && s.posts === 0) return 'Semana corrida? Um toque no humor por dia já faz diferença.';
-  return 'Mais uma semana da gestação de vocês.';
+  // Sem um destaque, o que aconteceu de verdade (em vez de uma frase que serve para qualquer semana).
+  const days = `${total} ${total === 1 ? 'dia' : 'dias'} de humor`;
+  const posts = `${s.posts} ${s.posts === 1 ? 'lembrança guardada' : 'lembranças guardadas'}`;
+  return total && s.posts ? `Esta semana: ${days} e ${posts}.` : total ? `Esta semana: ${days}.` : `Esta semana: ${posts}.`;
 }

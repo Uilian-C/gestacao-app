@@ -213,7 +213,6 @@ export default function HomeTab(props: Props) {
     onOpen('livro');
   };
   const summaryRoles = (['mae', 'pai'] as const).filter(r => members.some(m => m.role === r) || props.checkins.some(c => c.author_role === r));
-  const partnerToday = props.checkins.some(c => !c.mine && c.day === todayIso) || props.journal.some(e => !e.mine && e.created_at && toISODate(parseTimestamp(e.created_at)) === todayIso);
   const push = usePush();
   const [pushHidden, setPushHidden] = useState(pushDismissed);
 
@@ -369,20 +368,19 @@ export default function HomeTab(props: Props) {
               <button onClick={() => setEditingDum(v => !v)} aria-label="Alterar a DUM" className="w-7 h-7 rounded-full hover:bg-surface/60 flex items-center justify-center">
                 <Pencil className="w-3 h-3" />
               </button>
+              {props.onShare && selectedWeek === currentWeek && !wrapped && age.daysToDpp >= 0 && (
+                <button
+                  type="button"
+                  onClick={() => props.onShare!(weekCard({ week: age.weeks, days: age.days, fruit: info.fruit, stage: stage.title, daysToDpp: age.daysToDpp, babyName }), 'cartao_semana')}
+                  aria-label="Compartilhar a semana"
+                  className="w-7 h-7 rounded-full text-rosa-strong hover:bg-surface/60 flex items-center justify-center transition active:scale-90"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
             {selectedWeek !== currentWeek && <LinkButton onClick={() => onSelectWeek(currentWeek)}>Voltar para hoje</LinkButton>}
           </div>
-          {props.onShare && selectedWeek === currentWeek && !wrapped && age.daysToDpp >= 0 && (
-            <button
-              type="button"
-              onClick={() => props.onShare!(weekCard({ week: age.weeks, days: age.days, fruit: info.fruit, stage: stage.title, daysToDpp: age.daysToDpp, babyName }), 'cartao_semana')}
-              className="relative mt-2 inline-flex items-center gap-1.5 rounded-full bg-surface/70 px-3.5 py-1.5 text-[12.5px] font-extrabold text-rosa-strong transition active:scale-95"
-            >
-              <Share2 className="w-3.5 h-3.5" aria-hidden /> Compartilhar a semana
-            </button>
-          )}
-          {props.partnerName && partnerToday && <p className="relative mt-1 text-[12.5px] text-ink-mute">{props.partnerName} já passou por aqui hoje 💛</p>}
-
 
           {editingDum && (
             <div className="relative mt-3 text-left">
@@ -404,10 +402,6 @@ export default function HomeTab(props: Props) {
               <Sparkles className="inline w-3.5 h-3.5 -mt-0.5 mr-1 text-lilas-strong" aria-hidden />
               {discovery.text}
             </p>
-            <button type="button" onClick={() => (invite.kind === 'barriga' ? props.onBellyPhoto() : props.onWrite(invite.kind === 'carta' ? 'carta' : 'momento'))} className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[13.5px] font-bold text-rosa-strong hover:underline">
-              {invite.label}
-              <ChevronRight className="w-3.5 h-3.5" aria-hidden />
-            </button>
           </section>
         )}
       </div>
@@ -466,40 +460,49 @@ export default function HomeTab(props: Props) {
             onNames={props.onOpenNames ?? props.onOpenEspera}
           />
         )}
-        {lastMemory ? (
-          <button type="button" onClick={() => props.onOpenDetail({ kind: 'entry', id: lastMemory.id })} aria-label={`A última lembrança: ${lastMemory.body.slice(0, 60) || 'uma foto'}. Abrir`} className="w-full flex items-center gap-3 rounded-[24px] bg-surface/80 p-3 text-left shadow-[0_1px_0_var(--color-line)] transition active:scale-[0.99]">
-            {lastMemory.photos[0] ? (
-              <img src={stillUrl(lastMemory.photos[0], true)} alt="" className="w-16 h-16 shrink-0 rounded-2xl object-cover bg-surface-2" />
-            ) : (
-              <span className="w-16 h-16 shrink-0 rounded-2xl bg-rosa-soft text-rosa-strong flex items-center justify-center" aria-hidden>
-                <Heart className="w-6 h-6" />
-              </span>
-            )}
-            <span className="flex-1 min-w-0">
-              <span className="block text-[12px] font-extrabold text-rosa-strong">
-                {speakerOf(members, relatives, lastMemory).name} · {shortDate(lastMemory.entry_date)}
-              </span>
-              <span className="block font-display text-[1.02rem] leading-snug text-ink line-clamp-2">{lastMemory.body || 'Uma foto para guardar'}</span>
-            </span>
-            <ChevronRight className="w-4 h-4 shrink-0 text-ink-mute" />
-          </button>
-        ) : (
-          <button type="button" onClick={() => props.onWrite('momento')} className="w-full rounded-[24px] bg-surface/80 p-4 text-left shadow-[0_1px_0_var(--color-line)]">
-            <span className="block font-display text-[1.05rem] text-ink">A primeira lembrança de vocês</span>
-            <span className="block text-[13.5px] text-ink-soft">Uma frase, uma foto: começa o livro do bebê.</span>
-          </button>
-        )}
-        <div className="flex flex-wrap gap-2 px-1">
-          {props.bellyAvailable && (
-            <button type="button" onClick={bellyDone ? () => onOpen('barriga') : props.onBellyPhoto} aria-label={`Barriguinha da semana ${currentWeek}: ${bellyDone ? 'ver a evolução' : 'tirar a foto'}`} className="inline-flex items-center gap-1.5 rounded-full bg-lilas-soft px-3 py-1.5 text-[13px] font-bold text-lilas-strong">
-              <Camera className="w-3.5 h-3.5" aria-hidden /> {bellyDone ? 'A barriga, semana a semana' : 'Falta a foto da barriga desta semana'}
-            </button>
-          )}
+        {/* O livro desta semana: a última lembrança, o convite do dia, a barriga e o capítulo, num cartão só. */}
+        <div className="rounded-[26px] bg-surface/80 p-3 space-y-2.5 shadow-[0_1px_0_var(--color-line)]">
           {chapter && (
-            <button type="button" onClick={() => onOpen('livro')} aria-label={`O livro de ${babyName ?? 'vocês'}: abrir`} className="inline-flex items-center gap-1.5 rounded-full bg-rosa-soft px-3 py-1.5 text-[13px] font-bold text-rosa-strong">
-              <BookOpen className="w-3.5 h-3.5" aria-hidden /> {freshPage ? 'Uma página nova no livro' : `O livro · capítulo ${chapter.month}`}
+            <button type="button" onClick={() => onOpen('livro')} aria-label={`O livro de ${babyName ?? 'vocês'}: abrir`} className="w-full flex items-center gap-2 px-1 text-left text-[12.5px] font-extrabold text-rosa-strong">
+              <BookOpen className="w-4 h-4 shrink-0" aria-hidden />
+              <span className="flex-1 min-w-0 truncate">{freshPage ? 'Uma página nova no livro' : `O livro · capítulo ${chapter.month}`}</span>
+              <ChevronRight className="w-4 h-4 shrink-0" aria-hidden />
             </button>
           )}
+          {lastMemory ? (
+            <button type="button" onClick={() => props.onOpenDetail({ kind: 'entry', id: lastMemory.id })} aria-label={`A última lembrança: ${lastMemory.body.slice(0, 60) || 'uma foto'}. Abrir`} className="w-full flex items-center gap-3 rounded-[20px] bg-canvas/60 p-2.5 text-left transition active:scale-[0.99]">
+              {lastMemory.photos[0] ? (
+                <img src={stillUrl(lastMemory.photos[0], true)} alt="" className="w-14 h-14 shrink-0 rounded-2xl object-cover bg-surface-2" />
+              ) : (
+                <span className="w-14 h-14 shrink-0 rounded-2xl bg-rosa-soft text-rosa-strong flex items-center justify-center" aria-hidden>
+                  <Heart className="w-5 h-5" />
+                </span>
+              )}
+              <span className="flex-1 min-w-0">
+                <span className="block text-[12px] font-bold text-ink-mute">
+                  {speakerOf(members, relatives, lastMemory).name} · {shortDate(lastMemory.entry_date)}
+                </span>
+                <span className="block font-display text-[1.02rem] leading-snug text-ink line-clamp-2">{lastMemory.body || 'Uma foto para guardar'}</span>
+              </span>
+            </button>
+          ) : (
+            <button type="button" onClick={() => props.onWrite('momento')} className="w-full rounded-[20px] bg-canvas/60 p-3 text-left">
+              <span className="block font-display text-[1.05rem] text-ink">A primeira lembrança de vocês</span>
+              <span className="block text-[13.5px] text-ink-soft">Uma frase, uma foto: começa o livro do bebê.</span>
+            </button>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {lastMemory && invite.kind !== 'barriga' && (
+              <button type="button" onClick={() => props.onWrite(invite.kind === 'carta' ? 'carta' : 'momento')} className="inline-flex items-center gap-1.5 rounded-full bg-rosa-soft px-3 py-1.5 text-[13px] font-bold text-rosa-strong">
+                <NotebookPen className="w-3.5 h-3.5" aria-hidden /> {invite.label}
+              </button>
+            )}
+            {props.bellyAvailable && (
+              <button type="button" onClick={bellyDone ? () => onOpen('barriga') : props.onBellyPhoto} aria-label={`Barriguinha da semana ${currentWeek}: ${bellyDone ? 'ver a evolução' : 'tirar a foto'}`} className="inline-flex items-center gap-1.5 rounded-full bg-lilas-soft px-3 py-1.5 text-[13px] font-bold text-lilas-strong">
+                <Camera className="w-3.5 h-3.5" aria-hidden /> {bellyDone ? 'A barriga, semana a semana' : 'Falta a foto da barriga desta semana'}
+              </button>
+            )}
+          </div>
         </div>
       </section>
 
