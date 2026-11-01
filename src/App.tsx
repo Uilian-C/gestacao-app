@@ -13,7 +13,7 @@ import { takeFlagFromUrl, takeRitualFromUrl, takeTabFromUrl, takeViewFromUrl, ta
 import { dayClosed, markClosed, partnerDay } from './lib/ritual';
 import { finalistsCard, nameCard, revealCard, surpriseCard, teaserCard, type CardContent, type ShareKind } from './lib/shareCard';
 import { EsperaSheet, SexReveal } from './components/espera/Espera';
-import { rightGuesses, SEX_WORD, tally, type Sex, type SexPlan } from './lib/espera';
+import { bolaoUrl, envelopeUrl, rightCount, SEX_WORD, tally, type Sex, type SexPlan } from './lib/espera';
 import { entryShare } from './lib/shareEntry';
 import ShareSheet, { type ShareRequest } from './components/ShareSheet';
 import { authorOf, firstName } from './lib/people';
@@ -793,13 +793,40 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       setEsperaOpen(false);
       setRevealSexOpen(true);
     },
+    onBolaoLink: () => void sendLink('bolaoLink', bolaoUrl, 'Menino ou menina? 💌 Dá seu palpite no nosso bolão:', 'Link do bolão copiado. É só colar no WhatsApp 💛'),
+    onEnvelopeLink: () => void sendLink('envelopeLink', envelopeUrl, 'Você foi escolhida(o) para guardar o nosso segredo 💌 Quando souber se é menino ou menina, registre aqui (a gente só vai ver na hora do chá):', 'Link do envelope copiado. Mande só para quem vai guardar o segredo 💌'),
+  };
+  /** Cria o link (bolão ou envelope) e abre o compartilhar do celular; sem ele, copia. */
+  const sendLink = async (op: 'bolaoLink' | 'envelopeLink', url: (t: string) => string, text: string, copied: string) => {
+    let token: string | undefined;
+    const ok = await run(async () => {
+      const res = (await api.mutate(op, {})) as { data?: { espera?: { bolaoToken?: string | null; envelopeToken?: string | null } } };
+      token = (op === 'bolaoLink' ? res.data?.espera?.bolaoToken : res.data?.espera?.envelopeToken) ?? undefined;
+      return res;
+    }, ESPERA_MISSING);
+    if (!ok || !token) return;
+    const link = url(token);
+    try {
+      if (navigator.share) {
+        await navigator.share({ text: `${text} ${link}` });
+        return;
+      }
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
+    }
+    try {
+      await navigator.clipboard.writeText(`${text} ${link}`);
+      showToast({ text: copied, tone: 'success' });
+    } catch {
+      showToast({ text: link, tone: 'success' });
+    }
   };
   const shareEspera = (kind: 'teaser' | 'surpresa' | 'revelacao') => {
     const e = data.espera;
     if (!e) return;
     if (kind === 'revelacao' && e.sex) {
       const day = e.knownAt ? toISODate(parseTimestamp(e.knownAt)) : today;
-      return share(revealCard({ sex: e.sex, week: dumDate ? weekOn(dumDate, day) : currentWeek, date: longDate(day), right: rightGuesses(e).length }), 'cartao_revelacao');
+      return share(revealCard({ sex: e.sex, week: dumDate ? weekOn(dumDate, day) : currentWeek, date: longDate(day), right: rightCount(e) }), 'cartao_revelacao');
     }
     if (kind === 'surpresa') return share(surpriseCard({ daysToDpp: age?.daysToDpp ?? 0 }), 'cartao_espera');
     const t = tally(e);

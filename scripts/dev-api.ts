@@ -10,6 +10,7 @@ import * as exames from '../api/exames.ts';
 import * as family from '../api/family.ts';
 import * as fotos from '../api/fotos.ts';
 import * as lembretes from '../api/lembretes.ts';
+import * as palpite from '../api/palpite.ts';
 import * as places from '../api/places.ts';
 import * as push from '../api/push.ts';
 import * as videos from '../api/videos.ts';
@@ -23,6 +24,7 @@ const routes: Record<string, Partial<Record<string, Handler>>> = {
   '/api/fotos': fotos,
   '/api/family': family,
   '/api/lembretes': lembretes,
+  '/api/palpite': palpite,
   '/api/places': places,
   '/api/push': push,
   '/api/videos': videos,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarHeart, Check, ChevronRight, Heart, Loader2, Lock, NotebookPen, Share2, Sparkles } from 'lucide-react';
+import { CalendarHeart, Check, ChevronRight, Heart, Loader2, Lock, NotebookPen, Send, Share2, Sparkles } from 'lucide-react';
 import { daysToTest, esperaStage, rightGuesses, SEX_WORD, tally, type Espera, type GuessRole, type Sex, type SexPlan } from '../../lib/espera';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import BrandMark from '../BrandMark';
@@ -42,9 +42,9 @@ export function EsperaCard({ espera, today, babyName, partnerName, finalists, id
           <Envelope className="w-16 h-12" />
         </span>
         <span className="flex-1 min-w-0">
-          <span className="block text-[12px] font-extrabold uppercase tracking-wide text-lilas-strong">Uma revelação para você</span>
-          <span className="block font-display text-[1.2rem] leading-snug text-ink">{partnerName ?? 'Alguém'} guardou: menino ou menina?</span>
-          <span className="block text-[13px] text-ink-soft">Toque para abrir 💌</span>
+          <span className="block text-[12px] font-extrabold uppercase tracking-wide text-lilas-strong">{espera.sealed ? 'O segredo do chá' : 'Uma revelação para você'}</span>
+          <span className="block font-display text-[1.2rem] leading-snug text-ink">{espera.sealed ? 'O envelope está guardado: menino ou menina?' : `${partnerName ?? 'Alguém'} guardou: menino ou menina?`}</span>
+          <span className="block text-[13px] text-ink-soft">{espera.sealed ? 'Abram juntos, na hora da revelação 💌' : 'Toque para abrir 💌'}</span>
         </span>
       </button>
     );
@@ -109,6 +109,10 @@ export interface EsperaActions {
   onShare: (kind: 'teaser' | 'surpresa' | 'revelacao') => void;
   onNames: () => void;
   onReveal: () => void;
+  /** O bolão aberto: cria (se preciso) e envia o link. */
+  onBolaoLink?: () => void;
+  /** O envelope do chá: cria um link para quem vai guardar o segredo. */
+  onEnvelopeLink?: () => void;
 }
 
 /** A folha da espera: o plano, o bolão, o registro e os cartões. */
@@ -128,7 +132,7 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
         {stage === 'envelope' && (
           <button type="button" onClick={actions.onReveal} className="w-full flex items-center gap-4 rounded-[22px] bg-lilas-soft px-4 py-4 text-left">
             <Envelope className="w-14 h-11 text-ink shrink-0" />
-            <span className="flex-1 font-display text-[1.1rem] text-ink">{partnerName ?? 'Alguém'} guardou uma revelação para você</span>
+            <span className="flex-1 font-display text-[1.1rem] text-ink">{espera.sealed ? 'O segredo do chá está guardado no envelope' : `${partnerName ?? 'Alguém'} guardou uma revelação para você`}</span>
             <span className="rounded-full bg-surface px-3 py-1.5 text-[13px] font-extrabold text-lilas-strong">Abrir</span>
           </button>
         )}
@@ -227,8 +231,27 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
                       {names(partnerName, g.author_role, g.mine, 'Você')}: {g.guess}
                     </li>
                   ))}
-                {t.family > 0 && <li className="rounded-full bg-surface-2 px-3 py-1 text-[12.5px] font-bold text-ink-soft">Família: {t.family} {t.family === 1 ? 'palpite' : 'palpites'}</li>}
+                {t.family > 0 && <li className="rounded-full bg-surface-2 px-3 py-1 text-[12.5px] font-bold text-ink-soft">Família e amigos: {t.family} {t.family === 1 ? 'palpite' : 'palpites'}</li>}
               </ul>
+            )}
+            {actions.onBolaoLink && (
+              <div className="rounded-[20px] bg-lilas-soft/60 px-4 py-3 space-y-2">
+                <p className="text-[13.5px] leading-snug text-ink-soft">
+                  <span className="font-bold text-ink">O bolão aberto:</span> um link para a família e os amigos votarem pelo WhatsApp, sem baixar nada. Quando vocês descobrirem, cada um vê se acertou.
+                </p>
+                {(espera.publicVotes?.length ?? 0) > 0 && (
+                  <ul className="flex flex-wrap gap-1.5" aria-label="Palpites pelo link">
+                    {espera.publicVotes!.slice(-8).map((v, i) => (
+                      <li key={`${v.name}-${i}`} className={`rounded-full px-2.5 py-0.5 text-[12px] font-bold ${SEX_TONE[v.guess].soft} ${SEX_TONE[v.guess].strong}`}>
+                        {v.name}: {v.guess}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <button type="button" onClick={actions.onBolaoLink} className="inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-[13.5px] font-extrabold text-lilas-strong shadow-soft">
+                  <Send className="w-4 h-4" /> {espera.bolaoToken ? 'Enviar o link do bolão' : 'Abrir o bolão para a família e os amigos'}
+                </button>
+              </div>
             )}
             <button type="button" onClick={() => actions.onShare(espera.plan === 'surpresa' ? 'surpresa' : 'teaser')} className="inline-flex items-center gap-1.5 text-[13.5px] font-extrabold text-lilas-strong">
               <Share2 className="w-4 h-4" /> {espera.plan === 'surpresa' ? 'Compartilhar: vai ser surpresa' : 'Compartilhar: menino ou menina?'}
@@ -272,6 +295,17 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
                 </Button>
               </>
             )}
+            {actions.onEnvelopeLink && (
+              <div className="border-t border-line/70 pt-3 space-y-1.5">
+                <p className="text-[13.5px] leading-snug text-ink-soft">
+                  <span className="font-bold text-ink">Vai ter chá revelação?</span> Mandem um link para quem vai guardar o segredo (a médica, a confeiteira, uma amiga). Ela registra o resultado e só vocês abrem, juntos, na hora.
+                </p>
+                {espera.envelopeToken && <p className="text-[12.5px] font-bold text-lilas-strong">Esperando quem guarda o segredo registrar 💌</p>}
+                <button type="button" onClick={actions.onEnvelopeLink} className="inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-[13.5px] font-extrabold text-lilas-strong shadow-soft">
+                  <Send className="w-4 h-4" /> {espera.envelopeToken ? 'Enviar o link de novo' : 'Enviar o envelope do chá'}
+                </button>
+              </div>
+            )}
           </section>
         )}
 
@@ -293,6 +327,9 @@ export function SexReveal({ espera, partnerName, me, onOpen, onShare, onMural, o
   const sex = espera.sex;
   const closed = !sex;
   const right = rightGuesses(espera);
+  // Quem acertou: o casal e a família pelo nome; quem votou pelo link entra também (até 4 nomes, depois "e mais N").
+  const winners = [...right.map(g => names(partnerName, g.author_role, g.mine, me)), ...(espera.publicVotes ?? []).filter(v => v.guess === sex).map(v => v.name)];
+  const winnersText = winners.length > 5 ? `${winners.slice(0, 4).join(', ')} e mais ${winners.length - 4}` : winners.join(', ');
   const tone = sex ? SEX_TONE[sex] : null;
   return (
     <div role="dialog" aria-label="A revelação" className={`tt-revelacao fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden overscroll-contain px-6 text-center bg-gradient-to-b ${sex === 'menina' ? 'from-rosa-soft via-rosa-soft' : sex === 'menino' ? 'from-azul-soft via-azul-soft' : 'from-lilas-soft via-rosa-soft'} to-surface`}>
@@ -304,8 +341,8 @@ export function SexReveal({ espera, partnerName, me, onOpen, onShare, onMural, o
           <span className="tt-envelope relative text-ink">
             <Envelope className="w-40 h-32" />
           </span>
-          <p className="mt-5 text-[12px] font-extrabold uppercase tracking-[0.25em] text-lilas-strong">Uma revelação para você</p>
-          <p className="font-display text-[1.8rem] leading-tight text-ink mt-1 max-w-[320px]">{partnerName ?? 'Alguém'} guardou: menino ou menina?</p>
+          <p className="mt-5 text-[12px] font-extrabold uppercase tracking-[0.25em] text-lilas-strong">{espera.sealed ? 'O segredo do chá' : 'Uma revelação para você'}</p>
+          <p className="font-display text-[1.8rem] leading-tight text-ink mt-1 max-w-[320px]">{espera.sealed ? 'Menino ou menina? Abram juntos.' : `${partnerName ?? 'Alguém'} guardou: menino ou menina?`}</p>
           <div className="mt-7 flex flex-col gap-2 w-full max-w-[300px]">
             <button
               type="button"
@@ -330,7 +367,7 @@ export function SexReveal({ espera, partnerName, me, onOpen, onShare, onMural, o
           <p className={`tt-revelacao-texto mt-4 text-[12px] font-extrabold uppercase tracking-[0.25em] ${tone!.strong}`}>A revelação</p>
           <p className="tt-revelacao-nome font-display text-[3.6rem] leading-none text-ink mt-2">{SEX_WORD[sex!].title}</p>
           <p className="tt-revelacao-texto mt-3 text-[15px] text-ink-soft max-w-[340px]">
-            {right.length ? `Acertaram o palpite: ${right.map(g => names(partnerName, g.author_role, g.mine, me)).join(', ')} 🎉` : 'Um capítulo novo da história de vocês.'}
+            {winners.length ? `Acertaram o palpite: ${winnersText} 🎉` : 'Um capítulo novo da história de vocês.'}
           </p>
           <div className="tt-revelacao-texto mt-6 flex flex-col gap-2 w-full max-w-[320px]">
             <button type="button" onClick={onShare} className={`inline-flex items-center justify-center gap-2 rounded-full ${tone!.bg} text-white px-5 py-3 font-extrabold shadow-soft`}>

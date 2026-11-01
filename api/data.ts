@@ -3,7 +3,7 @@ import { query, transaction } from './_lib/db.js';
 import { fetchAll, fetchFamilyView } from './_lib/gestation.js';
 import { COUPLE_ONLY, HttpError, endpoint, isCouple, json, readJson, type Member, requireSpace, type SpaceMember } from './_lib/http.js';
 import { mentioned } from './_lib/mentions.js';
-import { guessSex, openSex, setSex, setSexPlan, tagNameIdea } from './_lib/espera.js';
+import { bolaoLink, envelopeLink, guessSex, openSex, setSex, setSexPlan, tagNameIdea } from './_lib/espera.js';
 import { notify, type PushPayload } from './_lib/push.js';
 import { VISIBLE_TARGET } from './_lib/social.js';
 import { deleteFiles } from './_lib/storage.js';
@@ -178,6 +178,8 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('setSexPlan'), plan: z.enum(['descobrir', 'surpresa']).nullable(), testDate: isoDate.nullable() }),
   z.object({ op: z.literal('setSex'), sex: z.enum(['menina', 'menino']).nullable(), secret: z.boolean() }),
   z.object({ op: z.literal('openSex') }),
+  z.object({ op: z.literal('bolaoLink') }),
+  z.object({ op: z.literal('envelopeLink') }),
   z.object({ op: z.literal('guessSex'), guess: z.enum(['menina', 'menino']).nullable() }),
   z.object({ op: z.literal('tagNameIdea'), id: uuid, forSex: z.enum(['menina', 'menino', 'ambos']).optional(), finalist: z.boolean().optional() }),
   z.object({ op: z.literal('setCareMode'), on: z.boolean() }),
@@ -574,6 +576,10 @@ async function apply(m: Member, o: Op) {
       return setSex(fid, m.userId, o.sex, o.secret);
     case 'openSex':
       return openSex(fid, m.userId);
+    case 'bolaoLink':
+      return [{ token: await bolaoLink(fid) }];
+    case 'envelopeLink':
+      return [{ token: await envelopeLink(fid) }];
     case 'guessSex':
       return guessSex(fid, m.userId, who, o.guess);
     case 'tagNameIdea':
@@ -979,6 +985,8 @@ export const POST = endpoint(async request => {
   const result = await apply(member, parsed.data);
   const repeated =
     parsed.data.op === 'track' ||
+    parsed.data.op === 'bolaoLink' ||
+    parsed.data.op === 'envelopeLink' ||
     (parsed.data.op === 'react' && parsed.data.on && Array.isArray(result) && result.length === 0) ||
     // Um abraço por dia: o segundo não avisa de novo.
     (parsed.data.op === 'hug' && Array.isArray(result) && result.length === 0) ||

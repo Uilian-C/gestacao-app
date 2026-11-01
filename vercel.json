@@ -5,6 +5,14 @@
   ],
   "rewrites": [
     {
+      "source": "/palpite/:token",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/envelope/:token",
+      "destination": "/index.html"
+    },
+    {
       "source": "/api/auth/:path*",
       "destination": "/api/auth?__path=:path*"
     }
