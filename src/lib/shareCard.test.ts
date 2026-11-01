@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countdownCard, letterCard, nameCard, placarCard, revealCard, weekCard, wrapLines } from './shareCard';
+import { countdownCard, letterCard, nameCard, placarCard, revealCard, weekCard, wrapLines, fitScale } from './shareCard';
 
 const measure = (s: string) => s.length * 10;
 
@@ -52,4 +52,10 @@ describe('cartões para compartilhar', () => {
     expect(cut[1].endsWith('…')).toBe(true);
     expect(measure(cut[1])).toBeLessThanOrEqual(40);
   });
+});
+
+describe('o texto cabe acima da assinatura', () => {
+  it('sem aperto, fica do tamanho normal', () => expect(fitScale(800, 900)).toBe(1));
+  it('no post (mais baixo), encolhe por igual até caber', () => expect(fitScale(1000, 850)).toBeCloseTo(0.85));
+  it('e nunca fica ilegível', () => expect(fitScale(3000, 600)).toBe(0.6));
 });
