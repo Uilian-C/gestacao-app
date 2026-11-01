@@ -9,7 +9,10 @@ import type { Celebration, CelebrationItem } from './lib/celebrations';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
-import { takeTabFromUrl, takeViewFromUrl, takeVisitFromUrl, takeVoiceFromUrl } from './lib/pwa';
+import { takeRitualFromUrl, takeTabFromUrl, takeViewFromUrl, takeVisitFromUrl, takeVoiceFromUrl } from './lib/pwa';
+import { dayClosed, markClosed, partnerDay } from './lib/ritual';
+import { shareCard, type CardContent } from './lib/shareCard';
+import DayClose from './components/home/DayClose';
 import { uploadVideo } from './lib/videos';
 import { api, ApiError, photoUrl, type CoupleFamilyState, type FamilyState, type Me } from './api';
 import SpaceSheet from './components/auth/SpaceSheet';
@@ -173,6 +176,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   /** Pasta (e ideia) com que o diário abre no registro. */
   // "Como foi a consulta?" pelo aviso: o Início abre já na pergunta.
   const [askVisit] = useState(takeVisitFromUrl);
+  // O Tumtum de hoje: o aviso das 21h abre direto em fechar o dia.
+  const [ritualOpen, setRitualOpen] = useState(takeRitualFromUrl);
+  // Fechar o dia grava no aparelho; a troca de estado só refaz a tela.
+  const [, setClosedNow] = useState(0);
   // O Início aberto numa janela (a Jornada do bebê ou os Primeiros 7 dias): a chave remonta o Início.
   const [homeStart, setHomeStart] = useState<{ start: 'bebe' | 'missoes'; n: number } | null>(null);
   const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string; firstTime?: FirstTimeId }>({});
@@ -721,6 +728,30 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     }));
     return run(() => api.mutate('checkin', { day: today, mood }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/014_checkin.sql no Neon.');
   };
+  /** Fechar o dia: o humor e a frase viram a página do dia no livro; a outra pessoa recebe um aviso. */
+  const closeDay = async (mood: Mood | null, body: string) => {
+    const ok = await run(() => api.mutate('closeDay', { day: today, mood, body }), 'Não foi possível fechar o dia. Verifique a conexão e tente de novo.');
+    if (!ok) return false;
+    tumtum();
+    markClosed(me.user.id, today);
+    setClosedNow(n => n + 1);
+    if (body && dumDate) setStamp({ text: body.split('\n')[0].slice(0, 120), week: weekOn(dumDate, today), chapter: null, also: partnerName ? `No Dia a dia, para você e ${partnerName}` : 'No Dia a dia' });
+    else showToast({ text: 'Dia fechado. Boa noite 💛', tone: 'success' });
+    return true;
+  };
+  /** Conta (sem conteúdo) o que mostra valor: compartilhar e pedir o livro impresso. Falhar não incomoda ninguém. */
+  const track = (kind: 'cartao_semana' | 'cartao_contagem' | 'livro_impresso') => void api.mutate('track', { kind }).catch(() => undefined);
+  const share = async (card: CardContent, kind: 'cartao_semana' | 'cartao_contagem') => {
+    try {
+      const how = await shareCard(card, kind === 'cartao_semana' ? `tumtum-semana-${currentWeek}` : 'tumtum-contagem');
+      if (how === 'cancelled') return;
+      track(kind);
+      if (how === 'downloaded') showToast({ text: 'Imagem salva. É só postar 💛', tone: 'success' });
+    } catch (err) {
+      console.error(err);
+      showToast({ text: 'Não deu para gerar a imagem agora.', tone: 'error' });
+    }
+  };
   // O tom do bebê aparece na hora; o servidor confirma em seguida.
   // O nome do bebê aparece na hora em todo o app; o servidor confirma em seguida.
   const setBabyName = (name: string | null) => {
@@ -973,6 +1004,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             reactions={data.reactions ?? []}
             onWrite={writeEntry}
             onVisitFeedback={visitFeedback}
+            onShare={share}
+            ritual={data.journalAvailable ? { closed: dayClosed(me.user.id, today, data.journal ?? []), partner: partnerDay(data.checkins ?? [], data.journal ?? [], today), onOpen: () => setRitualOpen(true) } : undefined}
             askVisit={askVisit}
             openQuestions={questions.filter(q => !q.doctor_answer).length}
           />
@@ -1003,6 +1036,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             book={book}
             babyTone={data.babyTone ?? 'tumtum'}
             onOpenNames={() => setNamesOpen(true)}
+            onWantPrinted={() => track('livro_impresso')}
             celebrations={data.celebrations}
             celebrationActions={celebrationActions}
             onOpenCelebration={setCelebrationOpen}
@@ -1328,6 +1362,17 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             setDetail(null);
             openCare('sintomas');
           }}
+        />
+      )}
+      {ritualOpen && (
+        <DayClose
+          role={author}
+          mood={(data.checkins ?? []).find(c => c.mine && c.day === today)?.mood ?? null}
+          partnerName={partnerName}
+          partner={partnerDay(data.checkins ?? [], data.journal ?? [], today)}
+          busy={busy}
+          onSave={closeDay}
+          onClose={() => setRitualOpen(false)}
         />
       )}
       {stamp && (

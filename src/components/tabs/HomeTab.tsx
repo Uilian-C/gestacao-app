@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { Baby, BellRing, BookOpen, Camera, ChevronRight, ClipboardCheck, Flag, Footprints, HandHeart, Heart, Hourglass, ListChecks, NotebookPen, PartyPopper, Pencil, Siren, Sparkles, Stethoscope, X } from 'lucide-react';
+import { Baby, BellRing, BookOpen, Camera, ChevronRight, ClipboardCheck, Flag, Footprints, HandHeart, Heart, Hourglass, ListChecks, Moon, NotebookPen, PartyPopper, Pencil, Share2, Siren, Sparkles, Stethoscope, X } from 'lucide-react';
 import { weekInfo } from '../../content/weeks';
 import { WEEK_CARDS_SOURCE, weekCards } from '../../content/weekCards';
 import { daysBetween, parseLocalDate, parseTimestamp, toISODate, type GestationalAge } from '../../lib/dates';
@@ -43,6 +43,8 @@ import { BabyNameContext } from '../../lib/baby';
 import { bookMonths, freshChapter, type Chapter } from '../../lib/chapters';
 import type { Celebration } from '../../lib/celebrations';
 import type { UpcomingItem } from '../../lib/upcoming';
+import { RITUAL_FROM_HOUR } from '../../lib/ritual';
+import { countdownCard, weekCard, type CardContent } from '../../lib/shareCard';
 
 /** Para onde o Início leva (abas e partes delas). */
 export type HomeTarget = 'diario' | 'mural' | 'livro' | 'humor' | 'barriga' | 'medidas' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
@@ -105,6 +107,10 @@ interface Props {
   start?: 'bebe' | 'missoes' | null;
   /** "Como foi a consulta?" (migração 032): responder; o aviso pode abrir já numa consulta. */
   onVisitFeedback?: (c: Consultation, status: VisitStatus) => void;
+  /** O Tumtum de hoje: a partir das 18h, o convite para fechar o dia (se ainda não fechou). */
+  /** Compartilhar a semana ou a contagem num cartão com a marca. */
+  onShare?: (card: CardContent, kind: 'cartao_semana' | 'cartao_contagem') => void;
+  ritual?: { closed: boolean; partner: { mood: Mood | null; phrase: string | null } | null; onOpen: () => void };
   askVisit?: string | null;
   /** Dúvidas ainda sem resposta (para o "Como foi?"). */
   openQuestions?: number;
@@ -237,6 +243,10 @@ export default function HomeTab(props: Props) {
     ...visits.slice(0, 1).map(c => ({ id: `comofoi-${c.id}`, tone: 'verde' as const, icon: <Stethoscope />, kicker: 'Depois da consulta', title: c.kind === 'ultrassom' ? 'Como foi o ultrassom?' : 'Como foi a consulta?', sub: `${appointmentTitle(c)} · um toque para contar`, onClick: () => setVisitId(c.id) })),
     ...(alerts.length ? [{ id: 'alerta', tone: 'alert' as const, icon: <Siren />, kicker: 'Atenção à saúde', title: alerts[0].title, sub: alerts.length > 1 ? `e mais ${alerts.length - 1} ${alerts.length === 2 ? 'ponto' : 'pontos'} para conversar com a equipe` : alerts[0].detail, onClick: () => setSheet('alerta') }] : []),
     ...up.today.filter(isEvent).map(i => itemRow(i, 'Hoje')),
+    // À noite, o ritual vem logo depois do que é de hoje: é o convite do dia.
+    ...(props.ritual && !props.ritual.closed && now.getHours() >= RITUAL_FROM_HOUR
+      ? [{ id: 'ritual', tone: 'lilas' as const, icon: <Moon />, kicker: 'O Tumtum de hoje', title: props.ritual.partner ? `${props.partnerName ?? 'A outra pessoa'} fechou o dia. E o seu?` : 'Como foi o dia de vocês?', sub: props.ritual.partner?.phrase ? `“${props.ritual.partner.phrase}”` : 'Um minuto: o humor e uma frase, que viram uma página do livro', action: 'Contar', onClick: props.ritual.onOpen }]
+      : []),
     ...(overdue.length > 1 ? [{ id: 'atrasadas', tone: 'alert' as const, icon: <ListChecks />, kicker: 'Tarefas atrasadas', title: `${overdue.length} tarefas passaram do prazo`, sub: overdue.slice(0, 2).map(i => i.title).join(' · '), onClick: () => onOpen('tarefas') }] : overdue.map(i => itemRow(i, 'Hoje'))),
     // Várias tarefas no mesmo dia viram uma linha só (o detalhe fica na Agenda).
     ...(todayTasks.length > 1
@@ -348,6 +358,15 @@ export default function HomeTab(props: Props) {
             </div>
             {selectedWeek !== currentWeek && <LinkButton onClick={() => onSelectWeek(currentWeek)}>Voltar para hoje</LinkButton>}
           </div>
+          {props.onShare && selectedWeek === currentWeek && !wrapped && age.daysToDpp >= 0 && (
+            <button
+              type="button"
+              onClick={() => props.onShare!(weekCard({ week: age.weeks, days: age.days, fruit: info.fruit, stage: stage.title, daysToDpp: age.daysToDpp, babyName }), 'cartao_semana')}
+              className="relative mt-2 inline-flex items-center gap-1.5 rounded-full bg-surface/70 px-3.5 py-1.5 text-[12.5px] font-extrabold text-rosa-strong transition active:scale-95"
+            >
+              <Share2 className="w-3.5 h-3.5" aria-hidden /> Compartilhar a semana
+            </button>
+          )}
           {props.partnerName && partnerToday && <p className="relative mt-1 text-[12.5px] text-ink-mute">{props.partnerName} já passou por aqui hoje 💛</p>}
 
 
@@ -393,6 +412,7 @@ export default function HomeTab(props: Props) {
         {countdown ? (
           <CountdownCard
             countdown={countdown}
+            onShare={props.onShare ? () => props.onShare!(countdownCard({ days: countdown.days, what: countdown.what, why: countdown.why, babyName }), 'cartao_contagem') : undefined}
             onClick={() => (countdown.kind === 'ultrassom' ? props.onOpenDetail({ kind: 'consultation', id: countdown.targetId! }) : countdown.kind === 'celebracao' ? props.onOpenCelebration?.(countdown.targetId!) : openGrowth())}
           />
         ) : (
@@ -533,8 +553,9 @@ export default function HomeTab(props: Props) {
 }
 
 /** A contagem para o próximo marco: o número grande ao lado do quê e do porquê, e a barra enchendo. */
-function CountdownCard({ countdown, onClick }: { countdown: Countdown; onClick: () => void }) {
+function CountdownCard({ countdown, onClick, onShare }: { countdown: Countdown; onClick: () => void; onShare?: () => void }) {
   return (
+    <div className="relative">
     <button type="button" onClick={onClick} aria-label={`${countdownTitle(countdown)}: ${countdown.why}`} className="w-full rounded-[24px] bg-gradient-to-br from-lilas-soft to-rosa-soft px-4 pt-3.5 pb-4 text-left transition active:scale-[0.99]">
       <span className="flex items-center gap-4">
         <span className="shrink-0 text-center font-display text-ink leading-none">
@@ -548,12 +569,18 @@ function CountdownCard({ countdown, onClick }: { countdown: Countdown; onClick: 
           <span className="block font-display text-[1.15rem] leading-snug text-ink">para {countdown.what}</span>
           <span className="block text-[13px] text-ink-soft leading-snug">{countdown.why}</span>
         </span>
-        <ChevronRight className="w-5 h-5 shrink-0 text-lilas-strong" aria-hidden />
+        {onShare ? <span className="w-9 shrink-0" aria-hidden /> : <ChevronRight className="w-5 h-5 shrink-0 text-lilas-strong" aria-hidden />}
       </span>
       <span className="mt-3 block h-1.5 rounded-full bg-surface/70 overflow-hidden" aria-hidden>
         <span className="block h-full rounded-full bg-gradient-to-r from-lilas to-rosa" style={{ width: `${Math.round(countdown.progress * 100)}%` }} />
       </span>
     </button>
+    {onShare && (
+      <button type="button" onClick={onShare} aria-label="Compartilhar a contagem" className="absolute right-3 top-[22px] w-9 h-9 rounded-full bg-surface/70 text-lilas-strong flex items-center justify-center transition active:scale-90">
+        <Share2 className="w-4 h-4" />
+      </button>
+    )}
+    </div>
   );
 }
 

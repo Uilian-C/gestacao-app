@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localDate, planReminders, planTimed, type FamilyRow } from './reminders.js';
+import { localDate, planReminders, planRitual, planTimed, type FamilyRow } from './reminders.js';
 
 const family = (over: Partial<FamilyRow> = {}): FamilyRow => ({ id: 'f1', dum_date: '2026-05-01', blood_type: 'O+', members: ['mae', 'pai'], done: [], ...over });
 
@@ -107,5 +107,20 @@ describe('planTimed', () => {
       ['tarefa:t1:2026-10-20 18:00:00+00', ['pai'], 'Lembrete de tarefa'],
       ['consulta:c1:antes:60', ['mae', 'pai'], 'Consulta em 1 hora, às 15:00'],
     ]);
+  });
+});
+
+describe('planRitual: o Tumtum de hoje, às 21h', () => {
+  const fam = (id: string, members: string[], extra: Partial<FamilyRow> = {}): FamilyRow => ({ id, dum_date: '2026-05-15', blood_type: null, members, done: [], ...extra });
+  it('convida só quem ainda não fechou o dia, uma vez por dia', () => {
+    const [n] = planRitual('2026-11-01', [fam('f1', ['ana', 'caio'])], new Set(['ana']));
+    expect(n.userIds).toEqual(['caio']);
+    expect(n.key).toBe('ritual:2026-11-01');
+    expect(n.payload.url).toBe('/?ritual=1');
+  });
+  it('nada no modo cuidado, sem DUM, ou quando todos já fecharam', () => {
+    expect(planRitual('2026-11-01', [fam('f1', ['ana'], { care: true })], new Set())).toEqual([]);
+    expect(planRitual('2026-11-01', [fam('f1', ['ana'], { dum_date: null })], new Set())).toEqual([]);
+    expect(planRitual('2026-11-01', [fam('f1', ['ana', 'caio'])], new Set(['ana', 'caio']))).toEqual([]);
   });
 });
