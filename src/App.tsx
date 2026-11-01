@@ -942,11 +942,6 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onHideFirstDays={() => saveFirstDays({ ...firstDaysPrefs, hidden: true })}
             onInvite={() => setSpaceOpen(true)}
             onWriteLetter={() => writeEntry('carta')}
-            onOpenCalendar={day => {
-              setCalendarFocus(day);
-              setAgendaView('calendario');
-              navigate('agenda');
-            }}
             babyTone={data.babyTone ?? 'tumtum'}
             onBabyTone={setBabyTone}
             age={age}

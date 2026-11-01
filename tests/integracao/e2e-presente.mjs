@@ -41,7 +41,7 @@ await desde.waitFor({ timeout: 10000 });
 check(/o bebê ganhou cerca de \d+ g/.test(await desde.textContent()) && (await desde.getByText('Caio guardou 1 lembrança').isVisible()), '"Desde a última vez" conta o quanto o bebê cresceu e o que o Caio guardou');
 const presente = mae.getByRole('button', { name: 'A semana 22 chegou: abrir o presente' });
 check((await presente.isVisible()) && (await mae.getByRole('heading', { name: 'Uma semana nova chegou' }).isVisible()), 'a semana nova chega embrulhada no lugar do bebê');
-check((await mae.getByText('Descoberta de hoje').count()) === 0, 'embrulhada, a descoberta espera');
+check((await mae.getByRole('region', { name: 'Descoberta de hoje' }).count()) === 0, 'embrulhada, a descoberta espera');
 await mae.waitForTimeout(400);
 await mae.screenshot({ path: `${OUT}presente-embrulhado.png` });
 
@@ -59,7 +59,7 @@ await mae.getByRole('button', { name: /^Início/ }).first().click();
 check((await mae.getByText('Desde a última vez').count()) === 0, 'depois de vista, a linha some');
 await mae.reload();
 check((await mae.getByRole('button', { name: /abrir o presente/ }).count()) === 0 && (await mae.getByText('Desde a última vez').count()) === 0, 'o presente abre uma vez só por semana');
-await mae.getByText('Descoberta de hoje').scrollIntoViewIfNeeded();
+await mae.getByRole('region', { name: 'Descoberta de hoje' }).scrollIntoViewIfNeeded();
 await mae.screenshot({ path: `${OUT}presente-descoberta.png` });
 
 // ---- Modo escuro ----

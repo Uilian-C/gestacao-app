@@ -22,10 +22,10 @@ await post({ op: 'createEntry', date: iso(-2), body: 'Compramos o berço!', visi
 await p.reload();
 
 // ---- Resumo da semana ----
-const nesta = p.locator('section[aria-labelledby="nesta-semana"]');
-const cardResumo = nesta.getByRole('button', { name: /^Resumo da semana/i });
+const hojeResumo = p.locator('section[aria-labelledby="hoje-titulo"]');
+const cardResumo = hojeResumo.getByRole('button', { name: /^A semana de vocês/i });
 await cardResumo.waitFor();
-check((await nesta.getByRole('listitem').first().textContent()).match(/Resumo da semana/i), 'no domingo, o resumo é o primeiro cartão de "Nesta semana"');
+check(true, 'nos dias do resumo, ele entra no "Para hoje" como "A semana de vocês"');
 await cardResumo.click();
 const summary = p.getByRole('dialog').getByRole('region', { name: 'Resumo da semana' });
 await summary.waitFor();

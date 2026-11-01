@@ -55,10 +55,7 @@ check((await naFase.getAttribute('aria-expanded')) === 'false', 'sem abrir a fas
 await mae.screenshot({ path: `${OUT}jornada-proximo-marco.png` });
 await mae.keyboard.press('Escape');
 check((await topo.getByRole('group', { name: 'Escolher semana' }).count()) === 0, 'sem a fileira de números das semanas');
-await topo.getByRole('button', { name: 'Próxima semana' }).click();
-check(await topo.getByText('Semana 23').isVisible() && (await topo.getByText(/espiando outra semana/).isVisible()) && (await topo.locator('.tt-bebe-eco').count()) === 0, 'as setinhas espiam outra semana (sem pulsar, porque não é hoje)');
-await topo.getByRole('button', { name: 'Voltar para hoje' }).click();
-check(await topo.getByText(/^22 semanas/).isVisible(), 'e voltam para hoje');
+check((await topo.getByRole('button', { name: 'Próxima semana' }).count()) === 0 && (await topo.getByText(/^22 semanas/).isVisible()), 'sem setinhas: o Início é a semana de hoje (as outras ficam na jornada do bebê)');
 await mae.screenshot({ path: `${OUT}inicio-bebe.png` });
 
 await topo.getByRole('button', { name: /abrir a jornada do bebê/ }).click();

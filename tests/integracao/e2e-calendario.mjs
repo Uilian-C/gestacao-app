@@ -16,32 +16,28 @@ await post({ op: 'createSymptom', week: 24, date: day(0), name: 'Azia', intensit
 await post({ op: 'checkin', day: day(0), mood: 'otima' });
 await p.reload();
 
-// ---- Início: a semana em sete bolinhas, que leva ao calendário ----
-const strip = p.getByRole('region', { name: 'Esta semana no calendário' });
-await strip.waitFor();
-check((await strip.getByRole('button', { name: /abrir no calendário$/ }).count()) === 7, 'o Início mostra a semana em sete dias');
-await p.screenshot({ path: `${OUT}calendario-inicio.png` });
-const label2 = await p.evaluate(n => { const d = new Date(Date.now() + n * 86_400_000); return d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }); }, 2);
-const inWeek = await p.evaluate(() => new Date(Date.now() + 2 * 86_400_000).getDay() > new Date().getDay());
-// "Calendário" abre o calendário, sem abrir nenhum dia.
-await strip.getByRole('button', { name: 'Calendário', exact: true }).click();
+// ---- O calendário mora na Agenda (o Início não repete a semana em bolinhas) ----
+check((await p.getByRole('region', { name: 'Esta semana no calendário' }).count()) === 0, 'o Início não tem mais a faixa da semana');
+const label2 = await p.evaluate(n => { const d = new Date(Date.now() + n * 86_400_000); return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }); }, 2);
+await p.getByRole('button', { name: /^Agenda/ }).first().click();
+await p.getByRole('button', { name: /^Calendário/ }).first().click();
 await p.getByRole('group', { name: 'Filtrar o calendário' }).waitFor();
-check((await p.getByRole('dialog').count()) === 0, '"Calendário" abre o calendário, sem abrir um dia');
+check((await p.getByRole('dialog').count()) === 0, 'Agenda → Calendário abre o calendário, sem abrir um dia');
+await p.screenshot({ path: `${OUT}calendario-inicio.png` });
 check(await p.getByRole('button', { name: /^Próximos/ }).isVisible() && (await p.getByRole('button', { name: /^Tarefas/ }).first().isVisible()), 'as abas da Agenda continuam à vista');
 // O menu Agenda volta para "Próximos".
 await p.getByRole('button', { name: /^Início/ }).first().click();
 await p.getByRole('button', { name: /^Agenda/ }).first().click();
 check((await p.getByRole('button', { name: /^Próximos/ }).getAttribute('aria-pressed')) === 'true' || (await p.getByRole('button', { name: /^Próximos/ }).getAttribute('aria-selected')) === 'true' || (await p.getByRole('group', { name: 'Filtrar o calendário' }).count()) === 0, 'o menu Agenda abre em Próximos');
-// Tocar num dia do Início abre a folha daquele dia.
-await p.getByRole('button', { name: /^Início/ }).first().click();
-const alvo = inWeek ? strip.getByRole('button', { name: new RegExp(`^${label2}`) }) : strip.getByRole('button', { name: /, hoje: abrir no calendário$/ });
-await alvo.click();
+// Tocar num dia do calendário abre a folha daquele dia.
+await p.getByRole('button', { name: /^Calendário/ }).first().click();
+await p.getByRole('button', { name: 'Mês', exact: true }).click();
+await p.getByRole('gridcell', { name: new RegExp(`^${label2},`) }).click();
 const folha = p.getByRole('dialog');
 await folha.waitFor();
-check(await p.getByRole('button', { name: 'Calendário', exact: true }).first().isVisible(), 'tocar no dia abre a Agenda → Calendário');
 check(await folha.getByRole('region', { name: 'A gestação neste dia' }).isVisible(), 'a folha do dia mostra como estava a gestação');
 check(await folha.getByText(/dias para o nascimento/).isVisible(), 'e quantos dias faltam para o nascimento');
-if (inWeek) check(await folha.getByRole('button', { name: /Obstetra/ }).isVisible() && (await folha.getByText('Montar o berço').isVisible()), 'com a consulta e a tarefa do dia');
+check(await folha.getByRole('button', { name: /Obstetra/ }).isVisible() && (await folha.getByText('Montar o berço').isVisible()), 'com a consulta e a tarefa do dia');
 await p.screenshot({ path: `${OUT}calendario-folha.png` });
 await folha.getByRole('button', { name: 'Fechar' }).click();
 await folha.waitFor({ state: 'detached' });
