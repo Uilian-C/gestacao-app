@@ -1268,6 +1268,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         <QuickRecord
           modes={recording}
           initial={recordStart && recording.includes(recordStart) ? recordStart : recording[0]}
+          direct={!!recordStart && recording.includes(recordStart)}
           onClose={() => setRecording(null)}
           author={author}
           trimester={age.trimester}

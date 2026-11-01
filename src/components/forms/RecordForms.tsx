@@ -31,13 +31,13 @@ function knownCategories(history: SymptomItem[]) {
 }
 
 /** Registro de sintoma. Com `initial`, abre preenchido para editar (e não limpa ao salvar). */
-export function SymptomForm({ author, dumDate, trimester, history, busy, onCreate, initial }: { author: Author; dumDate: string; trimester: 1 | 2 | 3; history: SymptomItem[]; busy: boolean; onCreate: (s: NewSymptom) => Promise<boolean>; initial?: SymptomItem }) {
+export function SymptomForm({ author, dumDate, trimester, history, busy, onCreate, initial, startName }: { author: Author; dumDate: string; trimester: 1 | 2 | 3; history: SymptomItem[]; busy: boolean; onCreate: (s: NewSymptom) => Promise<boolean>; initial?: SymptomItem; /** O que já foi escrito (no "Registrar"). */ startName?: string }) {
   const [date, setDate] = useState(initial?.log_date.slice(0, 10) ?? toISODate(new Date()));
-  const [name, setName] = useState(initial?.symptom_name ?? '');
-  const [category, setCategory] = useState<string>(initial?.category ?? 'Físico');
+  const [name, setName] = useState(initial?.symptom_name ?? startName ?? '');
+  const [category, setCategory] = useState<string>(initial?.category ?? (startName ? canonSymptom(startName).category : null) ?? 'Físico');
   const [categoryTouched, setCategoryTouched] = useState(!!initial);
   const [intensity, setIntensity] = useState(initial?.intensity ?? 0);
-  const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(() => initial?.time_of_day ?? timeOfDayFromHour(new Date().getHours()));
+  const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(() => initial?.time_of_day ?? (startName ? timeOfDayIn(startName) : null) ?? timeOfDayFromHour(new Date().getHours()));
   const [timeTouched, setTimeTouched] = useState(!!initial);
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [editing, setEditing] = useState<'tipo' | 'quando' | 'obs' | null>(initial?.notes ? 'obs' : null);

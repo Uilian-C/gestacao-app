@@ -305,9 +305,9 @@ function QuickAdd({ busy, assignee: initialWho, onCreate }: { busy: boolean; ass
   );
 }
 
-export function TaskForm({ selectedWeek: _selectedWeek, busy, onCreate, initialDueDate, onCancel, initial }: { selectedWeek: number; busy: boolean; onCreate: (t: NewTask) => Promise<boolean>; initialDueDate?: string; onCancel?: () => void; initial?: PartnerTask }) {
+export function TaskForm({ selectedWeek: _selectedWeek, busy, onCreate, initialDueDate, onCancel, initial, startTitle }: { selectedWeek: number; busy: boolean; onCreate: (t: NewTask) => Promise<boolean>; initialDueDate?: string; onCancel?: () => void; initial?: PartnerTask; /** O que já foi escrito (no "Registrar"). */ startTitle?: string }) {
   void _selectedWeek;
-  const [title, setTitle] = useState(initial?.task_title ?? '');
+  const [title, setTitle] = useState(initial?.task_title ?? startTitle ?? '');
   const [assignee, setAssignee] = useState<Assignee>(initial?.assigned_to ?? 'casal');
   const [priority, setPriority] = useState<Priority>(initial?.priority ?? 'Média');
   const [dueDate, setDueDate] = useState(initial?.due_date?.slice(0, 10) ?? initialDueDate ?? '');

@@ -7,12 +7,34 @@ await quickAccount(p);
 const dlg = p.getByRole('dialog');
 const plus = p.getByRole('button', { name: 'Registrar', exact: true });
 const tab = name => p.getByRole('button', { name: new RegExp(`^${name}`) }).first().click();
-const modes = async () => (await dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button').allTextContents()).join(',');
+// Cada opção diz o tipo no começo do nome ("Sintoma: como estou me sentindo").
+const modes = async () => (await dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button').evaluateAll(bs => bs.map(b => b.getAttribute('aria-label').split(':')[0]))).join(',');
 
 // Início: tudo o que dá para registrar
 await plus.click();
 check((await modes()) === 'Diário,Sintoma,Peso e pressão,Agendar,Tarefa,Resultado', `Início oferece todos os registros, o Diário primeiro (${await modes()})`);
+check((await dlg.getByRole('heading', { name: 'O que vocês querem guardar?' }).count()) === 1, 'o Registrar começa por uma pergunta só: o que vocês querem guardar?');
 await p.screenshot({ path: `${OUT}rapido-inicio.png` });
+
+// Escrevendo do próprio jeito, o Tumtum sugere onde guardar e leva o texto junto.
+await dlg.getByLabel('Conte com suas palavras').fill('estou muito enjoada nesta manhã');
+const sugestao = dlg.getByRole('button', { name: 'Guardar como Sintoma' });
+check((await sugestao.textContent()).includes('Enjoo'), 'a frase vira a sugestão "Guardar como: Como estou me sentindo · Enjoo"');
+await p.screenshot({ path: `${OUT}rapido-sugestao.png` });
+await p.emulateMedia({ colorScheme: 'dark' });
+await p.screenshot({ path: `${OUT}rapido-sugestao-escuro.png` });
+await p.emulateMedia({ colorScheme: 'light' });
+await sugestao.click();
+check((await dlg.getByLabel('O que ela está sentindo?').inputValue()) === 'estou muito enjoada nesta manhã' && (await dlg.getByText('Vai entrar como', { exact: false }).isVisible()), 'o formulário do sintoma abre com a frase, já reconhecida como Enjoo');
+check((await dlg.getByRole('group', { name: 'Tipo de registro' }).count()) === 0, 'no formulário, só ele: nada de grade de tipos em cima');
+await p.screenshot({ path: `${OUT}rapido-sintoma.png` });
+await dlg.getByRole('button', { name: 'Trocar o tipo' }).click();
+check((await dlg.getByRole('group', { name: 'Tipo de registro' }).count()) === 1, '"Trocar o tipo" volta para a pergunta');
+await dlg.getByLabel('Conte com suas palavras').fill('ouvimos o coração pela primeira vez');
+check((await dlg.getByRole('button', { name: 'Guardar como Diário' }).count()) === 1, 'uma lembrança vira sugestão de momento');
+await dlg.getByLabel('Conte com suas palavras').fill('marquei o morfológico dia 12');
+check((await dlg.getByRole('button', { name: 'Guardar como Agendar' }).count()) === 1, 'uma consulta marcada vai para a agenda');
+await dlg.getByLabel('Conte com suas palavras').fill('');
 await dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button', { name: 'Sintoma' }).click();
 await dlg.getByLabel('O que ela está sentindo?').fill('Enjoo');
 await dlg.getByRole('button', { name: '3: Moderado' }).click();
