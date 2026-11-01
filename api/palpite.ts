@@ -63,9 +63,17 @@ const track = (fid: string, kind: 'bolao_visita' | 'bolao_voto' | 'bolao_conhece
 async function bolaoView(f: FamilyRow, voter: string | null) {
   const couple = await coupleOf(f.id);
   const [inside, outside] = await Promise.all([
-    query<{ guess: Sex }>('SELECT guess FROM sex_guesses WHERE family_id = $1', [f.id]),
-    query<{ name: string; guess: Sex; voter: string }>('SELECT name, guess, voter FROM bolao_votes WHERE family_id = $1 ORDER BY created_at DESC', [f.id]),
+    query<{ guess: Sex; name: string; role: string; at: string }>(
+      `SELECT g.guess, split_part(trim(COALESCE(u.name, '')), ' ', 1) AS name, g.author_role AS role, g.created_at::text AS at
+       FROM sex_guesses g LEFT JOIN "user" u ON u.id = g.user_id WHERE g.family_id = $1`,
+      [f.id],
+    ),
+    query<{ name: string; guess: Sex; voter: string; at: string }>('SELECT name, guess, voter, created_at::text AS at FROM bolao_votes WHERE family_id = $1 ORDER BY created_at DESC', [f.id]),
   ]);
+  // Os times: o casal primeiro, depois a família e quem votou pelo link (os mais recentes primeiro).
+  const pair = inside.filter(g => g.role !== 'familia');
+  const team = (s: Sex) => [...pair.filter(g => g.guess === s).map(g => g.name), ...inside.filter(g => g.role === 'familia' && g.guess === s).map(g => g.name), ...outside.filter(v => v.guess === s).map(v => v.name)].filter(Boolean);
+  const latest = [...inside.map(g => ({ name: g.name, guess: g.guess, at: g.at })), ...outside.map(v => ({ name: v.name, guess: v.guess, at: v.at }))].filter(v => v.name).sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
   const all = [...inside, ...outside];
   const revealed = f.sex && !f.secret_by && !f.sealed ? f.sex : null;
   const mine = voter ? outside.find(v => v.voter === voter) : undefined;
@@ -78,6 +86,8 @@ async function bolaoView(f: FamilyRow, voter: string | null) {
     revealed,
     tally: { menina: all.filter(g => g.guess === 'menina').length, menino: all.filter(g => g.guess === 'menino').length },
     recent: outside.slice(0, 12).map(v => ({ name: v.name, guess: v.guess })),
+    teams: { menina: team('menina').slice(0, 30), menino: team('menino').slice(0, 30) },
+    latest,
     mine: mine ? { name: mine.name, guess: mine.guess } : null,
   };
 }

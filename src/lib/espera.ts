@@ -14,14 +14,14 @@ export interface Espera {
   knownAt: string | null;
   secret: boolean;
   secretMine: boolean;
-  guesses: Array<{ user_id: string; author_role: GuessRole; guess: Sex; mine: boolean }>;
+  guesses: Array<{ user_id: string; author_role: GuessRole; guess: Sex; mine: boolean; name?: string; at?: string }>;
   /** O resultado foi guardado por alguém de fora, para o chá revelação (migração 036). */
   sealed?: boolean;
   /** O link do bolão aberto e o do envelope do chá (migração 036). */
   bolaoToken?: string | null;
   envelopeToken?: string | null;
   /** Os palpites de quem votou pelo link. */
-  publicVotes?: Array<{ name: string; guess: Sex }>;
+  publicVotes?: Array<{ name: string; guess: Sex; at?: string }>;
 }
 
 /** Em que ponto da espera o casal está. */
@@ -86,3 +86,49 @@ export const rightCount = (e: Espera) => (e.sex ? rightGuesses(e).length + (e.pu
 /** Os links públicos (o bolão aberto e o envelope do chá). */
 export const bolaoUrl = (token: string) => `${window.location.origin}/?palpite=${token}`;
 export const envelopeUrl = (token: string) => `${window.location.origin}/?envelope=${token}`;
+
+export interface Teams {
+  menina: string[];
+  menino: string[];
+}
+
+/** Os dois times do bolão: o casal primeiro, depois a família e quem votou pelo link. */
+export function teamsOf(e: Espera, me = 'Você'): Teams {
+  const name = (g: Espera['guesses'][number]) => (g.mine ? me : g.name || (g.author_role === 'mae' ? 'Mãe' : g.author_role === 'pai' ? 'Pai' : 'Família'));
+  const team = (s: Sex) => [
+    ...e.guesses.filter(g => g.author_role !== 'familia' && g.guess === s).map(name),
+    ...e.guesses.filter(g => g.author_role === 'familia' && g.guess === s).map(name),
+    ...(e.publicVotes ?? []).filter(v => v.guess === s).map(v => v.name),
+  ];
+  return { menina: team('menina'), menino: team('menino') };
+}
+
+/** O palpite mais recente ("Léo entrou para o Time Menino"). */
+export function latestVote(e: Espera, me = 'Você') {
+  const all = [
+    ...e.guesses.map(g => ({ name: g.mine ? me : g.name || 'Alguém', guess: g.guess, at: g.at ?? '' })),
+    ...(e.publicVotes ?? []).map(v => ({ name: v.name, guess: v.guess, at: v.at ?? '' })),
+  ].filter(v => v.at);
+  return all.sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
+}
+
+/** "agora", "há 5 min", "há 3 h", "ontem", "há 4 dias". */
+export function agoText(at: string, now = Date.now()): string {
+  // O Postgres manda "2026-11-01 11:00:00.12+00": vira ISO para o navegador ler.
+  const t = Date.parse(at.replace(' ', 'T').replace(/([+-]\d\d)$/, '$1:00'));
+  if (Number.isNaN(t)) return '';
+  const min = Math.max(0, Math.round((now - t) / 60_000));
+  if (min < 1) return 'agora';
+  if (min < 60) return `há ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `há ${h} h`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'ontem' : `há ${d} dias`;
+}
+
+/** As porcentagens dos dois times (50/50 sem palpites). */
+export function shares(menina: number, menino: number) {
+  const total = menina + menino;
+  const m = total ? Math.round((menina / total) * 100) : 50;
+  return { menina: m, menino: 100 - m, total };
+}

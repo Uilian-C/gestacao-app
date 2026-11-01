@@ -31,6 +31,8 @@ export interface CardContent {
   bigUnit?: string;
   /** A frase principal. */
   title?: string;
+  /** O placar do bolão: a barra Time Menina × Time Menino, com os números. */
+  bar?: { menina: number; menino: number };
   /** Uma lista grande, um item por linha (os nomes da lista final). */
   list?: string[];
   /** As palavras de quem viveu, entre aspas (o que dá personalidade ao cartão). */
@@ -129,13 +131,37 @@ export function teaserCard(o: { testDate?: string | null; menina: number; menino
 }
 
 /** A revelação: grande, limpa, com a semana e o dia. */
-export function revealCard(o: { sex: 'menina' | 'menino'; week: number; date: string; right?: number }): CardContent {
+export function revealCard(o: { sex: 'menina' | 'menino'; week: number; date: string; right?: number; winners?: string[]; share?: number }): CardContent {
+  const team = o.sex === 'menina' ? 'Time Menina' : 'Time Menino';
+  const names = (o.winners ?? []).slice(0, 4);
+  const more = (o.right ?? 0) - names.length;
   return {
     kicker: 'A revelação',
     name: o.sex === 'menina' ? 'É menina' : 'É menino',
-    sub: `Descobrimos na semana ${o.week} · ${o.date}`,
-    sign: o.right ? `${plural(o.right, 'pessoa acertou', 'pessoas acertaram')} o palpite` : undefined,
+    sub:
+      o.share === undefined || !o.right
+        ? `Descobrimos na semana ${o.week} · ${o.date}`
+        : o.share > 50
+          ? `O ${team} venceu com ${o.share}% · descobrimos na semana ${o.week}`
+          : o.share === 50
+            ? `Empate no bolão, e deu ${team}! · semana ${o.week}`
+            : `Zebra! O ${team} venceu com só ${o.share}% dos palpites · semana ${o.week}`,
+    sign: o.right ? `${plural(o.right, 'pessoa acertou', 'pessoas acertaram')}${names.length ? `: ${names.join(', ')}${more > 0 ? ` e mais ${more}` : ''}` : ''}` : undefined,
     tone: o.sex === 'menina' ? 'rosa' : 'azul',
+  };
+}
+
+/** O placar do bolão, para chamar mais gente: a barra, os times e onde votar. */
+export function placarCard(o: { menina: number; menino: number; teams: { menina: string[]; menino: string[] }; testDate?: string | null; surprise?: boolean }): CardContent {
+  const few = (xs: string[]) => (xs.length > 3 ? `${xs.slice(0, 3).join(', ')} e mais ${xs.length - 3}` : xs.join(', '));
+  const lines = [o.teams.menina.length ? `Menina: ${few(o.teams.menina)}` : '', o.teams.menino.length ? `Menino: ${few(o.teams.menino)}` : ''].filter(Boolean);
+  return {
+    kicker: o.surprise ? 'O bolão · surpresa até o parto' : o.testDate ? `O bolão · a gente descobre em ${o.testDate}` : 'O bolão',
+    name: 'Menino ou menina?',
+    bar: { menina: o.menina, menino: o.menino },
+    sub: lines.join(' · ') || 'Seja o primeiro palpite!',
+    sign: `Vote também: ${SITE}`,
+    tone: 'lilas',
   };
 }
 
@@ -264,6 +290,61 @@ function layoutText(ctx: CanvasRenderingContext2D, c: CardContent, accent: strin
       y += big ? size * 1.15 : 92;
       if (draw) ctx.fillText(line, left - (big ? 6 : 0), y);
     }
+  }
+
+  if (c.bar) {
+    // A barra dos dois times, com os números grandes nas pontas.
+    const total = c.bar.menina + c.bar.menino;
+    const pm = total ? Math.round((c.bar.menina / total) * 100) : 50;
+    y += 120;
+    ctx.font = `800 40px ${SANS}`;
+    if (draw) {
+      ctx.fillStyle = '#d43f6c';
+      ctx.fillText('TIME MENINA', left, y);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#2f78c4';
+      ctx.fillText('TIME MENINO', left + width, y);
+      ctx.textAlign = 'left';
+    }
+    y += 130;
+    ctx.font = `700 120px ${DISPLAY}`;
+    if (draw) {
+      ctx.fillStyle = '#d43f6c';
+      ctx.fillText(String(c.bar.menina), left, y);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#2f78c4';
+      ctx.fillText(String(c.bar.menino), left + width, y);
+      ctx.textAlign = 'left';
+      ctx.font = `700 44px ${SANS}`;
+      ctx.fillStyle = SOFT;
+      ctx.textAlign = 'center';
+      ctx.fillText('×', left + width / 2, y - 30);
+      ctx.textAlign = 'left';
+    }
+    y += 40;
+    if (draw) {
+      const h = 44;
+      const split = Math.max(h, Math.min(width - h, (width * pm) / 100));
+      ctx.save();
+      roundRect(ctx, left, y, width, h, h / 2);
+      ctx.clip();
+      ctx.fillStyle = '#ff7fa0';
+      ctx.fillRect(left, y, split, h);
+      ctx.fillStyle = '#5fb0f5';
+      ctx.fillRect(left + split, y, width - split, h);
+      ctx.fillStyle = 'rgba(255,255,255,.9)';
+      ctx.fillRect(left + split - 3, y, 6, h);
+      ctx.restore();
+      if (total) {
+        ctx.font = `800 34px ${SANS}`;
+        ctx.fillStyle = SOFT;
+        ctx.fillText(`${pm}%`, left, y + h + 50);
+        ctx.textAlign = 'right';
+        ctx.fillText(`${100 - pm}%`, left + width, y + h + 50);
+        ctx.textAlign = 'left';
+      }
+    }
+    y += 44 + (total ? 60 : 10);
   }
 
   if (c.list?.length) {
@@ -428,9 +509,9 @@ export async function drawCard(c: CardContent, format: CardFormat = 'story'): Pr
 }
 
 /** Compartilha pelo celular (Instagram, WhatsApp…) ou, sem essa opção, baixa a imagem. */
-export async function shareImage(blob: Blob, fileName: string, download = false): Promise<'shared' | 'downloaded' | 'cancelled'> {
+export async function shareImage(blob: Blob, fileName: string, download = false, text = `Nosso Tumtum · ${SITE}`): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const file = new File([blob], `${fileName}.png`, { type: 'image/png' });
-  const data = { files: [file], text: `Nosso Tumtum · ${SITE}` };
+  const data = { files: [file], text };
   if (!download && navigator.canShare?.(data)) {
     try {
       await navigator.share(data);

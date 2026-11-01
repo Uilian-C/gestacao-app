@@ -4,7 +4,7 @@
 import { BASE, check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
 
 const b = await launch();
-const mae = await phone(b);
+const mae = await phone(b, { acceptDownloads: true });
 await quickAccount(mae, { name: 'Ana' });
 const post = (page, path, body) => page.evaluate(async ([path, body]) => (await (await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json()), [path, body]);
 const code = (await post(mae, '/api/family', { op: 'invite' })).code;
@@ -24,11 +24,16 @@ const capture = page => page.addInitScript(() => {
 await capture(mae);
 await mae.goto(`${BASE}/?espera=1`);
 const folha = mae.getByRole('dialog', { name: 'A espera' });
-await folha.getByRole('button', { name: 'Abrir o bolão para a família e os amigos' }).click();
+await folha.getByRole('button', { name: 'Chamar mais gente' }).click();
+const folhaShare = mae.getByRole('dialog', { name: 'Compartilhar' });
+await folhaShare.getByRole('img', { name: 'Prévia do cartão para compartilhar' }).waitFor();
+await mae.waitForTimeout(400);
+await mae.screenshot({ path: `${OUT}bolao-chamar.png` });
+await folhaShare.getByRole('button', { name: 'Mandar só o link' }).click();
 await mae.waitForFunction(() => window.__shared.length > 0);
 const texto = await mae.evaluate(() => window.__shared[0]);
 const link = texto.match(/https?:\/\/\S+\/\?palpite=[\w-]+/)?.[0];
-check(!!link && texto.startsWith('Menino ou menina?'), 'o casal abre o bolão e o link sai pelo compartilhar do celular');
+check(!!link && texto.startsWith('Menino ou menina? 💌 Entra no bolão de Ana e Caio'), '"Chamar mais gente" mostra o placar e manda o link do bolão');
 
 // ---- Quem não tem o app vota ----
 for (const scheme of ['light', 'dark']) {
@@ -39,16 +44,26 @@ for (const scheme of ['light', 'dark']) {
   await visita.screenshot({ path: `${OUT}bolao-pagina-${scheme}.png`, fullPage: true });
   await visita.getByLabel('Seu nome').fill(scheme === 'light' ? 'Tia Bia' : 'Léo');
   await visita.getByRole('button', { name: scheme === 'light' ? 'Menina' : 'Menino', exact: true }).click();
-  await visita.getByText(`Seu palpite: ${scheme === 'light' ? 'menina' : 'menino'}`).waitFor();
+  await visita.getByText(`Você é do Time ${scheme === 'light' ? 'Menina' : 'Menino'}!`).waitFor();
+  await visita.waitForTimeout(800);
   check(true, `${scheme}: votou sem conta`);
   await visita.screenshot({ path: `${OUT}bolao-votou-${scheme}.png`, fullPage: true });
   if (scheme === 'light') globalThis.bia = visita;
 }
 await mae.reload();
 await mae.goto(`${BASE}/?espera=1`);
-await folha.getByRole('list', { name: 'Palpites pelo link' }).getByText('Tia Bia: menina').waitFor();
-check(true, 'o casal vê na folha quem votou pelo link');
+await folha.getByRole('list', { name: 'Time Menina' }).getByText('Tia Bia').waitFor();
+check(await folha.getByRole('list', { name: 'Time Menino' }).getByText('Léo').isVisible(), 'o casal vê os dois times, com quem votou pelo link');
+check(await folha.getByText(/Léo entrou para o Time Menino/).isVisible(), 'e quem entrou por último');
+await mae.waitForTimeout(800);
 await mae.screenshot({ path: `${OUT}bolao-folha.png` });
+// O cartão do placar, com os times.
+await folha.getByRole('button', { name: 'Chamar mais gente' }).click();
+await folhaShare.getByRole('img', { name: 'Prévia do cartão para compartilhar' }).waitFor();
+const dPlacar = mae.waitForEvent('download');
+await folhaShare.getByRole('button', { name: 'Salvar' }).click();
+await (await dPlacar).saveAs(`${OUT}cartao-placar.png`);
+await folhaShare.waitFor({ state: 'hidden' });
 
 // ---- O envelope do chá ----
 await folha.getByRole('button', { name: /Já descobriram\?/ }).click();

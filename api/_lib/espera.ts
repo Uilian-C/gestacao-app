@@ -19,14 +19,14 @@ export interface Espera {
   secret: boolean;
   /** Fui eu que guardei a surpresa (eu já sei). */
   secretMine: boolean;
-  guesses: Array<{ user_id: string; author_role: 'mae' | 'pai' | 'familia'; guess: Sex; mine: boolean }>;
+  guesses: Array<{ user_id: string; author_role: 'mae' | 'pai' | 'familia'; guess: Sex; mine: boolean; name: string; at: string }>;
   /** O resultado foi guardado por alguém de fora (o envelope do chá, migração 036). */
   sealed?: boolean;
   /** O link do bolão aberto e o do envelope do chá, quando já existem (migração 036). */
   bolaoToken?: string | null;
   envelopeToken?: string | null;
   /** Os palpites de quem votou pelo link (nome e palpite). */
-  publicVotes?: Array<{ name: string; guess: Sex }>;
+  publicVotes?: Array<{ name: string; guess: Sex; at: string }>;
 }
 
 export const ESPERA_MISSING = 'A espera (menino ou menina) ainda não está ligada no servidor. Rode a migração db/migrations/035_a_espera.sql no Neon.';
@@ -46,10 +46,11 @@ export async function fetchEspera(fid: string, userId: string): Promise<Espera |
       [fid],
     );
     const guesses = await query<Espera['guesses'][number]>(
-      `SELECT user_id, author_role, guess, user_id = $2 AS mine FROM sex_guesses WHERE family_id = $1 ORDER BY created_at`,
+      `SELECT g.user_id, g.author_role, g.guess, g.user_id = $2 AS mine, split_part(trim(COALESCE(u.name, '')), ' ', 1) AS name, g.created_at::text AS at
+       FROM sex_guesses g LEFT JOIN "user" u ON u.id = g.user_id WHERE g.family_id = $1 ORDER BY g.created_at`,
       [fid, userId],
     );
-    const publicVotes = await query<{ name: string; guess: Sex }>('SELECT name, guess FROM bolao_votes WHERE family_id = $1 ORDER BY created_at', [fid]).catch(() => [] as Array<{ name: string; guess: Sex }>);
+    const publicVotes = await query<{ name: string; guess: Sex; at: string }>('SELECT name, guess, created_at::text AS at FROM bolao_votes WHERE family_id = $1 ORDER BY created_at', [fid]).catch(() => [] as Array<{ name: string; guess: Sex; at: string }>);
     if (!f) return null;
     const sealed = !!f.sealed && !!f.sex;
     const secret = (!!f.secret_by && !!f.sex) || sealed;

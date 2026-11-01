@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Check, Heart, Loader2, Lock, Share2, Sparkles } from 'lucide-react';
+import { Heart, Loader2, Lock, Share2, Sparkles } from 'lucide-react';
 import BrandMark from '../BrandMark';
+import Placar, { PlacarBar } from '../espera/Placar';
 import { tumtum } from '../../lib/feel';
 
 // As páginas abertas da espera: o bolão (quem recebe o link no WhatsApp vota,
@@ -18,6 +19,8 @@ interface BolaoView {
   tally: { menina: number; menino: number };
   recent: Array<{ name: string; guess: Sex }>;
   mine: { name: string; guess: Sex } | null;
+  teams?: { menina: string[]; menino: string[] };
+  latest?: { name: string; guess: Sex; at: string } | null;
 }
 
 const TONE: Record<Sex, { soft: string; strong: string; bg: string; bar: string }> = {
@@ -103,7 +106,7 @@ export function BolaoPage({ token }: { token: string }) {
     }
   };
   const share = async () => {
-    const text = `Menino ou menina? Dá seu palpite no bolão de ${view.couple} 💌`;
+    const text = view.mine ? `Eu sou do Time ${LABEL[view.mine.guess]} no bolão de ${view.couple} 💌 E você? Escolhe o seu time:` : `Menino ou menina? Dá seu palpite no bolão de ${view.couple} 💌`;
     try {
       if (navigator.share) return await navigator.share({ text, url: window.location.href });
       await navigator.clipboard.writeText(`${text} ${window.location.href}`);
@@ -111,8 +114,6 @@ export function BolaoPage({ token }: { token: string }) {
       /* cancelou: tudo bem */
     }
   };
-  const total = view.tally.menina + view.tally.menino;
-  const pct = total ? Math.round((view.tally.menina / total) * 100) : 50;
   const r = view.revealed;
   const voted = view.mine && !changing;
 
@@ -134,37 +135,21 @@ export function BolaoPage({ token }: { token: string }) {
         )}
       </section>
 
-      {/* O placar. */}
-      <section aria-label="O placar" className="rounded-[24px] bg-surface/85 px-5 py-4 shadow-soft space-y-2.5">
-        <div className="flex justify-between text-[13.5px] font-extrabold">
-          <span className="text-rosa-strong">Menina · {view.tally.menina}</span>
-          <span className="text-azul-strong">{view.tally.menino} · Menino</span>
-        </div>
-        <div className="flex h-3 overflow-hidden rounded-full bg-surface-2" role="img" aria-label={`${view.tally.menina} palpites menina e ${view.tally.menino} palpites menino`}>
-          <span className="block h-full bg-rosa transition-all duration-700" style={{ width: `${pct}%` }} />
-          <span className="block h-full bg-azul transition-all duration-700" style={{ width: `${100 - pct}%` }} />
-        </div>
-        {view.recent.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5 pt-1" aria-label="Últimos palpites">
-            {view.recent.map((v, i) => (
-              <li key={`${v.name}-${i}`} className={`rounded-full px-2.5 py-0.5 text-[12px] font-bold ${TONE[v.guess].soft} ${TONE[v.guess].strong}`}>
-                {v.name}
-              </li>
-            ))}
-          </ul>
-        )}
+      {/* O placar: o mesmo do app, Time Menina × Time Menino. */}
+      <section aria-label="O placar" className="rounded-[24px] bg-surface/85 px-5 py-4 shadow-soft">
+        {view.teams ? <Placar teams={view.teams} latest={view.latest} highlight={view.mine?.name ?? null} /> : <PlacarBar menina={view.tally.menina} menino={view.tally.menino} />}
       </section>
 
       {!r &&
         (voted ? (
           <section className={`rounded-[24px] px-5 py-4 text-center ${TONE[view.mine!.guess].soft}`} role="status">
-            <p className="flex items-center justify-center gap-1.5 font-display text-[1.25rem] text-ink">
-              <Check className="w-5 h-5" /> Seu palpite: {view.mine!.guess}
+            <p className="font-display text-[1.45rem] text-ink">
+              Você é do <span className={TONE[view.mine!.guess].strong}>Time {LABEL[view.mine!.guess]}</span>!
             </p>
             <p className="text-[13.5px] text-ink-soft">Quando eles descobrirem, é só abrir este link de novo para ver se você acertou.</p>
             <div className="mt-3 flex justify-center gap-2">
-              <button type="button" onClick={share} className="inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-[13.5px] font-extrabold text-ink shadow-soft">
-                <Share2 className="w-4 h-4" /> Chamar mais gente
+              <button type="button" onClick={share} className={`inline-flex items-center gap-1.5 rounded-full ${TONE[view.mine!.guess].bg} px-4 py-2 text-[13.5px] font-extrabold text-white shadow-soft`}>
+                <Share2 className="w-4 h-4" /> Chamar gente para o seu time
               </button>
               <button type="button" onClick={() => setChanging(true)} className="rounded-full px-3 py-2 text-[13px] font-bold text-ink-soft">
                 Mudar
