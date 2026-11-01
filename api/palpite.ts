@@ -107,7 +107,7 @@ export const GET = endpoint(async request => {
 });
 
 const ops = z.discriminatedUnion('op', [
-  z.object({ op: z.literal('vote'), t: z.string(), name: z.string().trim().min(1).max(40), guess: z.enum(['menina', 'menino']) }),
+  z.object({ op: z.literal('vote'), t: z.string(), name: z.string().trim().min(2).max(40), guess: z.enum(['menina', 'menino']) }),
   z.object({ op: z.literal('seal'), envelope: z.string(), sex: z.enum(['menina', 'menino']) }),
   z.object({ op: z.literal('conhecer'), t: z.string() }),
 ]);

@@ -42,9 +42,17 @@ for (const scheme of ['light', 'dark']) {
   await visita.getByRole('heading', { name: 'Menino ou menina?' }).waitFor();
   check(await visita.getByText(/^Ana e Caio · semana \d+$/).isVisible(), `${scheme}: a página aberta mostra o casal e a semana, sem login`);
   await visita.screenshot({ path: `${OUT}bolao-pagina-${scheme}.png`, fullPage: true });
+  if (scheme === 'light') {
+    // Sem o nome, o voto não sai: o campo treme e avisa, e nada entra no placar.
+    await visita.getByRole('button', { name: 'Time Menina', exact: true }).click();
+    await visita.getByText('Escreva seu nome primeiro, para o casal saber que o palpite é seu.').waitFor();
+    check((await visita.getByRole('status', { name: 'Palpite registrado' }).count()) === 0, 'sem o nome, o voto não sai e o campo avisa');
+    await visita.screenshot({ path: `${OUT}bolao-sem-nome.png`, fullPage: true });
+  }
   await visita.getByLabel('Seu nome').fill(scheme === 'light' ? 'Tia Bia' : 'Léo');
-  await visita.getByRole('button', { name: scheme === 'light' ? 'Menina' : 'Menino', exact: true }).click();
-  await visita.getByText(`Você é do Time ${scheme === 'light' ? 'Menina' : 'Menino'}!`).waitFor();
+  await visita.getByRole('button', { name: scheme === 'light' ? 'Time Menina' : 'Time Menino', exact: true }).click();
+  await visita.getByRole('status', { name: 'Palpite registrado' }).waitFor();
+  check(await visita.getByText(`${scheme === 'light' ? 'Tia Bia' : 'Léo'}, você é do`).isVisible(), `${scheme}: o registro mostra o selo "Palpite registrado" com o nome`);
   await visita.waitForTimeout(800);
   check(true, `${scheme}: votou sem conta`);
   await visita.screenshot({ path: `${OUT}bolao-votou-${scheme}.png`, fullPage: true });

@@ -28,6 +28,7 @@ check(v.couple === 'Ana e Caio' && v.tally.menina === 1 && v.revealed === null, 
 check(!JSON.stringify(v).includes('Souza') && !JSON.stringify(v).includes('@'), 'a página não mostra sobrenome nem e-mail');
 check((await estranho.call('/api/palpite?t=naoexiste123')).status === 404, 'link errado não abre nada');
 
+check((await bia.call('/api/palpite', { op: 'vote', t: token, name: ' ', guess: 'menina' })).status === 400, 'sem nome, o voto não entra');
 v = (await bia.call('/api/palpite', { op: 'vote', t: token, name: 'Tia Bia', guess: 'menina' })).data;
 check(v.mine?.guess === 'menina' && v.tally.menina === 2, 'Bia vota sem conta: menina');
 v = (await bia.call('/api/palpite', { op: 'vote', t: token, name: 'Tia Bia', guess: 'menino' })).data;
