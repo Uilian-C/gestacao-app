@@ -7,11 +7,14 @@ import NameSpace, { NameReveal, type NameActions } from './components/BabyNames'
 import { CelebrationSpace, type CelebrationActions } from './components/Celebrations';
 import type { Celebration, CelebrationItem } from './lib/celebrations';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
-import type { Folder, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
+import type { Folder, JournalEntry, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
 import { takeRitualFromUrl, takeTabFromUrl, takeViewFromUrl, takeVisitFromUrl, takeVoiceFromUrl } from './lib/pwa';
 import { dayClosed, markClosed, partnerDay } from './lib/ritual';
-import { shareCard, type CardContent } from './lib/shareCard';
+import { nameCard, type CardContent, type ShareKind } from './lib/shareCard';
+import { entryShare } from './lib/shareEntry';
+import ShareSheet, { type ShareRequest } from './components/ShareSheet';
+import { authorOf, firstName } from './lib/people';
 import DayClose from './components/home/DayClose';
 import { uploadVideo } from './lib/videos';
 import { api, ApiError, photoUrl, type CoupleFamilyState, type FamilyState, type Me } from './api';
@@ -178,6 +181,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [askVisit] = useState(takeVisitFromUrl);
   // O Tumtum de hoje: o aviso das 21h abre direto em fechar o dia.
   const [ritualOpen, setRitualOpen] = useState(takeRitualFromUrl);
+  /** Compartilhar: a prévia do cartão aberta (stories ou post). */
+  const [shareReq, setShareReq] = useState<ShareRequest | null>(null);
   // Fechar o dia grava no aparelho; a troca de estado só refaz a tela.
   const [, setClosedNow] = useState(0);
   // O Início aberto numa janela (a Jornada do bebê ou os Primeiros 7 dias): a chave remonta o Início.
@@ -740,17 +745,27 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     return true;
   };
   /** Conta (sem conteúdo) o que mostra valor: compartilhar e pedir o livro impresso. Falhar não incomoda ninguém. */
-  const track = (kind: 'cartao_semana' | 'cartao_contagem' | 'livro_impresso') => void api.mutate('track', { kind }).catch(() => undefined);
-  const share = async (card: CardContent, kind: 'cartao_semana' | 'cartao_contagem') => {
-    try {
-      const how = await shareCard(card, kind === 'cartao_semana' ? `tumtum-semana-${currentWeek}` : 'tumtum-contagem');
-      if (how === 'cancelled') return;
-      track(kind);
-      if (how === 'downloaded') showToast({ text: 'Imagem salva. É só postar 💛', tone: 'success' });
-    } catch (err) {
-      console.error(err);
-      showToast({ text: 'Não deu para gerar a imagem agora.', tone: 'error' });
-    }
+  const track = (kind: ShareKind | 'livro_impresso') => void api.mutate('track', { kind }).catch(() => undefined);
+  const share = (card: CardContent, kind: ShareKind) => setShareReq({ card, kind, fileName: kind === 'cartao_semana' ? `tumtum-semana-${currentWeek}` : kind === 'cartao_contagem' ? 'tumtum-contagem' : `tumtum-${kind.replace('cartao_', '')}` });
+  const shareEntry = (e: JournalEntry) => {
+    if (!dumDate) return;
+    const firstBelly = [...bellyShots(journal, dumDate)].sort((a, b) => a.week - b.week)[0];
+    const who = authorOf(family.members, e.mine, e.author_role);
+    setShareReq(
+      entryShare(e, {
+        author: (who && firstName(who.name)) || (e.author_role === 'pai' ? 'Pai' : 'Mãe'),
+        week: weekOn(dumDate, e.entry_date),
+        date: parseLocalDate(e.entry_date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }).replace('.', ''),
+        photo: p => photoUrl(p.id, !!p.video && p.thumb),
+        firstBelly: firstBelly ? { week: firstBelly.week, photo: photoUrl(firstBelly.photo.id) } : null,
+        babyName: data.babyName ?? null,
+      }),
+    );
+  };
+  const shareName = () => {
+    if (!data.babyName || !dumDate) return;
+    const at = data.babyNameAt ? parseTimestamp(data.babyNameAt) : null;
+    share(nameCard({ name: data.babyName, date: at ? at.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }) : null, week: at ? weekOn(dumDate, toISODate(at)) : currentWeek }), 'cartao_nome');
   };
   // O tom do bebê aparece na hora; o servidor confirma em seguida.
   // O nome do bebê aparece na hora em todo o app; o servidor confirma em seguida.
@@ -1268,7 +1283,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {celebrationOpen && data.celebrations?.some(c => c.id === celebrationOpen) && (
         <CelebrationSpace celebration={data.celebrations.find(c => c.id === celebrationOpen)!} actions={celebrationActions} onClose={() => setCelebrationOpen(null)} />
       )}
-      {namesOpen && <NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} />}
+      {namesOpen && <NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} onShare={shareName} />}
       {reveal && (
         <NameReveal
           name={reveal}
@@ -1349,9 +1364,21 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onThread={sendThread}
           onDeleteThread={deleteThread}
           onVoice={setVoice}
+          onShareEntry={shareEntry}
         />
       )}
 
+      {shareReq && (
+        <ShareSheet
+          request={shareReq}
+          onClose={() => setShareReq(null)}
+          onDone={(kind, how) => {
+            track(kind);
+            setShareReq(null);
+            if (how === 'downloaded') showToast({ text: 'Imagem salva. É só postar 💛', tone: 'success' });
+          }}
+        />
+      )}
       <Toast toast={toast} onClose={() => setToast(null)} />
       {echo && (
         <SymptomEchoCard

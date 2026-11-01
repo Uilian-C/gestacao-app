@@ -65,10 +65,13 @@ await mae.goto(BASE);
 await mae.evaluate(() => {
   navigator.canShare = () => false;
 });
-const baixou = mae.waitForEvent('download');
 await mae.getByRole('button', { name: 'Compartilhar a semana' }).click();
+const folha = mae.getByRole('dialog', { name: 'Compartilhar' });
+await folha.getByRole('img', { name: 'Prévia do cartão para compartilhar' }).waitFor();
+const baixou = mae.waitForEvent('download');
+await folha.getByRole('button', { name: 'Compartilhar', exact: true }).click();
 const arquivo = await baixou;
-check(/^tumtum-semana-22\.png$/.test(arquivo.suggestedFilename()), 'sem compartilhar do sistema, a imagem da semana é baixada');
+check(/^tumtum-semana-22-stories\.png$/.test(arquivo.suggestedFilename()), 'sem compartilhar do sistema, a imagem da semana (stories) é baixada');
 await arquivo.saveAs(`${OUT}valor-cartao-semana.png`);
 await mae.getByText('Imagem salva. É só postar').waitFor();
 for (let i = 0; i < 20 && (await events('cartao_semana')) === before.semana; i++) await mae.waitForTimeout(200);

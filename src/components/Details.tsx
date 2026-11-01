@@ -1,6 +1,6 @@
 import { useContext, useState } from 'react';
 import { appointmentTitle, hasResult, kindInfo, kindOf, resultOf } from '../lib/appointments';
-import { AlertTriangle, Bell, CalendarHeart, Check, CheckCircle2, ChevronRight, Clock, ExternalLink, FileText, HeartHandshake, Lock, NotebookPen, Pencil, RotateCcw, Route, Scale, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarHeart, Check, CheckCircle2, ChevronRight, Clock, ExternalLink, FileText, HeartHandshake, Lock, NotebookPen, Pencil, RotateCcw, Route, Scale, Share2, Trash2, Users } from 'lucide-react';
 import { isAlertSymptom } from '../content/symptomCatalog';
 import { googleCalendarUrl } from '../lib/calendar';
 import { formatBR, isOverdue, localDay, parseLocalDate, parseTimestamp, stampText, toISODate } from '../lib/dates';
@@ -8,6 +8,7 @@ import { HIGH_DIASTOLIC, HIGH_SYSTOLIC, isHighBloodPressure } from '../lib/healt
 import { INTENSITY } from '../lib/intensity';
 import { normalizeSymptomName, timeOfDayLabel } from '../lib/symptoms';
 import { symptomShown } from '../lib/symptomCanon';
+import { canShareEntry } from '../lib/shareEntry';
 import type { Detail } from '../lib/details';
 import type { Author, Consultation, PartnerComment, PartnerTask, SymptomItem } from '../types';
 import { photoUrl, type FamilyMember } from '../api';
@@ -32,7 +33,7 @@ import { TaskForm, type NewTask } from './tabs/TasksTab';
 import { Button, Pill } from './ui';
 import { ReactionBar, Thread, type OnReact } from './Social';
 import AppointmentIcon from './AppointmentIcon';
-import type { ExamItem, Reaction, ThreadComment } from '../hooks/useGestationData';
+import type { ExamItem, JournalEntry, Reaction, ThreadComment } from '../hooks/useGestationData';
 
 // Detalhes de um registro numa janela: tudo o que foi anotado, e Editar e Excluir.
 // As listas ficam enxutas; o resto aparece aqui.
@@ -69,6 +70,8 @@ export interface DetailHandlers {
   onDeleteThread: (c: ThreadComment) => void;
   /** A segunda voz num registro do diário (migração 030); sem ela, o convite não aparece. */
   onVoice?: (entryId: string, body: string) => Promise<boolean>;
+  /** Compartilhar a lembrança num cartão (stories, status, feed). */
+  onShareEntry?: (e: JournalEntry) => void;
   /** Agendamento ligado a um item da jornada: abre o item na jornada (Cuidados). */
   onOpenJourney: (itemId: string) => void;
   /** Nome do item da jornada (inclui os itens do casal). */
@@ -228,6 +231,11 @@ export default function DetailSheet({ detail, onClose, ...h }: DetailHandlers & 
                 </p>
                 {letter && <p className="font-display italic text-ink-soft text-right mt-3">— {e.author_role === 'mae' ? 'mãe' : 'pai'}</p>}
               </div>
+            )}
+            {h.onShareEntry && canShareEntry(e) && (
+              <button type="button" onClick={() => h.onShareEntry!(e)} className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-4 py-2 text-[13.5px] font-extrabold text-brand-strong transition active:scale-95">
+                <Share2 className="w-4 h-4" aria-hidden /> Compartilhar {e.folder === 'barriga' ? 'a barriguinha' : e.folder === 'carta' ? 'um trecho' : e.first_time ? 'esta primeira vez' : 'esta lembrança'}
+              </button>
             )}
             {h.onVoice && (e.folder === 'momento' || e.folder === 'dia' || e.folder === 'carta') && <SecondVoice key={e.id} entry={e} onSave={body => h.onVoice!(e.id, body)} />}
             <div className="flex flex-wrap gap-2 mt-4">

@@ -1,32 +1,57 @@
-// Cartões para compartilhar (Instagram, WhatsApp, status): a semana do bebê e
-// a contagem para um marco, num retrato 1080x1350 com a marca do Tumtum
-// embaixo. É assim que a marca viaja: no momento bonito que o casal quer
-// mostrar, não num título no topo do app. Nada sai sem o toque da pessoa.
+// Cartões para compartilhar (stories do Instagram, status do WhatsApp, feed):
+// a semana do bebê, a contagem para um marco, uma lembrança com a frase de
+// quem viveu, uma primeira vez, a barriga crescendo, um trecho de carta e o
+// nome escolhido. Cada um sai com a voz do casal e a marca do Tumtum embaixo.
+// É assim que a marca viaja: no momento bonito que o casal quer mostrar. Nada
+// sai sem o toque da pessoa, e a imagem só leva o que aparece nela.
 
-export interface CardContent {
-  /** A linha pequena de cima ("SEMANA 24"). */
-  kicker: string;
-  /** O número grande, quando há ("12"). */
-  big?: string;
-  /** Embaixo do número ("dias"). */
-  bigUnit?: string;
-  /** A frase principal. */
-  title: string;
-  sub?: string;
-  /** O nome do bebê, quando já escolhido. */
-  name?: string | null;
-  tone: 'rosa' | 'lilas';
+export type ShareKind = 'cartao_semana' | 'cartao_contagem' | 'cartao_momento' | 'cartao_primeira_vez' | 'cartao_barriga' | 'cartao_carta' | 'cartao_nome';
+export const SHARE_KINDS: ShareKind[] = ['cartao_semana', 'cartao_contagem', 'cartao_momento', 'cartao_primeira_vez', 'cartao_barriga', 'cartao_carta', 'cartao_nome'];
+
+/** Stories e status (9:16) ou post no feed (4:5). */
+export type CardFormat = 'story' | 'post';
+export const CARD_SIZE: Record<CardFormat, { w: number; h: number }> = { story: { w: 1080, h: 1920 }, post: { w: 1080, h: 1350 } };
+
+export interface CardPhoto {
+  url: string;
+  /** Um selo na foto ("Semana 12"). */
+  label?: string;
 }
 
-export const CARD_W = 1080;
-export const CARD_H = 1350;
+export interface CardContent {
+  /** A linha pequena de cima ("SEMANA 24", "PRIMEIRA VEZ"). */
+  kicker: string;
+  /** Fotos no alto (uma, ou duas lado a lado para o "antes e agora"). */
+  photos?: CardPhoto[];
+  /** O nome do bebê, quando já escolhido. */
+  name?: string | null;
+  /** O número grande, quando há ("12"). */
+  big?: string;
+  /** Ao lado do número ("dias"). */
+  bigUnit?: string;
+  /** A frase principal. */
+  title?: string;
+  /** As palavras de quem viveu, entre aspas (o que dá personalidade ao cartão). */
+  quote?: string;
+  sub?: string;
+  /** Quem e quando ("Ana · semana 22"). */
+  sign?: string;
+  tone: 'rosa' | 'lilas' | 'azul';
+}
+
 export const SITE = 'meutumtum.com.br';
+
+const clip = (s: string, n: number) => {
+  const t = s.replace(/\s+/g, ' ').trim();
+  return t.length <= n ? t : `${t.slice(0, n - 1).replace(/[\s,.;:!?]+\S*$/, '')}…`;
+};
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export function weekCard(o: { week: number; days: number; fruit: string; stage: string; daysToDpp: number; babyName: string | null }): CardContent {
   return {
-    kicker: o.days ? `${o.week} semanas e ${o.days} ${o.days === 1 ? 'dia' : 'dias'}` : `${o.week} semanas`,
+    kicker: o.days ? `${o.week} semanas e ${plural(o.days, 'dia', 'dias')}` : `${o.week} semanas`,
     title: `Do tamanho de ${o.fruit}`,
-    sub: o.daysToDpp > 0 ? `${o.stage} · faltam ${o.daysToDpp} ${o.daysToDpp === 1 ? 'dia' : 'dias'}` : o.stage,
+    sub: o.daysToDpp > 0 ? `${o.stage} · faltam ${plural(o.daysToDpp, 'dia', 'dias')}` : o.stage,
     name: o.babyName,
     tone: 'rosa',
   };
@@ -40,6 +65,51 @@ export function countdownCard(o: { days: number; what: string; why: string; baby
     title: `para ${o.what}`,
     sub: o.why,
     name: o.babyName,
+    tone: 'lilas',
+  };
+}
+
+/** Uma lembrança (momento, dia a dia, primeira vez): a foto, se houver, e a frase de quem escreveu. */
+export function memoryCard(o: { body: string; author: string; week: number; date: string; photo?: string | null; firstTime?: string | null; babyName: string | null }): CardContent {
+  return {
+    kicker: o.firstTime ? 'Primeira vez' : `Semana ${o.week}`,
+    photos: o.photo ? [{ url: o.photo }] : undefined,
+    title: o.firstTime ?? undefined,
+    quote: o.body.trim() ? clip(o.body, o.photo ? 150 : 220) : undefined,
+    sign: o.firstTime ? `${o.author} · semana ${o.week} · ${o.date}` : `${o.author} · ${o.date}`,
+    name: o.firstTime ? null : o.babyName,
+    tone: o.firstTime ? 'lilas' : 'rosa',
+  };
+}
+
+/** A barriga desta semana, ao lado da primeira foto (quando há), para ver o quanto cresceu. */
+export function bellyCard(o: { week: number; photo: string; first?: { week: number; photo: string } | null; caption?: string; babyName: string | null }): CardContent {
+  const before = o.first && o.first.week < o.week ? o.first : null;
+  return {
+    kicker: 'A barriguinha',
+    photos: before ? [{ url: before.photo, label: `Semana ${before.week}` }, { url: o.photo, label: `Semana ${o.week}` }] : [{ url: o.photo, label: `Semana ${o.week}` }],
+    title: before ? `${plural(o.week - before.week, 'semana', 'semanas')} crescendo` : `Semana ${o.week}`,
+    quote: o.caption?.trim() ? clip(o.caption, 120) : undefined,
+    name: o.babyName,
+    tone: 'rosa',
+  };
+}
+
+/** Um trecho de carta para o bebê, assinado ("— mãe"). */
+export function letterCard(o: { body: string; role: 'mae' | 'pai'; babyName: string | null; week: number }): CardContent {
+  return {
+    kicker: o.babyName ? `Para ${o.babyName}` : 'Carta para o bebê',
+    quote: clip(o.body, 260),
+    sign: `— ${o.role === 'mae' ? 'mãe' : 'pai'}, na semana ${o.week}`,
+    tone: o.role === 'pai' ? 'azul' : 'rosa',
+  };
+}
+
+export function nameCard(o: { name: string; date?: string | null; week: number }): CardContent {
+  return {
+    kicker: 'Escolhemos o nome',
+    name: o.name,
+    sub: o.date ? `Escolhido em ${o.date} · semana ${o.week}` : `Na semana ${o.week}`,
     tone: 'lilas',
   };
 }
@@ -69,6 +139,7 @@ export function wrapLines(measure: (s: string) => number, text: string, width: n
 const TONES = {
   rosa: { from: '#ffe3ea', to: '#efe4ff', accent: '#d43f6c' },
   lilas: { from: '#efe4ff', to: '#ffe3ea', accent: '#7a52c7' },
+  azul: { from: '#dfeeff', to: '#efe4ff', accent: '#2f78c4' },
 };
 const INK = '#3a2a33';
 const SOFT = '#6f5a66';
@@ -95,86 +166,182 @@ async function loadMarks(): Promise<{ icon: HTMLImageElement | null; heart: HTML
   return { icon, heart };
 }
 
-/** Desenha o cartão e devolve a imagem PNG. */
-export async function drawCard(c: CardContent): Promise<Blob> {
-  await document.fonts?.ready.catch(() => undefined);
-  const canvas = document.createElement('canvas');
-  canvas.width = CARD_W;
-  canvas.height = CARD_H;
-  const ctx = canvas.getContext('2d')!;
-  const t = TONES[c.tone];
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
 
-  // O fundo: um degradê suave com dois halos, como o Início.
-  const bg = ctx.createLinearGradient(0, 0, CARD_W, CARD_H);
-  bg.addColorStop(0, t.from);
-  bg.addColorStop(1, t.to);
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, CARD_W, CARD_H);
-  for (const [x, y, r, a] of [
-    [CARD_W * 0.82, CARD_H * 0.16, 420, 0.55],
-    [CARD_W * 0.12, CARD_H * 0.78, 380, 0.45],
-  ] as const) {
-    const halo = ctx.createRadialGradient(x, y, 0, x, y, r);
-    halo.addColorStop(0, `rgba(255,255,255,${a})`);
-    halo.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = halo;
-    ctx.fillRect(0, 0, CARD_W, CARD_H);
-  }
+/** A foto cobrindo a moldura (corta as sobras, como object-fit: cover), com os cantos arredondados. */
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
+  const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+  const sw = w / scale;
+  const sh = h / scale;
+  ctx.save();
+  roundRect(ctx, x, y, w, h, 44);
+  ctx.clip();
+  ctx.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, x, y, w, h);
+  ctx.restore();
+}
 
-  const left = 110;
-  const width = CARD_W - left * 2;
-  let y = 250;
-  ctx.textBaseline = 'alphabetic';
-  ctx.textAlign = 'left';
-
-  ctx.fillStyle = t.accent;
+/**
+ * O texto do cartão (de cima para baixo), a partir de `y`. Com `draw` falso só
+ * mede: devolve onde o texto termina, para a foto ocupar o resto.
+ */
+function layoutText(ctx: CanvasRenderingContext2D, c: CardContent, accent: string, left: number, width: number, story: boolean, photoCount: number, y: number, draw: boolean): number {
+  ctx.fillStyle = accent;
   ctx.font = `800 40px ${SANS}`;
-  ctx.fillText(c.kicker.toUpperCase(), left, y);
-  y += 40;
+  if (draw) ctx.fillText(c.kicker.toUpperCase(), left, y);
 
   if (c.name) {
-    y += 70;
-    ctx.font = `700 76px ${DISPLAY}`;
-    ctx.fillText(c.name, left, y);
+    const big = !c.title && !c.quote && !c.big && !photoCount;
+    ctx.font = big ? `700 ${story ? 200 : 170}px ${DISPLAY}` : `700 76px ${DISPLAY}`;
+    const lines = wrapLines(s => ctx.measureText(s).width, c.name, width, 2);
+    for (const line of lines) {
+      y += big ? (story ? 230 : 195) : 92;
+      if (draw) ctx.fillText(line, left - (big ? 6 : 0), y);
+    }
   }
 
   if (c.big) {
-    y += 260;
+    y += 280;
     ctx.fillStyle = INK;
     ctx.font = `700 280px ${DISPLAY}`;
-    ctx.fillText(c.big, left - 10, y);
+    if (draw) ctx.fillText(c.big, left - 10, y);
     const bw = ctx.measureText(c.big).width;
     ctx.fillStyle = SOFT;
     ctx.font = `600 64px ${DISPLAY}`;
-    ctx.fillText(c.bigUnit ?? '', left + bw + 20, y);
+    if (draw) ctx.fillText(c.bigUnit ?? '', left + bw + 20, y);
   }
 
-  ctx.fillStyle = INK;
-  ctx.font = `700 96px ${DISPLAY}`;
-  y += c.big ? 140 : 150;
-  for (const line of wrapLines(s => ctx.measureText(s).width, c.title, width, 3)) {
-    ctx.fillText(line, left, y);
-    y += 112;
+  if (c.title) {
+    ctx.fillStyle = INK;
+    const size = c.quote || photoCount ? 76 : 96;
+    ctx.font = `700 ${size}px ${DISPLAY}`;
+    y += c.big ? 130 : size + 50;
+    for (const line of wrapLines(s => ctx.measureText(s).width, c.title, width, 3)) {
+      if (draw) ctx.fillText(line, left, y);
+      y += size * 1.17;
+    }
+    y -= size * 1.17;
+  }
+
+  if (c.quote) {
+    // As aspas grandes, na cor do cartão, e a frase de quem viveu.
+    const long = c.quote.length > 120;
+    const size = photoCount ? (long ? 50 : 58) : long ? 62 : 76;
+    y += c.title || c.name ? 90 : 70;
+    ctx.fillStyle = accent;
+    if (draw) ctx.globalAlpha = 0.35;
+    ctx.font = `700 200px ${DISPLAY}`;
+    if (draw) ctx.fillText('“', left - 14, y + 90);
+    ctx.globalAlpha = 1;
+    y += size + 40;
+    ctx.fillStyle = INK;
+    ctx.font = `600 ${size}px ${DISPLAY}`;
+    const max = story ? (photoCount ? 5 : 9) : photoCount ? 3 : 6;
+    for (const line of wrapLines(s => ctx.measureText(s).width, c.quote, width, max)) {
+      if (draw) ctx.fillText(line, left, y);
+      y += size * 1.3;
+    }
+    y -= size * 1.3;
   }
 
   if (c.sub) {
     ctx.fillStyle = SOFT;
     ctx.font = `600 46px ${SANS}`;
-    y += 10;
+    y += 80;
     for (const line of wrapLines(s => ctx.measureText(s).width, c.sub, width, 3)) {
-      ctx.fillText(line, left, y);
+      if (draw) ctx.fillText(line, left, y);
       y += 62;
     }
+    y -= 62;
   }
 
+  if (c.sign) {
+    ctx.fillStyle = SOFT;
+    ctx.font = `700 42px ${SANS}`;
+    y += 80;
+    if (draw) ctx.fillText(wrapLines(s => ctx.measureText(s).width, c.sign, width, 1)[0], left, y);
+  }
+
+  return y;
+}
+
+/** Desenha o cartão e devolve a imagem PNG. */
+export async function drawCard(c: CardContent, format: CardFormat = 'story'): Promise<Blob> {
+  await document.fonts?.ready.catch(() => undefined);
+  const { w: W, h: H } = CARD_SIZE[format];
+  const story = format === 'story';
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  const t = TONES[c.tone];
+
+  // O fundo: um degradê suave com dois halos, como o Início.
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, t.from);
+  bg.addColorStop(1, t.to);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+  for (const [x, y, r, a] of [
+    [W * 0.82, H * 0.14, 460, 0.55],
+    [W * 0.12, H * 0.8, 420, 0.45],
+  ] as const) {
+    const halo = ctx.createRadialGradient(x, y, 0, x, y, r);
+    halo.addColorStop(0, `rgba(255,255,255,${a})`);
+    halo.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  const left = 100;
+  const width = W - left * 2;
+  // Nos stories, o alto e o pé ficam livres para os botões do Instagram e do WhatsApp.
+  let y = story ? 250 : 170;
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+
+  const foot = H - (story ? 230 : 130);
+  const photos = (await Promise.all((c.photos ?? []).map(async p => ({ ...p, img: await loadImage(p.url) })))).filter(p => p.img);
+  // A foto ocupa o que o texto deixa: primeiro mede o texto, depois desenha tudo.
+  const textEnd = layoutText(ctx, c, t.accent, left, width, story, photos.length, 0, false);
+  const fullPhoto = photos.length === 2 ? (story ? 760 : 520) : c.quote || c.title ? (story ? 820 : 560) : story ? 1000 : 700;
+  const ph = photos.length ? Math.max(story ? 420 : 300, Math.min(fullPhoto, foot - 150 - y - 90 - textEnd)) : 0;
+  if (photos.length) {
+    const gap = 24;
+    const pw = (width - gap * (photos.length - 1)) / photos.length;
+    photos.forEach((p, i) => {
+      const x = left + i * (pw + gap);
+      drawCover(ctx, p.img!, x, y, pw, ph);
+      if (p.label) {
+        ctx.font = `800 34px ${SANS}`;
+        const lw = ctx.measureText(p.label).width + 44;
+        ctx.fillStyle = 'rgba(255,255,255,0.88)';
+        roundRect(ctx, x + 22, y + ph - 82, lw, 60, 30);
+        ctx.fill();
+        ctx.fillStyle = t.accent;
+        ctx.fillText(p.label, x + 44, y + ph - 40);
+      }
+    });
+    y += ph + 90;
+  } else {
+    y += 60;
+  }
+  y = layoutText(ctx, c, t.accent, left, width, story, photos.length, y, true);
+
   // O coração da marca, grande e suave, no espaço que sobra.
-  const foot = CARD_H - 130;
   const { icon, heart } = await loadMarks();
-  const room = foot - 120 - y;
+  const room = foot - 140 - y;
   if (heart && room > 240) {
     const size = Math.min(room, 460);
     ctx.globalAlpha = 0.9;
-    ctx.drawImage(heart, (CARD_W - size) / 2, y + (room - size) / 2, size, size);
+    ctx.drawImage(heart, (W - size) / 2, y + 40 + (room - size) / 2, size, size);
     ctx.globalAlpha = 1;
   }
   // A assinatura: o símbolo, "tumtum" e o endereço, sempre no mesmo lugar.
@@ -185,17 +352,16 @@ export async function drawCard(c: CardContent): Promise<Blob> {
   ctx.fillStyle = SOFT;
   ctx.font = `600 34px ${SANS}`;
   ctx.textAlign = 'right';
-  ctx.fillText(SITE, CARD_W - left, foot);
+  ctx.fillText(SITE, W - left, foot);
 
   return new Promise((resolve, reject) => canvas.toBlob(b => (b ? resolve(b) : reject(new Error('Não deu para gerar a imagem.'))), 'image/png'));
 }
 
 /** Compartilha pelo celular (Instagram, WhatsApp…) ou, sem essa opção, baixa a imagem. */
-export async function shareCard(c: CardContent, fileName: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
-  const blob = await drawCard(c);
+export async function shareImage(blob: Blob, fileName: string, download = false): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const file = new File([blob], `${fileName}.png`, { type: 'image/png' });
   const data = { files: [file], text: `Nosso Tumtum · ${SITE}` };
-  if (navigator.canShare?.(data)) {
+  if (!download && navigator.canShare?.(data)) {
     try {
       await navigator.share(data);
       return 'shared';
