@@ -158,8 +158,10 @@ export function placarCard(o: { options: Sex[]; counts: Partial<Record<Sex, numb
   const few = (xs: string[]) => (xs.length > 3 ? `${xs.slice(0, 3).join(', ')} e mais ${xs.length - 3}` : xs.join(', '));
   const lines = o.options.filter(x => (o.teams[x] ?? []).length).map(x => `${OPTION[x].label}: ${few(o.teams[x]!)}`);
   const twins = o.options.length === 3;
+  const total = o.options.reduce((n, x) => n + (o.counts[x] ?? 0), 0);
   return {
-    kicker: twins ? 'O bolão dos gêmeos' : 'O bolão',
+    // O total no título pequeno: o placar ao vivo ("O bolão · 12 palpites").
+    kicker: `${twins ? 'O bolão dos gêmeos' : 'O bolão'}${total ? ` · ${total} ${total === 1 ? 'palpite' : 'palpites'}` : ''}`,
     name: twins ? 'Meninas, meninos ou um casal?' : 'Menino ou menina?',
     bar: { options: o.options, counts: o.counts },
     sub: [o.surprise ? 'Vai ser surpresa até o parto.' : o.testDate ? `A gente descobre em ${o.testDate}.` : '', lines.join(' · ') || 'Seja o primeiro palpite!'].filter(Boolean).join(' '),
