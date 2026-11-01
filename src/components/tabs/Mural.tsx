@@ -4,7 +4,7 @@ import { ChevronRight, Heart, Lock, MessageCircle, PenLine, Send, Users } from '
 import { photoUrl, type FamilyMember, type Relative, type SpaceRole } from '../../api';
 import type { Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { daysBetween, hhmmOf, parseLocalDate, parseTimestamp, stampText, toISODate } from '../../lib/dates';
-import { FOLDER, FOLDERS, TONE, shortDate, weekOn } from '../../lib/folders';
+import { FOLDER, TONE, shortDate, weekOn } from '../../lib/folders';
 import { mentionsMe } from '../../lib/mentions';
 import { FreshEntryContext, PeopleContext, RelativesContext, authorOf, firstName, speakerOf } from '../../lib/people';
 import { useMention } from '../../lib/useMention';
@@ -62,23 +62,6 @@ export default function Mural(props: Props) {
   return (
     // Uma coluna de leitura: no tablet e no computador o post não estica até a borda.
     <div className="space-y-4 max-w-[560px] mx-auto">
-      {onWrite && (
-        <div className="rounded-[26px] bg-surface/80 p-3 space-y-2.5">
-          <button type="button" disabled={!props.journalAvailable} onClick={() => onWrite()} className="w-full flex items-center gap-3 text-left disabled:opacity-60">
-            <Avatar member={me} role={props.role} className="w-10 h-10 text-base" />
-            <span className="flex-1 min-w-0 rounded-full bg-surface-2 px-4 py-2.5 text-[15px] text-ink-mute truncate">O que vocês querem guardar hoje?</span>
-          </button>
-          {/* Um toque e o formulário já abre na pasta certa. */}
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar pl-[3.25rem]" role="group" aria-label="Guardar direto numa pasta">
-            {FOLDERS.map(f => (
-              <button key={f.id} type="button" disabled={!props.journalAvailable} onClick={() => onWrite(f.id)} className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12.5px] font-bold ${TONE[f.tone].soft} ${TONE[f.tone].text} disabled:opacity-60`}>
-                <f.Icon className="w-3.5 h-3.5" /> {f.singular}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
 
       {props.entries.length === 0 ? (
         <div className="rounded-[26px] bg-surface/80 p-6 text-center space-y-1">
@@ -86,6 +69,7 @@ export default function Mural(props: Props) {
             <>
               <p className="font-display text-[1.25rem] text-ink">O mural de vocês começa aqui</p>
               <p className="text-sm text-ink-soft">Uma foto da barriga, uma notícia, uma carta para o bebê: tudo aparece aqui, com abraço e conversa.</p>
+              <p className="text-sm text-ink-soft">Toquem em <strong>Registrar</strong>, no meio do menu, para guardar o primeiro.</p>
             </>
           ) : (
             <>

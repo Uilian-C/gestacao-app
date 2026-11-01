@@ -1,7 +1,7 @@
 // Agendamentos no celular: ultrassom marcado vai para a Agenda; depois da data,
 // "Guardar resultado" abre o formulário preenchido; resultados avulsos também
 // entram no calendário.
-import { check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
+import { check, finish, launch, OUT, phone, quickAccount, openRecord } from './lib.mjs';
 
 const b = await launch();
 const p = await phone(b);
@@ -19,7 +19,7 @@ await p.evaluate(date => fetch('/api/exames', { method: 'POST', headers: { 'cont
 await tab('Agenda');
 await p.getByRole('button', { name: /^Próximos/ }).waitFor();
 check((await p.getByRole('button', { name: /^Próximos/ }).getAttribute('aria-pressed')) === 'true', 'Agenda abre em Próximos, onde se agenda');
-await p.getByRole('button', { name: 'Agendar', exact: true }).first().click();
+await openRecord(p, 'Agendar');
 await p.getByRole('group', { name: 'Tipo de agendamento' }).getByRole('button', { name: 'Ultrassom' }).click();
 await p.getByRole('button', { name: 'Morfológico 2º tri' }).click();
 check((await p.getByLabel('Qual ultrassom?').inputValue()) === 'Ultrassom morfológico do 2º trimestre', 'sugestão da jornada preenche o nome');

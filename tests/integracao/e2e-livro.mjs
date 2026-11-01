@@ -27,9 +27,9 @@ await mae.evaluate(
 );
 await mae.reload();
 
-// Enquanto não escolheram o nome, ele entra no "Para hoje" do Início.
-await mae.locator('section[aria-labelledby="hoje-titulo"]').getByRole('button', { name: /Qual vai ser o nome\?/ }).waitFor({ timeout: 10000 });
-check(true, 'no Início, "Qual vai ser o nome?" aparece no "Para hoje"');
+// O nome tem o lugar dele (o Livro e o caderno de nomes): não pesa no "Para hoje" do Início.
+await mae.locator('section[aria-labelledby="hoje-titulo"]').waitFor({ timeout: 10000 });
+check((await mae.locator('section[aria-labelledby="hoje-titulo"]').getByRole('button', { name: /Qual vai ser o nome\?/ }).count()) === 0, 'o "Qual vai ser o nome?" não entra no "Para hoje"');
 await mae.screenshot({ path: `${OUT}nomes-inicio.png` });
 
 await mae.getByRole('button', { name: /^Diário/ }).first().click();

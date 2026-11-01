@@ -68,7 +68,7 @@ await mae.reload();
 await hoje.waitFor();
 check((await hoje.getByText(/Dra\. Amanhã|Amanhã ·/).count()) === 0, 'a consulta de amanhã não entra no "Para hoje"');
 check((await hoje.getByText('Vacina dTpa').count()) === 0 && (await hoje.getByText('Montar o berço').count()) === 0, 'o que é de outro dia fica na Agenda');
-check((await hoje.getByRole('listitem').count()) === 3 && (await hoje.getByRole('button', { name: /^e mais \d+ ite/ }).isVisible()), 'três linhas e "e mais" leva à agenda');
+check((await hoje.getByRole('listitem').count()) <= 3 && (await hoje.getByText(/jornada para conferir|Qual vai ser o nome/).count()) === 0, 'no máximo três linhas, só do que é de hoje (jornada e nome têm o lugar deles)');
 check((await hoje.getByRole('listitem').nth(0).textContent()).includes('Ultrassom'), 'o compromisso vem antes da tarefa atrasada');
 await hoje.getByRole('button', { name: /Marcar a fisioterapia/ }).click();
 check(await mae.getByRole('dialog').getByText('Marcar a fisioterapia').first().isVisible(), 'tocar na linha abre os detalhes');

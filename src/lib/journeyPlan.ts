@@ -230,7 +230,7 @@ export function statusText(row: JourneyRow, dumDate: string): string {
       return `Agendado: ${day}, ${at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
     }
     case 'atrasado':
-      return `Passou da janela, que ia até ${ddmm(end)}`;
+      return `Para conversar na consulta (a janela ia até ${ddmm(end)})`;
     case 'agora':
       return item.anytime ? 'Quando puderem' : `Fazer até ${ddmm(end)}`;
     default:

@@ -35,12 +35,10 @@ export default function Header({ firstName, members, greeting, onOpenSpace, onHe
             <div className="w-11 h-11 rounded-full bg-surface shadow-soft flex items-center justify-center shrink-0">
               <BrandMark animated className="w-8 h-8" />
             </div>
-            <div className="min-w-0">
-              <p className="text-sm text-ink-mute truncate">
-                {greeting}, {firstName}
-              </p>
-              <h1 className="text-[1.45rem] text-ink leading-tight whitespace-nowrap">Tumtum</h1>
-            </div>
+            {/* O título do Início é a saudação: o nome do app já está no coração ao lado. */}
+            <h1 className="min-w-0 text-[clamp(1.15rem,5vw,1.45rem)] text-ink leading-tight line-clamp-2 break-words">
+              {greeting}, {firstName}
+            </h1>
           </div>
         )}
 

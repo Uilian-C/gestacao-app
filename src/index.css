@@ -180,6 +180,12 @@
   --c-brand-strong: var(--c-coral-strong);
   --c-brand-soft: var(--c-coral-soft);
 }
+/* O que não é de uma aba (o espaço do casal) fica na cor da marca, aberto de onde for. */
+.tt-marca {
+  --c-brand: var(--c-rosa);
+  --c-brand-strong: var(--c-rosa-strong);
+  --c-brand-soft: var(--c-rosa-soft);
+}
 
 @theme inline {
   /* Nunito: arredondada e calorosa no texto. Quicksand: títulos leves e acolhedores. */

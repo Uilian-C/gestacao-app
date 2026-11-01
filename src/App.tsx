@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CloudRain, Plus, Sprout } from 'lucide-react';
+import { CloudRain, Sprout } from 'lucide-react';
 import BrandMark from './components/BrandMark';
 import QuickRecord, { type QuickMode } from './components/QuickRecord';
 import DetailSheet from './components/Details';
@@ -665,7 +665,6 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   // Jornada: o planejado (com as semanas ajustadas e os itens do casal) × o realizado.
   const journeyItems = plannedItems(planFor(data.profile.bloodType, hiddenSteps), data.planWeeks ?? [], listItems.filter(i => i.list === 'prenatal'));
   const journey = journeyRows(journeyItems, { week: currentWeek, dumDate, now, checks: data.checks, consultations: visible('consultation', data.consultations), exams: data.exams ?? [], autoDone: autoSteps });
-  const lateSteps = journey.filter(r => r.status === 'atrasado').map(r => r.item);
   const exams = visible('exam', data.exams ?? []).map(e => ({ ...e, files: e.files.filter(f => !pendingDeletes.has(`examFile:${f.id}`)) }));
   const overdueTasks = tasks.filter(t => !t.is_completed && isOverdue(t.due_date)).length;
   const questions = visible('question', data.questions);
@@ -825,7 +824,18 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     openCare('exames');
     setExamPreset(planItem ?? null);
   };
-  const recordModes = report || (activeTab === 'diario' && diaryView === 'celebracoes') ? [] : activeTab === 'cuidados' ? CARE_MODES[careView] : RECORD_MODES[activeTab];
+  // Onde a aba não tem tipos próprios (Parto, a jornada, as celebrações), o Registrar oferece todos, como no Início.
+  const tabModes = report || (activeTab === 'diario' && diaryView === 'celebracoes') ? [] : activeTab === 'cuidados' ? CARE_MODES[careView] : RECORD_MODES[activeTab];
+  const recordModes = tabModes.length ? tabModes : RECORD_MODES.inicio;
+  /** O Registrar, no centro do menu: a pergunta do que guardar, com os tipos desta aba. */
+  const startRecord = () => {
+    if (activeTab === 'diario' && tabModes.length) return writeEntry(diaryView === 'tudo' || diaryView === 'mural' || diaryView === 'livro' || diaryView === 'celebracoes' || diaryView === 'humor' ? undefined : diaryView);
+    setEntryStart({});
+    // No Início, o Registrar segue o momento: voltando de uma consulta hoje, abre em "Resultado".
+    const backFromVisit = activeTab === 'inicio' && consultations.some(c => { const at = parseTimestamp(c.scheduled_at); return toISODate(at) === toISODate(new Date()) && at.getTime() < Date.now(); });
+    setRecordStart(backFromVisit ? 'exame' : null);
+    setRecording(recordModes);
+  };
   // O registro aberto nos detalhes, com os dados atuais (some se foi apagado).
   const openDetail = resolveDetail(detail, {
     symptoms,
@@ -875,6 +885,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     <div className="min-h-screen bg-canvas text-ink pb-32 md:pb-12">
       {header}
       <Nav
+        onRecord={startRecord}
         active={activeTab}
         onChange={tab => {
           // O menu Agenda sempre começa em "Próximos"; o calendário se abre pelo atalho do Início ou pela aba dele.
@@ -965,7 +976,6 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onOpenCelebration={setCelebrationOpen}
             onOpenDetail={setDetail}
             onResult={openResult}
-            lateSteps={lateSteps}
             bellyAvailable={!!data.journalAvailable && (data.photosAvailable ?? false)}
             onBellyPhoto={() => writeEntry('barriga')}
             symptoms={symptoms}
@@ -1230,23 +1240,6 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         </Suspense>
       </main>
 
-      {recordModes.length > 0 && (
-        <button
-          type="button"
-          onClick={() => {
-            if (activeTab === 'diario') return writeEntry(diaryView === 'tudo' || diaryView === 'mural' || diaryView === 'livro' || diaryView === 'celebracoes' || diaryView === 'humor' ? undefined : diaryView);
-            setEntryStart({});
-            // No Início, o Registrar segue o momento: voltando de uma consulta hoje, abre em "Resultado".
-            const backFromVisit = activeTab === 'inicio' && consultations.some(c => { const at = parseTimestamp(c.scheduled_at); return toISODate(at) === toISODate(new Date()) && at.getTime() < Date.now(); });
-            setRecordStart(backFromVisit ? 'exame' : null);
-            setRecording(recordModes);
-          }}
-          className="tt-registrar no-print fixed z-40 right-4 md:right-8 bottom-[calc(env(safe-area-inset-bottom,0px)+84px)] md:bottom-8 h-11 pl-3 pr-4 rounded-full text-white text-[14px] font-extrabold flex items-center gap-1.5 transition active:scale-95 hover:brightness-110"
-        >
-          <Plus className="w-[18px] h-[18px]" strokeWidth={3} />
-          Registrar
-        </button>
-      )}
       {celebrationOpen && data.celebrations?.some(c => c.id === celebrationOpen) && (
         <CelebrationSpace celebration={data.celebrations.find(c => c.id === celebrationOpen)!} actions={celebrationActions} onClose={() => setCelebrationOpen(null)} />
       )}

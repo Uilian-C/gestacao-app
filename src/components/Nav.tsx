@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import NavIcon from './NavIcons';
 import type { Tab } from '../types';
 
@@ -10,10 +11,14 @@ const TABS: Array<{ id: Tab }> = [{ id: 'inicio' }, { id: 'diario' }, { id: 'age
  * A aba ativa ganha a cor dela (ver data-aba no index.css), ícone cheio e nome em negrito.
  * Quando há carinho novo (o outro postou ou comentou), o ícone dá a batida do
  * Tumtum de vez em quando, com um pontinho rosa, no lugar de um número.
+ * O "Registrar" mora no centro do menu (no computador, no fim da fileira): nada
+ * flutua por cima do conteúdo.
  */
-export default function Nav({ active, onChange, badges, pulse = {}, hidden = [] }: { active: Tab; onChange: (tab: Tab) => void; badges: Partial<Record<Tab, number>>; pulse?: Partial<Record<Tab, boolean>>; hidden?: Tab[] }) {
+export default function Nav({ active, onChange, onRecord, badges, pulse = {}, hidden = [] }: { active: Tab; onChange: (tab: Tab) => void; onRecord?: () => void; badges: Partial<Record<Tab, number>>; pulse?: Partial<Record<Tab, boolean>>; hidden?: Tab[] }) {
   // No modo cuidado o Parto sai do menu.
   const tabs = TABS.filter(t => !hidden.includes(t.id));
+  // No celular, o Registrar fica no meio, depois de Início e Diário.
+  const mobile: Array<{ id: Tab } | null> = onRecord ? [...tabs.slice(0, 2), null, ...tabs.slice(2)] : tabs;
   return (
     <>
       <nav className="no-print hidden md:block sticky top-0 z-30 bg-canvas/85 backdrop-blur-md" aria-label="Seções">
@@ -36,6 +41,11 @@ export default function Nav({ active, onChange, badges, pulse = {}, hidden = [] 
               </button>
             );
           })}
+          {onRecord && (
+            <button type="button" onClick={onRecord} className="tt-registrar relative ml-auto flex items-center gap-1.5 h-9 pl-3 pr-4 rounded-full text-white text-sm font-extrabold transition active:scale-95 hover:brightness-110">
+              <Plus className="w-4 h-4" strokeWidth={3} /> Registrar
+            </button>
+          )}
         </div>
       </nav>
 
@@ -44,8 +54,17 @@ export default function Nav({ active, onChange, badges, pulse = {}, hidden = [] 
         style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
         aria-label="Seções"
       >
-        <div className={`grid px-1 py-1.5 ${tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
-          {tabs.map(t => {
+        <div className={`grid px-1 py-1.5 ${['grid-cols-4', 'grid-cols-5', 'grid-cols-6'][mobile.length - 4]}`}>
+          {mobile.map(t => {
+            if (!t)
+              return (
+                <button key="registrar" type="button" onClick={onRecord} aria-label="Registrar" className="relative flex flex-col items-center justify-end gap-1 py-1.5 text-[11px] font-extrabold text-brand-strong">
+                  <span className="tt-registrar relative -mt-6 w-[52px] h-[52px] rounded-full text-white flex items-center justify-center ring-4 ring-surface transition active:scale-95">
+                    <Plus className="w-6 h-6" strokeWidth={3} />
+                  </span>
+                  Registrar
+                </button>
+              );
             const on = active === t.id;
             return (
               <button

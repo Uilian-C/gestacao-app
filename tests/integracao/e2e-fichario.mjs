@@ -30,13 +30,14 @@ const photo = Buffer.from(
 );
 
 await p.getByRole('button', { name: /^Diário/ }).first().click();
-check(await p.getByRole('button', { name: /O que vocês querem guardar hoje/ }).isVisible(), 'Diário abre no Mural');
+check(await p.getByText('O mural de vocês começa aqui').isVisible(), 'Diário abre no Mural');
+check((await p.getByText('O que vocês querem guardar hoje?').count()) === 0, 'o Mural não tem uma caixa de escrever à parte: a porta é o Registrar');
 
-// ---- Pelo Mural, a pasta acompanha o texto (nada vem marcado antes) ----
-await p.getByRole('button', { name: /O que vocês querem guardar hoje/ }).click();
+// ---- Pelo Registrar no Mural, a pasta acompanha o texto (nada vem marcado antes) ----
+await p.getByRole('button', { name: 'Registrar', exact: true }).click();
 const novo = p.getByRole('dialog');
 const pastas = novo.getByRole('radiogroup', { name: 'Pasta' });
-check((await pastas.locator('[aria-checked="true"]').count()) === 0, 'pelo Mural, nenhuma pasta vem marcada antes de escrever');
+check((await pastas.locator('[aria-checked="true"]').count()) === 0, 'pelo Registrar no Mural, nenhuma pasta vem marcada antes de escrever');
 const campo = novo.getByLabel('O que aconteceu?');
 await campo.fill('Hoje me senti cansada, mas feliz');
 check((await pastas.getByRole('radio', { name: /Dia a dia/ }).getAttribute('aria-checked')) === 'true' && (await novo.getByRole('button', { name: 'Guardar no dia a dia' }).isVisible()), 'um dia comum vai para o Dia a dia');
@@ -109,11 +110,13 @@ await folders.getByRole('button', { name: /^Fichário/ }).click();
 check((await p.getByRole('button', { name: 'Abrir a pasta Barriguinha' }).textContent()).includes('1 registro'), 'capa mostra a pasta Barriguinha com 1 registro');
 check((await p.getByRole('button', { name: /Últimos registros/ }).count()) === 0, 'sem "últimos registros" repetindo o Mural');
 
-// ---- Mural: atalhos de pasta e marcadores de semana ----
+// ---- Mural: marcadores de semana; de dentro de uma pasta, o Registrar já abre nela ----
 await folders.getByRole('button', { name: /^Mural/ }).click();
 check(await p.getByText(/^Semana 22/).first().isVisible(), 'o Mural separa por semana da gestação');
-await p.getByRole('group', { name: 'Guardar direto numa pasta' }).getByRole('button', { name: /Carta/ }).click();
-check((await dlg.getByRole('radio', { name: /Cartas/ }).getAttribute('aria-checked')) === 'true', 'um toque no atalho abre o formulário já na pasta');
+await folders.getByRole('button', { name: /^Fichário/ }).click();
+await p.getByRole('button', { name: 'Abrir a pasta Cartas' }).click();
+await p.getByRole('button', { name: 'Registrar', exact: true }).click();
+check((await dlg.getByRole('radio', { name: /Cartas/ }).getAttribute('aria-checked')) === 'true', 'de dentro de uma pasta, o Registrar abre o formulário já nela');
 await p.keyboard.press('Escape');
 await b.close();
 finish();

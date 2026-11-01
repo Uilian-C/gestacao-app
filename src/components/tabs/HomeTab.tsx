@@ -6,7 +6,6 @@ import { FIRST_WEEK, LAST_WEEK, daysBetween, parseLocalDate, parseTimestamp, toI
 import type { Checkin, ExamItem, Folder, Hug, JournalEntry, Mood, NameIdea, Reaction } from '../../hooks/useGestationData';
 import type { DetailTarget } from '../../lib/details';
 import { phaseOf } from '../../lib/journey';
-import type { PlanItem } from '../../content/prenatalPlan';
 import { appointmentTitle } from '../../lib/appointments';
 import { buildUpcoming } from '../../lib/upcoming';
 import type { Insight } from '../../lib/symptoms';
@@ -42,9 +41,9 @@ import VisitFeedback, { type VisitStatus } from '../home/VisitFeedback';
 import { countdownTitle, nextCountdown, type Countdown } from '../../lib/countdown';
 import { openWeekGift, weekGiftPending } from '../../lib/weekGift';
 import { dismissSince, previousVisit, rememberReactions, resumeVisit, sinceParts } from '../../lib/since';
-import { BabyNameContext, rankIdeas } from '../../lib/baby';
+import { BabyNameContext } from '../../lib/baby';
 import { bookMonths, freshChapter, type Chapter } from '../../lib/chapters';
-import { pendingTasks, upcomingCelebration, type Celebration } from '../../lib/celebrations';
+import type { Celebration } from '../../lib/celebrations';
 import type { UpcomingItem } from '../../lib/upcoming';
 
 /** Para onde o Início leva (abas e partes delas). */
@@ -96,8 +95,6 @@ interface Props {
   onOpenDetail: (target: DetailTarget) => void;
   /** Guardar o resultado de um exame que já aconteceu. */
   onResult: (c: Consultation) => void;
-  /** Itens da jornada com a janela já fechada, sem data e sem marcação (Cuidados → Jornada). */
-  lateSteps: PlanItem[];
   /** Diário com fotos (migrações 008 e 012): o cartão da barriguinha da semana. */
   bellyAvailable: boolean;
   onBellyPhoto: () => void;
@@ -139,7 +136,6 @@ export default function HomeTab(props: Props) {
   const gestationPct = Math.min(100, Math.max(0, ((dayOfPregnancy - 1) / 280) * 100));
 
   const up = buildUpcoming({ consultations: props.consultations, tasks: props.tasks, journal: props.journal, exams: props.exams, today: now, celebrations: props.celebrations });
-  const lateSteps = props.lateSteps;
   const members = useContext(PeopleContext);
   const babyName = useContext(BabyNameContext);
   const relatives = useContext(RelativesContext);
@@ -209,13 +205,13 @@ export default function HomeTab(props: Props) {
     if (id === 'carta') return props.onWriteLetter?.();
     onOpen('livro');
   };
-  const party = upcomingCelebration(props.celebrations, new Date());
   const summaryRoles = (['mae', 'pai'] as const).filter(r => members.some(m => m.role === r) || props.checkins.some(c => c.author_role === r));
   const partnerToday = props.checkins.some(c => !c.mine && c.day === todayIso) || props.journal.some(e => !e.mine && e.created_at && toISODate(parseTimestamp(e.created_at)) === todayIso);
   const push = usePush();
   const [pushHidden, setPushHidden] = useState(pushDismissed);
 
-  // "Para hoje": tudo o que pede atenção, na ordem do que mais importa. O cartão mostra até três.
+  // "Para hoje": só o que é de hoje (ou pede atenção agora), na ordem do que mais importa. O cartão mostra até três.
+  // A jornada, o nome do bebê e as celebrações que vêm têm os lugares deles (Cuidados, Livro, a contagem).
   const openItem = (i: UpcomingItem) => (i.celebration ? props.onOpenCelebration?.(i.celebration.id) : props.onOpenDetail(i.consultation ? { kind: 'consultation', id: i.consultation.id } : i.task ? { kind: 'task', id: i.task.id } : { kind: 'entry', id: i.entry!.id }));
   const isEvent = (i: UpcomingItem) => !!i.consultation || (!!i.celebration && !i.celebrationTask);
   const itemRow = (i: UpcomingItem, when: string): TodayRow => ({
@@ -231,7 +227,6 @@ export default function HomeTab(props: Props) {
   const todayTasks = up.today.filter(i => !isEvent(i) && !i.overdue && (i.task || i.celebrationTask));
   const todayNotes = up.today.filter(i => !isEvent(i) && !i.overdue && !i.task && !i.celebrationTask);
   const mission = props.firstDays && props.onHideFirstDays ? firstDaysState(missionsDone, props.firstDays, todayIso) : null;
-  const topIdeas = props.nameIdeas ? rankIdeas(props.nameIdeas).slice(0, 3) : [];
   // Consultas e ultrassons que já passaram (há 1 hora ou mais, até 2 dias), ainda sem "como foi".
   const visits = props.onVisitFeedback
     ? props.consultations.filter(c => {
@@ -253,16 +248,12 @@ export default function HomeTab(props: Props) {
       ? [{ id: 'tarefas-hoje', tone: 'azul' as const, icon: <ListChecks />, kicker: 'Hoje · Tarefas', title: `${todayTasks.length} tarefas para hoje`, sub: todayTasks.slice(0, 3).map(i => i.title).join(' · '), onClick: () => onOpen('tarefas') }]
       : todayTasks.map(i => itemRow(i, 'Hoje'))),
     ...todayNotes.map(i => itemRow(i, 'Hoje')),
-    ...(lateSteps.length ? [{ id: 'jornada', tone: 'verde' as const, icon: <Route />, kicker: 'Para não esquecer', title: `${lateSteps.length} ${lateSteps.length === 1 ? 'item da jornada' : 'itens da jornada'} para conferir`, sub: lateSteps.slice(0, 2).map(s => s.short).join(', '), onClick: () => onOpen('jornada') }] : []),
     ...(up.missingResults.length ? [{ id: 'resultados', tone: 'verde' as const, icon: <ClipboardCheck />, kicker: 'Para não esquecer', title: up.missingResults.length === 1 ? 'Falta guardar 1 resultado' : `Faltam guardar ${up.missingResults.length} resultados`, sub: appointmentTitle(up.missingResults[0]), onClick: () => props.onResult(up.missingResults[0]) }] : []),
     // Os lembretes vêm antes das missões: é um convite só, e é ele que faz os outros avisos chegarem.
     ...(!pushHidden && offersPush(push.state.phase)
       ? [{ id: 'lembretes', tone: 'brand' as const, icon: <BellRing />, kicker: 'Lembretes no celular', title: 'Véspera das consultas e semana nova, mesmo com o app fechado', action: 'Ativar', onClick: () => setSheet('lembretes'), onDismiss: () => (dismissPush(), setPushHidden(true)) }]
       : []),
-    ...(mission?.next && !mission.complete ? [{ id: 'missao', tone: 'rosa' as const, icon: <Sparkles />, kicker: `Primeiros 7 dias · ${MISSIONS.filter(m => missionsDone.has(m.id)).length} de 7`, title: mission.next.title, sub: mission.next.why, onClick: () => setSheet('missoes'), onDismiss: props.onHideFirstDays }] : []),
-    // A celebração de hoje ou amanhã já aparece acima, como compromisso.
-    ...(party && party.days > 1 && props.onOpenCelebration ? [{ id: 'celebracao', tone: 'rosa' as const, icon: <PartyPopper />, kicker: `Faltam ${party.days} dias`, title: party.c.title, sub: pendingTasks(party.c)[0] ? `Próximo passo: ${pendingTasks(party.c)[0].item.title}` : 'Tudo pronto. Agora é aproveitar!', onClick: () => props.onOpenCelebration!(party.c.id) }] : []),
-    ...(!babyName && props.nameIdeas && props.onOpenNames ? [{ id: 'nome', tone: 'lilas' as const, icon: <Sparkles />, kicker: 'O nome do bebê', title: 'Qual vai ser o nome?', sub: topIdeas.length ? topIdeas.map(i => i.name).join(' · ') : 'Anotem a primeira ideia', onClick: props.onOpenNames }] : []),
+    ...(mission?.next && !mission.complete && !mission.over ? [{ id: 'missao', tone: 'rosa' as const, icon: <Sparkles />, kicker: `Primeiros 7 dias · ${MISSIONS.filter(m => missionsDone.has(m.id)).length} de 7`, title: mission.next.title, sub: mission.next.why, onClick: () => setSheet('missoes'), onDismiss: props.onHideFirstDays }] : []),
   ];
 
   const summary = showsWeekSummary(now) ? weekSummary({ today: now, roles: summaryRoles, checkins: props.checkins, journal: props.journal, consultations: props.consultations, tasks: props.tasks, symptoms: props.symptoms }) : null;

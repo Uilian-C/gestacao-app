@@ -1,5 +1,5 @@
 import { useContext, useState } from 'react';
-import { Bell, CalendarDays, CheckCircle2, ChevronDown, Flag, Plus, Sparkles } from 'lucide-react';
+import { Bell, CalendarDays, CheckCircle2, ChevronDown, Plus, Sparkles } from 'lucide-react';
 import { ProgressHeart, RestDoodle } from '../agenda/Doodles';
 import { suggestionsFor, type TaskSuggestion } from '../../content/taskSuggestions';
 import { formatBR, parseLocalDate, toISODate } from '../../lib/dates';
@@ -65,9 +65,10 @@ function groupOf(t: PartnerTask, today: string): GroupId {
   return due <= addDays(today, 7) ? 'semana' : 'depois';
 }
 
-export default function TasksTab({ tasks, currentWeek, busy, onCreate, onToggle, onOpen }: Props) {
+export default function TasksTab({ tasks, currentWeek, onCreate, onToggle, onOpen }: Props) {
   const people = useContext(PeopleContext);
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('todos');
+  const couple = people.some(m => m.role === 'mae') && people.some(m => m.role === 'pai');
   const [ideas, setIdeas] = useState(false);
   const [showDone, setShowDone] = useState(false);
   const today = toISODate(new Date());
@@ -93,26 +94,28 @@ export default function TasksTab({ tasks, currentWeek, busy, onCreate, onToggle,
           <p className="text-[13px] text-ink-soft">{overdue > 0 ? <span className="text-alert font-semibold">{overdue} {overdue === 1 ? 'passou do prazo' : 'passaram do prazo'}</span> : pending.length ? `${pending.length} para fazer` : 'Dividam as tarefas: cada uma tem quem cuida.'}</p>
         </div>
       </div>
-      <Segmented
-        label="Responsável"
-        size="sm"
-        full
-        value={assigneeFilter}
-        onChange={setAssigneeFilter}
-        options={[
-          { value: 'todos', label: 'Todos' },
-          { value: 'mae', label: whoName(people, 'mae') },
-          { value: 'pai', label: whoName(people, 'pai') },
-        ]}
-      />
+      {/* Filtrar por quem cuida só faz sentido com os dois no espaço. */}
+      {couple && (
+        <Segmented
+          label="Responsável"
+          size="sm"
+          full
+          value={assigneeFilter}
+          onChange={setAssigneeFilter}
+          options={[
+            { value: 'todos', label: 'Todos' },
+            { value: 'mae', label: whoName(people, 'mae') },
+            { value: 'pai', label: whoName(people, 'pai') },
+          ]}
+        />
+      )}
 
-      <QuickAdd busy={busy} assignee={assigneeFilter === 'todos' ? 'casal' : assigneeFilter} onCreate={onCreate} />
 
       {groups.length === 0 ? (
         <div className="flex flex-col items-center text-center px-6 py-4">
           <RestDoodle />
           <p className="mt-2 font-display text-[1.15rem] text-ink">{total ? 'Tudo em dia' : 'Nenhuma tarefa ainda'}</p>
-          <p className="text-[13.5px] text-ink-soft">{total ? 'Hora de descansar juntos. 💛' : 'Comecem pelas ideias para esta fase, logo abaixo.'}</p>
+          <p className="text-[13.5px] text-ink-soft">{total ? 'Hora de descansar juntos. 💛' : 'Comecem pelas ideias para esta fase, logo abaixo, ou pelo Registrar, no meio do menu.'}</p>
         </div>
       ) : (
         groups.map(g => (
@@ -232,76 +235,6 @@ function TaskRow({ task: t, today, onToggle, onOpen }: { task: PartnerTask; toda
         <WhoAvatars who={t.assigned_to} className="w-6 h-6 text-[10px]" />
       </span>
     </li>
-  );
-}
-
-/** Adicionar rápido: o nome, quando e quem, sem sair da lista (fecha ao adicionar). */
-function QuickAdd({ busy, assignee: initialWho, onCreate }: { busy: boolean; assignee: Assignee; onCreate: (t: NewTask) => Promise<boolean> }) {
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [due, setDue] = useState('');
-  const [who, setWho] = useState<Assignee>(initialWho);
-  const [priority, setPriority] = useState<Priority>('Média');
-  const today = toISODate(new Date());
-  const saturday = addDays(today, (6 - new Date().getDay() + 7) % 7 || 7);
-  const choices = [
-    { iso: today, text: 'Hoje' },
-    { iso: addDays(today, 1), text: 'Amanhã' },
-    { iso: saturday, text: 'Sábado' },
-    { iso: '', text: 'Sem data' },
-  ];
-  if (!open) {
-    return (
-      <button type="button" onClick={() => setOpen(true)} className="w-full flex items-center gap-3 px-4 py-1 text-left text-[15px] text-ink-soft hover:text-ink">
-        <span className="w-[22px] h-[22px] rounded-full bg-azul text-white flex items-center justify-center">
-          <Plus className="w-4 h-4" strokeWidth={3} />
-        </span>
-        Adicionar tarefa
-      </button>
-    );
-  }
-  return (
-    <form
-      aria-label="Nova tarefa"
-      className="rounded-[24px] bg-surface/80 p-4 space-y-3"
-      onSubmit={e => {
-        e.preventDefault();
-        if (!title.trim()) return;
-        // Fecha na hora: a tarefa já aparece na lista enquanto o servidor confirma.
-        void onCreate({ title: title.trim(), assignee: who, priority, dueDate: due, notes: '' });
-        setTitle('');
-        setDue('');
-        setPriority('Média');
-        setOpen(false);
-      }}
-    >
-      <input aria-label="Tarefa" autoFocus className="w-full bg-transparent text-[1.05rem] text-ink placeholder:text-ink-mute outline-none" placeholder="Ex.: Comprar o carrinho" value={title} onChange={e => setTitle(e.target.value)} maxLength={300} />
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Prazo">
-        {choices.map(c => (
-          <button key={c.text} type="button" aria-pressed={due === c.iso} onClick={() => setDue(c.iso)} className={`rounded-full px-3 py-1 text-[12.5px] font-bold transition ${due === c.iso ? 'bg-azul text-white' : 'bg-surface-2 text-ink-soft'}`}>
-            {c.text}
-          </button>
-        ))}
-        <label className={`relative rounded-full px-3 py-1 text-[12.5px] font-bold ${due && !choices.some(c => c.iso === due) ? 'bg-azul text-white' : 'bg-surface-2 text-ink-soft'}`}>
-          {due && !choices.some(c => c.iso === due) ? formatBR(due).slice(0, 5) : 'Outro dia'}
-          <input type="date" aria-label="Outro dia" min={today} value={due} onChange={e => setDue(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
-        </label>
-      </div>
-      <WhoPicker label="Quem cuida" value={who} onChange={setWho} />
-      <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={() => setPriority(p => (p === 'Alta' ? 'Média' : 'Alta'))} aria-pressed={priority === 'Alta'} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold ${priority === 'Alta' ? 'bg-rosa-soft text-rosa-strong' : 'text-ink-mute'}`}>
-          <Flag className="w-3.5 h-3.5" /> Importante
-        </button>
-        <div className="flex gap-2">
-          <Button tone="ghost" onClick={() => (setOpen(false), setTitle(''))}>
-            Fechar
-          </Button>
-          <Button type="submit" disabled={busy || !title.trim()}>
-            Adicionar
-          </Button>
-        </div>
-      </div>
-    </form>
   );
 }
 

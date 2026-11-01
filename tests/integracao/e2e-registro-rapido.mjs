@@ -10,6 +10,10 @@ const tab = name => p.getByRole('button', { name: new RegExp(`^${name}`) }).firs
 // Cada opção diz o tipo no começo do nome ("Sintoma: como estou me sentindo").
 const modes = async () => (await dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button').evaluateAll(bs => bs.map(b => b.getAttribute('aria-label').split(':')[0]))).join(',');
 
+// O Registrar mora no meio do menu (nada flutua por cima do conteúdo).
+await plus.waitFor();
+check((await p.locator('nav').filter({ has: plus }).count()) === 1, 'o Registrar fica no centro do menu');
+
 // Início: tudo o que dá para registrar
 await plus.click();
 check((await modes()) === 'Diário,Sintoma,Peso e pressão,Agendar,Tarefa,Resultado', `Início oferece todos os registros, o Diário primeiro (${await modes()})`);
@@ -91,8 +95,10 @@ await p.screenshot({ path: `${OUT}rapido-cuidados.png` });
 await p.keyboard.press('Escape');
 check(!(await dlg.isVisible()), 'Esc fecha');
 
-// Parto: os registros são os cronômetros, sem "+"
+// Parto: sem tipos próprios (lá são os cronômetros), o Registrar oferece todos, como no Início.
 await tab('Parto');
-check((await plus.count()) === 0, 'Parto não tem o botão +');
+await plus.click();
+check((await modes()) === 'Diário,Sintoma,Peso e pressão,Agendar,Tarefa,Resultado', 'no Parto, o Registrar oferece todos os tipos');
+await p.keyboard.press('Escape');
 await b.close();
 finish();

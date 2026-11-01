@@ -28,6 +28,8 @@ export interface FirstDaysState {
   /** A missão sugerida agora: a do dia, ou a primeira que falta. */
   next: Mission | null;
   complete: boolean;
+  /** A primeira semana já passou. */
+  over: boolean;
 }
 
 export function firstDays(done: Set<MissionId>, startIso: string, todayIso: string): FirstDaysState {
@@ -36,5 +38,6 @@ export function firstDays(done: Set<MissionId>, startIso: string, todayIso: stri
   const pending = MISSIONS.filter(m => !done.has(m.id));
   // A do dia, se ainda falta; senão a primeira que falta (pode adiantar ou recuperar).
   const next = pending.find(m => m.day === today) ?? pending.find(m => m.day <= today) ?? pending[0] ?? null;
-  return { done, today, next, complete: pending.length === 0 };
+  // Passada a primeira semana, as missões saem do Início (o resto se descobre usando).
+  return { done, today, next, complete: pending.length === 0, over: days >= 7 };
 }
