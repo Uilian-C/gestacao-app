@@ -7,6 +7,7 @@ import AuthScreen from './components/auth/AuthScreen';
 import ConsentScreen from './components/auth/ConsentScreen';
 import Onboarding from './components/auth/Onboarding';
 import FamilyApp from './components/family/FamilyApp';
+import { BolaoPage, EnvelopePage } from './components/public/PublicPages';
 import { authClient } from './lib/authClient';
 import { clearPendingInvite } from './lib/invite';
 import { markHere } from './lib/returning';
@@ -23,8 +24,20 @@ async function loadMe(userId: string) {
   return result && result.user.id === userId ? result : api.me();
 }
 
-/** Porta de entrada: login, depois o espaço da família, depois o app. */
+/** As páginas abertas (sem login): o bolão e o envelope do chá. */
+function publicPage() {
+  const m = window.location.pathname.match(/^\/(palpite|envelope)\/([A-Za-z0-9_-]{8,32})\/?$/);
+  return m ? { kind: m[1] as 'palpite' | 'envelope', token: m[2] } : null;
+}
+
 export default function Root() {
+  const page = publicPage();
+  if (page) return page.kind === 'palpite' ? <BolaoPage token={page.token} /> : <EnvelopePage token={page.token} />;
+  return <SignedRoot />;
+}
+
+/** Porta de entrada: login, depois o espaço da família, depois o app. */
+function SignedRoot() {
   const session = authClient.useSession();
   const userId = session.data?.user.id ?? null;
   const [me, setMe] = useState<Me | null>(null);

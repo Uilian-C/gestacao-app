@@ -15,6 +15,13 @@ export interface Espera {
   secret: boolean;
   secretMine: boolean;
   guesses: Array<{ user_id: string; author_role: GuessRole; guess: Sex; mine: boolean }>;
+  /** O resultado foi guardado por alguém de fora, para o chá revelação (migração 036). */
+  sealed?: boolean;
+  /** O link do bolão aberto e o do envelope do chá (migração 036). */
+  bolaoToken?: string | null;
+  envelopeToken?: string | null;
+  /** Os palpites de quem votou pelo link. */
+  publicVotes?: Array<{ name: string; guess: Sex }>;
 }
 
 /** Em que ponto da espera o casal está. */
@@ -34,6 +41,7 @@ export type EsperaStage =
 
 export function esperaStage(e: Espera): EsperaStage {
   if (e.secret) return e.secretMine ? 'guardado' : 'envelope';
+  if (e.sealed) return 'envelope';
   if (e.sex) return 'sabem';
   if (e.plan === 'surpresa') return 'surpresa';
   if (e.plan === 'descobrir' || e.guesses.length > 0) return 'bolao';
@@ -47,9 +55,10 @@ export const SEX_WORD: Record<Sex, { it: string; title: string; emoji: string }>
 
 /** O placar do bolão: quantos palpites em cada e os do casal. */
 export function tally(e: Espera) {
-  const menina = e.guesses.filter(g => g.guess === 'menina').length;
-  const menino = e.guesses.filter(g => g.guess === 'menino').length;
-  const family = e.guesses.filter(g => g.author_role === 'familia').length;
+  const outside = e.publicVotes ?? [];
+  const menina = e.guesses.filter(g => g.guess === 'menina').length + outside.filter(v => v.guess === 'menina').length;
+  const menino = e.guesses.filter(g => g.guess === 'menino').length + outside.filter(v => v.guess === 'menino').length;
+  const family = e.guesses.filter(g => g.author_role === 'familia').length + outside.length;
   const of = (role: GuessRole) => e.guesses.find(g => g.author_role === role)?.guess ?? null;
   return { menina, menino, total: menina + menino, family, mae: of('mae'), pai: of('pai'), mine: e.guesses.find(g => g.mine)?.guess ?? null };
 }
@@ -70,3 +79,10 @@ export function daysToTest(e: Espera, today: string): number | null {
 export function namesFor<T extends { for_sex?: Sex | 'ambos' }>(ideas: T[], sex: Sex | null): T[] {
   return sex ? ideas.filter(i => (i.for_sex ?? 'ambos') === 'ambos' || i.for_sex === sex) : ideas;
 }
+
+/** Quantos acertaram, contando quem votou pelo link. */
+export const rightCount = (e: Espera) => (e.sex ? rightGuesses(e).length + (e.publicVotes ?? []).filter(v => v.guess === e.sex).length : 0);
+
+/** Os links públicos (o bolão aberto e o envelope do chá). */
+export const bolaoUrl = (token: string) => `${window.location.origin}/palpite/${token}`;
+export const envelopeUrl = (token: string) => `${window.location.origin}/envelope/${token}`;

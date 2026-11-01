@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { query } from './db.js';
 import { HttpError } from './http.js';
 
@@ -19,6 +20,13 @@ export interface Espera {
   /** Fui eu que guardei a surpresa (eu já sei). */
   secretMine: boolean;
   guesses: Array<{ user_id: string; author_role: 'mae' | 'pai' | 'familia'; guess: Sex; mine: boolean }>;
+  /** O resultado foi guardado por alguém de fora (o envelope do chá, migração 036). */
+  sealed?: boolean;
+  /** O link do bolão aberto e o do envelope do chá, quando já existem (migração 036). */
+  bolaoToken?: string | null;
+  envelopeToken?: string | null;
+  /** Os palpites de quem votou pelo link (nome e palpite). */
+  publicVotes?: Array<{ name: string; guess: Sex }>;
 }
 
 export const ESPERA_MISSING = 'A espera (menino ou menina) ainda não está ligada no servidor. Rode a migração db/migrations/035_a_espera.sql no Neon.';
@@ -31,18 +39,23 @@ const missing = (err: unknown): never => {
 /** A espera do espaço, do ponto de vista de quem pede; nulo antes da migração. */
 export async function fetchEspera(fid: string, userId: string): Promise<Espera | null> {
   try {
-    const [f] = await query<{ plan: SexPlan | null; test_date: string | null; sex: Sex | null; known_at: string | null; secret_by: string | null }>(
-      `SELECT sex_plan AS plan, sex_test_date::text AS test_date, baby_sex AS sex, sex_known_at::text AS known_at, sex_secret_by AS secret_by FROM families WHERE id = $1`,
+    const [f] = await query<{ plan: SexPlan | null; test_date: string | null; sex: Sex | null; known_at: string | null; secret_by: string | null; sealed: boolean | null; bolao: string | null; envelope: string | null }>(
+      `SELECT sex_plan AS plan, sex_test_date::text AS test_date, baby_sex AS sex, sex_known_at::text AS known_at, sex_secret_by AS secret_by,
+              (to_jsonb(f) ->> 'sex_sealed')::boolean AS sealed, to_jsonb(f) ->> 'bolao_token' AS bolao, to_jsonb(f) ->> 'envelope_token' AS envelope
+       FROM families f WHERE id = $1`,
       [fid],
     );
     const guesses = await query<Espera['guesses'][number]>(
       `SELECT user_id, author_role, guess, user_id = $2 AS mine FROM sex_guesses WHERE family_id = $1 ORDER BY created_at`,
       [fid, userId],
     );
+    const publicVotes = await query<{ name: string; guess: Sex }>('SELECT name, guess FROM bolao_votes WHERE family_id = $1 ORDER BY created_at', [fid]).catch(() => [] as Array<{ name: string; guess: Sex }>);
     if (!f) return null;
-    const secret = !!f.secret_by && !!f.sex;
-    const secretMine = secret && f.secret_by === userId;
-    return { plan: f.plan, testDate: f.test_date, sex: secret && !secretMine ? null : f.sex, knownAt: secret && !secretMine ? null : f.known_at, secret, secretMine, guesses };
+    const sealed = !!f.sealed && !!f.sex;
+    const secret = (!!f.secret_by && !!f.sex) || sealed;
+    const secretMine = secret && !sealed && f.secret_by === userId;
+    const hidden = secret && !secretMine;
+    return { plan: f.plan, testDate: f.test_date, sex: hidden ? null : f.sex, knownAt: hidden ? null : f.known_at, secret, secretMine, guesses, sealed, bolaoToken: f.bolao, envelopeToken: f.envelope, publicVotes };
   } catch {
     return null;
   }
@@ -61,12 +74,35 @@ export async function setSex(fid: string, userId: string, sex: Sex | null, secre
       WHERE id = $1`,
     [fid, sex, secret, userId],
   ).catch(missing);
+  // Registrado pelo casal: o envelope do chá (se havia um) deixa de valer.
+  await query('UPDATE families SET sex_sealed = false, envelope_token = NULL WHERE id = $1', [fid]).catch(() => undefined);
 }
 
 /** Abrir a surpresa: a partir daí, todo mundo do espaço vê. */
 export async function openSex(fid: string, userId: string) {
+  // O envelope do chá (guardado por alguém de fora) qualquer um do casal abre; o do parceiro, só quem não guardou.
+  const sealed = await query(`UPDATE families SET sex_sealed = false WHERE id = $1 AND sex_sealed AND baby_sex IS NOT NULL RETURNING id`, [fid]).catch(() => []);
+  if (sealed.length) return;
   const rows = await query('UPDATE families SET sex_secret_by = NULL WHERE id = $1 AND sex_secret_by IS NOT NULL AND sex_secret_by <> $2 RETURNING id', [fid, userId]).catch(missing);
   if (rows.length === 0) throw new HttpError(404, 'Não há revelação esperando por você.');
+}
+
+const token = () => randomBytes(12).toString('base64url');
+
+/** O link do bolão aberto (cria na primeira vez). */
+export async function bolaoLink(fid: string) {
+  const [f] = await query<{ t: string | null }>('SELECT bolao_token AS t FROM families WHERE id = $1', [fid]).catch(missing);
+  if (f?.t) return f.t;
+  const t = token();
+  await query('UPDATE families SET bolao_token = $2 WHERE id = $1', [fid, t]).catch(missing);
+  return t;
+}
+
+/** O link do envelope do chá: um link novo a cada pedido (o anterior deixa de valer). */
+export async function envelopeLink(fid: string) {
+  const t = token();
+  await query('UPDATE families SET envelope_token = $2 WHERE id = $1', [fid, t]).catch(missing);
+  return t;
 }
 
 /** O palpite no bolão (nulo apaga). Depois que o resultado é conhecido, o bolão fecha. */

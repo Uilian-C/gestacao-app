@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { daysToTest, esperaStage, namesFor, rightGuesses, tally, type Espera } from './espera';
+import { daysToTest, esperaStage, namesFor, rightCount, rightGuesses, tally, type Espera } from './espera';
 
 const base: Espera = { plan: null, testDate: null, sex: null, knownAt: null, secret: false, secretMine: false, guesses: [] };
 const g = (author_role: 'mae' | 'pai' | 'familia', guess: 'menina' | 'menino', mine = false) => ({ user_id: `${author_role}-${guess}`, author_role, guess, mine });
@@ -19,6 +19,14 @@ describe('a espera', () => {
     expect(tally(e)).toMatchObject({ menina: 2, menino: 1, family: 1, mae: 'menina', pai: 'menino', mine: 'menina' });
     expect(rightGuesses({ ...e, sex: 'menina' }).map(x => x.author_role)).toEqual(['mae', 'familia']);
     expect(rightGuesses(e)).toEqual([]);
+  });
+  it('os palpites pelo link entram no placar e no acerto', () => {
+    const e = { ...base, guesses: [g('mae', 'menina')], publicVotes: [{ name: 'Bia', guess: 'menina' as const }, { name: 'Léo', guess: 'menino' as const }] };
+    expect(tally(e)).toMatchObject({ menina: 2, menino: 1, family: 2 });
+    expect(rightCount({ ...e, sex: 'menina' })).toBe(2);
+  });
+  it('o envelope do chá: ninguém do casal sabe, qualquer um abre', () => {
+    expect(esperaStage({ ...base, sealed: true, secret: true })).toBe('envelope');
   });
   it('a contagem para o exame', () => {
     expect(daysToTest({ ...base, testDate: '2026-11-06' }, '2026-11-01')).toBe(5);
