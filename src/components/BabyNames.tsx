@@ -1,10 +1,11 @@
 import { useContext, useEffect, useState } from 'react';
-import { ArrowLeft, ChevronRight, Heart, Loader2, MessageCircle, Pencil, Plus, Send, Share2, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Heart, Loader2, MessageCircle, Pencil, Plus, Send, Share2, Sparkles, Star, Trash2, X } from 'lucide-react';
 import type { FamilyMember, Relative } from '../api';
 import type { BabyTone } from '../content/babyTones';
 import type { NameIdea } from '../hooks/useGestationData';
 import { useScrollLock } from '../hooks/useScrollLock';
 import { BabyNameContext, rankIdeas } from '../lib/baby';
+import { namesFor, type Espera } from '../lib/espera';
 import { parseTimestamp, stampText } from '../lib/dates';
 import { PeopleContext, RelativesContext, firstName } from '../lib/people';
 import Avatar from './Avatar';
@@ -19,7 +20,9 @@ import BrandMark from './BrandMark';
 // Tumtum, vira página do livro e o fichário passa a ser "a história do nome".
 
 export interface NameActions {
-  onAdd: (name: string, note?: string) => Promise<boolean>;
+  onAdd: (name: string, note?: string, forSex?: NameSex) => Promise<boolean>;
+  /** Para quem é o nome e se está na lista final (migração 035). */
+  onTag?: (id: string, f: { forSex?: NameSex; finalist?: boolean }) => Promise<boolean>;
   onLike: (id: string, on: boolean) => Promise<boolean> | void;
   onDelete: (id: string) => Promise<boolean> | void;
   onNote: (id: string, note: string | null) => Promise<boolean>;
@@ -30,6 +33,9 @@ export interface NameActions {
   /** Depois de escolher: guardar o momento no Mural. */
   onShareChoice?: (name: string) => Promise<boolean>;
 }
+
+type NameSex = 'menina' | 'menino' | 'ambos';
+const SEX_LABEL: Record<NameSex, string> = { menina: 'Menina', menino: 'Menino', ambos: 'Os dois' };
 
 const cap = (name: string) => name.trim().charAt(0).toUpperCase() + name.trim().slice(1);
 
@@ -44,7 +50,7 @@ function usePerson() {
 const TABS = ['bg-rosa', 'bg-lilas', 'bg-azul', 'bg-verde', 'bg-coral'];
 
 /** O caderno de nomes, em tela cheia (como uma seção própria do app). */
-export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions, onClose, onReveal, onShare }: { ideas: NameIdea[]; tone: BabyTone; week: number; couple: boolean; chosenAt?: string | null; actions: NameActions; onClose: () => void; onReveal: (name: string) => void; onShare?: () => void }) {
+export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions, onClose, onReveal, onShare, onShareFinalists, espera }: { ideas: NameIdea[]; tone: BabyTone; week: number; couple: boolean; chosenAt?: string | null; actions: NameActions; onClose: () => void; onReveal: (name: string) => void; onShare?: () => void; onShareFinalists?: (names: string[]) => void; espera?: Espera | null }) {
   useScrollLock();
   const chosen = useContext(BabyNameContext);
   const person = usePerson();
@@ -52,7 +58,12 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
   const [registering, setRegistering] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const deciding = !chosen || changing;
-  const ranked = rankIdeas(ideas);
+  // Já sabem o sexo: o caderno mostra só os nomes que valem. Ainda não: um filtro.
+  const sex = espera && !espera.secret ? espera.sex : null;
+  const tags = !!espera && !!actions.onTag;
+  const [only, setOnly] = useState<NameSex>('ambos');
+  const ranked = rankIdeas(namesFor(ideas, sex)).filter(i => sex || only === 'ambos' || (i.for_sex ?? 'ambos') === 'ambos' || i.for_sex === only);
+  const finalists = rankIdeas(namesFor(ideas, sex)).filter(i => i.finalist);
   const open = openId ? ideas.find(i => i.id === openId) : undefined;
   useEffect(() => {
     const close = (e: KeyboardEvent) => e.key === 'Escape' && (openId ? setOpenId(null) : onClose());
@@ -83,7 +94,7 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
 
       <div className="mx-auto max-w-[560px] px-4 pb-16 space-y-5">
         {open ? (
-          <IdeaFicha idea={open} couple={couple} deciding={deciding} chosen={chosen?.toLowerCase() === open.name.toLowerCase()} actions={actions} onChoose={choose} onDeleted={() => setOpenId(null)} />
+          <IdeaFicha idea={open} couple={couple} deciding={deciding} chosen={chosen?.toLowerCase() === open.name.toLowerCase()} actions={actions} onChoose={choose} onDeleted={() => setOpenId(null)} tagSex={tags && !sex} />
         ) : (
           <>
             {deciding ? (
@@ -93,7 +104,7 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
                 <p className="text-[14px] text-ink-soft mt-1 max-w-[400px] mx-auto">
                   {couple ? 'Sem pressa: muitos casais só decidem perto do parto. Cada nome ganha uma página, com o porquê, quem curtiu e a conversa. A família pode dar palpite.' : 'Anote os nomes de que você gosta, conte o porquê e converse com o casal. Quem escolhe são eles.'}
                 </p>
-                <AddIdea onAdd={actions.onAdd} />
+                <AddIdea onAdd={actions.onAdd} sexes={tags && !sex ? true : false} fixed={sex} />
                 {couple && actions.onChoose && (
                   <div className="mt-3">
                     {registering ? (
@@ -130,6 +141,41 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
               </section>
             )}
 
+            {deciding && tags && finalists.length > 0 && (
+              <section aria-labelledby="lista-final" className="rounded-[24px] bg-surface shadow-soft px-4 py-4 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 id="lista-final" className="flex items-center gap-1.5 text-[12px] font-extrabold uppercase tracking-wide text-rosa">
+                    <Star className="w-3.5 h-3.5 fill-current" /> A lista final
+                  </h3>
+                  {onShareFinalists && finalists.length >= 2 && (
+                    <button type="button" onClick={() => onShareFinalists(finalists.map(i => i.name))} className="inline-flex items-center gap-1 text-[12.5px] font-extrabold text-rosa-strong">
+                      <Share2 className="w-3.5 h-3.5" /> Pedir palpites
+                    </button>
+                  )}
+                </div>
+                <ul className="flex flex-wrap gap-2">
+                  {finalists.map(i => (
+                    <li key={i.id}>
+                      <button type="button" onClick={() => setOpenId(i.id)} className="rounded-full bg-rosa-soft px-3.5 py-1.5 font-display text-[1.1rem] text-ink">
+                        {i.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {finalists.length < 2 && <p className="text-[12.5px] text-ink-mute">Marquem a estrela nos nomes preferidos para montar a lista final.</p>}
+              </section>
+            )}
+
+            {deciding && tags && !sex && ideas.length > 0 && (
+              <div role="group" aria-label="Mostrar nomes para" className="flex gap-1.5">
+                {(['ambos', 'menina', 'menino'] as const).map(v => (
+                  <button key={v} type="button" aria-pressed={only === v} onClick={() => setOnly(v)} className={`rounded-full px-3.5 py-1.5 text-[13px] font-bold transition ${only === v ? 'bg-ink text-canvas' : 'bg-surface text-ink-soft shadow-soft'}`}>
+                    {v === 'ambos' ? 'Todos' : SEX_LABEL[v]}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {ranked.length > 0 && (
               <section className="space-y-2.5">
                 <h3 className="px-1 text-[12px] font-extrabold uppercase tracking-wide text-ink-mute">{deciding ? 'Os nomes' : 'Os nomes que fizeram parte da escolha'}</h3>
@@ -139,13 +185,25 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
                     const isChosen = chosen?.toLowerCase() === idea.name.toLowerCase();
                     const talks = idea.comments?.length ?? 0;
                     return (
-                      <li key={idea.id}>
-                        <button type="button" onClick={() => setOpenId(idea.id)} aria-label={`Página de ${idea.name}: abrir`} className={`relative w-full text-left rounded-3xl px-4 pt-4 pb-3 transition active:scale-[0.99] ${isChosen ? 'bg-rosa-soft ring-2 ring-rosa/40' : 'bg-surface shadow-soft'}`}>
+                      <li key={idea.id} className="relative">
+                        {deciding && tags && couple && (
+                          <button
+                            type="button"
+                            aria-pressed={!!idea.finalist}
+                            aria-label={idea.finalist ? `Tirar ${idea.name} da lista final` : `Pôr ${idea.name} na lista final`}
+                            onClick={() => void actions.onTag!(idea.id, { finalist: !idea.finalist })}
+                            className={`absolute right-2.5 top-2.5 z-10 w-9 h-9 rounded-full flex items-center justify-center transition active:scale-90 ${idea.finalist ? 'text-rosa' : 'text-ink-mute hover:bg-surface-2'}`}
+                          >
+                            <Star className={`w-5 h-5 ${idea.finalist ? 'fill-current' : ''}`} />
+                          </button>
+                        )}
+                        <button type="button" onClick={() => setOpenId(idea.id)} aria-label={`Página de ${idea.name}: abrir`} className={`relative w-full text-left rounded-3xl px-4 pt-4 pb-3 transition active:scale-[0.99] ${deciding && tags && couple ? 'pr-12' : ''} ${isChosen ? 'bg-rosa-soft ring-2 ring-rosa/40' : 'bg-surface shadow-soft'}`}>
                           <span className={`absolute top-0 left-5 h-1.5 w-12 rounded-b-full ${TABS[i % TABS.length]}`} aria-hidden />
                           <span className="flex items-baseline gap-2">
                             <span className="font-display text-[1.45rem] leading-tight text-ink truncate">{idea.name}</span>
                             {i === 0 && idea.likes.length > 1 && deciding && <span className="shrink-0 text-[10.5px] font-extrabold uppercase text-rosa">favorito</span>}
                             {isChosen && <span className="shrink-0 text-[10.5px] font-extrabold uppercase text-rosa">o escolhido</span>}
+                            {tags && !sex && idea.for_sex && idea.for_sex !== 'ambos' && <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-extrabold uppercase ${idea.for_sex === 'menina' ? 'bg-rosa-soft text-rosa-strong' : 'bg-azul-soft text-azul-strong'}`}>{idea.for_sex}</span>}
                           </span>
                           {idea.note && <span className="block text-[13.5px] italic text-ink-soft line-clamp-1">“{idea.note}”</span>}
                           <span className="mt-1.5 flex items-center gap-3 text-[12px] text-ink-mute">
@@ -175,8 +233,9 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
 }
 
 /** Anotar uma ideia: o nome e, se quiser, o porquê. */
-function AddIdea({ onAdd }: { onAdd: NameActions['onAdd'] }) {
+function AddIdea({ onAdd, sexes = false, fixed = null }: { onAdd: NameActions['onAdd']; sexes?: boolean; fixed?: 'menina' | 'menino' | null }) {
   const [name, setName] = useState('');
+  const [forSex, setForSex] = useState<NameSex>('ambos');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   return (
@@ -186,7 +245,7 @@ function AddIdea({ onAdd }: { onAdd: NameActions['onAdd'] }) {
         e.preventDefault();
         if (!name.trim()) return;
         setBusy(true);
-        const ok = await onAdd(cap(name), note.trim() || undefined);
+        const ok = await onAdd(cap(name), note.trim() || undefined, fixed ?? (sexes ? forSex : undefined));
         setBusy(false);
         if (ok) {
           setName('');
@@ -200,6 +259,16 @@ function AddIdea({ onAdd }: { onAdd: NameActions['onAdd'] }) {
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Anotar
         </button>
       </div>
+      {name.trim() && sexes && (
+        <div role="group" aria-label="Esse nome é para" className="flex items-center justify-center gap-1.5">
+          <span className="text-[12.5px] text-ink-mute">Para</span>
+          {(['menina', 'menino', 'ambos'] as const).map(v => (
+            <button key={v} type="button" aria-pressed={forSex === v} onClick={() => setForSex(v)} className={`rounded-full px-3 py-1 text-[12.5px] font-bold ${forSex === v ? (v === 'menina' ? 'bg-rosa text-white' : v === 'menino' ? 'bg-azul text-white' : 'bg-lilas text-white') : 'bg-surface text-ink-soft ring-1 ring-line'}`}>
+              {SEX_LABEL[v]}
+            </button>
+          ))}
+        </div>
+      )}
       {name.trim() && (
         <input aria-label="Por que esse nome?" placeholder="Por que esse nome? (significado, homenagem…) opcional" value={note} onChange={e => setNote(e.target.value)} maxLength={300} className="w-full rounded-full bg-surface px-4 py-2 text-[14px] text-ink placeholder:text-ink-mute outline-none ring-1 ring-line focus:ring-2 focus:ring-rosa/50" />
       )}
@@ -235,7 +304,7 @@ function RegisterName({ onChoose, onCancel }: { onChoose: (name: string) => Prom
 }
 
 /** Uma página aberta: tudo o que aconteceu com esse nome, com data e hora. */
-function IdeaFicha({ idea, couple, deciding, chosen, actions, onChoose, onDeleted }: { idea: NameIdea; couple: boolean; deciding: boolean; chosen: boolean; actions: NameActions; onChoose: (name: string) => Promise<boolean>; onDeleted: () => void }) {
+function IdeaFicha({ idea, couple, deciding, chosen, actions, onChoose, onDeleted, tagSex = false }: { idea: NameIdea; couple: boolean; deciding: boolean; chosen: boolean; actions: NameActions; onChoose: (name: string) => Promise<boolean>; onDeleted: () => void; tagSex?: boolean }) {
   const person = usePerson();
   const liked = idea.likes.some(l => l.mine);
   const by = person(idea.author_id);
@@ -258,6 +327,19 @@ function IdeaFicha({ idea, couple, deciding, chosen, actions, onChoose, onDelete
         <p className="mt-1.5 text-[12.5px] text-ink-mute">
           Anotado por {idea.mine ? 'você' : by ? firstName(by.name) : 'alguém da família'} · {stampText(idea.created_at)}
         </p>
+        {tagSex && actions.onTag && (couple || idea.mine) && (
+          <div role="group" aria-label={`${idea.name} é para`} className="mt-2.5 flex items-center gap-1.5">
+            <span className="text-[12.5px] text-ink-mute">Para</span>
+            {(['menina', 'menino', 'ambos'] as const).map(v => {
+              const on = (idea.for_sex ?? 'ambos') === v;
+              return (
+                <button key={v} type="button" aria-pressed={on} onClick={() => void actions.onTag!(idea.id, { forSex: v })} className={`rounded-full px-3 py-1 text-[12.5px] font-bold ${on ? (v === 'menina' ? 'bg-rosa text-white' : v === 'menino' ? 'bg-azul text-white' : 'bg-lilas text-white') : 'bg-surface-2 text-ink-soft'}`}>
+                  {SEX_LABEL[v]}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* O porquê do nome. */}
         <div className="mt-3">

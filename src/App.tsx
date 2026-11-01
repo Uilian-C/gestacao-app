@@ -9,9 +9,11 @@ import type { Celebration, CelebrationItem } from './lib/celebrations';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, JournalEntry, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
 import type { OnReact } from './components/Social';
-import { takeRitualFromUrl, takeTabFromUrl, takeViewFromUrl, takeVisitFromUrl, takeVoiceFromUrl } from './lib/pwa';
+import { takeFlagFromUrl, takeRitualFromUrl, takeTabFromUrl, takeViewFromUrl, takeVisitFromUrl, takeVoiceFromUrl } from './lib/pwa';
 import { dayClosed, markClosed, partnerDay } from './lib/ritual';
-import { nameCard, type CardContent, type ShareKind } from './lib/shareCard';
+import { finalistsCard, nameCard, revealCard, surpriseCard, teaserCard, type CardContent, type ShareKind } from './lib/shareCard';
+import { EsperaSheet, SexReveal } from './components/espera/Espera';
+import { rightGuesses, SEX_WORD, tally, type Sex, type SexPlan } from './lib/espera';
 import { entryShare } from './lib/shareEntry';
 import ShareSheet, { type ShareRequest } from './components/ShareSheet';
 import { authorOf, firstName } from './lib/people';
@@ -183,6 +185,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [ritualOpen, setRitualOpen] = useState(takeRitualFromUrl);
   /** Compartilhar: a prévia do cartão aberta (stories ou post). */
   const [shareReq, setShareReq] = useState<ShareRequest | null>(null);
+  // A espera (menino ou menina): a folha e a revelação, também pelos avisos.
+  const [esperaOpen, setEsperaOpen] = useState(() => takeFlagFromUrl('espera'));
+  const [revealSexOpen, setRevealSexOpen] = useState(() => takeFlagFromUrl('revelar'));
   // Fechar o dia grava no aparelho; a troca de estado só refaz a tela.
   const [, setClosedNow] = useState(0);
   // O Início aberto numa janela (a Jornada do bebê ou os Primeiros 7 dias): a chave remonta o Início.
@@ -762,6 +767,45 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       }),
     );
   };
+  const ESPERA_MISSING = 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/035_a_espera.sql no Neon.';
+  const longDate = (iso: string) => parseLocalDate(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+  const esperaActions = {
+    onPlan: (plan: SexPlan | null, testDate: string | null) => run(() => api.mutate('setSexPlan', { plan, testDate }), ESPERA_MISSING),
+    onGuess: (guess: Sex | null) => {
+      if (guess) tumtum();
+      return run(() => api.mutate('guessSex', { guess }), ESPERA_MISSING);
+    },
+    onRegister: async (sex: Sex | null, secret: boolean) => {
+      const ok = await run(() => api.mutate('setSex', { sex, secret }), ESPERA_MISSING, secret && sex ? `Guardado no envelope para ${partnerName ?? 'a outra pessoa'} 💌` : undefined);
+      if (ok && sex && !secret) {
+        tumtum();
+        setEsperaOpen(false);
+        setRevealSexOpen(true);
+      }
+      return ok;
+    },
+    onShare: (kind: 'teaser' | 'surpresa' | 'revelacao') => shareEspera(kind),
+    onNames: () => {
+      setEsperaOpen(false);
+      setNamesOpen(true);
+    },
+    onReveal: () => {
+      setEsperaOpen(false);
+      setRevealSexOpen(true);
+    },
+  };
+  const shareEspera = (kind: 'teaser' | 'surpresa' | 'revelacao') => {
+    const e = data.espera;
+    if (!e) return;
+    if (kind === 'revelacao' && e.sex) {
+      const day = e.knownAt ? toISODate(parseTimestamp(e.knownAt)) : today;
+      return share(revealCard({ sex: e.sex, week: dumDate ? weekOn(dumDate, day) : currentWeek, date: longDate(day), right: rightGuesses(e).length }), 'cartao_revelacao');
+    }
+    if (kind === 'surpresa') return share(surpriseCard({ daysToDpp: age?.daysToDpp ?? 0 }), 'cartao_espera');
+    const t = tally(e);
+    share(teaserCard({ testDate: e.testDate ? longDate(e.testDate) : null, menina: t.menina, menino: t.menino }), 'cartao_espera');
+  };
+  const shareFinalists = (names: string[]) => share(finalistsCard({ names, sex: data.espera?.sex ?? null }), 'cartao_finalistas');
   const shareName = () => {
     if (!data.babyName || !dumDate) return;
     const at = data.babyNameAt ? parseTimestamp(data.babyNameAt) : null;
@@ -777,7 +821,13 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const NAMES_MISSING = 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/026_nomes_do_bebe.sql no Neon.';
   const CADERNO_MISSING = 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/027_caderno_do_nome.sql no Neon.';
   const nameActions: NameActions = {
-    onAdd: (name, note) => run(() => api.mutate('addNameIdea', { name, ...(note ? { note } : {}) }), NAMES_MISSING, 'Anotado no caderno de nomes'),
+    onAdd: (name, note, forSex) => run(() => api.mutate('addNameIdea', { name, ...(note ? { note } : {}), ...(forSex && forSex !== 'ambos' ? { forSex } : {}) }), NAMES_MISSING, 'Anotado no caderno de nomes'),
+    onTag: data.espera
+      ? (id, f) => {
+          patch(d => ({ ...d, nameIdeas: (d.nameIdeas ?? []).map(i => (i.id !== id ? i : { ...i, ...(f.forSex ? { for_sex: f.forSex } : {}), ...(f.finalist !== undefined ? { finalist: f.finalist } : {}) })) }));
+          return run(() => api.mutate('tagNameIdea', { id, ...f }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/035_a_espera.sql no Neon.');
+        }
+      : undefined,
     onNote: (id, note) => run(() => api.mutate('noteNameIdea', { id, note }), CADERNO_MISSING),
     onComment: (id, body) => run(() => api.mutate('commentNameIdea', { id, body }), CADERNO_MISSING),
     onDeleteComment: id => run(() => api.mutate('deleteNameComment', { id }), CADERNO_MISSING),
@@ -1020,6 +1070,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onWrite={writeEntry}
             onVisitFeedback={visitFeedback}
             onShare={share}
+            espera={data.espera}
+            onOpenEspera={data.espera ? () => setEsperaOpen(true) : undefined}
+            onOpenReveal={() => setRevealSexOpen(true)}
             ritual={data.journalAvailable ? { closed: dayClosed(me.user.id, today, data.journal ?? [], data.checkins ?? []), partner: partnerDay(data.checkins ?? [], data.journal ?? [], today), onOpen: () => setRitualOpen(true) } : undefined}
             askVisit={askVisit}
             openQuestions={questions.filter(q => !q.doctor_answer).length}
@@ -1283,7 +1336,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {celebrationOpen && data.celebrations?.some(c => c.id === celebrationOpen) && (
         <CelebrationSpace celebration={data.celebrations.find(c => c.id === celebrationOpen)!} actions={celebrationActions} onClose={() => setCelebrationOpen(null)} />
       )}
-      {namesOpen && <NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} onShare={shareName} />}
+      {namesOpen && <NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} onShare={shareName} onShareFinalists={shareFinalists} espera={data.espera ?? null} />}
       {reveal && (
         <NameReveal
           name={reveal}
@@ -1368,7 +1421,31 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         />
       )}
 
+      {esperaOpen && data.espera && !care && (
+        <EsperaSheet espera={data.espera} me={firstName(family.members.find(m => m.me)?.name ?? '') || 'Você'} partnerName={partnerName} today={today} busy={busy} actions={esperaActions} onClose={() => setEsperaOpen(false)} />
+      )}
+      {revealSexOpen && data.espera && !care && (data.espera.secret || data.espera.sex) && (
+        <SexReveal
+          espera={data.espera}
+          partnerName={partnerName}
+          me={firstName(family.members.find(m => m.me)?.name ?? '') || 'Você'}
+          onOpen={async () => {
+            const ok = await run(() => api.mutate('openSex', {}), ESPERA_MISSING);
+            if (ok) tumtum();
+            return ok;
+          }}
+          onShare={() => shareEspera('revelacao')}
+          onMural={() => {
+            const sex = data.espera?.sex;
+            if (!sex) return Promise.resolve(false);
+            return run(() => api.mutate('createEntry', { date: today, body: `${SEX_WORD[sex].title}! ${SEX_WORD[sex].emoji}`, visibility: 'shared', remindOn: null, folder: 'momento', firstTime: 'sexo' }), 'Não foi possível guardar.', 'Guardado no livro e no Mural');
+          }}
+          onDone={() => setRevealSexOpen(false)}
+        />
+      )}
+      {/* Por cima de tudo, até das revelações (que ficam em z-60). */}
       {shareReq && (
+        <div className="relative z-[70]">
         <ShareSheet
           request={shareReq}
           onClose={() => setShareReq(null)}
@@ -1378,6 +1455,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             if (how === 'downloaded') showToast({ text: 'Imagem salva. É só postar 💛', tone: 'success' });
           }}
         />
+        </div>
       )}
       <Toast toast={toast} onClose={() => setToast(null)} />
       {echo && (

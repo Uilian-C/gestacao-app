@@ -615,6 +615,11 @@
   .tt-revelacao-eco { display: none; }
 }
 
+/* A espera: o envelope da revelação pulsa no ritmo do tum-tum (duas batidas e uma pausa). */
+@keyframes tt-envelope { 0%, 30%, 100% { transform: scale(1) rotate(0); } 8% { transform: scale(1.08) rotate(-2deg); } 15% { transform: scale(1) rotate(0); } 22% { transform: scale(1.05) rotate(1.5deg); } }
+.tt-envelope { display: inline-block; animation: tt-envelope 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .tt-envelope { animation: none; } }
+
 /* Ao imprimir com uma janela aberta, a página de fundo travada (useScrollLock) não pode cortar o livro. */
 @media print {
   body { position: static !important; overflow: visible !important; top: auto !important; }

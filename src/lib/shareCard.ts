@@ -5,8 +5,8 @@
 // É assim que a marca viaja: no momento bonito que o casal quer mostrar. Nada
 // sai sem o toque da pessoa, e a imagem só leva o que aparece nela.
 
-export type ShareKind = 'cartao_semana' | 'cartao_contagem' | 'cartao_momento' | 'cartao_primeira_vez' | 'cartao_barriga' | 'cartao_carta' | 'cartao_nome';
-export const SHARE_KINDS: ShareKind[] = ['cartao_semana', 'cartao_contagem', 'cartao_momento', 'cartao_primeira_vez', 'cartao_barriga', 'cartao_carta', 'cartao_nome'];
+export type ShareKind = 'cartao_semana' | 'cartao_contagem' | 'cartao_momento' | 'cartao_primeira_vez' | 'cartao_barriga' | 'cartao_carta' | 'cartao_nome' | 'cartao_espera' | 'cartao_revelacao' | 'cartao_finalistas';
+export const SHARE_KINDS: ShareKind[] = ['cartao_semana', 'cartao_contagem', 'cartao_momento', 'cartao_primeira_vez', 'cartao_barriga', 'cartao_carta', 'cartao_nome', 'cartao_espera', 'cartao_revelacao', 'cartao_finalistas'];
 
 /** Stories e status (9:16) ou post no feed (4:5). */
 export type CardFormat = 'story' | 'post';
@@ -31,6 +31,8 @@ export interface CardContent {
   bigUnit?: string;
   /** A frase principal. */
   title?: string;
+  /** Uma lista grande, um item por linha (os nomes da lista final). */
+  list?: string[];
   /** As palavras de quem viveu, entre aspas (o que dá personalidade ao cartão). */
   quote?: string;
   sub?: string;
@@ -111,6 +113,49 @@ export function nameCard(o: { name: string; date?: string | null; week: number }
     name: o.name,
     sub: o.date ? `Escolhido em ${o.date} · semana ${o.week}` : `Na semana ${o.week}`,
     tone: 'lilas',
+  };
+}
+
+/** "Menino ou menina?": o suspense antes de descobrir (com o dia, se marcaram, e o placar do bolão). */
+export function teaserCard(o: { testDate?: string | null; menina: number; menino: number }): CardContent {
+  const total = o.menina + o.menino;
+  return {
+    kicker: 'A espera',
+    name: 'Menino ou menina?',
+    sub: o.testDate ? `A gente descobre em ${o.testDate}. Qual é o seu palpite?` : 'Qual é o seu palpite?',
+    sign: total ? `Bolão: ${plural(o.menina, 'palpite', 'palpites')} menina · ${plural(o.menino, 'palpite', 'palpites')} menino` : undefined,
+    tone: 'lilas',
+  };
+}
+
+/** A revelação: grande, limpa, com a semana e o dia. */
+export function revealCard(o: { sex: 'menina' | 'menino'; week: number; date: string; right?: number }): CardContent {
+  return {
+    kicker: 'A revelação',
+    name: o.sex === 'menina' ? 'É menina' : 'É menino',
+    sub: `Descobrimos na semana ${o.week} · ${o.date}`,
+    sign: o.right ? `${plural(o.right, 'pessoa acertou', 'pessoas acertaram')} o palpite` : undefined,
+    tone: o.sex === 'menina' ? 'rosa' : 'azul',
+  };
+}
+
+/** Para quem escolheu esperar até o parto. */
+export function surpriseCard(o: { daysToDpp: number }): CardContent {
+  return {
+    kicker: 'A espera',
+    name: 'Vai ser surpresa',
+    sub: o.daysToDpp > 0 ? `Escolhemos esperar até o parto. Faltam ${plural(o.daysToDpp, 'dia', 'dias')}.` : 'Escolhemos esperar até o parto.',
+    tone: 'lilas',
+  };
+}
+
+/** A lista final de nomes, como enquete para os stories. */
+export function finalistsCard(o: { names: string[]; sex: 'menina' | 'menino' | null }): CardContent {
+  return {
+    kicker: 'Nossa lista final',
+    list: o.names.slice(0, 4),
+    sub: 'Qual você escolheria?',
+    tone: o.sex === 'menino' ? 'azul' : o.sex === 'menina' ? 'rosa' : 'lilas',
   };
 }
 
@@ -199,11 +244,36 @@ function layoutText(ctx: CanvasRenderingContext2D, c: CardContent, accent: strin
 
   if (c.name) {
     const big = !c.title && !c.quote && !c.big && !photoCount;
-    ctx.font = big ? `700 ${story ? 200 : 170}px ${DISPLAY}` : `700 76px ${DISPLAY}`;
-    const lines = wrapLines(s => ctx.measureText(s).width, c.name, width, 2);
+    // O título grande cabe inteiro: diminui até caber em duas linhas, sem cortar palavra.
+    let size = big ? (story ? 200 : 170) : 76;
+    const fits = (max: number) => {
+      ctx.font = `700 ${size}px ${DISPLAY}`;
+      const lines = wrapLines(t => ctx.measureText(t).width, c.name!, width, 99);
+      return lines.length <= max && lines.every(l => ctx.measureText(l).width <= width);
+    };
+    // Primeiro tenta numa linha só (até 3/4 do tamanho); senão, em duas.
+    const start = size;
+    while (big && size > start * 0.75 && !fits(1)) size -= 10;
+    if (big && !fits(1)) {
+      size = start;
+      while (size > 100 && !fits(2)) size -= 10;
+    }
+    ctx.font = `700 ${size}px ${DISPLAY}`;
+    const lines = wrapLines(t => ctx.measureText(t).width, c.name, width, 2);
     for (const line of lines) {
-      y += big ? (story ? 230 : 195) : 92;
+      y += big ? size * 1.15 : 92;
       if (draw) ctx.fillText(line, left - (big ? 6 : 0), y);
+    }
+  }
+
+  if (c.list?.length) {
+    ctx.fillStyle = INK;
+    const size = story ? 120 : 100;
+    ctx.font = `700 ${size}px ${DISPLAY}`;
+    y += 40;
+    for (const item of c.list) {
+      y += size * 1.25;
+      if (draw) ctx.fillText(wrapLines(t => ctx.measureText(t).width, item, width, 1)[0], left - 4, y);
     }
   }
 

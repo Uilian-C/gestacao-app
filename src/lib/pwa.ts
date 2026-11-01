@@ -174,3 +174,12 @@ export function takeRitualFromUrl(): boolean {
   window.history.replaceState(null, '', url.pathname + url.search + url.hash);
   return true;
 }
+
+/** Os avisos da espera abrem a folha (/?espera=1) ou a revelação guardada (/?revelar=1). */
+export function takeFlagFromUrl(flag: 'espera' | 'revelar'): boolean {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(flag)) return false;
+  url.searchParams.delete(flag);
+  window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  return true;
+}

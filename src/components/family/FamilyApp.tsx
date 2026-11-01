@@ -5,6 +5,8 @@ import { api, ApiError, photoUrl, type FamilyState, type Me } from '../../api';
 import type { JournalEntry, NameIdea, Reaction, ReactionKind, ThreadComment } from '../../hooks/useGestationData';
 import { BabyNameContext, markNameSeen, nameSeen } from '../../lib/baby';
 import NameSpace, { NameReveal, NameTeaser } from '../BabyNames';
+import { FamilyBolao } from '../espera/Espera';
+import type { Espera } from '../../lib/espera';
 import { weekInfo } from '../../content/weeks';
 import { clampWeek, gestationalAge, parseLocalDate } from '../../lib/dates';
 import { FOLDER, bellyShots, weekOn } from '../../lib/folders';
@@ -42,6 +44,8 @@ export interface FamilyView {
   nameIdeas?: NameIdea[] | null;
   /** Modo cuidado (migração 029): o casal passou por uma perda. */
   careSince?: string | null;
+  /** A espera: o bolão de menino ou menina (migração 035). */
+  espera?: Espera | null;
 }
 
 interface Props {
@@ -163,6 +167,8 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
                 <p className="text-[14px] leading-relaxed text-ink-soft">{couple ? `${couple} ${couple.includes(' e ') ? 'estão' : 'está'}` : 'O casal está'} passando por um momento difícil. O que quiserem dividir continua aqui. Um abraço e uma mensagem carinhosa fazem diferença.</p>
               </section>
             ) : dumDate ? <BabyWeek dumDate={dumDate} tone={view.babyTone ?? 'tumtum'} parents={couple} belly={bellyShots(view.journal, dumDate)} onOpenEntry={setOpen} /> : <p className="rounded-[24px] bg-surface shadow-soft p-5 text-sm text-ink-soft">O casal ainda não informou a data da gestação. Logo a semana do bebê aparece aqui.</p>}
+            {/* O bolão: a família também dá palpite em menino ou menina. */}
+            {!view.careSince && view.espera && <FamilyBolao espera={view.espera} busy={busy} onGuess={guess => mutate('guessSex', { guess })} />}
             {/* A família também dá palpite no nome (quem escolhe é o casal); depois, vê a história dele. */}
             {!view.careSince && view.nameIdeas && !view.babyName && <NameTeaser ideas={view.nameIdeas} onOpen={() => setNames(true)} />}
             {!view.careSince && view.nameIdeas && view.babyName && (
