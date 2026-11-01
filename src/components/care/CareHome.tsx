@@ -72,7 +72,7 @@ export default function CareHome(props: Props) {
 
       {/* 2. À mão em um toque: na consulta, quando perguntarem algo, os dados estão aqui. */}
       <div className="grid grid-cols-2 gap-3">
-        <Shortcut icon={<ClipboardList />} title="Dados da gestação" hint={missing.length ? `Faltam ${missing.length} ${missing.length === 1 ? 'item' : 'itens'}` : 'Tipo sanguíneo, DPP…'} warn={missing.length > 0} onClick={() => setSheet('dados')} />
+        <Shortcut icon={<ClipboardList />} title="Dados da gestação" hint={missing.length ? 'Para completar' : 'Tipo sanguíneo, DPP…'} warn={missing.length > 0} onClick={() => setSheet('dados')} />
         <Shortcut icon={<FileText />} title="Relatório" hint="O que levar" onClick={() => props.onReport('obstetra')} />
       </div>
 
@@ -85,7 +85,7 @@ export default function CareHome(props: Props) {
           <Tile
             icon={<Activity />}
             label="Sintomas"
-            value={recent.length ? `${recent.length} ${recent.length === 1 ? 'registro' : 'registros'}` : 'Nenhum ainda'}
+            value={recent.length ? `${recent.length} ${recent.length === 1 ? 'registro' : 'registros'}` : 'Ainda não'}
             hint={recent.length ? `4 semanas${top ? ` · mais: ${top}` : ''}` : 'Toque em Registrar'}
             tone={props.alert ? 'alert' : undefined}
             onClick={() => props.onOpen('sintomas')}
@@ -93,7 +93,7 @@ export default function CareHome(props: Props) {
           <Tile
             icon={<HeartPulse />}
             label="Peso e pressão"
-            value={weight ? `${fmt(weight.weight_kg!)} kg` : bp ? `${bp.systolic_bp}/${bp.diastolic_bp}` : 'Nenhum ainda'}
+            value={weight ? `${fmt(weight.weight_kg!)} kg` : bp ? `${bp.systolic_bp}/${bp.diastolic_bp}` : 'Ainda não'}
             hint={bp && weight ? `${bp.systolic_bp}/${bp.diastolic_bp} mmHg${highBp ? ' · alta' : ''}` : weight ? formatBR(weight.recorded_at) : 'Toque em Registrar'}
             tone={highBp ? 'alert' : undefined}
             onClick={() => props.onOpen('medidas')}
@@ -112,7 +112,7 @@ export default function CareHome(props: Props) {
           hint={
             <>
               {plan.done} de {plan.dueByNow} feitos
-              {plan.late > 0 && <span className="text-warn font-semibold"> · {plan.late} {plan.late === 1 ? 'atrasado' : 'atrasados'}</span>}
+              {plan.late > 0 && <span className="text-lilas-strong font-semibold"> · {plan.late} para conversar na consulta</span>}
             </>
           }
           extra={
@@ -128,7 +128,7 @@ export default function CareHome(props: Props) {
                   <button type="button" onClick={() => props.onOpenJourney(r.item.id)} className="w-full flex items-center gap-2 rounded-xl px-2 py-2 text-left hover:bg-surface-2/60">
                     <span className="flex-1 min-w-0">
                       <span className="block text-[14px] font-semibold text-ink leading-snug">{r.item.title}</span>
-                      <span className={`block text-[12.5px] ${r.status === 'atrasado' ? 'text-warn' : 'text-ink-soft'}`}>{statusText(r, props.profile.dumDate)}</span>
+                      <span className={`block text-[12.5px] ${r.status === 'atrasado' ? 'text-lilas-strong' : 'text-ink-soft'}`}>{statusText(r, props.profile.dumDate)}</span>
                     </span>
                     <ChevronRight className="w-4 h-4 text-ink-mute shrink-0" />
                   </button>

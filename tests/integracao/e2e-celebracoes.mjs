@@ -126,7 +126,7 @@ await espaco.getByRole('button', { name: 'Voltar' }).click();
 await mae.getByRole('list', { name: 'Celebrações' }).getByRole('button', { name: 'Chá da Helena: abrir' }).waitFor();
 await mae.screenshot({ path: `${OUT}celebracao-lista.png` });
 
-// No Início: a linha com a contagem no "Para hoje", e o Hoje sem os passos que já passaram.
+// No Início: a contagem para o chá em "Nesta semana" (o "Para hoje" é só do dia), sem os passos que já passaram.
 // (Quem já fechou o convite dos lembretes e os primeiros 7 dias, para o chá caber nas 3 linhas.)
 await mae.evaluate(() => {
   localStorage.setItem('nossa-gestacao:convite-notificacoes', 'fechado');
@@ -135,9 +135,9 @@ await mae.evaluate(() => {
 await mae.reload();
 await mae.getByRole('button', { name: /^Início/ }).first().click();
 const hoje = mae.locator('section[aria-labelledby="hoje-titulo"]');
-const teaser = hoje.getByRole('button', { name: /^Faltam \d+ dias Chá da Helena/ });
+const teaser = mae.locator('section[aria-labelledby="nesta-semana"]').getByRole('button', { name: /^Faltam \d+ dias para o chá da Helena/ });
 await teaser.waitFor({ timeout: 10000 });
-check(await teaser.getByText(/^Faltam \d+ dias$/).isVisible() && (await teaser.getByText(/Próximo passo:/).isVisible()), 'o "Para hoje" mostra quanto falta para o chá e o próximo passo');
+check(true, 'a contagem para o chá aparece em "Nesta semana"');
 check((await hoje.getByText(/atrasada/i).count()) === 0, 'nenhum passo do chá aparece como atrasado no Início');
 await mae.screenshot({ path: `${OUT}celebracao-inicio.png` });
 

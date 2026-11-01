@@ -135,7 +135,7 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
     });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="space-title">
+    <div className="tt-marca fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="space-title">
       <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px] touch-none" onClick={onClose} />
       <div
         style={panelStyle}
@@ -168,7 +168,7 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
                     {m.name} {m.me && <span className="text-ink-mute font-normal">(você)</span>}
                   </p>
                   <p className="text-xs text-ink-mute truncate">
-                    {ROLE_LABEL[m.role]} · {m.email}
+                    {ROLE_LABEL[m.role]}
                   </p>
                 </div>
                 {!m.me && others.length > 0 && (

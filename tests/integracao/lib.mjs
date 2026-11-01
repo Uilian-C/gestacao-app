@@ -108,6 +108,13 @@ export async function quickAccount(page, { name = 'Ana', role = 'mae', dum = DUM
   await page.reload();
 }
 
+/** O Registrar (no centro do menu): toca nele e, se ele perguntar, escolhe o tipo ("Sintoma", "Agendar", "Tarefa"...). */
+export async function openRecord(page, type) {
+  await page.getByRole('button', { name: 'Registrar', exact: true }).click();
+  const option = page.getByRole('dialog').getByRole('group', { name: 'Tipo de registro' }).getByRole('button', { name: new RegExp(`^${type}:`) });
+  if (type && (await option.count())) await option.click();
+}
+
 /** Cuidados: a página única, ou uma das partes que abrem dela ("Sintomas", "Peso e pressão", "Jornada", "Resultados"). */
 export async function openCare(page, part) {
   await page.getByRole('button', { name: /^Cuidados/ }).first().click();

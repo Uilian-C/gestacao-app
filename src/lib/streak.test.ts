@@ -46,6 +46,7 @@ describe('as primeiras vezes', () => {
 });
 
 import { countdownTitle, nextCountdown } from './countdown';
+import type { Celebration } from './celebrations';
 import type { Consultation } from '../types';
 
 describe('a contagem para os marcos', () => {
@@ -62,5 +63,10 @@ describe('a contagem para os marcos', () => {
     expect(nextCountdown({ consultations: [c({ scheduled_at: at('2026-12-30') })], dpp: null, babyName: null, today })).toBeNull();
     const n = nextCountdown({ consultations: [], dpp: new Date(2026, 10, 4), babyName: 'Helena', today })!;
     expect(countdownTitle(n)).toBe('Faltam 10 dias para a chegada de Helena');
+  });
+  it('a celebração mantém o nome como foi escrito ("o chá da Helena")', () => {
+    const party = { id: 'p1', title: 'Chá da Helena', event_at: at('2026-10-31'), created_at: at('2026-10-01') } as unknown as Celebration;
+    const n = nextCountdown({ consultations: [], celebrations: [party], dpp: null, babyName: null, today })!;
+    expect(countdownTitle(n)).toBe('Faltam 6 dias para o chá da Helena');
   });
 });

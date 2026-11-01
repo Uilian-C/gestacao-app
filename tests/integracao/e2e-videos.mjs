@@ -42,7 +42,7 @@ const video = await makeVideo();
 
 // ---- No diário ----
 await p.getByRole('button', { name: /^Diário/ }).first().click();
-await p.getByRole('button', { name: /O que vocês querem guardar hoje/ }).click();
+await p.getByRole('button', { name: 'Registrar', exact: true }).click();
 const novo = p.getByRole('dialog');
 await novo.getByLabel('O que aconteceu?').fill('Nosso primeiro ultrassom, em vídeo');
 await novo.getByLabel(/Escolher fotos ou vídeos/).setInputFiles({ name: 'ultrassom.webm', mimeType: 'video/webm', buffer: video });

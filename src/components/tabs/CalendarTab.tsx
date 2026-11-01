@@ -87,7 +87,7 @@ const WEEK_LETTERS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 /** As cores de cada trimestre: rosa, lilás e azul, como a barra da gestação no Início. */
 const TRI_BAND = { 1: 'bg-rosa-soft', 2: 'bg-lilas-soft', 3: 'bg-azul-soft' } as const;
 const TRI_TEXT = { 1: 'text-rosa-strong', 2: 'text-lilas-strong', 3: 'text-azul-strong' } as const;
-/** Os números dos dias da gestação: a cor do trimestre, clarinha (no Mês e no Ano). */
+/** Os números dos dias da gestação no Ano: a cor do trimestre, clarinha. (No Mês, o número fica em tinta e só os dias com algo se destacam.) */
 const TRI_DAY = { 1: 'text-rosa/80', 2: 'text-lilas/80', 3: 'text-azul/80' } as const;
 const TRI_DOT = { 1: 'bg-rosa', 2: 'bg-lilas', 3: 'bg-azul' } as const;
 const monthKey = (iso: string) => iso.slice(0, 7);
@@ -424,7 +424,7 @@ const MonthBlock = memo(function MonthBlock({ year, month, dumDate, todayIso, op
                 >
                   <span
                     className={`relative w-9 h-9 rounded-full flex items-center justify-center text-[15px] font-semibold tabular transition group-focus-visible:ring-2 group-focus-visible:ring-brand ${
-                      isToday ? 'bg-brand text-on-accent shadow-soft' : g?.isDpp ? 'bg-rosa text-white shadow-soft' : isOpen ? 'bg-surface text-ink ring-2 ring-brand' : `${band ? TRI_DAY[g.trimester] : 'text-ink-soft'} group-hover:bg-surface/70`
+                      isToday ? 'bg-brand text-on-accent shadow-soft' : g?.isDpp ? 'bg-rosa text-white shadow-soft' : isOpen ? 'bg-surface text-ink ring-2 ring-brand' : `${shown.length ? 'text-ink font-extrabold' : 'text-ink-soft font-medium'} group-hover:bg-surface/70`
                     }`}
                   >
                     {d.getDate()}

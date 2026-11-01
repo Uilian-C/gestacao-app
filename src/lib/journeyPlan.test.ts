@@ -96,7 +96,7 @@ describe('jornada para leigos', () => {
 
   it('situação em uma linha, sem jargão', () => {
     const rows = journeyRows(items, { ...ctx, checks: [], consultations: [appt({ plan_item: 'totg', scheduled_at: '2026-11-20T12:00:00.000Z' })] });
-    expect(statusText(row(rows, 'morfo-1'), dum)).toMatch(/^Passou da janela, que ia até \d\d\/\d\d$/);
+    expect(statusText(row(rows, 'morfo-1'), dum)).toMatch(/^Para conversar na consulta \(a janela ia até \d\d\/\d\d\)$/);
     expect(statusText(row(rows, 'dtpa'), dum)).toMatch(/^Fazer até \d\d\/\d\d$/);
     expect(statusText(row(rows, 'vsr'), dum)).toMatch(/^A partir de \d\d\/\d\d$/);
     expect(statusText(row(rows, 'totg'), dum)).toMatch(/^Agendado: .*20\/11, 09:00$/);

@@ -1,5 +1,5 @@
 // Curtir e comentar entre o casal, e listas editáveis (mala e jornada), no celular.
-import { BASE, check, finish, launch, OUT, phone, quickAccount, openCare } from './lib.mjs';
+import { BASE, check, finish, launch, OUT, phone, quickAccount, openCare, openRecord } from './lib.mjs';
 
 const b = await launch();
 const mae = await phone(b);
@@ -83,7 +83,7 @@ await mae.keyboard.press('Escape');
 
 // ---- Agenda: quem vai, com nome e foto ----
 await tab(pai, 'Agenda');
-await pai.getByRole('button', { name: 'Agendar' }).first().click();
+await openRecord(pai, 'Agendar');
 const quem = pai.getByRole('group', { name: 'Quem vai' });
 check((await quem.getByRole('button', { name: /Os dois/ }).getAttribute('aria-pressed')) === 'true', 'consulta nova: "Quem vai" começa em "os dois"');
 check(await quem.getByRole('button', { name: /Ana/ }).isVisible() && (await quem.getByRole('button', { name: /Caio/ }).isVisible()), 'as opções têm o nome de cada um');

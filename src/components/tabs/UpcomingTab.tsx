@@ -8,7 +8,7 @@ import type { Celebration } from '../../lib/celebrations';
 import type { ExamItem, JournalEntry } from '../../hooks/useGestationData';
 import type { Consultation, PartnerTask } from '../../types';
 import { WhoAvatars } from '../WhoPicker';
-import { ScheduleForm, type NewConsultation } from './ConsultationsTab';
+import type { NewConsultation } from './ConsultationsTab';
 
 // Agenda → Próximos: tudo o que tem data, numa lista só. É aqui que se agenda
 // consulta, exame, ultrassom ou vacina.
@@ -44,11 +44,7 @@ export default function UpcomingTab(props: Props) {
 
   return (
     <div className="space-y-5">
-      {props.migrationPending ? (
-        <p className="text-sm text-warn bg-warn-soft rounded-2xl p-4">Para agendar, rodem a migração <code>db/migrations/002_consultas_e_padroes.sql</code> no Neon.</p>
-      ) : (
-        <ScheduleForm busy={props.busy} onCreate={props.onCreateConsultation} />
-      )}
+      {props.migrationPending && <p className="text-sm text-warn bg-warn-soft rounded-2xl p-4">Para agendar, rodem a migração <code>db/migrations/002_consultas_e_padroes.sql</code> no Neon.</p>}
 
       {up.missingResults.length > 0 && (
         <Group title="Falta guardar o resultado" tone="text-alert">
@@ -67,7 +63,7 @@ export default function UpcomingTab(props: Props) {
         </Group>
       )}
 
-      {empty && <p className="px-1 text-[14px] text-ink-soft">Nada marcado por enquanto. Toquem em <strong>Agendar</strong> para pôr consultas, exames, ultrassons e vacinas aqui, com lembrete na véspera.</p>}
+      {empty && <p className="px-1 text-[14px] text-ink-soft">Nada marcado por enquanto. Toquem em <strong>Registrar</strong>, no meio do menu, e em "Marcar consulta ou exame": consultas, exames, ultrassons e vacinas aparecem aqui, com lembrete na véspera.</p>}
 
       {up.today.length > 0 && <Group title="Hoje"><Rows items={up.today} today onOpen={open} /></Group>}
       {up.thisWeek.length > 0 && <Group title="Esta semana"><Rows items={up.thisWeek} onOpen={open} /></Group>}

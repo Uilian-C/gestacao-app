@@ -47,7 +47,7 @@ export function nextCountdown(input: { consultations: Consultation[]; celebratio
     if (!p.event_at) continue;
     const days = daysBetween(todayDay, parseLocalDate(toISODate(parseTimestamp(p.event_at))));
     if (days < 1 || days > WINDOW.celebracao) continue;
-    options.push({ id: `festa-${p.id}`, days, what: p.title.toLowerCase().startsWith('chá') ? `o ${p.title.toLowerCase()}` : p.title, why: 'a festa de vocês', progress: progressOf(days, WINDOW.celebracao), kind: 'celebracao', targetId: p.id });
+    options.push({ id: `festa-${p.id}`, days, what: p.title.toLowerCase().startsWith('chá') ? `o ${p.title.charAt(0).toLowerCase()}${p.title.slice(1)}` : p.title, why: 'a festa de vocês', progress: progressOf(days, WINDOW.celebracao), kind: 'celebracao', targetId: p.id });
   }
   if (input.dpp) {
     const days = daysBetween(todayDay, input.dpp);

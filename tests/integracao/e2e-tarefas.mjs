@@ -1,13 +1,23 @@
 // Agenda → Tarefas: adicionar rápido (nome, quando e quem), a lista separada por
 // quando (atrasadas, hoje, amanhã...), a prioridade na bolinha e o concluir.
 // Várias tarefas no mesmo dia viram uma linha só em Próximos e no Início.
-import { check, finish, launch, OUT, phone, quickAccount } from './lib.mjs';
+import { check, finish, launch, OUT, phone, quickAccount, openRecord } from './lib.mjs';
 
 const b = await launch();
 const p = await phone(b);
 await quickAccount(p, { name: 'Ana' });
 const iso = n => p.evaluate(n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); }, n);
 const post = body => p.evaluate(async body => (await fetch('/api/data', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json(), body);
+// O pai no espaço: com os dois, a lista ganha o filtro por pessoa.
+const code = await p.evaluate(async () => (await (await fetch('/api/family', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ op: 'invite' }) })).json()).code);
+const caio = await phone(b);
+await caio.goto(p.url());
+await caio.evaluate(async code => {
+  const call = (path, body) => fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  await call('/api/auth/sign-up/email', { name: 'Caio', email: `caio${Date.now()}@ex.com`, password: 'senha-forte-1' });
+  await call('/api/family', { op: 'consent', version: '2026-10-16' });
+  await call('/api/family', { op: 'join', code, role: 'pai' });
+}, code);
 await post({ op: 'createTask', week: 22, title: 'Marcar a fisioterapia', assignee: 'mae', priority: 'Média', dueDate: await iso(-2), notes: null });
 await post({ op: 'createTask', week: 22, title: 'Montar o berço', assignee: 'casal', priority: 'Média', dueDate: await iso(1), notes: null });
 await post({ op: 'createTask', week: 22, title: 'Trocar o pneu do carro', assignee: 'pai', priority: 'Média', dueDate: await iso(0), notes: null });
@@ -20,15 +30,16 @@ await grupo('Atrasadas').waitFor();
 check(await grupo('Atrasadas').getByText('Marcar a fisioterapia').isVisible() && (await grupo('Amanhã').getByText('Montar o berço').isVisible()), 'a lista separa por quando: atrasadas e amanhã');
 check((await p.getByText('0 de 3 feitas').isVisible()) && (await p.getByText('1 passou do prazo').isVisible()), 'o andamento numa linha, com o que passou do prazo');
 
-// Adicionar rápido: hoje e importante
-await p.getByRole('button', { name: 'Adicionar tarefa' }).click();
-const form = p.getByRole('form', { name: 'Nova tarefa' });
+// Nova tarefa pelo Registrar (a porta única): hoje e importante
+await openRecord(p, 'Tarefa');
+const form = p.getByRole('dialog');
 await form.getByLabel('Tarefa').fill('Lavar as roupinhas');
 await form.getByRole('group', { name: 'Prazo' }).getByRole('button', { name: 'Hoje' }).click();
-await form.getByRole('button', { name: 'Importante' }).click();
-await form.getByRole('button', { name: 'Adicionar' }).click();
-await grupo('Hoje').getByText('Lavar as roupinhas').waitFor({ timeout: 1500 });
-check((await form.count()) === 0 && (await p.getByRole('button', { name: 'Adicionar tarefa' }).isVisible()), 'adiciona na hora e o mini-formulário recolhe sozinho');
+await form.getByRole('button', { name: /Prioridade e observação/ }).click();
+await form.getByRole('button', { name: 'Alta' }).click();
+await form.getByRole('button', { name: 'Criar tarefa' }).click();
+await grupo('Hoje').getByText('Lavar as roupinhas').waitFor({ timeout: 5000 });
+check((await p.getByRole('button', { name: 'Adicionar tarefa' }).count()) === 0, 'a tarefa nova entra pelo Registrar, sem um segundo "Adicionar" na lista');
 let t;
 for (let i = 0; i < 20 && !t; i++) {
   t = (await p.evaluate(async () => (await (await fetch('/api/data')).json()).tasks)).find(t => t.task_title === 'Lavar as roupinhas');

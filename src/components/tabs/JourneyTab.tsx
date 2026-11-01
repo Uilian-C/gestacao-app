@@ -57,7 +57,8 @@ const ddmm = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month:
 const STATUS: Record<JourneyStatus, { label: string; chip: string; dot: string; text: string }> = {
   feito: { label: 'feito', chip: 'bg-ok-soft text-ok', dot: 'bg-ok text-on-accent', text: 'text-ok' },
   agendado: { label: 'agendado', chip: 'bg-brand-soft text-brand-strong', dot: 'bg-brand-soft text-brand-strong', text: 'text-brand-strong' },
-  atrasado: { label: 'atrasado', chip: 'bg-warn-soft text-warn', dot: 'bg-warn-soft text-warn', text: 'text-warn' },
+  // Passou a janela sem marcar: um assunto para a consulta, não uma cobrança.
+  atrasado: { label: 'para a consulta', chip: 'bg-lilas-soft text-lilas-strong', dot: 'bg-lilas-soft text-lilas-strong', text: 'text-lilas-strong' },
   agora: { label: 'fazer agora', chip: 'bg-surface-2 text-ink', dot: 'bg-surface-2 text-ink', text: 'text-ink' },
   'em-breve': { label: 'em breve', chip: 'bg-surface-2 text-ink-soft', dot: 'bg-surface-2 text-ink-mute', text: 'text-ink-soft' },
   depois: { label: 'mais adiante', chip: 'bg-surface-2 text-ink-mute', dot: 'bg-surface-2 text-ink-mute', text: 'text-ink-mute' },
@@ -109,7 +110,7 @@ export default function JourneyTab(props: Props) {
           <p className="flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] font-semibold">
             <span className="text-ok">✓ {summary.doneTotal} {summary.doneTotal === 1 ? 'feito' : 'feitos'}</span>
             <span className="text-brand-strong">{summary.scheduled} {summary.scheduled === 1 ? 'agendado' : 'agendados'}</span>
-            {summary.late > 0 && <span className="text-warn">{summary.late} {summary.late === 1 ? 'atrasado' : 'atrasados'}</span>}
+            {summary.late > 0 && <span className="text-lilas-strong">{summary.late} para conversar na consulta</span>}
             <span className="text-ink-mute">de {summary.total} na gestação</span>
           </p>
           <details className="pt-1 group">
@@ -195,7 +196,7 @@ export default function JourneyTab(props: Props) {
                   <span className="block text-xs text-ink-mute">
                     {g.phase ? `semanas ${g.phase.from} a ${g.phase.to} · ` : 'vacinas e itens sem semana · '}
                     {count.done} de {count.total} {count.total === 1 ? 'feito' : 'feitos'}
-                    {count.late > 0 && <span className="text-warn font-semibold"> · {count.late} {count.late === 1 ? 'atrasado' : 'atrasados'}</span>}
+                    {count.late > 0 && <span className="text-lilas-strong font-semibold"> · {count.late} para a consulta</span>}
                   </span>
                 </span>
                 <span className="w-10 h-1.5 rounded-full bg-surface-2 overflow-hidden shrink-0" aria-hidden>
