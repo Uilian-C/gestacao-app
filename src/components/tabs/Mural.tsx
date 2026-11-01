@@ -17,7 +17,7 @@ import type { OnReact } from '../Social';
 // O Mural do diário: tudo o que vocês guardam, do mais novo ao mais antigo, como
 // uma rede social só de vocês dois, separado pelas semanas da gestação. Foto
 // grande, quem postou e o abraço; a conversa abre ali mesmo, quando tocada.
-// As pastas continuam no Fichário, para guardar e procurar.
+// As pastas moram no Livro, para guardar e procurar.
 // Os familiares (migração 023) veem aqui só os posts para a família, e só
 // abraçam e comentam.
 
@@ -291,7 +291,8 @@ function Photos({ entry: e, week, onOpen }: { entry: JournalEntry; week: number 
               />
             </div>
           ) : (
-            <button key={p.id} type="button" onClick={onOpen} aria-label={`Foto ${i + 1} de ${e.photos.length}: abrir`} className="snap-center shrink-0 w-full h-full">
+            // A miniatura aparece na hora, como prévia; a foto inteira chega por cima quando carrega.
+            <button key={p.id} type="button" onClick={onOpen} aria-label={`Foto ${i + 1} de ${e.photos.length}: abrir`} className="snap-center shrink-0 w-full h-full bg-cover bg-center" style={p.thumb ? { backgroundImage: `url(${photoUrl(p.id, true)})` } : undefined}>
               <img
                 src={photoUrl(p.id)}
                 alt=""

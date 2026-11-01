@@ -97,6 +97,7 @@ const tests = [
   ['api-bolao.mjs', false],
   ['api-gemeos.mjs', false],
   ['api-livro-impresso.mjs', false],
+  ['api-leveza.mjs', false],
   ['e2e-fluxo.mjs', true],
   ['e2e-momentos.mjs', false],
   ['e2e-registro-rapido.mjs', false],

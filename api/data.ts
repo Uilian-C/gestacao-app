@@ -998,6 +998,9 @@ async function applyRelative(m: SpaceMember, body: unknown) {
   await notifyAll().catch(err => console.error('Aviso da família não enviado', err));
 }
 
+/** As ações leves: o app mostra a mudança antes da resposta, que volta só com "ok". */
+const LIGHT_OPS = new Set(['hug', 'checkin', 'react', 'toggleTask', 'setCheck', 'likeNameIdea', 'track']);
+
 export const GET = endpoint(async request => {
   const member = await requireSpace(request);
   return json(isCouple(member) ? await fetchAll(member.familyId, member.userId) : await fetchFamilyView(member.familyId, member.userId));
@@ -1026,6 +1029,13 @@ export const POST = endpoint(async request => {
     (parsed.data.op === 'checkin' && !(Array.isArray(result) && (result[0] as { inserted?: boolean } | undefined)?.inserted));
   // O registro novo do diário volta com o id, para o app enviar as fotos dele em seguida.
   const createdId = parsed.data.op === 'createEntry' && Array.isArray(result) ? (result[0] as { id?: string } | undefined)?.id : undefined;
+  // Toques leves (abraço, humor, curtir, marcar tarefa ou item): o app já mostrou a mudança
+  // na hora, então a resposta é só "ok", sem montar todos os dados de novo (o app sincroniza
+  // depois, em segundo plano, juntando vários toques numa atualização só).
+  if (LIGHT_OPS.has(parsed.data.op)) {
+    if (!repeated) await notifyPartners(member, parsed.data, prev, createdId).catch(err => console.error('Aviso ao parceiro não enviado', err));
+    return json({ ok: true, lite: true });
+  }
   // Já devolve os dados atualizados: o app não precisa de uma segunda chamada para recarregar.
   // O aviso para a outra pessoa sai ao mesmo tempo; se falhar, o registro continua salvo.
   const [data] = await Promise.all([
