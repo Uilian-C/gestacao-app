@@ -84,5 +84,5 @@ export function namesFor<T extends { for_sex?: Sex | 'ambos' }>(ideas: T[], sex:
 export const rightCount = (e: Espera) => (e.sex ? rightGuesses(e).length + (e.publicVotes ?? []).filter(v => v.guess === e.sex).length : 0);
 
 /** Os links públicos (o bolão aberto e o envelope do chá). */
-export const bolaoUrl = (token: string) => `${window.location.origin}/palpite/${token}`;
-export const envelopeUrl = (token: string) => `${window.location.origin}/envelope/${token}`;
+export const bolaoUrl = (token: string) => `${window.location.origin}/?palpite=${token}`;
+export const envelopeUrl = (token: string) => `${window.location.origin}/?envelope=${token}`;

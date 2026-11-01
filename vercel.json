@@ -6,11 +6,11 @@
   "rewrites": [
     {
       "source": "/palpite/:token",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/envelope/:token",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/api/auth/:path*",
