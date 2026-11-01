@@ -58,9 +58,10 @@ export default function Nav({ active, onChange, onRecord, badges, pulse = {}, hi
           {mobile.map(t => {
             if (!t)
               return (
-                <button key="registrar" type="button" onClick={onRecord} aria-label="Registrar" className="relative flex flex-col items-center justify-end gap-1 py-1.5 text-[11px] font-extrabold text-brand-strong">
-                  <span className="tt-registrar relative -mt-6 w-[52px] h-[52px] rounded-full text-white flex items-center justify-center ring-4 ring-surface transition active:scale-95">
-                    <Plus className="w-6 h-6" strokeWidth={3} />
+                // Mesma forma e mesma linha das abas (a pílula do ícone): o destaque vem só da cor.
+                <button key="registrar" type="button" onClick={onRecord} aria-label="Registrar" className="relative flex flex-col items-center gap-1 py-1.5 text-[11px] font-semibold text-ink-mute">
+                  <span className="tt-registrar relative w-12 h-8 rounded-full text-white flex items-center justify-center shadow-soft transition active:scale-95">
+                    <Plus className="w-[20px] h-[20px]" strokeWidth={2.75} />
                   </span>
                   Registrar
                 </button>
