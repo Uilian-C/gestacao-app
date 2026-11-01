@@ -13,7 +13,7 @@ await pai.goto(BASE);
 await post(pai, '/api/auth/sign-up/email', { name: 'Caio', email: `caio${Date.now()}@ex.com`, password: 'senha-forte-1' });
 await post(pai, '/api/family', { op: 'consent', version: '2026-10-16' });
 await post(pai, '/api/family', { op: 'join', code, role: 'pai' });
-await post(mae, '/api/data', { op: 'setSexPlan', plan: 'descobrir', testDate: null });
+await post(mae, '/api/data', { op: 'setSexPlan', plan: 'descobrir', testDate: await mae.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 10); return d.toLocaleDateString('en-CA'); }) });
 await post(mae, '/api/data', { op: 'guessSex', guess: 'menina' });
 
 // O compartilhar do celular: guarda o texto que sairia no WhatsApp.
@@ -37,7 +37,7 @@ check(!!link && texto.startsWith('Menino ou menina? 💌 Entra no bolão de Ana 
 
 // ---- Quem não tem o app vota ----
 for (const scheme of ['light', 'dark']) {
-  const visita = await phone(b, { colorScheme: scheme });
+  const visita = await phone(b, { colorScheme: scheme, acceptDownloads: true });
   await visita.goto(link.replace(/^https?:\/\/[^/]+/, BASE));
   await visita.getByRole('heading', { name: 'Menino ou menina?' }).waitFor();
   check(await visita.getByText(/^Ana e Caio · semana \d+$/).isVisible(), `${scheme}: a página aberta mostra o casal e a semana, sem login`);
@@ -56,6 +56,14 @@ for (const scheme of ['light', 'dark']) {
   await visita.waitForTimeout(800);
   check(true, `${scheme}: votou sem conta`);
   await visita.screenshot({ path: `${OUT}bolao-votou-${scheme}.png`, fullPage: true });
+  if (scheme === 'light') {
+    // Quem votou posta o próprio cartão (sem app): baixa a imagem do "Eu sou do Time Menina!".
+    const dv = visita.waitForEvent('download');
+    await visita.getByRole('button', { name: 'Salvar imagem' }).click();
+    const arq = await dv;
+    await arq.saveAs(`${OUT}cartao-votante.png`);
+    check(arq.suggestedFilename() === 'bolao-time-menina.png', 'quem votou pelo link posta o próprio cartão, com a marca');
+  }
   if (scheme === 'dark') {
     // Sair do bolão (com confirmação) e voltar.
     await visita.getByRole('button', { name: 'Sair do bolão' }).click();

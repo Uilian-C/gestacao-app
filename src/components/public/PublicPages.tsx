@@ -3,6 +3,7 @@ import { Check, Heart, Loader2, Lock, Share2, Sparkles } from 'lucide-react';
 import BrandMark from '../BrandMark';
 import Placar, { PlacarBar } from '../espera/Placar';
 import { tumtum } from '../../lib/feel';
+import { drawCard, shareImage, voterCard } from '../../lib/shareCard';
 
 // As páginas abertas da espera: o bolão (quem recebe o link no WhatsApp vota,
 // sem conta) e o envelope do chá (quem guarda o segredo registra o resultado).
@@ -91,6 +92,7 @@ export function BolaoPage({ token }: { token: string }) {
   const [nameMissing, setNameMissing] = useState(0);
   const [justVoted, setJustVoted] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const doneRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -146,13 +148,28 @@ export function BolaoPage({ token }: { token: string }) {
       setBusy(false);
     }
   };
+  const shareText = () => (view.mine ? `Eu sou do Time ${LABEL[view.mine.guess]} no bolão de ${view.couple} 💌 E você? Escolhe o seu time: ${window.location.href}` : `Menino ou menina? Dá seu palpite no bolão de ${view.couple} 💌 ${window.location.href}`);
+  /** Só o link (texto), pelo compartilhar do celular ou copiado. */
   const share = async () => {
-    const text = view.mine ? `Eu sou do Time ${LABEL[view.mine.guess]} no bolão de ${view.couple} 💌 E você? Escolhe o seu time:` : `Menino ou menina? Dá seu palpite no bolão de ${view.couple} 💌`;
     try {
-      if (navigator.share) return await navigator.share({ text, url: window.location.href });
-      await navigator.clipboard.writeText(`${text} ${window.location.href}`);
+      if (navigator.share) return await navigator.share({ text: shareText() });
+      await navigator.clipboard.writeText(shareText());
     } catch {
       /* cancelou: tudo bem */
+    }
+  };
+  /** O cartão "Eu sou do Time Menina!" (stories e status), com o link junto na mensagem. */
+  const shareCardImage = async (download: boolean) => {
+    if (!view.mine) return;
+    setSharing(true);
+    try {
+      const blob = await drawCard(voterCard({ guess: view.mine.guess, couple: view.couple, menina: view.tally.menina, menino: view.tally.menino }), 'story');
+      await shareImage(blob, `bolao-time-${view.mine.guess}`, download, shareText());
+    } catch (err) {
+      console.error(err);
+      await share();
+    } finally {
+      setSharing(false);
     }
   };
   const r = view.revealed;
@@ -187,13 +204,22 @@ export function BolaoPage({ token }: { token: string }) {
               {view.mine!.name}, você é do <span className={TONE[view.mine!.guess].strong}>Time {LABEL[view.mine!.guess]}</span>!
             </p>
             <p className="text-[13.5px] text-ink-soft">Seu nome já está no placar. Quando eles descobrirem, é só abrir este link de novo para ver se você acertou.</p>
-            <div className="mt-3 flex justify-center gap-2">
-              <button type="button" onClick={share} className={`inline-flex items-center gap-1.5 rounded-full ${TONE[view.mine!.guess].bg} px-4 py-2 text-[13.5px] font-extrabold text-white shadow-soft`}>
-                <Share2 className="w-4 h-4" /> Chamar gente para o seu time
+            <div className="mt-4 space-y-2">
+              <button type="button" disabled={sharing} onClick={() => void shareCardImage(false)} className={`w-full inline-flex items-center justify-center gap-2 rounded-full ${TONE[view.mine!.guess].bg} px-4 py-3 text-[14.5px] font-extrabold text-white shadow-soft disabled:opacity-60`}>
+                {sharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />} Postar que sou do Time {LABEL[view.mine!.guess]}
               </button>
-              <button type="button" onClick={() => (setChanging(true), setJustVoted(false))} className="rounded-full px-3 py-2 text-[13px] font-bold text-ink-soft">
-                Mudar
-              </button>
+              <p className="text-[12px] text-ink-mute">Um cartão para os stories e o status, com o link do bolão junto.</p>
+              <div className="flex flex-wrap justify-center gap-x-1 [&>button]:whitespace-nowrap">
+                <button type="button" onClick={() => void share()} className="rounded-full px-3 py-1.5 text-[13px] font-bold text-ink-soft">
+                  Só o link
+                </button>
+                <button type="button" disabled={sharing} onClick={() => void shareCardImage(true)} className="rounded-full px-3 py-1.5 text-[13px] font-bold text-ink-soft">
+                  Salvar imagem
+                </button>
+                <button type="button" onClick={() => (setChanging(true), setJustVoted(false))} className="rounded-full px-3 py-1.5 text-[13px] font-bold text-ink-soft">
+                  Mudar
+                </button>
+              </div>
             </div>
             {leaving ? (
               <div className="mt-3 rounded-2xl bg-surface/80 px-4 py-3 space-y-2" role="group" aria-label="Sair do bolão">
