@@ -57,6 +57,8 @@ const consultationFields = {
   remindBefore: z.union([z.literal(30), z.literal(60), z.literal(120), z.literal(1440)]).nullish().transform(v => (v === undefined ? undefined : v ?? null)),
 };
 const FOLDERS = ['momento', 'dia', 'ideia', 'carta', 'barriga'] as const;
+// O que o app conta, sem conteúdo (migrações 033 e 034): os cartões compartilhados e o livro impresso.
+const TRACKED = ['cartao_semana', 'cartao_contagem', 'cartao_momento', 'cartao_primeira_vez', 'cartao_barriga', 'cartao_carta', 'cartao_nome', 'livro_impresso'] as const;
 const entryFields = {
   // Pode ficar vazio só na foto da barriga (a legenda é opcional); ver apply().
   body: z.string().trim().max(4000),
@@ -181,7 +183,7 @@ const ops = z.discriminatedUnion('op', [
   // O Tumtum de hoje: fechar o dia com o humor e uma frase, que vira a página do dia no livro.
   z.object({ op: z.literal('closeDay'), day: isoDate, mood: z.enum(['otima', 'bem', 'cansada', 'enjoada', 'ansiosa']).nullable(), body: z.string().trim().max(280) }),
   // Contagens de uso sem conteúdo (migração 033): o que mostra se o Tumtum faz diferença.
-  z.object({ op: z.literal('track'), kind: z.enum(['cartao_semana', 'cartao_contagem', 'livro_impresso']) }),
+  z.object({ op: z.literal('track'), kind: z.enum(TRACKED) }),
   // Abraço para a outra pessoa (do cartão "Vocês dois hoje"): um por dia.
   z.object({ op: z.literal('hug'), day: isoDate }),
   z.object({ op: z.literal('delete'), kind: z.enum(['task', 'symptom', 'question', 'comment', 'metric', 'consultation', 'kick', 'contraction']), id }),
@@ -291,7 +293,7 @@ function planWeeksMissing(err: unknown): never {
 
 /** Sintoma e medição são do que já aconteceu: o dia não pode estar no futuro (folga de um dia pelo fuso). */
 /** Conta um uso (migração 033); antes da migração, ou se falhar, segue sem contar. */
-async function track(m: Member, kind: 'ritual' | 'cartao_semana' | 'cartao_contagem' | 'livro_impresso') {
+async function track(m: Member, kind: 'ritual' | (typeof TRACKED)[number]) {
   await query('INSERT INTO product_events (family_id, user_id, kind) VALUES ($1, $2, $3)', [m.familyId, m.userId, kind]).catch(() => undefined);
 }
 

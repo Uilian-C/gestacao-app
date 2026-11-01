@@ -44,7 +44,7 @@ import { bookMonths, freshChapter, type Chapter } from '../../lib/chapters';
 import type { Celebration } from '../../lib/celebrations';
 import type { UpcomingItem } from '../../lib/upcoming';
 import { RITUAL_FROM_HOUR } from '../../lib/ritual';
-import { countdownCard, weekCard, type CardContent } from '../../lib/shareCard';
+import { countdownCard, weekCard, type CardContent, type ShareKind } from '../../lib/shareCard';
 
 /** Para onde o Início leva (abas e partes delas). */
 export type HomeTarget = 'diario' | 'mural' | 'livro' | 'humor' | 'barriga' | 'medidas' | 'saude' | 'graficos' | 'jornada' | 'tarefas' | 'exames' | 'agenda';
@@ -109,7 +109,7 @@ interface Props {
   onVisitFeedback?: (c: Consultation, status: VisitStatus) => void;
   /** O Tumtum de hoje: a partir das 18h, o convite para fechar o dia (se ainda não fechou). */
   /** Compartilhar a semana ou a contagem num cartão com a marca. */
-  onShare?: (card: CardContent, kind: 'cartao_semana' | 'cartao_contagem') => void;
+  onShare?: (card: CardContent, kind: ShareKind) => void;
   ritual?: { closed: boolean; partner: { mood: Mood | null; phrase: string | null } | null; onOpen: () => void };
   askVisit?: string | null;
   /** Dúvidas ainda sem resposta (para o "Como foi?"). */

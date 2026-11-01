@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { ArrowLeft, ChevronRight, Heart, Loader2, MessageCircle, Pencil, Plus, Send, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Heart, Loader2, MessageCircle, Pencil, Plus, Send, Share2, Sparkles, Trash2, X } from 'lucide-react';
 import type { FamilyMember, Relative } from '../api';
 import type { BabyTone } from '../content/babyTones';
 import type { NameIdea } from '../hooks/useGestationData';
@@ -44,7 +44,7 @@ function usePerson() {
 const TABS = ['bg-rosa', 'bg-lilas', 'bg-azul', 'bg-verde', 'bg-coral'];
 
 /** O caderno de nomes, em tela cheia (como uma seção própria do app). */
-export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions, onClose, onReveal }: { ideas: NameIdea[]; tone: BabyTone; week: number; couple: boolean; chosenAt?: string | null; actions: NameActions; onClose: () => void; onReveal: (name: string) => void }) {
+export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions, onClose, onReveal, onShare }: { ideas: NameIdea[]; tone: BabyTone; week: number; couple: boolean; chosenAt?: string | null; actions: NameActions; onClose: () => void; onReveal: (name: string) => void; onShare?: () => void }) {
   useScrollLock();
   const chosen = useContext(BabyNameContext);
   const person = usePerson();
@@ -116,6 +116,11 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
                   <button type="button" onClick={() => onReveal(chosen!)} className="inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-[13.5px] font-bold text-rosa-strong shadow-soft">
                     <Sparkles className="w-4 h-4" /> Rever a revelação
                   </button>
+                  {onShare && (
+                    <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-[13.5px] font-bold text-rosa-strong shadow-soft">
+                      <Share2 className="w-4 h-4" /> Compartilhar
+                    </button>
+                  )}
                   {couple && (
                     <button type="button" onClick={() => setChanging(true)} className="rounded-full px-4 py-2 text-[13px] font-bold text-ink-soft">
                       Mudaram de ideia?
