@@ -48,6 +48,21 @@ await folha.getByRole('list', { name: 'Time Casal' }).getByText('Léo').waitFor(
 check(await folha.getByRole('img', { name: 'Placar: Time Meninas 1, Time Casal 2, Time Meninos 1' }).isVisible(), 'o placar da folha tem três times');
 await mae.waitForTimeout(500);
 await mae.screenshot({ path: `${OUT}gemeos-folha-light.png` });
+// O plano já escolhido vira uma linha com "Mudar"; o placar vem primeiro.
+const resumo = folha.getByRole('region', { name: 'Como vai ser a espera' });
+check(await resumo.getByText(/Gêmeos · Vão descobrir/).isVisible(), 'com o plano escolhido, a configuração vira uma linha e o placar ganha destaque');
+const placarY = (await folha.getByRole('heading', { name: 'O bolão' }).boundingBox()).y;
+check(placarY < (await resumo.boundingBox()).y, 'o bolão aparece antes da configuração');
+await resumo.getByRole('button', { name: 'Mudar' }).click();
+check(await resumo.getByRole('note').getByText(/Quem já votou vê as mudanças/).isVisible(), 'ao mudar, o aviso de que quem votou vê as mudanças');
+await resumo.getByRole('group', { name: 'Quantos bebês' }).getByRole('button', { name: 'Um bebê' }).click();
+const confirma = resumo.getByRole('alertdialog', { name: 'Mudar a quantidade de bebês' });
+await confirma.waitFor();
+check(await confirma.getByText(/Os 4 palpites de agora ficam guardados/).isVisible(), 'trocar para um bebê pede confirmação e explica que os palpites ficam guardados');
+await confirma.scrollIntoViewIfNeeded();
+await mae.screenshot({ path: `${OUT}gemeos-mudar-light.png` });
+await confirma.getByRole('button', { name: 'Cancelar' }).click();
+check((await folha.getByRole('list', { name: 'Time Casal' }).getByText('Léo').count()) === 1, 'cancelando, nada muda');
 await pai.goto(`${BASE}/?espera=1`);
 await pai.getByRole('dialog', { name: 'A espera' }).getByRole('list', { name: 'Time Casal' }).waitFor();
 await pai.waitForTimeout(500);

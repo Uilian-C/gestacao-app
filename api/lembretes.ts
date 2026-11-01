@@ -123,8 +123,8 @@ export const GET = endpoint(async request => {
   const bolao = bolaoHour
     ? await query<BolaoDay>(
         `SELECT f.id::text AS family_id,
-                (SELECT COUNT(*)::int FROM bolao_votes v WHERE v.family_id = f.id AND v.created_at > NOW() - INTERVAL '24 hours')
-                  + (SELECT COUNT(*)::int FROM sex_guesses g WHERE g.family_id = f.id AND g.author_role = 'familia' AND g.created_at > NOW() - INTERVAL '24 hours') AS fresh,
+                (SELECT COUNT(*)::int FROM bolao_votes v WHERE v.family_id = f.id AND v.created_at > NOW() - INTERVAL '24 hours' AND (v.guess IN ('menina', 'menino')) = (COALESCE((to_jsonb(f) ->> 'babies')::int, 1) = 1))
+                  + (SELECT COUNT(*)::int FROM sex_guesses g WHERE g.family_id = f.id AND g.author_role = 'familia' AND g.created_at > NOW() - INTERVAL '24 hours' AND (g.guess IN ('menina', 'menino')) = (COALESCE((to_jsonb(f) ->> 'babies')::int, 1) = 1)) AS fresh,
                 (SELECT json_object_agg(x.guess, x.n) FROM (
                    SELECT guess, COUNT(*)::int AS n FROM (SELECT guess FROM bolao_votes WHERE family_id = f.id UNION ALL SELECT guess FROM sex_guesses WHERE family_id = f.id) a GROUP BY guess) x) AS counts,
                 COALESCE((to_jsonb(f) ->> 'babies')::int, 1) = 2 AS twins

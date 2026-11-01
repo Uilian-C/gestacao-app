@@ -30,7 +30,13 @@ check((await avo.call('/api/data', { op: 'setBabies', babies: 2 })).status === 4
 check((await caio.call('/api/data', { op: 'setBabies', babies: 2 })).status === 200, 'Caio conta: são gêmeos');
 let e = (await data(ana)).espera;
 check(e.babies === 2, 'os dois veem que são gêmeos');
-check(e.guesses.length === 0 && e.publicVotes.length === 0, 'os palpites de um bebê só saem do placar');
+check(e.guesses.length === 0 && e.publicVotes.length === 0 && e.parked === 2, 'os palpites de um bebê saem do placar, mas ficam guardados');
+check(JSON.stringify((await bia.call(`/api/palpite?t=${token}`)).data.tally) === JSON.stringify({ meninas: 0, casal: 0, meninos: 0 }), 'o link também mostra o placar dos gêmeos zerado');
+await caio.call('/api/data', { op: 'setBabies', babies: 1 });
+e = (await data(ana)).espera;
+check(e.guesses.length === 1 && e.publicVotes.length === 1 && !e.parked, 'desfazendo a mudança, os palpites voltam');
+check((await bia.call(`/api/palpite?t=${token}`)).data.mine?.guess === 'menino', 'e quem votou pelo link continua no time dele');
+await caio.call('/api/data', { op: 'setBabies', babies: 2 });
 
 check((await ana.call('/api/data', { op: 'guessSex', guess: 'menina' })).status === 400, 'para gêmeos, "menina" sozinha não é palpite');
 check((await ana.call('/api/data', { op: 'guessSex', guess: 'casal' })).status === 200, 'Ana: um casal');
