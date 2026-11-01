@@ -2,6 +2,14 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { CloudRain, Sprout } from 'lucide-react';
 import type { QuickMode } from './components/QuickRecord';
 import Skeleton from './components/Skeleton';
+import TasksTab from './components/tabs/TasksTab';
+import UpcomingTab from './components/tabs/UpcomingTab';
+import DiaryTab from './components/tabs/DiaryTab';
+import SpaceSheet from './components/auth/SpaceSheet';
+import DayClose from './components/home/DayClose';
+import ShareSheet from './components/ShareSheet';
+import DetailSheet from './components/Details';
+import QuickRecord from './components/QuickRecord';
 
 import type { NameActions } from './components/BabyNames';
 import type { CelebrationActions } from './components/Celebrations';
@@ -50,24 +58,16 @@ import type { SaveExam } from './components/tabs/ExamsTab';
 import type { NewTask } from './components/tabs/TasksTab';
 
 // Abas com gráficos, relatório e calendário carregam só quando abertas: o app abre mais rápido no celular.
-// Carregadas só quando abertas: as folhas (nomes, celebrações, compartilhar,
-// detalhes, ajuda, nosso espaço, fechar o dia, registrar) e as partes que não
-// aparecem na abertura (Diário, Agenda, Tarefas, Resultados, Saúde).
-const QuickRecord = lazy(() => import('./components/QuickRecord'));
-const DetailSheet = lazy(() => import('./components/Details'));
+// Carregadas só quando abertas: o que é mais raro e pesado (nomes, celebrações,
+// ajuda, modo cuidado, resultados e saúde). O que se usa toda hora (registrar,
+// detalhes, compartilhar, Diário, Agenda) vem junto, para abrir na hora.
 const NameSpace = lazy(() => import('./components/BabyNames'));
 const NameReveal = lazy(() => import('./components/BabyNames').then(m => ({ default: m.NameReveal })));
 const CelebrationSpace = lazy(() => import('./components/Celebrations').then(m => ({ default: m.CelebrationSpace })));
-const ShareSheet = lazy(() => import('./components/ShareSheet'));
-const DayClose = lazy(() => import('./components/home/DayClose'));
-const SpaceSheet = lazy(() => import('./components/auth/SpaceSheet'));
 const CareModeHome = lazy(() => import('./components/home/CareModeHome'));
 const HelpCenter = lazy(() => import('./components/HelpCenter'));
-const DiaryTab = lazy(() => import('./components/tabs/DiaryTab'));
 const RecordList = lazy(() => import('./components/care/RecordList'));
-const UpcomingTab = lazy(() => import('./components/tabs/UpcomingTab'));
 const ExamsTab = lazy(() => import('./components/tabs/ExamsTab'));
-const TasksTab = lazy(() => import('./components/tabs/TasksTab'));
 const DashboardTab = lazy(() => import('./components/tabs/DashboardTab'));
 const ConsultationsTab = lazy(() => import('./components/tabs/ConsultationsTab'));
 const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
@@ -306,11 +306,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
    * Com `done`, confirma com um aviso curto ("Sintoma registrado"); no erro, o
    * aviso fica até a pessoa fechar, com "Tentar de novo".
    */
-  // Depois que o Início aparece, as partes mais usadas já vêm em segundo plano,
+  // Depois que o Início aparece, as partes sob demanda já vêm em segundo plano,
   // para estarem prontas no primeiro toque (sem pesar na abertura).
   useEffect(() => {
     const warm = () => {
-      for (const load of [() => import('./components/QuickRecord'), () => import('./components/Details'), () => import('./components/tabs/DiaryTab'), () => import('./components/tabs/UpcomingTab'), () => import('./components/ShareSheet'), () => import('./components/home/DayClose'), () => import('./components/auth/SpaceSheet')]) load().catch(() => undefined);
+      for (const load of [() => import('./components/BabyNames'), () => import('./components/Celebrations'), () => import('./components/tabs/ExamsTab'), () => import('./components/care/RecordList')]) load().catch(() => undefined);
     };
     const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
     const id = idle ? idle(warm) : window.setTimeout(warm, 1200);
