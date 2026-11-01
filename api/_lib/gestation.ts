@@ -2,6 +2,7 @@ import { query } from './db.js';
 import { visibleTargetSql } from './social.js';
 import { fetchNameIdeas } from './babyNames.js';
 import { fetchCelebrations } from './celebrations.js';
+import { fetchEspera } from './espera.js';
 
 // Tudo o que o espaço tem registrado, de uma vez. Usado ao abrir o app (/api/family)
 // e depois de cada gravação (/api/data), sempre filtrado pelo espaço de quem está logado.
@@ -10,6 +11,7 @@ const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? nu
 
 export async function fetchAll(fid: string, userId: string) {
   const nameIdeas = fetchNameIdeas(fid, userId);
+  const espera = fetchEspera(fid, userId);
   const celebrations = fetchCelebrations(fid);
   const [family, symptoms, questions, tasks, comments, metrics, consultations, kicks, contractions, plan, checks, journal, exams, social, photos, planWeeks, checkins] = await Promise.all([
     query(
@@ -215,6 +217,8 @@ export async function fetchAll(fid: string, userId: string) {
     careSince: text('care_since'),
     /** Ideias de nome do bebê (migração 026); null antes da migração. */
     nameIdeas: await nameIdeas,
+    /** A espera: menino ou menina, o plano e o bolão (migração 035); null antes da migração. */
+    espera: await espera,
     /** Celebrações (migração 028); null antes da migração. */
     celebrations: await celebrations,
     /** A migração 020 já rodou: anotação do combinado com a equipe. */
@@ -230,6 +234,7 @@ export async function fetchAll(fid: string, userId: string) {
  */
 export async function fetchFamilyView(fid: string, userId: string) {
   const nameIdeas = fetchNameIdeas(fid, userId);
+  const espera = fetchEspera(fid, userId);
   const [family, journal, photos, social] = await Promise.all([
     query(`SELECT dum_date::text AS dum_date, to_jsonb(f) ->> 'baby_tone' AS baby_tone, to_jsonb(f) ->> 'baby_name' AS baby_name, to_jsonb(f) ->> 'baby_name_at' AS baby_name_at, to_jsonb(f) ->> 'care_since' AS care_since FROM families f WHERE id = $1`, [fid]),
     query(
@@ -266,6 +271,7 @@ export async function fetchFamilyView(fid: string, userId: string) {
     babyNameAt: (family[0]?.baby_name_at as string | null | undefined) ?? null,
     careSince: (family[0]?.care_since as string | null | undefined) ?? null,
     nameIdeas: await nameIdeas,
+    espera: await espera,
     journal: journal.map(e => ({ ...e, photos: photos.filter(p => p.entry_id === e.id).map(p => ({ id: p.id, thumb: p.thumb, ...(p.video ? { video: true } : {}) })) })),
     reactions: social?.[0].reactions ?? [],
     threads: social?.[0].threads ?? [],

@@ -1,3 +1,4 @@
+import type { Espera } from '../lib/espera';
 import { useCallback, useEffect, useState } from 'react';
 import type { BabyTone } from '../content/babyTones';
 import type { Celebration } from '../lib/celebrations';
@@ -68,6 +69,8 @@ export interface GestationData {
   careSince?: string | null;
   /** Ideias de nome do bebê (migração 026); null antes da migração. */
   nameIdeas?: NameIdea[] | null;
+  /** A espera: menino ou menina, o plano e o bolão (migração 035); null antes da migração. */
+  espera?: Espera | null;
 }
 
 export interface ListItem {
@@ -93,6 +96,9 @@ export interface NameIdea {
   likes: Array<{ user_id: string; author_role: 'mae' | 'pai' | 'familia'; mine: boolean }>;
   /** O porquê do nome (migração 027). */
   note?: string | null;
+  /** Para quem é o nome e se está na lista final (migração 035). */
+  for_sex?: 'menina' | 'menino' | 'ambos';
+  finalist?: boolean;
   /** A conversa sobre o nome (migração 027). */
   comments?: Array<{ id: string; user_id: string; author_role: 'mae' | 'pai' | 'familia'; body: string; mine: boolean; created_at: string }>;
 }

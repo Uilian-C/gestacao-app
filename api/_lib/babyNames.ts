@@ -14,6 +14,9 @@ export interface NameIdea {
   likes: Array<{ user_id: string; author_role: 'mae' | 'pai' | 'familia'; mine: boolean }>;
   /** O porquê do nome (migração 027). */
   note: string | null;
+  /** Para quem é o nome e se está na lista final (migração 035). */
+  for_sex: 'menina' | 'menino' | 'ambos';
+  finalist: boolean;
   /** A conversa sobre o nome (migração 027). */
   comments: Array<{ id: string; user_id: string; author_role: 'mae' | 'pai' | 'familia'; body: string; mine: boolean; created_at: string }>;
 }
@@ -31,6 +34,7 @@ const missing = (err: unknown) => {
 const IDEA_SQL = (withComments: boolean) => `
   SELECT i.id::text AS id, i.name, i.author_role, i.user_id AS author_id, i.user_id = $2 AS mine, i.created_at::text AS created_at,
          to_jsonb(i) ->> 'note' AS note,
+         COALESCE(to_jsonb(i) ->> 'for_sex', 'ambos') AS for_sex, COALESCE((to_jsonb(i) ->> 'finalist')::boolean, false) AS finalist,
          COALESCE((SELECT json_agg(json_build_object('user_id', l.user_id, 'author_role', l.author_role, 'mine', l.user_id = $2) ORDER BY l.created_at)
                    FROM baby_name_likes l WHERE l.idea_id = i.id), '[]') AS likes,
          ${
@@ -87,7 +91,7 @@ export async function setBabyName(fid: string, name: string | null) {
   });
 }
 
-export async function addNameIdea(fid: string, userId: string, role: string, name: string, note?: string | null) {
+export async function addNameIdea(fid: string, userId: string, role: string, name: string, note?: string | null, forSex?: 'menina' | 'menino' | 'ambos' | null) {
   const [count] = await query<{ n: number }>('SELECT COUNT(*)::int AS n FROM baby_name_ideas WHERE family_id = $1', [fid]).catch(missing);
   if (count.n >= MAX_IDEAS) throw new HttpError(409, 'Já são muitas ideias de nome. Que tal tirar algumas antes?');
   const rows = await query<{ id: string }>(
@@ -96,6 +100,7 @@ export async function addNameIdea(fid: string, userId: string, role: string, nam
     [fid, name, userId, role],
   ).catch(missing);
   if (rows[0] && note) await query('UPDATE baby_name_ideas SET note = $2 WHERE id = $1', [rows[0].id, note]).catch(() => undefined);
+  if (rows[0] && forSex && forSex !== 'ambos') await query('UPDATE baby_name_ideas SET for_sex = $2 WHERE id = $1', [rows[0].id, forSex]).catch(() => undefined);
   // Quem sugere já curte o nome que sugeriu.
   if (rows[0]) await query('INSERT INTO baby_name_likes (idea_id, user_id, author_role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [rows[0].id, userId, role]);
   return rows.length > 0;

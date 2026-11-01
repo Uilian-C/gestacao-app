@@ -44,6 +44,8 @@ import { bookMonths, freshChapter, type Chapter } from '../../lib/chapters';
 import type { Celebration } from '../../lib/celebrations';
 import type { UpcomingItem } from '../../lib/upcoming';
 import { RITUAL_FROM_HOUR } from '../../lib/ritual';
+import type { Espera } from '../../lib/espera';
+import { EsperaCard } from '../espera/Espera';
 import { countdownCard, weekCard, type CardContent, type ShareKind } from '../../lib/shareCard';
 
 /** Para onde o Início leva (abas e partes delas). */
@@ -108,6 +110,10 @@ interface Props {
   /** "Como foi a consulta?" (migração 032): responder; o aviso pode abrir já numa consulta. */
   onVisitFeedback?: (c: Consultation, status: VisitStatus) => void;
   /** O Tumtum de hoje: a partir das 18h, o convite para fechar o dia (se ainda não fechou). */
+  /** A espera: menino ou menina (migração 035). */
+  espera?: Espera | null;
+  onOpenEspera?: () => void;
+  onOpenReveal?: () => void;
   /** Compartilhar a semana ou a contagem num cartão com a marca. */
   onShare?: (card: CardContent, kind: ShareKind) => void;
   ritual?: { closed: boolean; partner: { mood: Mood | null; phrase: string | null } | null; onOpen: () => void };
@@ -439,6 +445,19 @@ export default function HomeTab(props: Props) {
         <h2 id="voces-titulo" className="px-1 text-[1.3rem] text-ink">
           Vocês
         </h2>
+        {props.espera && props.onOpenEspera && (
+          <EsperaCard
+            espera={props.espera}
+            today={todayIso}
+            babyName={babyName}
+            partnerName={props.partnerName}
+            finalists={(props.nameIdeas ?? []).filter(i => i.finalist).length}
+            ideas={(props.nameIdeas ?? []).length}
+            onOpen={props.onOpenEspera}
+            onReveal={props.onOpenReveal ?? props.onOpenEspera}
+            onNames={props.onOpenNames ?? props.onOpenEspera}
+          />
+        )}
         {lastMemory ? (
           <button type="button" onClick={() => props.onOpenDetail({ kind: 'entry', id: lastMemory.id })} aria-label={`A última lembrança: ${lastMemory.body.slice(0, 60) || 'uma foto'}. Abrir`} className="w-full flex items-center gap-3 rounded-[24px] bg-surface/80 p-3 text-left shadow-[0_1px_0_var(--color-line)] transition active:scale-[0.99]">
             {lastMemory.photos[0] ? (

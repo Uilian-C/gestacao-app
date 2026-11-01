@@ -73,6 +73,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     items: [
       { q: 'Como organizo o chá de bebê?', a: 'Em Diário → Fichário → Celebrações, toque em "Nova celebração". Ela já vem com um roteiro de tarefas com prazos contados a partir da data, além de fornecedores, convidados (com o tamanho de fralda de cada um) e ideias.', go: { target: 'celebracoes', label: 'Abrir as Celebrações' } },
       { q: 'Como acompanho o orçamento da festa?', a: 'Ao marcar um orçamento previsto, a régua mostra quanto já está combinado e pago e avisa quando está perto do limite ou passou dele.' },
+      { q: 'Menino ou menina? Como funciona "A espera"?', a: 'No Início, em "Vocês", fica a espera de vocês: contem se vão descobrir (e quando) ou se vai ser surpresa até o parto. Enquanto não sabem, rola o bolão: vocês dois e a família dão palpite. Quando descobrirem, toquem em "Já descobriram?". Dá para guardar o resultado num envelope, de surpresa para a outra pessoa abrir quando quiser, com direito a revelação. Depois, o caderno de nomes mostra só os nomes que valem, e as estrelas montam a lista final. Cada etapa tem um cartão para os stories.' },
       { q: 'Como funciona o caderno de nomes?', a: 'Cada ideia de nome ganha uma página com o porquê, quem curtiu e a conversa sobre ele. A família pode dar palpite, mas quem escolhe são vocês.', go: { target: 'nomes', label: 'Abrir o caderno de nomes' } },
     ],
   },

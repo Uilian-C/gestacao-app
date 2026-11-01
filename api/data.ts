@@ -3,6 +3,7 @@ import { query, transaction } from './_lib/db.js';
 import { fetchAll, fetchFamilyView } from './_lib/gestation.js';
 import { COUPLE_ONLY, HttpError, endpoint, isCouple, json, readJson, type Member, requireSpace, type SpaceMember } from './_lib/http.js';
 import { mentioned } from './_lib/mentions.js';
+import { guessSex, openSex, setSex, setSexPlan, tagNameIdea } from './_lib/espera.js';
 import { notify, type PushPayload } from './_lib/push.js';
 import { VISIBLE_TARGET } from './_lib/social.js';
 import { deleteFiles } from './_lib/storage.js';
@@ -58,7 +59,7 @@ const consultationFields = {
 };
 const FOLDERS = ['momento', 'dia', 'ideia', 'carta', 'barriga'] as const;
 // O que o app conta, sem conteúdo (migrações 033 e 034): os cartões compartilhados e o livro impresso.
-const TRACKED = ['cartao_semana', 'cartao_contagem', 'cartao_momento', 'cartao_primeira_vez', 'cartao_barriga', 'cartao_carta', 'cartao_nome', 'livro_impresso'] as const;
+const TRACKED = ['cartao_semana', 'cartao_contagem', 'cartao_momento', 'cartao_primeira_vez', 'cartao_barriga', 'cartao_carta', 'cartao_nome', 'cartao_espera', 'cartao_revelacao', 'cartao_finalistas', 'livro_impresso'] as const;
 const entryFields = {
   // Pode ficar vazio só na foto da barriga (a legenda é opcional); ver apply().
   body: z.string().trim().max(4000),
@@ -161,7 +162,7 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('comment'), targetType: z.enum(['entry', 'exam']), targetId: uuid, body: text(1000) }),
   z.object({ op: z.literal('deleteComment'), id: uuid }),
   // Tom do bebê desenhado (migração 024); null volta ao tom neutro.
-  z.object({ op: z.literal('addNameIdea'), name: z.string().trim().min(1).max(40), note: z.string().trim().max(300).nullish() }),
+  z.object({ op: z.literal('addNameIdea'), name: z.string().trim().min(1).max(40), note: z.string().trim().max(300).nullish(), forSex: z.enum(['menina', 'menino', 'ambos']).nullish() }),
   z.object({ op: z.literal('likeNameIdea'), id: uuid, on: z.boolean() }),
   z.object({ op: z.literal('deleteNameIdea'), id: uuid }),
   z.object({ op: z.literal('noteNameIdea'), id: uuid, note: z.string().trim().max(300).nullable() }),
@@ -174,6 +175,11 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('updateCelebrationItem'), id: uuid, ...celebrationItemFields }),
   z.object({ op: z.literal('deleteCelebrationItem'), id: uuid }),
   z.object({ op: z.literal('setBabyName'), name: z.string().trim().max(40).nullable() }),
+  z.object({ op: z.literal('setSexPlan'), plan: z.enum(['descobrir', 'surpresa']).nullable(), testDate: isoDate.nullable() }),
+  z.object({ op: z.literal('setSex'), sex: z.enum(['menina', 'menino']).nullable(), secret: z.boolean() }),
+  z.object({ op: z.literal('openSex') }),
+  z.object({ op: z.literal('guessSex'), guess: z.enum(['menina', 'menino']).nullable() }),
+  z.object({ op: z.literal('tagNameIdea'), id: uuid, forSex: z.enum(['menina', 'menino', 'ambos']).optional(), finalist: z.boolean().optional() }),
   z.object({ op: z.literal('setCareMode'), on: z.boolean() }),
   z.object({ op: z.literal('visitFeedback'), id, status: z.enum(['bem', 'duvida', 'novidade']) }),
   z.object({ op: z.literal('setVoice'), id, body: z.string().trim().max(2000) }),
@@ -561,7 +567,17 @@ async function apply(m: Member, o: Op) {
       await track(m, o.kind);
       return [];
     case 'addNameIdea':
-      return addNameIdea(fid, m.userId, who, o.name, o.note);
+      return addNameIdea(fid, m.userId, who, o.name, o.note, o.forSex);
+    case 'setSexPlan':
+      return setSexPlan(fid, o.plan, o.testDate);
+    case 'setSex':
+      return setSex(fid, m.userId, o.sex, o.secret);
+    case 'openSex':
+      return openSex(fid, m.userId);
+    case 'guessSex':
+      return guessSex(fid, m.userId, who, o.guess);
+    case 'tagNameIdea':
+      return tagNameIdea(fid, o.id, { forSex: o.forSex, finalist: o.finalist });
     case 'noteNameIdea':
       return noteNameIdea(fid, m.userId, o.id, o.note || null, true);
     case 'commentNameIdea':
@@ -708,6 +724,15 @@ function partnerMessage(o: Op, createdId?: string): Omit<PushPayload, 'title'> &
       return { action: 'comentou num nome', body: o.body.slice(0, 120), url: '/', tag: 'nomes' };
     case 'setBabyName':
       return o.name ? { action: `confirmou o nome do bebê: ${o.name}`, body: 'Agora ele faz parte da história de vocês.', url: '/', tag: 'nomes' } : null;
+    case 'setSex':
+      if (!o.sex) return null;
+      return o.secret
+        ? { action: 'guardou uma revelação para você 💌', body: 'Menino ou menina? Toque para abrir.', url: '/?revelar=1', tag: 'revelacao' }
+        : { action: `contou: é ${o.sex}! ${o.sex === 'menina' ? '💗' : '💙'}`, body: 'Toque para ver quem acertou o palpite.', url: '/?espera=1', tag: 'revelacao' };
+    case 'openSex':
+      return { action: 'abriu a revelação 💌', body: 'Agora vocês dois sabem.', url: '/?espera=1', tag: 'revelacao' };
+    case 'guessSex':
+      return o.guess ? { action: `deu o palpite: ${o.guess}`, body: 'E o seu? Toque para ver o bolão.', url: '/?espera=1', tag: 'bolao' } : null;
     case 'hug':
       return { action: 'mandou um abraço', body: 'Toque para ver como vocês estão hoje.', url: '/', tag: 'abraco' };
     case 'checkin':
@@ -826,6 +851,10 @@ async function notifyPartners(m: Member, o: Op, prev: Before, createdId?: string
       if (ids.length) await notify(ids, 'momentos', { title: `${who} respondeu no Mural`, body: 'Toque para ver a conversa.', url: '/', tag: `conversa-${o.targetId}` });
     }
   };
+  // A revelação chega à família (quando não é mais segredo): o bolão fechou.
+  if (relatives.length && ((o.op === 'setSex' && o.sex && !o.secret) || o.op === 'openSex')) {
+    await notify(relatives.map(r => r.user_id), 'momentos', { title: 'Menino ou menina? A revelação chegou 💌', body: 'Toque para ver e descobrir se você acertou o palpite.', url: '/', tag: 'revelacao' }).catch(err => console.error('Aviso à família não enviado', err));
+  }
   await toFamily().catch(err => console.error('Aviso à família não enviado', err));
   if (partners.length === 0) return;
   const tag = tagged(o, partners, prev);
@@ -850,12 +879,13 @@ const relativeOps = z.discriminatedUnion('op', [
   z.object({ op: z.literal('react'), targetType: z.literal('entry'), targetId: uuid, kind: z.enum(['abraco', 'forca', 'aqui', 'festa']), on: z.boolean() }),
   z.object({ op: z.literal('comment'), targetType: z.literal('entry'), targetId: uuid, body: text(1000) }),
   z.object({ op: z.literal('deleteComment'), id: uuid }),
-  z.object({ op: z.literal('addNameIdea'), name: z.string().trim().min(1).max(40), note: z.string().trim().max(300).nullish() }),
+  z.object({ op: z.literal('addNameIdea'), name: z.string().trim().min(1).max(40), note: z.string().trim().max(300).nullish(), forSex: z.enum(['menina', 'menino', 'ambos']).nullish() }),
   z.object({ op: z.literal('likeNameIdea'), id: uuid, on: z.boolean() }),
   z.object({ op: z.literal('deleteNameIdea'), id: uuid }),
   z.object({ op: z.literal('noteNameIdea'), id: uuid, note: z.string().trim().max(300).nullable() }),
   z.object({ op: z.literal('commentNameIdea'), id: uuid, body: z.string().trim().min(1).max(500) }),
   z.object({ op: z.literal('deleteNameComment'), id: uuid }),
+  z.object({ op: z.literal('guessSex'), guess: z.enum(['menina', 'menino']).nullable() }),
 ]);
 
 const REACTION_FOR_FAMILY = { abraco: 'mandou um abraço', forca: 'mandou força', aqui: 'disse: estou aqui', festa: 'comemorou com vocês' } as const;
@@ -870,6 +900,14 @@ async function applyRelative(m: SpaceMember, body: unknown) {
   if (o.op === 'deleteNameIdea') return deleteNameIdea(fid, m.userId, o.id, false);
   if (o.op === 'noteNameIdea') return noteNameIdea(fid, m.userId, o.id, o.note || null, false);
   if (o.op === 'deleteNameComment') return deleteNameComment(fid, m.userId, o.id);
+  if (o.op === 'guessSex') {
+    await guessSex(fid, m.userId, 'familia', o.guess);
+    if (!o.guess) return;
+    const rows = await peopleOf(m);
+    const who = rows.find(r => r.me)?.first || 'Alguém da família';
+    await notify(rows.filter(r => r.role !== 'familia').map(r => r.user_id), 'parceiro', { title: `${who} deu um palpite: ${o.guess}`, body: 'Toque para ver o bolão.', url: '/?espera=1', tag: 'bolao' }).catch(err => console.error('Aviso de palpite não enviado', err));
+    return;
+  }
   if (o.op === 'commentNameIdea') {
     await commentNameIdea(fid, m.userId, 'familia', o.id, o.body);
     const rows = await peopleOf(m);
@@ -878,7 +916,7 @@ async function applyRelative(m: SpaceMember, body: unknown) {
     return;
   }
   if (o.op === 'addNameIdea') {
-    const added = await addNameIdea(fid, m.userId, 'familia', o.name, o.note);
+    const added = await addNameIdea(fid, m.userId, 'familia', o.name, o.note, o.forSex);
     if (!added) return;
     const rows = await peopleOf(m);
     const who = rows.find(r => r.me)?.first || 'Alguém da família';

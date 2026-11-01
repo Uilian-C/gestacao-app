@@ -93,6 +93,7 @@ const tests = [
   ['api-familiares.mjs', false],
   ['api-nomes.mjs', false],
   ['api-celebracoes.mjs', false],
+  ['api-espera.mjs', false],
   ['e2e-fluxo.mjs', true],
   ['e2e-momentos.mjs', false],
   ['e2e-registro-rapido.mjs', false],
@@ -130,6 +131,7 @@ const tests = [
   ['e2e-sintomas-agrupados.mjs', false],
   ['e2e-valor.mjs', false],
   ['e2e-compartilhar.mjs', false],
+  ['e2e-espera.mjs', false],
 ];
 const only = process.argv.slice(2);
 
