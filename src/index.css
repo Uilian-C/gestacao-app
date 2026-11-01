@@ -505,6 +505,11 @@
 .tt-bolinha-hoje { animation: tt-bolinha 900ms ease-out both; }
 @keyframes tt-bolinha { 0% { transform: scale(.2); } 50% { transform: scale(2.2); } 70% { transform: scale(.9); } 100% { transform: scale(1); } }
 /* O menu com carinho novo: duas batidas a cada 4 segundos, como o coração do Tumtum. */
+/* O tum-tum que se vê: o halo se abre e o coração bate duas vezes, subindo. */
+.tt-tumtum-halo { background: radial-gradient(closest-side, color-mix(in srgb, var(--color-rosa) 45%, transparent), color-mix(in srgb, var(--color-lilas) 25%, transparent) 60%, transparent); animation: tt-tumtum-halo 0.9s ease-out forwards; }
+@keyframes tt-tumtum-halo { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(2.4); opacity: 0; } }
+.tt-tumtum-coracao { filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--color-rosa) 40%, transparent)); animation: tt-tumtum-coracao 1s ease-out forwards; }
+@keyframes tt-tumtum-coracao { 0% { transform: translateY(0) scale(0.4); opacity: 0; } 12% { transform: translateY(-6px) scale(1.25); opacity: 1; } 24% { transform: translateY(-10px) scale(0.95); } 36% { transform: translateY(-14px) scale(1.15); } 50% { transform: translateY(-18px) scale(1); opacity: 1; } 100% { transform: translateY(-46px) scale(0.9); opacity: 0; } }
 .tt-menu-batida { animation: tt-menu-batida 4s ease-in-out infinite; }
 @keyframes tt-menu-batida { 0%, 20%, 100% { transform: scale(1); } 5% { transform: scale(1.18); } 10% { transform: scale(1); } 15% { transform: scale(1.12); } }
 /* O coração do Parto: surge do horizonte, dá uma batida e fica (só na hora de selecionar). */
@@ -542,7 +547,10 @@
 .tt-revelar-texto { animation: tt-carimbo-subir 520ms 380ms cubic-bezier(.2, .8, .2, 1) both; }
 @keyframes tt-revelar { 0% { transform: scale(.55); opacity: 0; filter: blur(6px); } 70% { transform: scale(1.06); opacity: 1; filter: none; } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) {
-  .tt-pagina-frente, .tt-pagina-volta, .tt-sol-coracao, .tt-carimbo, .tt-carimbo-folha, .tt-bolinha-hoje, .tt-menu-batida, .tt-presente, .tt-presente-brilho, .tt-revelar, .tt-revelar-texto { animation: none; }
+  .tt-pagina-frente, .tt-pagina-volta, .tt-sol-coracao, .tt-carimbo, .tt-carimbo-folha, .tt-bolinha-hoje, .tt-menu-batida, .tt-tumtum-halo, .tt-presente, .tt-presente-brilho, .tt-revelar, .tt-revelar-texto { animation: none; }
+  .tt-tumtum-halo { display: none; }
+  .tt-tumtum-coracao { animation: tt-tumtum-some 0.9s ease-out forwards; }
+  @keyframes tt-tumtum-some { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
 }
 
 /* A festa do nome escolhido: coraçõezinhos subindo. */

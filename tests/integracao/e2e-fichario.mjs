@@ -30,7 +30,9 @@ const photo = Buffer.from(
 );
 
 await p.getByRole('button', { name: /^Diário/ }).first().click();
-check(await p.getByText('O mural de vocês começa aqui').isVisible(), 'Diário abre no Mural');
+check((await p.getByRole('group', { name: 'Parte do diário' }).getByRole('button', { name: 'Livro' }).getAttribute('aria-pressed')) === 'true', 'sem novidades do outro, o Diário abre no Livro');
+await p.getByRole('group', { name: 'Parte do diário' }).getByRole('button', { name: 'Mural' }).click();
+check(await p.getByText('O mural de vocês começa aqui').isVisible(), 'e o Mural está a um toque');
 check((await p.getByText('O que vocês querem guardar hoje?').count()) === 0, 'o Mural não tem uma caixa de escrever à parte: a porta é o Registrar');
 
 // ---- Pelo Registrar no Mural, a pasta acompanha o texto (nada vem marcado antes) ----
@@ -48,8 +50,8 @@ await campo.fill('Hoje me senti cansada');
 check((await pastas.getByRole('radio', { name: /Ideias/ }).getAttribute('aria-checked')) === 'true', 'tocar numa pasta fixa a escolha');
 await p.screenshot({ path: `${OUT}mural-pasta-automatica.png` });
 await p.keyboard.press('Escape');
-await folders.getByRole('button', { name: /^Fichário/ }).click();
-check((await p.getByText('O que vocês querem lembrar').count()) === 0 && (await p.getByRole('button', { name: 'Abrir a pasta Celebrações' }).isVisible()) && (await p.getByRole('button', { name: 'Abrir a pasta Humor' }).isVisible()), 'o Fichário vai direto às pastas, sem capa (Celebrações e Humor como pastas especiais)');
+await folders.getByRole('button', { name: /^Livro/ }).click();
+check((await p.getByText('O que vocês querem lembrar').count()) === 0 && (await p.getByRole('button', { name: 'Abrir a pasta Celebrações' }).isVisible()) && (await p.getByRole('button', { name: 'Abrir a pasta Humor' }).isVisible()), 'as pastas moram no Livro (Celebrações e Humor como pastas especiais)');
 await p.screenshot({ path: `${OUT}fichario-capa.png`, fullPage: true });
 
 // ---- Barriguinha: foto pelo formulário ----
@@ -81,14 +83,14 @@ await viewer.getByRole('button', { name: 'Fechar' }).click();
 await p.keyboard.press('Escape');
 
 // ---- Carta para o bebê ----
-await p.getByRole('button', { name: 'Fichário', exact: true }).first().click();
+await p.getByRole('button', { name: 'Livro', exact: true }).first().click();
 await p.getByRole('button', { name: 'Abrir a pasta Cartas para o bebê' }).click();
 await p.getByRole('button', { name: 'Escrever', exact: true }).click();
 await dlg.getByLabel('O que aconteceu?').fill('Querido bebê, hoje você mexeu e o papai sentiu.');
 await dlg.getByRole('button', { name: 'Guardar carta' }).click();
 await dlg.waitFor({ state: 'hidden', timeout: 10000 });
 check(await p.getByRole('button', { name: 'Carta: ver detalhes' }).isVisible(), 'carta aparece na pasta Cartas');
-check(await p.getByRole('button', { name: /^Fichário/ }).first().isVisible(), 'a pasta tem o "voltar" para o Fichário');
+check((await p.getByRole('button', { name: 'Livro', exact: true }).count()) === 2, 'a pasta tem o "voltar" para o Livro');
 // Dentro da pasta, ver por mês, semana ou trimestre (o grupo mais novo vem aberto).
 await p.getByRole('group', { name: 'Agrupar por' }).getByRole('button', { name: 'Semana' }).click();
 check(await p.getByRole('button', { name: /^Semana 22/ }).isVisible() && (await p.getByRole('button', { name: 'Carta: ver detalhes' }).isVisible()), 'na pasta, dá para ver por semana');
@@ -106,14 +108,14 @@ check(await p.getByRole('article', { name: /^Carta de / }).getByText(/papai sent
 await p.screenshot({ path: `${OUT}mural.png`, fullPage: true });
 
 // ---- Capa e Início ----
-await folders.getByRole('button', { name: /^Fichário/ }).click();
+await folders.getByRole('button', { name: /^Livro/ }).click();
 check((await p.getByRole('button', { name: 'Abrir a pasta Barriguinha' }).textContent()).includes('1 registro'), 'capa mostra a pasta Barriguinha com 1 registro');
 check((await p.getByRole('button', { name: /Últimos registros/ }).count()) === 0, 'sem "últimos registros" repetindo o Mural');
 
 // ---- Mural: marcadores de semana; de dentro de uma pasta, o Registrar já abre nela ----
 await folders.getByRole('button', { name: /^Mural/ }).click();
 check(await p.getByText(/^Semana 22/).first().isVisible(), 'o Mural separa por semana da gestação');
-await folders.getByRole('button', { name: /^Fichário/ }).click();
+await folders.getByRole('button', { name: /^Livro/ }).click();
 await p.getByRole('button', { name: 'Abrir a pasta Cartas' }).click();
 await p.getByRole('button', { name: 'Registrar', exact: true }).click();
 check((await dlg.getByRole('radio', { name: /Cartas/ }).getAttribute('aria-checked')) === 'true', 'de dentro de uma pasta, o Registrar abre o formulário já nela');

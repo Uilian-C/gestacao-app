@@ -59,7 +59,7 @@ for (let i = 0; i < 4; i++) {
 }
 await mae.reload();
 await mae.getByRole('button', { name: /^Diário/ }).first().click();
-await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Fichário/ }).click();
+await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Livro/ }).click();
 await mae.getByRole('button', { name: 'Abrir a pasta Barriguinha' }).click();
 await mae.getByRole('button', { name: /Ver o crescendo/ }).click();
 const filme = mae.getByRole('dialog', { name: 'O crescendo' });
@@ -81,7 +81,7 @@ await contagem.scrollIntoViewIfNeeded();
 await mae.waitForTimeout(300);
 await semana.screenshot({ path: `${OUT}marcos-contagem-escuro.png` });
 await mae.getByRole('button', { name: /^Diário/ }).first().click();
-await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Fichário/ }).click();
+await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Livro/ }).click();
 await mae.getByRole('button', { name: 'Abrir a pasta Barriguinha' }).click();
 await mae.getByRole('button', { name: /Ver o crescendo/ }).click();
 await filme.waitFor();

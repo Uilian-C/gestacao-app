@@ -57,7 +57,7 @@ const LaborTab = lazy(() => import('./components/tabs/LaborTab'));
 const JourneyTab = lazy(() => import('./components/tabs/JourneyTab'));
 import { questionSpecialty, type SpecialtyId } from './data/specialties';
 import { useGestationData } from './hooks/useGestationData';
-import { FIRST_WEEK, clampWeek, gestationalAge, isOverdue, parseLocalDate, parseTimestamp, toISODate, weekOfDay } from './lib/dates';
+import { FIRST_WEEK, clampWeek, daysBetween, gestationalAge, isOverdue, parseLocalDate, parseTimestamp, toISODate, weekOfDay } from './lib/dates';
 import { FOLDER, bellyShots, weekOn } from './lib/folders';
 import { buildBook, chapterOfWeek } from './lib/chapters';
 import { BabyNameContext, markNameSeen, nameSeen } from './lib/baby';
@@ -159,7 +159,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const activeTab: Tab = care && tabState === 'parto' ? 'inicio' : tabState;
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
-  const [diaryView, setDiaryView] = useState<DiaryView>('mural');
+  const [diaryView, setDiaryView] = useState<DiaryView>('livro');
   const [laborReset, setLaborReset] = useState(0);
   // O dia que o atalho do Início pediu para abrir no calendário.
   const [calendarFocus, setCalendarFocus] = useState<string | null>(null);
@@ -454,6 +454,9 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         setStamp({ text: e.body.trim().split('\n')[0].slice(0, 120) || (e.folder === 'barriga' ? 'A foto da barriga desta semana' : 'Uma foto para guardar'), week: weekOn(dumDate!, e.date), chapter: null, also: first ? `Primeira vez: ${first.title.toLowerCase()} · uma página especial no livro` : entryDone(false, e.visibility, e.folder) });
       } else showToast({ text: entryDone(!!id, e.visibility, e.folder), tone: 'success' });
       if (entryId && !id) setFreshEntry(entryId);
+      // Guardou estando na capa do livro: vai ao Mural, onde o post novo aparece em destaque.
+      // (Pelo álbum das primeiras vezes, fica no álbum, que mostra o cartão cheio.)
+      if (entryId && !id && !firstTime && activeTab === 'diario' && (diaryView === 'livro' || diaryView === 'tudo')) setDiaryView('mural');
       return true;
     } catch (err) {
       console.error(err);
@@ -542,7 +545,6 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
   // Curtir e comentar. A reação aparece na hora; o servidor confirma em seguida.
   const react: OnReact = (targetType, targetId, kind, on) => {
-    if (on) tumtum();
     patch(d => ({
       ...d,
       reactions: on
@@ -568,7 +570,6 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     }
   };
   const setVoice = (id: string, body: string) => {
-    if (body) tumtum();
     patch(d => ({ ...d, journal: d.journal.map(e => (e.id !== id ? e : { ...e, voice_body: body || null, voice_role: body ? author : null, voice_mine: !!body, voice_at: body ? new Date().toISOString() : null })) }));
     return run(() => api.mutate('setVoice', { id, body }), 'Não foi possível guardar. Se for a primeira vez, rode a migração db/migrations/030_duas_vozes_e_horario.sql no Neon.', body ? 'A sua voz entrou no livro' : undefined);
   };
@@ -616,7 +617,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       members={family.members}
       greeting={greetingFor(now.getHours())}
       onOpenSpace={() => setSpaceOpen(true)}
-      onHelp={() => setHelpOpen(true)}
+      // O "?" no topo acompanha as duas primeiras semanas; depois, a ajuda mora no "Nosso espaço".
+      onHelp={daysBetween(parseLocalDate(firstDaysPrefs.start), now) < 14 ? () => setHelpOpen(true) : undefined}
       title={activeTab === 'inicio' || !age ? undefined : TITLE[activeTab]}
       week={age && !care ? currentWeek : null}
     />
@@ -637,6 +639,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onAccountDeleted={onSignOut}
           careSince={data.careSince ?? null}
           onCareMode={setCareMode}
+          onHelp={() => (setSpaceOpen(false), setHelpOpen(true))}
         />
       )}
     </>
@@ -734,7 +737,6 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const partnerName = partner ? partner.name.split(' ')[0] || null : null;
   /** Check-in do dia: aparece na hora; o servidor confirma em seguida. */
   const checkin = (mood: Mood | null) => {
-    if (mood) tumtum();
     patch(d => ({
       ...d,
       checkins: [...(mood ? [{ day: today, mood, author_role: author, mine: true }] : []), ...(d.checkins ?? []).filter(c => !(c.mine && c.day === today))],
@@ -775,7 +777,6 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const esperaActions = {
     onPlan: (plan: SexPlan | null, testDate: string | null) => run(() => api.mutate('setSexPlan', { plan, testDate }), ESPERA_MISSING),
     onGuess: (guess: Sex | null) => {
-      if (guess) tumtum();
       return run(() => api.mutate('guessSex', { guess }), ESPERA_MISSING);
     },
     onRegister: async (sex: Sex | null, secret: boolean) => {
@@ -1054,14 +1055,18 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           }
           // O Parto também volta para a página das fases.
           if (tab === 'parto') setLaborReset(n => n + 1);
+          // O Diário abre no Mural quando há algo novo para ver ali (do outro, ou o post que a pessoa
+          // acabou de guardar, em destaque); no resto do tempo, no Livro.
+          if (tab === 'diario' && activeTab !== 'diario') {
+            const justPosted = journal.some(e => e.mine && e.created_at && Date.now() - parseTimestamp(e.created_at).getTime() < 30 * 60_000);
+            setDiaryView(diaryNews || justPosted || freshEntry ? 'mural' : 'livro');
+          }
           navigate(tab);
         }}
         pulse={{ diario: diaryNews }}
         hidden={care ? ['parto'] : []}
-        badges={{
-          agenda: overdueTasks,
-          cuidados: questions.filter(q => !q.doctor_answer).length,
-        }}
+        // Selo só para o que pede ação: tarefas atrasadas. (As dúvidas ficam no cartão da consulta, em Cuidados.)
+        badges={{ agenda: overdueTasks }}
       />
 
       <main className="max-w-5xl mx-auto px-4 md:px-6 pt-4 md:pt-6">

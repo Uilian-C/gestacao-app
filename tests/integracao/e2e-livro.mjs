@@ -34,7 +34,8 @@ await mae.screenshot({ path: `${OUT}nomes-inicio.png` });
 
 await mae.getByRole('button', { name: /^Diário/ }).first().click();
 const tabs = mae.getByRole('navigation', { name: 'Pastas do diário' });
-check((await tabs.getByRole('button').count()) === 3, 'o Diário tem três lugares: Mural, Fichário e Livro');
+check((await tabs.getByRole('button').count()) === 2, 'o Diário tem dois lugares: Livro (com as pastas) e Mural');
+await tabs.getByRole('button', { name: 'Mural' }).click();
 check((await mae.getByRole('region', { name: 'Página da semana' }).count()) === 0 && (await mae.getByRole('list', { name: 'Mural' }).isVisible()), 'o Mural é só o mural: as postagens, sem o resumo do livro');
 await tabs.getByRole('button', { name: 'Livro' }).click();
 const capa = mae.getByRole('button', { name: 'Ler a página nova' });

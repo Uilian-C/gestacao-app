@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import { useSheetDrag } from '../../hooks/useSheetDrag';
-import { Camera, Check, Copy, Download, HeartHandshake, ImagePlus, Link2, Loader2, LogOut, MessageCircle, Pencil, Trash2, UserMinus, X } from 'lucide-react';
+import { Camera, Check, CircleHelp, Copy, Download, HeartHandshake, ImagePlus, Link2, Loader2, LogOut, MessageCircle, Pencil, Trash2, UserMinus, X } from 'lucide-react';
 import { api, ApiError, type CoupleFamilyState, type FamilyState, type Me } from '../../api';
 import { FileProblem, prepareAvatar } from '../../lib/examFiles';
 import { formatInviteCode, inviteLink } from '../../lib/invite';
@@ -25,12 +25,14 @@ interface Props {
   /** Modo cuidado (migração 029): o dia em que foi ligado (null desligado) e como ligar ou desligar. */
   careSince?: string | null;
   onCareMode?: (on: boolean) => Promise<boolean>;
+  /** Abre a Central de Ajuda (depois das primeiras semanas, ela mora aqui). */
+  onHelp?: () => void;
 }
 
 const ROLE_LABEL: Record<Author, string> = { mae: 'Mãe', pai: 'Pai' };
 
 /** "Nosso espaço": quem participa, convite para o(a) parceiro(a), a família e a conta. */
-export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSignOut, onAccountDeleted, careSince, onCareMode }: Props) {
+export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSignOut, onAccountDeleted, careSince, onCareMode, onHelp }: Props) {
   const [invite, setInvite] = useState<{ code: string; expiresAt: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -229,6 +231,16 @@ export default function SpaceSheet({ me, family, onClose, onFamilyChange, onSign
         <NotificationSettings />
 
         <SoundToggle />
+
+        {onHelp && (
+          <button type="button" onClick={onHelp} className="w-full flex items-center gap-3 rounded-[24px] bg-surface shadow-soft px-5 py-4 text-left">
+            <CircleHelp className="w-5 h-5 text-brand-strong" aria-hidden />
+            <span className="flex-1">
+              <span className="block font-bold text-ink">Ajuda</span>
+              <span className="block text-[13px] text-ink-soft">Como usar cada parte do Tumtum</span>
+            </span>
+          </button>
+        )}
 
         <section className="bg-surface shadow-soft rounded-[24px] p-5 space-y-4">
           <h3 className="text-base">Você</h3>

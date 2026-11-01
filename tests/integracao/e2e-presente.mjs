@@ -21,9 +21,11 @@ const descoberta = mae.getByRole('region', { name: 'Descoberta de hoje' });
 await descoberta.waitFor();
 check((await mae.getByRole('button', { name: /abrir o presente/ }).count()) === 0, 'na primeira visita, a semana não vem embrulhada');
 check((await mae.getByText('Desde a última vez').count()) === 0, 'na primeira visita, sem "Desde a última vez"');
-await descoberta.getByRole('button').click();
+// O convite do dia mora no cartão do livro (em "Vocês"), junto com a última lembrança e a barriga.
+const conviteDoDia = mae.locator('section[aria-labelledby="voces-titulo"]').getByRole('button', { name: /^A primeira lembrança|Contar como foi o dia|Escrever uma carta|Guardar um momento|^Barriguinha da semana|Contar como foi o dia|Escrever uma carta|Guardar um momento/ }).first();
+await conviteDoDia.click();
 await dlg.waitFor();
-check(await dlg.getByLabel('O que aconteceu?').isVisible(), 'o convite da descoberta abre o registro do diário');
+check(await dlg.getByLabel('O que aconteceu?').isVisible(), 'o convite do dia, no cartão do livro, abre o registro do diário');
 await mae.keyboard.press('Escape');
 
 // ---- Volta depois de três dias, com a semana virada e o pai tendo guardado uma lembrança ----

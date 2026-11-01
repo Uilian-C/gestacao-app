@@ -135,6 +135,7 @@ const tests = [
   ['e2e-compartilhar.mjs', false],
   ['e2e-espera.mjs', false],
   ['e2e-gemeos.mjs', false],
+  ['e2e-respirar.mjs', false],
   ['e2e-bolao.mjs', false],
 ];
 const only = process.argv.slice(2);
