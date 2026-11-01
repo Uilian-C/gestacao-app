@@ -1,3 +1,4 @@
+import { OPTION, percents, type Sex } from './espera';
 // Cartões para compartilhar (stories do Instagram, status do WhatsApp, feed):
 // a semana do bebê, a contagem para um marco, uma lembrança com a frase de
 // quem viveu, uma primeira vez, a barriga crescendo, um trecho de carta e o
@@ -32,7 +33,7 @@ export interface CardContent {
   /** A frase principal. */
   title?: string;
   /** O placar do bolão: a barra Time Menina × Time Menino, com os números. */
-  bar?: { menina: number; menino: number };
+  bar?: { options: Sex[]; counts: Partial<Record<Sex, number>> };
   /** Uma lista grande, um item por linha (os nomes da lista final). */
   list?: string[];
   /** As palavras de quem viveu, entre aspas (o que dá personalidade ao cartão). */
@@ -131,13 +132,14 @@ export function teaserCard(o: { testDate?: string | null; menina: number; menino
 }
 
 /** A revelação: grande, limpa, com a semana e o dia. */
-export function revealCard(o: { sex: 'menina' | 'menino'; week: number; date: string; right?: number; winners?: string[]; share?: number }): CardContent {
-  const team = o.sex === 'menina' ? 'Time Menina' : 'Time Menino';
+export function revealCard(o: { sex: Sex; week: number; date: string; right?: number; winners?: string[]; share?: number }): CardContent {
+  const team = OPTION[o.sex].team;
   const names = (o.winners ?? []).slice(0, 4);
   const more = (o.right ?? 0) - names.length;
+  const twins = o.sex === 'meninas' || o.sex === 'meninos' || o.sex === 'casal';
   return {
-    kicker: 'A revelação',
-    name: o.sex === 'menina' ? 'É menina' : 'É menino',
+    kicker: twins ? 'A revelação dos gêmeos' : 'A revelação',
+    name: OPTION[o.sex].title,
     sub:
       o.share === undefined || !o.right
         ? `Descobrimos na semana ${o.week} · ${o.date}`
@@ -147,18 +149,19 @@ export function revealCard(o: { sex: 'menina' | 'menino'; week: number; date: st
             ? `Empate no bolão, e deu ${team}! · semana ${o.week}`
             : `Zebra! O ${team} venceu com só ${o.share}% dos palpites · semana ${o.week}`,
     sign: o.right ? `${plural(o.right, 'pessoa acertou', 'pessoas acertaram')}${names.length ? `: ${names.join(', ')}${more > 0 ? ` e mais ${more}` : ''}` : ''}` : undefined,
-    tone: o.sex === 'menina' ? 'rosa' : 'azul',
+    tone: OPTION[o.sex].tone,
   };
 }
 
 /** O placar do bolão, para chamar mais gente: a barra, os times e onde votar. */
-export function placarCard(o: { menina: number; menino: number; teams: { menina: string[]; menino: string[] }; testDate?: string | null; surprise?: boolean }): CardContent {
+export function placarCard(o: { options: Sex[]; counts: Partial<Record<Sex, number>>; teams: Partial<Record<Sex, string[]>>; testDate?: string | null; surprise?: boolean }): CardContent {
   const few = (xs: string[]) => (xs.length > 3 ? `${xs.slice(0, 3).join(', ')} e mais ${xs.length - 3}` : xs.join(', '));
-  const lines = [o.teams.menina.length ? `Menina: ${few(o.teams.menina)}` : '', o.teams.menino.length ? `Menino: ${few(o.teams.menino)}` : ''].filter(Boolean);
+  const lines = o.options.filter(x => (o.teams[x] ?? []).length).map(x => `${OPTION[x].label}: ${few(o.teams[x]!)}`);
+  const twins = o.options.length === 3;
   return {
-    kicker: 'O bolão',
-    name: 'Menino ou menina?',
-    bar: { menina: o.menina, menino: o.menino },
+    kicker: twins ? 'O bolão dos gêmeos' : 'O bolão',
+    name: twins ? 'Meninas, meninos ou um casal?' : 'Menino ou menina?',
+    bar: { options: o.options, counts: o.counts },
     sub: [o.surprise ? 'Vai ser surpresa até o parto.' : o.testDate ? `A gente descobre em ${o.testDate}.` : '', lines.join(' · ') || 'Seja o primeiro palpite!'].filter(Boolean).join(' '),
     sign: `Vote também: ${SITE}`,
     tone: 'lilas',
@@ -166,14 +169,14 @@ export function placarCard(o: { menina: number; menino: number; teams: { menina:
 }
 
 /** O cartão de quem votou pelo link (sem app): "Eu sou do Time Menina!", o placar e o convite para votar. */
-export function voterCard(o: { guess: 'menina' | 'menino'; couple: string; menina: number; menino: number }): CardContent {
+export function voterCard(o: { guess: Sex; couple: string; options: Sex[]; counts: Partial<Record<Sex, number>> }): CardContent {
   return {
     kicker: `O bolão de ${o.couple}`,
-    name: `Eu sou do Time ${o.guess === 'menina' ? 'Menina' : 'Menino'}!`,
-    bar: { menina: o.menina, menino: o.menino },
-    sub: 'Menino ou menina? E você, qual é o seu time?',
+    name: `Eu sou do ${OPTION[o.guess].team}!`,
+    bar: { options: o.options, counts: o.counts },
+    sub: o.options.length === 3 ? 'Meninas, meninos ou um casal? E você, qual é o seu time?' : 'Menino ou menina? E você, qual é o seu time?',
     sign: `Vote também: ${SITE}`,
-    tone: o.guess === 'menina' ? 'rosa' : 'azul',
+    tone: OPTION[o.guess].tone,
   };
 }
 
@@ -188,12 +191,12 @@ export function surpriseCard(o: { daysToDpp: number }): CardContent {
 }
 
 /** A lista final de nomes, como enquete para os stories. */
-export function finalistsCard(o: { names: string[]; sex: 'menina' | 'menino' | null }): CardContent {
+export function finalistsCard(o: { names: string[]; sex: Sex | null }): CardContent {
   return {
     kicker: 'Nossa lista final',
     list: o.names.slice(0, 4),
     sub: 'Qual você escolheria?',
-    tone: o.sex === 'menino' ? 'azul' : o.sex === 'menina' ? 'rosa' : 'lilas',
+    tone: o.sex ? OPTION[o.sex].tone : 'lilas',
   };
 }
 
@@ -312,57 +315,70 @@ function layoutText(ctx: CanvasRenderingContext2D, c: CardContent, accent: strin
   }
 
   if (c.bar) {
-    // A barra dos dois times, com os números grandes nas pontas.
-    const total = c.bar.menina + c.bar.menino;
-    const pm = total ? Math.round((c.bar.menina / total) * 100) : 50;
+    // A barra dos times (2, ou 3 para gêmeos), com os números grandes em cima de cada um.
+    const opts = c.bar.options;
+    const values = opts.map(o => c.bar!.counts[o] ?? 0);
+    const total = values.reduce((a, b) => a + b, 0);
+    const pct = percents(values);
+    const color = (o: Sex) => (OPTION[o].tone === 'rosa' ? '#d43f6c' : OPTION[o].tone === 'azul' ? '#2f78c4' : '#7a52c7');
+    const fill = (o: Sex) => (OPTION[o].tone === 'rosa' ? '#ff7fa0' : OPTION[o].tone === 'azul' ? '#5fb0f5' : '#b79cf0');
+    const three = opts.length === 3;
+    // Onde cada time fica: nas pontas (e no meio, para três).
+    const anchor = (i: number): [number, CanvasTextAlign] => (i === 0 ? [left, 'left'] : i === opts.length - 1 ? [left + width, 'right'] : [left + width / 2, 'center']);
     y += 120;
-    ctx.font = `800 40px ${SANS}`;
-    if (draw) {
-      ctx.fillStyle = '#d43f6c';
-      ctx.fillText('TIME MENINA', left, y);
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#2f78c4';
-      ctx.fillText('TIME MENINO', left + width, y);
-      ctx.textAlign = 'left';
-    }
+    ctx.font = `800 ${three ? 32 : 40}px ${SANS}`;
+    if (draw)
+      opts.forEach((o, i) => {
+        const [x, align] = anchor(i);
+        ctx.textAlign = align;
+        ctx.fillStyle = color(o);
+        ctx.fillText(OPTION[o].team.toUpperCase(), x, y);
+      });
+    ctx.textAlign = 'left';
     y += 130;
     ctx.font = `700 120px ${DISPLAY}`;
     if (draw) {
-      ctx.fillStyle = '#d43f6c';
-      ctx.fillText(String(c.bar.menina), left, y);
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#2f78c4';
-      ctx.fillText(String(c.bar.menino), left + width, y);
-      ctx.textAlign = 'left';
-      ctx.font = `700 44px ${SANS}`;
-      ctx.fillStyle = SOFT;
-      ctx.textAlign = 'center';
-      ctx.fillText('×', left + width / 2, y - 30);
+      opts.forEach((o, i) => {
+        const [x, align] = anchor(i);
+        ctx.textAlign = align;
+        ctx.fillStyle = color(o);
+        ctx.fillText(String(values[i]), x, y);
+      });
+      if (!three) {
+        ctx.font = `700 44px ${SANS}`;
+        ctx.fillStyle = SOFT;
+        ctx.textAlign = 'center';
+        ctx.fillText('×', left + width / 2, y - 30);
+      }
       ctx.textAlign = 'left';
     }
     y += 40;
     if (draw) {
       const h = 44;
-      // Com 100% de um lado, a barra é toda daquela cor (sem a pontinha do outro time).
-      const split = pm >= 100 ? width : pm <= 0 ? 0 : Math.max(h, Math.min(width - h, (width * pm) / 100));
       ctx.save();
       roundRect(ctx, left, y, width, h, h / 2);
       ctx.clip();
-      ctx.fillStyle = '#ff7fa0';
-      ctx.fillRect(left, y, split, h);
-      ctx.fillStyle = '#5fb0f5';
-      ctx.fillRect(left + split, y, width - split, h);
-      if (split > 0 && split < width) {
-        ctx.fillStyle = 'rgba(255,255,255,.9)';
-        ctx.fillRect(left + split - 3, y, 6, h);
-      }
+      let x = left;
+      opts.forEach((o, i) => {
+        const w = i === opts.length - 1 ? left + width - x : (width * pct[i]) / 100;
+        ctx.fillStyle = fill(o);
+        ctx.fillRect(x, y, w, h);
+        // A divisão branca só entre dois times que têm palpites.
+        if (i > 0 && pct[i] > 0 && pct[i - 1] > 0) {
+          ctx.fillStyle = 'rgba(255,255,255,.9)';
+          ctx.fillRect(x - 3, y, 6, h);
+        }
+        x += w;
+      });
       ctx.restore();
       if (total) {
         ctx.font = `800 34px ${SANS}`;
         ctx.fillStyle = SOFT;
-        ctx.fillText(`${pm}%`, left, y + h + 50);
-        ctx.textAlign = 'right';
-        ctx.fillText(`${100 - pm}%`, left + width, y + h + 50);
+        opts.forEach((_, i) => {
+          const [x2, align] = anchor(i);
+          ctx.textAlign = align;
+          ctx.fillText(`${pct[i]}%`, x2, y + h + 50);
+        });
         ctx.textAlign = 'left';
       }
     }

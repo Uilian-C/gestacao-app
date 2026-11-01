@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localDate, planBolao, planReminders, planRitual, planTimed, type FamilyRow } from './reminders.js';
+import { bolaoScore, localDate, planBolao, planReminders, planRitual, planTimed, type FamilyRow } from './reminders.js';
 
 const family = (over: Partial<FamilyRow> = {}): FamilyRow => ({ id: 'f1', dum_date: '2026-05-01', blood_type: 'O+', members: ['mae', 'pai'], done: [], ...over });
 
@@ -128,13 +128,17 @@ describe('planRitual: o Tumtum de hoje, às 21h', () => {
 describe('o bolão vivo', () => {
   const fam = (id: string, care = false) => ({ id, dum_date: '2026-06-01', blood_type: null, members: [`${id}-mae`, `${id}-pai`], relatives: [], done: [], care }) as FamilyRow;
   it('avisa o casal quando chegou palpite novo, com o placar', () => {
-    const [n] = planBolao('2026-11-01', [fam('a')], [{ family_id: 'a', fresh: 3, menina: 8, menino: 5 }]);
+    const [n] = planBolao('2026-11-01', [fam('a')], [{ family_id: 'a', fresh: 3, counts: { menina: 8, menino: 5 }, twins: false }]);
     expect(n.userIds).toEqual(['a-mae', 'a-pai']);
     expect(n.payload.title).toBe('3 palpites novos no bolão hoje');
     expect(n.payload.body).toBe('Time Menina 8 × 5 Time Menino. O Time Menina está na frente.');
     expect(n.key).toBe('bolao:2026-11-01:a');
   });
+  it('gêmeos: o placar dos três times', () => {
+    expect(bolaoScore({ meninas: 3, casal: 4, meninos: 1 }, true)).toBe('Time Meninas 3 · Time Casal 4 · Time Meninos 1. O Time Casal está na frente.');
+    expect(bolaoScore({ menina: 2, menino: 2 }, false)).toBe('Time Menina 2 × 2 Time Menino. Empate!');
+  });
   it('sem palpite novo, ou no modo cuidado, não avisa', () => {
-    expect(planBolao('2026-11-01', [fam('a'), fam('b', true)], [{ family_id: 'a', fresh: 0, menina: 1, menino: 1 }, { family_id: 'b', fresh: 2, menina: 1, menino: 1 }])).toEqual([]);
+    expect(planBolao('2026-11-01', [fam('a'), fam('b', true)], [{ family_id: 'a', fresh: 0, counts: { menina: 1, menino: 1 }, twins: false }, { family_id: 'b', fresh: 2, counts: { menina: 1, menino: 1 }, twins: false }])).toEqual([]);
   });
 });

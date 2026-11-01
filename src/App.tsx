@@ -13,7 +13,7 @@ import { takeFlagFromUrl, takeRitualFromUrl, takeTabFromUrl, takeViewFromUrl, ta
 import { dayClosed, markClosed, partnerDay } from './lib/ritual';
 import { finalistsCard, nameCard, placarCard, revealCard, surpriseCard, teaserCard, type CardContent, type ShareKind } from './lib/shareCard';
 import { EsperaSheet, SexReveal } from './components/espera/Espera';
-import { bolaoUrl, envelopeUrl, rightCount, SEX_WORD, shares, tally, teamsOf, type Sex, type SexPlan } from './lib/espera';
+import { bolaoUrl, envelopeUrl, isTwins, percents, questionFor, rightCount, SEX_WORD, tally, teamsOf, type Sex, type SexPlan } from './lib/espera';
 import { entryShare } from './lib/shareEntry';
 import ShareSheet, { type ShareRequest } from './components/ShareSheet';
 import { authorOf, firstName } from './lib/people';
@@ -218,7 +218,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   // A revelação do nome: para quem escolhe, na hora; para quem não estava (o parceiro, a família), na próxima vez que abre o app.
   const [revealSeen, setRevealSeen] = useState(nameSeen);
   const [revealAgain, setReveal] = useState<string | null>(null);
-  const babyNameNow = data?.babyName ?? null;
+  // Gêmeos: "Helena e Theo" em todo o app, e só quando os dois nomes já foram
+  // escolhidos (até lá, o app não chama os dois de "Helena", e a revelação espera).
+  const fullName = !data?.babyName ? null : data.baby2Name ? `${data.babyName} e ${data.baby2Name}` : isTwins(data.espera) ? null : data.babyName;
+  const babyNameNow = fullName;
   const reveal = revealAgain ?? (babyNameNow && revealSeen !== babyNameNow ? babyNameNow : null);
   // O aviso das duas vozes abre o registro direto no convite para completar.
   const [detail, setDetail] = useState<DetailTarget | null>(() => {
@@ -794,6 +797,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       setRevealSexOpen(true);
     },
     onInvite: () => void inviteToBolao(),
+    onBabies: (babies: 1 | 2) => run(() => api.mutate('setBabies', { babies }), 'Não foi possível salvar. Se for a primeira vez, rode a migração db/migrations/037_gemeos.sql no Neon.', babies === 2 ? 'Gêmeos! 👶👶' : undefined),
     onEnvelopeLink: () => void sendLink('envelopeLink', envelopeUrl, 'Você foi escolhida(o) para guardar o nosso segredo 💌 Quando souber se é menino ou menina, registre aqui (a gente só vai ver na hora do chá):', 'Link do envelope copiado. Mande só para quem vai guardar o segredo 💌'),
   };
   /** Cria o link (bolão ou envelope) e abre o compartilhar do celular; sem ele, copia. */
@@ -839,10 +843,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     const t = tally(fresh);
     const couple = family.members.map(m => firstName(m.name)).filter(Boolean).join(' e ');
     setShareReq({
-      card: placarCard({ menina: t.menina, menino: t.menino, teams: teamsOf(fresh, firstName(family.members.find(m => m.me)?.name ?? '') || 'Eu'), testDate: fresh.testDate ? longDate(fresh.testDate) : null, surprise: fresh.plan === 'surpresa' }),
+      card: placarCard({ options: t.options, counts: t.counts, teams: teamsOf(fresh, firstName(family.members.find(m => m.me)?.name ?? '') || 'Eu'), testDate: fresh.testDate ? longDate(fresh.testDate) : null, surprise: fresh.plan === 'surpresa' }),
       kind: 'cartao_espera',
       fileName: 'tumtum-bolao',
-      text: `Menino ou menina? 💌 Entra no bolão${couple ? ` de ${couple}` : ''} e escolhe o seu time: ${link}`,
+      text: `${questionFor(isTwins(fresh))} 💌 Entra no bolão${couple ? ` de ${couple}` : ''} e escolhe o seu time: ${link}`,
       link,
     });
   };
@@ -853,7 +857,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       const day = e.knownAt ? toISODate(parseTimestamp(e.knownAt)) : today;
       const t = tally(e);
       const winners = teamsOf(e, firstName(family.members.find(m => m.me)?.name ?? '') || 'Eu')[e.sex];
-      return share(revealCard({ sex: e.sex, week: dumDate ? weekOn(dumDate, day) : currentWeek, date: longDate(day), right: rightCount(e), winners, share: shares(t.menina, t.menino)[e.sex] }), 'cartao_revelacao');
+      return share(revealCard({ sex: e.sex, week: dumDate ? weekOn(dumDate, day) : currentWeek, date: longDate(day), right: rightCount(e), winners, share: percents(t.options.map(o => t.counts[o] ?? 0))[t.options.indexOf(e.sex)] }), 'cartao_revelacao');
     }
     if (kind === 'surpresa') return share(surpriseCard({ daysToDpp: age?.daysToDpp ?? 0 }), 'cartao_espera');
     const t = tally(e);
@@ -867,6 +871,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   };
   // O tom do bebê aparece na hora; o servidor confirma em seguida.
   // O nome do bebê aparece na hora em todo o app; o servidor confirma em seguida.
+  /** Gêmeos: o nome do segundo bebê. */
+  const setBaby2Name = (name: string | null) => {
+    patch(d => ({ ...d, baby2Name: name }));
+    return run(() => api.mutate('setBabyName', { name, which: 2 }), 'Não foi possível salvar o nome. Se for a primeira vez, rode a migração db/migrations/037_gemeos.sql no Neon.', name ? 'Nome guardado' : undefined);
+  };
   const setBabyName = (name: string | null) => {
     patch(d => ({ ...d, babyName: name }));
     return run(() => api.mutate('setBabyName', { name }), 'Não foi possível salvar o nome. Se for a primeira vez, rode a migração db/migrations/025_nome_do_bebe.sql no Neon.', name ? 'Nome guardado' : undefined);
@@ -893,7 +902,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       return run(() => api.mutate('likeNameIdea', { id, on }), NAMES_MISSING);
     },
     onDelete: id => run(() => api.mutate('deleteNameIdea', { id }), NAMES_MISSING),
-    onChoose: name => setBabyName(name),
+    // Gêmeos: o primeiro nome escolhido é o do primeiro bebê; o segundo, do segundo.
+    onChoose: name => (isTwins(data.espera) && data.babyName && !data.baby2Name ? setBaby2Name(name) : setBabyName(name)),
     onShareChoice: name => run(() => api.mutate('createEntry', { date: today, body: `Escolhemos o nome: ${name} 💛`, visibility: 'shared', remindOn: null, folder: 'momento' }), 'Não foi possível postar no Mural.', 'Guardado no Mural'),
   };
   // Celebrações: o casal planeja (migração 028). Ao criar uma, ela já abre.
@@ -1022,7 +1032,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   return (
     <SavingContext.Provider value={savingState}>
     <FreshEntryContext.Provider value={freshEntry}>
-    <BabyNameContext.Provider value={data.babyName ?? null}>
+    <BabyNameContext.Provider value={fullName}>
     <PeopleContext.Provider value={family.members}>
     <RelativesContext.Provider value={family.relatives ?? []}>
     <JourneyContext.Provider value={{ items: journeyItems, done: doneSteps, consultations, dumDate }}>
@@ -1390,7 +1400,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {celebrationOpen && data.celebrations?.some(c => c.id === celebrationOpen) && (
         <CelebrationSpace celebration={data.celebrations.find(c => c.id === celebrationOpen)!} actions={celebrationActions} onClose={() => setCelebrationOpen(null)} />
       )}
-      {namesOpen && <NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} onShare={shareName} onShareFinalists={shareFinalists} espera={data.espera ?? null} />}
+      {namesOpen && <NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} onShare={shareName} onShareFinalists={shareFinalists} espera={data.espera ?? null} secondPending={isTwins(data.espera) && data.babyName && !data.baby2Name ? data.babyName : null} />}
       {reveal && (
         <NameReveal
           name={reveal}

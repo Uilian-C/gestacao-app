@@ -84,7 +84,15 @@ export async function deleteNameComment(fid: string, userId: string, id: string)
 }
 
 /** O nome escolhido e quando (a data vai para o livro); antes da migração 027, só o nome. */
-export async function setBabyName(fid: string, name: string | null) {
+export async function setBabyName(fid: string, name: string | null, which: 1 | 2 = 1) {
+  // Gêmeos (migração 037): o nome do segundo bebê fica ao lado do primeiro.
+  if (which === 2) {
+    await query('UPDATE families SET baby2_name = $2 WHERE id = $1', [fid, name]).catch(err => {
+      if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'Gêmeos ainda não estão ligados no servidor. Rode a migração db/migrations/037_gemeos.sql no Neon.');
+      throw err;
+    });
+    return;
+  }
   await query('UPDATE families SET baby_name = $2, baby_name_at = CASE WHEN $3 THEN NOW() ELSE NULL END WHERE id = $1', [fid, name, name !== null]).catch(err => {
     if ((err as { code?: string }).code === '42703') return query('UPDATE families SET baby_name = $2 WHERE id = $1', [fid, name]);
     throw err;

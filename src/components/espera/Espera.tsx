@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CalendarHeart, Check, ChevronRight, Heart, Loader2, Lock, NotebookPen, Send, Share2, Sparkles } from 'lucide-react';
-import { daysToTest, esperaStage, latestVote, rightGuesses, SEX_WORD, tally, teamsOf, type Espera, type GuessRole, type Sex, type SexPlan } from '../../lib/espera';
+import { daysToTest, esperaStage, isTwins, latestVote, OPTION, questionFor, rightGuesses, SEX_WORD, tally, teamsOf, type Espera, type GuessRole, type Sex, type SexPlan } from '../../lib/espera';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import BrandMark from '../BrandMark';
 import Sheet from '../Sheet';
@@ -13,10 +13,10 @@ import Placar, { PlacarBar } from './Placar';
 // registro, e a revelação abre como um envelope, no ritmo do tum-tum.
 
 const ROLE_WORD: Record<GuessRole, string> = { mae: 'Mãe', pai: 'Pai', familia: 'Família' };
-const SEX_TONE: Record<Sex, { soft: string; strong: string; bg: string; ring: string }> = {
-  menina: { soft: 'bg-rosa-soft', strong: 'text-rosa-strong', bg: 'bg-rosa', ring: 'ring-rosa' },
-  menino: { soft: 'bg-azul-soft', strong: 'text-azul-strong', bg: 'bg-azul', ring: 'ring-azul' },
-};
+const ROSA = { soft: 'bg-rosa-soft', strong: 'text-rosa-strong', bg: 'bg-rosa', ring: 'ring-rosa' };
+const AZUL = { soft: 'bg-azul-soft', strong: 'text-azul-strong', bg: 'bg-azul', ring: 'ring-azul' };
+const LILAS = { soft: 'bg-lilas-soft', strong: 'text-lilas-strong', bg: 'bg-lilas', ring: 'ring-lilas' };
+const SEX_TONE: Record<Sex, { soft: string; strong: string; bg: string; ring: string }> = { menina: ROSA, meninas: ROSA, menino: AZUL, meninos: AZUL, casal: LILAS };
 
 /** O envelope fechado (desenhado), com o coração do Tumtum como lacre. */
 function Envelope({ className = 'w-24 h-20' }: { className?: string }) {
@@ -36,15 +36,16 @@ export function EsperaCard({ espera, today, babyName, partnerName, finalists, id
   const stage = esperaStage(espera);
   const t = tally(espera);
   if (stage === 'sabem' && babyName) return null;
+  const ask = questionFor(isTwins(espera)).toLowerCase();
   if (stage === 'envelope') {
     return (
-      <button type="button" onClick={onReveal} aria-label="Abrir a revelação: menino ou menina" className="w-full flex items-center gap-4 rounded-[26px] bg-gradient-to-br from-rosa-soft via-lilas-soft to-azul-soft px-5 py-4 text-left shadow-soft transition active:scale-[0.99]">
+      <button type="button" onClick={onReveal} aria-label={`Abrir a revelação: ${isTwins(espera) ? 'meninas, meninos ou um casal' : 'menino ou menina'}`} className="w-full flex items-center gap-4 rounded-[26px] bg-gradient-to-br from-rosa-soft via-lilas-soft to-azul-soft px-5 py-4 text-left shadow-soft transition active:scale-[0.99]">
         <span className="tt-envelope shrink-0 text-ink">
           <Envelope className="w-16 h-12" />
         </span>
         <span className="flex-1 min-w-0">
           <span className="block text-[12px] font-extrabold uppercase tracking-wide text-lilas-strong">{espera.sealed ? 'O segredo do chá' : 'Uma revelação para você'}</span>
-          <span className="block font-display text-[1.2rem] leading-snug text-ink">{espera.sealed ? 'O envelope está guardado: menino ou menina?' : `${partnerName ?? 'Alguém'} guardou: menino ou menina?`}</span>
+          <span className="block font-display text-[1.2rem] leading-snug text-ink">{espera.sealed ? `O envelope está guardado: ${ask}` : `${partnerName ?? 'Alguém'} guardou: ${ask}`}</span>
           <span className="block text-[13px] text-ink-soft">{espera.sealed ? 'Abram juntos, na hora da revelação 💌' : 'Toque para abrir 💌'}</span>
         </span>
       </button>
@@ -64,13 +65,15 @@ export function EsperaCard({ espera, today, babyName, partnerName, finalists, id
             ? 'Hoje vocês descobrem!'
             : days !== null
               ? `Faltam ${days} ${days === 1 ? 'dia' : 'dias'} para saber`
-              : 'Menino ou menina?';
+              : questionFor(isTwins(espera));
   const sub = known
     ? finalists
       ? `${finalists} ${finalists === 1 ? 'nome' : 'nomes'} na lista final`
       : ideas
         ? `${ideas} ${ideas === 1 ? 'ideia' : 'ideias'} de nome · hora da lista final`
-        : 'E o nome? Comecem o caderno'
+        : isTwins(espera)
+          ? 'E os nomes? Comecem o caderno'
+          : 'E o nome? Comecem o caderno'
     : stage === 'guardado'
       ? 'Só você sabe, até a outra pessoa abrir'
       : stage === 'pergunta'
@@ -88,7 +91,7 @@ export function EsperaCard({ espera, today, babyName, partnerName, finalists, id
         <span className="block text-[13px] text-ink-soft">{sub}</span>
         {!known && stage !== 'pergunta' && stage !== 'guardado' && t.total > 0 && (
           <span className="mt-2 block">
-            <PlacarBar menina={t.menina} menino={t.menino} size="sm" />
+            <PlacarBar options={t.options} counts={t.counts} size="sm" />
           </span>
         )}
       </span>
@@ -104,6 +107,8 @@ export interface EsperaActions {
   onShare: (kind: 'teaser' | 'surpresa' | 'revelacao') => void;
   onNames: () => void;
   onReveal: () => void;
+  /** Um bebê ou gêmeos (migração 037). */
+  onBabies?: (babies: 1 | 2) => Promise<boolean>;
   /** Chamar mais gente: o cartão do placar com o link do bolão aberto. */
   onInvite?: () => void;
   /** O envelope do chá: cria um link para quem vai guardar o segredo. */
@@ -122,7 +127,7 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
   const known = espera.sex && (stage === 'sabem' || stage === 'guardado') ? espera.sex : null;
 
   return (
-    <Sheet title="A espera" subtitle="Menino ou menina? Cada casal vive de um jeito." icon={<Sparkles />} onClose={onClose}>
+    <Sheet title="A espera" subtitle={`${questionFor(isTwins(espera))} Cada casal vive de um jeito.`} icon={<Sparkles />} onClose={onClose}>
       <div className="space-y-6">
         {stage === 'envelope' && (
           <button type="button" onClick={actions.onReveal} className="w-full flex items-center gap-4 rounded-[22px] bg-lilas-soft px-4 py-4 text-left">
@@ -161,6 +166,18 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
             <h3 id="espera-plano" className="text-[15px] font-bold text-ink">
               Como vai ser a espera de vocês?
             </h3>
+            {actions.onBabies && (
+              <Segmented
+                value={t.options.length === 3 ? 'gemeos' : 'um'}
+                label="Quantos bebês"
+                full
+                onChange={v => void actions.onBabies!(v === 'gemeos' ? 2 : 1)}
+                options={[
+                  { value: 'um', label: 'Um bebê' },
+                  { value: 'gemeos', label: 'Gêmeos 👶👶' },
+                ]}
+              />
+            )}
             <Segmented
               value={espera.plan ?? ('nenhum' as SexPlan)}
               label="O plano"
@@ -202,9 +219,9 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
             </div>
             <Placar teams={teamsOf(espera)} latest={latestVote(espera)} highlight="Você" />
             {/* O seu palpite: um toque entra para um time (de novo, sai). */}
-            <div role="group" aria-label="Seu palpite" className="flex items-center gap-2">
+            <div role="group" aria-label="Seu palpite" className="flex flex-wrap items-center gap-2">
               <span className="text-[13px] font-bold text-ink-soft shrink-0">Seu time:</span>
-              {(['menina', 'menino'] as const).map(s => {
+              {t.options.map(s => {
                 const on = t.mine === s;
                 return (
                   <button
@@ -213,9 +230,9 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
                     aria-pressed={on}
                     disabled={busy}
                     onClick={() => void actions.onGuess(on ? null : s)}
-                    className={`flex-1 rounded-full px-3 py-2 text-[14px] font-extrabold transition active:scale-95 ${on ? `${SEX_TONE[s].bg} text-white shadow-soft` : `${SEX_TONE[s].soft} ${SEX_TONE[s].strong}`}`}
+                    className={`flex-1 whitespace-nowrap rounded-full px-3 py-2 text-[14px] font-extrabold transition active:scale-95 ${on ? `${SEX_TONE[s].bg} text-white shadow-soft` : `${SEX_TONE[s].soft} ${SEX_TONE[s].strong}`}`}
                   >
-                    {s === 'menina' ? 'Menina' : 'Menino'}
+                    {OPTION[s].label}
                   </button>
                 );
               })}
@@ -242,12 +259,12 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
             ) : (
               <>
                 <h3 id="espera-registro" className="font-display text-[1.1rem] text-ink">
-                  É menina ou menino?
+                  {t.options.length === 3 ? 'Os gêmeos são…' : 'É menina ou menino?'}
                 </h3>
-                <div className="grid grid-cols-2 gap-2" role="group" aria-label="O resultado">
-                  {(['menina', 'menino'] as const).map(s => (
-                    <button key={s} type="button" aria-pressed={picked === s} onClick={() => setPicked(s)} className={`rounded-[18px] px-4 py-3 font-display text-[1.15rem] transition ${picked === s ? `${SEX_TONE[s].bg} text-white` : 'bg-surface text-ink'}`}>
-                      {s === 'menina' ? 'Menina' : 'Menino'}
+                <div className={`grid ${t.options.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-2`} role="group" aria-label="O resultado">
+                  {t.options.map(s => (
+                    <button key={s} type="button" aria-pressed={picked === s} onClick={() => setPicked(s)} className={`rounded-[18px] px-3 py-3 font-display text-[1.05rem] leading-tight transition ${picked === s ? `${SEX_TONE[s].bg} text-white` : 'bg-surface text-ink'}`}>
+                      {OPTION[s].label}
                     </button>
                   ))}
                 </div>
@@ -314,7 +331,7 @@ export function SexReveal({ espera, partnerName, me, onOpen, onShare, onMural, o
             <Envelope className="w-40 h-32" />
           </span>
           <p className="mt-5 text-[12px] font-extrabold uppercase tracking-[0.25em] text-lilas-strong">{espera.sealed ? 'O segredo do chá' : 'Uma revelação para você'}</p>
-          <p className="font-display text-[1.8rem] leading-tight text-ink mt-1 max-w-[320px]">{espera.sealed ? 'Menino ou menina? Abram juntos.' : `${partnerName ?? 'Alguém'} guardou: menino ou menina?`}</p>
+          <p className="font-display text-[1.8rem] leading-tight text-ink mt-1 max-w-[320px]">{espera.sealed ? `${questionFor(isTwins(espera))} Abram juntos.` : `${partnerName ?? 'Alguém'} guardou: ${questionFor(isTwins(espera)).toLowerCase()}`}</p>
           <div className="mt-7 flex flex-col gap-2 w-full max-w-[300px]">
             <button
               type="button"
@@ -387,16 +404,16 @@ export function FamilyBolao({ espera, busy, onGuess }: { espera: Espera; busy: b
       <div>
         <p className="text-[12px] font-extrabold uppercase tracking-wide text-lilas-strong">{stage === 'surpresa' ? 'Vai ser surpresa até o parto' : 'O bolão'}</p>
         <h2 id="bolao-familia" className="font-display text-[1.3rem] text-ink">
-          Menino ou menina? Qual é o seu palpite?
+          {t.options.length === 3 ? 'Os gêmeos: qual é o seu palpite?' : 'Menino ou menina? Qual é o seu palpite?'}
         </h2>
       </div>
-      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Seu palpite">
-        {(['menina', 'menino'] as const).map(s => {
+      <div className={`grid ${t.options.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-2`} role="group" aria-label="Seu palpite">
+        {t.options.map(s => {
           const on = t.mine === s;
           return (
-            <button key={s} type="button" aria-pressed={on} disabled={busy} onClick={() => void onGuess(on ? null : s)} className={`rounded-[18px] px-4 py-3 transition active:scale-95 ${on ? `bg-surface ring-2 ${SEX_TONE[s].ring}` : 'bg-surface/70'}`}>
-              <span className={`block font-display text-[1.15rem] ${on ? SEX_TONE[s].strong : 'text-ink'}`}>{s === 'menina' ? 'Menina' : 'Menino'}</span>
-              <span className="block text-[12px] font-bold text-ink-mute">{s === 'menina' ? t.menina : t.menino} palpites</span>
+            <button key={s} type="button" aria-pressed={on} disabled={busy} onClick={() => void onGuess(on ? null : s)} className={`rounded-[18px] px-3 py-3 transition active:scale-95 ${on ? `bg-surface ring-2 ${SEX_TONE[s].ring}` : 'bg-surface/70'}`}>
+              <span className={`block font-display text-[1.05rem] leading-tight ${on ? SEX_TONE[s].strong : 'text-ink'}`}>{OPTION[s].label}</span>
+              <span className="block text-[12px] font-bold text-ink-mute">{t.counts[s] ?? 0} palpites</span>
             </button>
           );
         })}

@@ -44,7 +44,7 @@ import { bookMonths, freshChapter, type Chapter } from '../../lib/chapters';
 import type { Celebration } from '../../lib/celebrations';
 import type { UpcomingItem } from '../../lib/upcoming';
 import { RITUAL_FROM_HOUR } from '../../lib/ritual';
-import type { Espera } from '../../lib/espera';
+import { isTwins, type Espera } from '../../lib/espera';
 import { EsperaCard } from '../espera/Espera';
 import { countdownCard, weekCard, type CardContent, type ShareKind } from '../../lib/shareCard';
 
@@ -132,6 +132,7 @@ export default function HomeTab(props: Props) {
   const [visitId, setVisitId] = useState<string | null>(props.askVisit ?? null);
   const openGrowth = () => setGrowth(true);
   const info = weekInfo(selectedWeek);
+  const twins = isTwins(props.espera);
   const stage = stageAt(selectedWeek);
   const now = new Date();
   const todayIso = toISODate(now);
@@ -310,7 +311,14 @@ export default function HomeTab(props: Props) {
               <WeekGift week={currentWeek} onOpen={unwrap} />
             ) : (
               <button type="button" onClick={openGrowth} aria-label={`Semana ${selectedWeek} de 40: abrir a jornada do bebê`} className={`rounded-full ${revealed && isToday ? 'tt-revelar' : ''}`}>
-                <BabyArt week={selectedWeek} beat={selectedWeek === currentWeek} tone={props.babyTone} className="w-40 h-40 sm:w-44 sm:h-44" />
+                {twins ? (
+                  <span className="relative flex items-center justify-center w-48 h-40 sm:w-52 sm:h-44" aria-label="Gêmeos">
+                    <BabyArt week={selectedWeek} beat={selectedWeek === currentWeek} tone={props.babyTone} className="absolute left-0 top-3 w-32 h-32 sm:w-36 sm:h-36" />
+                    <BabyArt week={selectedWeek} tone={props.babyTone} className="absolute right-0 top-0 w-32 h-32 sm:w-36 sm:h-36 -scale-x-100" />
+                  </span>
+                ) : (
+                  <BabyArt week={selectedWeek} beat={selectedWeek === currentWeek} tone={props.babyTone} className="w-40 h-40 sm:w-44 sm:h-44" />
+                )}
               </button>
             )}
           </div>
@@ -328,7 +336,7 @@ export default function HomeTab(props: Props) {
               <>
                 <h2 className="font-display text-[1.65rem] leading-tight text-ink text-balance">{stage.title}</h2>
                 <p className="text-[14px] text-ink-soft">
-                  Do tamanho de {info.fruit}
+                  {twins ? <>Gêmeos · cada um do tamanho de {info.fruit}</> : <>Do tamanho de {info.fruit}</>}
                   {selectedWeek !== currentWeek && <span className="text-ink-mute"> · espiando outra semana</span>}
                 </p>
               </>

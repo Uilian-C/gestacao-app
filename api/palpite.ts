@@ -15,7 +15,7 @@ const COOKIE = 'tt_palpite';
 const MAX_VOTES = 1500;
 const TOKEN = z.string().regex(/^[A-Za-z0-9_-]{8,32}$/);
 
-type Sex = 'menina' | 'menino';
+type Sex = 'menina' | 'menino' | 'meninas' | 'meninos' | 'casal';
 interface FamilyRow {
   id: string;
   dum: string | null;
@@ -25,11 +25,12 @@ interface FamilyRow {
   secret_by: string | null;
   sealed: boolean;
   care: string | null;
+  babies: string | null;
 }
 
 const FAMILY_SQL = (col: 'bolao_token' | 'envelope_token') =>
   `SELECT id::text AS id, dum_date::text AS dum, sex_plan AS plan, sex_test_date::text AS test_date, baby_sex AS sex, sex_secret_by AS secret_by,
-          sex_sealed AS sealed, to_jsonb(f) ->> 'care_since' AS care
+          sex_sealed AS sealed, to_jsonb(f) ->> 'care_since' AS care, to_jsonb(f) ->> 'babies' AS babies
    FROM families f WHERE ${col} = $1`;
 
 async function familyBy(col: 'bolao_token' | 'envelope_token', t: string) {
@@ -55,6 +56,9 @@ function voterOf(request: Request) {
   const m = cookie.match(new RegExp(`(?:^|;\\s*)${COOKIE}=([A-Za-z0-9_-]{16,64})`));
   return m?.[1] ?? null;
 }
+
+/** As opções do bolão: menina ou menino; para gêmeos (migração 037), duas meninas, um casal ou dois meninos. */
+const optionsOf = (f: FamilyRow): Sex[] => (Number(f.babies) === 2 ? ['meninas', 'casal', 'meninos'] : ['menina', 'menino']);
 
 const weekOf = (dum: string | null) => (dum ? Math.floor((Date.now() - Date.parse(`${dum}T12:00:00Z`)) / (7 * 86_400_000)) : null);
 
@@ -84,9 +88,11 @@ async function bolaoView(f: FamilyRow, voter: string | null) {
     plan: f.plan,
     testDate: revealed ? null : f.test_date,
     revealed,
-    tally: { menina: all.filter(g => g.guess === 'menina').length, menino: all.filter(g => g.guess === 'menino').length },
+    options: optionsOf(f),
+    twins: Number(f.babies) === 2,
+    tally: Object.fromEntries(optionsOf(f).map(o => [o, all.filter(g => g.guess === o).length])),
     recent: outside.slice(0, 12).map(v => ({ name: v.name, guess: v.guess })),
-    teams: { menina: team('menina').slice(0, 30), menino: team('menino').slice(0, 30) },
+    teams: Object.fromEntries(optionsOf(f).map(o => [o, team(o).slice(0, 30)])),
     latest,
     mine: mine ? { name: mine.name, guess: mine.guess } : null,
   };
@@ -97,7 +103,7 @@ export const GET = endpoint(async request => {
   const envelope = url.searchParams.get('envelope');
   if (envelope) {
     const f = await familyBy('envelope_token', envelope);
-    return json({ couple: (await coupleOf(f.id)).names });
+    return json({ couple: (await coupleOf(f.id)).names, options: optionsOf(f) });
   }
   const f = await familyBy('bolao_token', url.searchParams.get('t') ?? '');
   const voter = voterOf(request);
@@ -107,8 +113,8 @@ export const GET = endpoint(async request => {
 });
 
 const ops = z.discriminatedUnion('op', [
-  z.object({ op: z.literal('vote'), t: z.string(), name: z.string().trim().min(2).max(40), guess: z.enum(['menina', 'menino']) }),
-  z.object({ op: z.literal('seal'), envelope: z.string(), sex: z.enum(['menina', 'menino']) }),
+  z.object({ op: z.literal('vote'), t: z.string(), name: z.string().trim().min(2).max(40), guess: z.enum(['menina', 'menino', 'meninas', 'meninos', 'casal']) }),
+  z.object({ op: z.literal('seal'), envelope: z.string(), sex: z.enum(['menina', 'menino', 'meninas', 'meninos', 'casal']) }),
   z.object({ op: z.literal('conhecer'), t: z.string() }),
   z.object({ op: z.literal('unvote'), t: z.string() }),
 ]);
@@ -120,6 +126,7 @@ export const POST = endpoint(async request => {
 
   if (o.op === 'seal') {
     const f = await familyBy('envelope_token', o.envelope);
+    if (!optionsOf(f).includes(o.sex)) throw new HttpError(400, 'Esse resultado não vale para este bolão.');
     // Um envelope só fecha uma vez: o link deixa de valer na hora.
     const rows = await query(
       `UPDATE families SET baby_sex = $2, sex_known_at = NOW(), sex_sealed = true, sex_secret_by = NULL, sex_plan = 'descobrir', envelope_token = NULL
@@ -144,6 +151,7 @@ export const POST = endpoint(async request => {
     return json(await bolaoView(f, voter));
   }
   if (f.sex && !f.secret_by && !f.sealed) throw new HttpError(409, 'O bolão já fechou: eles já descobriram!');
+  if (!optionsOf(f).includes(o.guess)) throw new HttpError(400, 'Esse palpite não vale para este bolão.');
   let voter = voterOf(request);
   const fresh = !voter;
   voter ??= randomBytes(24).toString('base64url');

@@ -3,8 +3,25 @@
 // esperar até o parto, já sabem). Aqui ficam o estado de cada um e as contas
 // do bolão; as telas só mostram.
 
-export type Sex = 'menina' | 'menino';
+/** O resultado (e o palpite): menina ou menino; para gêmeos, duas meninas, dois meninos ou um casal (migração 037). */
+export type Sex = 'menina' | 'menino' | 'meninas' | 'meninos' | 'casal';
 export type SexPlan = 'descobrir' | 'surpresa';
+export type Tone = 'rosa' | 'azul' | 'lilas';
+
+/** Como cada resultado aparece: o botão, o time, a revelação e a cor. */
+export const OPTION: Record<Sex, { label: string; team: string; title: string; it: string; emoji: string; tone: Tone }> = {
+  menina: { label: 'Menina', team: 'Time Menina', title: 'É menina', it: 'é menina', emoji: '💗', tone: 'rosa' },
+  menino: { label: 'Menino', team: 'Time Menino', title: 'É menino', it: 'é menino', emoji: '💙', tone: 'azul' },
+  meninas: { label: 'Duas meninas', team: 'Time Meninas', title: 'São duas meninas', it: 'são duas meninas', emoji: '💗💗', tone: 'rosa' },
+  meninos: { label: 'Dois meninos', team: 'Time Meninos', title: 'São dois meninos', it: 'são dois meninos', emoji: '💙💙', tone: 'azul' },
+  casal: { label: 'Um casal', team: 'Time Casal', title: 'É um casal', it: 'é um casal', emoji: '💗💙', tone: 'lilas' },
+};
+
+/** As opções do bolão (e do resultado): menina ou menino; para gêmeos, as três combinações. */
+export const optionsFor = (twins: boolean): Sex[] => (twins ? ['meninas', 'casal', 'meninos'] : ['menina', 'menino']);
+export const isTwins = (e: { babies?: number } | null | undefined) => e?.babies === 2;
+/** A pergunta do bolão: "Menino ou menina?" (ou, para gêmeos, "Meninas, meninos ou um casal?"). */
+export const questionFor = (twins: boolean) => (twins ? 'Meninas, meninos ou um casal?' : 'Menino ou menina?');
 export type GuessRole = 'mae' | 'pai' | 'familia';
 
 export interface Espera {
@@ -22,6 +39,8 @@ export interface Espera {
   envelopeToken?: string | null;
   /** Os palpites de quem votou pelo link. */
   publicVotes?: Array<{ name: string; guess: Sex; at?: string }>;
+  /** Quantos bebês: 1, ou 2 para gêmeos (migração 037). */
+  babies?: number;
 }
 
 /** Em que ponto da espera o casal está. */
@@ -48,19 +67,17 @@ export function esperaStage(e: Espera): EsperaStage {
   return 'pergunta';
 }
 
-export const SEX_WORD: Record<Sex, { it: string; title: string; emoji: string }> = {
-  menina: { it: 'é menina', title: 'É menina', emoji: '💗' },
-  menino: { it: 'é menino', title: 'É menino', emoji: '💙' },
-};
+export const SEX_WORD = OPTION;
 
-/** O placar do bolão: quantos palpites em cada e os do casal. */
+/** O placar do bolão: quantos palpites em cada opção e os do casal. */
 export function tally(e: Espera) {
   const outside = e.publicVotes ?? [];
-  const menina = e.guesses.filter(g => g.guess === 'menina').length + outside.filter(v => v.guess === 'menina').length;
-  const menino = e.guesses.filter(g => g.guess === 'menino').length + outside.filter(v => v.guess === 'menino').length;
+  const options = optionsFor(isTwins(e));
+  const counts = Object.fromEntries(options.map(o => [o, e.guesses.filter(g => g.guess === o).length + outside.filter(v => v.guess === o).length])) as Partial<Record<Sex, number>>;
+  const total = options.reduce((n, o) => n + (counts[o] ?? 0), 0);
   const family = e.guesses.filter(g => g.author_role === 'familia').length + outside.length;
   const of = (role: GuessRole) => e.guesses.find(g => g.author_role === role)?.guess ?? null;
-  return { menina, menino, total: menina + menino, family, mae: of('mae'), pai: of('pai'), mine: e.guesses.find(g => g.mine)?.guess ?? null };
+  return { options, counts, menina: counts.menina ?? 0, menino: counts.menino ?? 0, total, family, mae: of('mae'), pai: of('pai'), mine: e.guesses.find(g => g.mine)?.guess ?? null };
 }
 
 /** Quem acertou, depois da revelação. */
@@ -75,9 +92,11 @@ export function daysToTest(e: Espera, today: string): number | null {
   return days >= 0 ? days : null;
 }
 
-/** As ideias de nome que valem agora: as do sexo do bebê e as que servem para os dois. */
-export function namesFor<T extends { for_sex?: Sex | 'ambos' }>(ideas: T[], sex: Sex | null): T[] {
-  return sex ? ideas.filter(i => (i.for_sex ?? 'ambos') === 'ambos' || i.for_sex === sex) : ideas;
+/** As ideias de nome que valem agora: as do sexo do bebê (ou dos bebês) e as que servem para os dois. */
+export function namesFor<T extends { for_sex?: 'menina' | 'menino' | 'ambos' }>(ideas: T[], sex: Sex | null): T[] {
+  if (!sex || sex === 'casal') return ideas;
+  const want = sex === 'meninas' ? 'menina' : sex === 'meninos' ? 'menino' : sex;
+  return ideas.filter(i => (i.for_sex ?? 'ambos') === 'ambos' || i.for_sex === want);
 }
 
 /** Quantos acertaram, contando quem votou pelo link. */
@@ -87,12 +106,10 @@ export const rightCount = (e: Espera) => (e.sex ? rightGuesses(e).length + (e.pu
 export const bolaoUrl = (token: string) => `${window.location.origin}/?palpite=${token}`;
 export const envelopeUrl = (token: string) => `${window.location.origin}/?envelope=${token}`;
 
-export interface Teams {
-  menina: string[];
-  menino: string[];
-}
+/** Os times do bolão: os nomes em cada opção. */
+export type Teams = Partial<Record<Sex, string[]>>;
 
-/** Os dois times do bolão: o casal primeiro, depois a família e quem votou pelo link. */
+/** Os times do bolão: o casal primeiro, depois a família e quem votou pelo link. */
 export function teamsOf(e: Espera, me = 'Você'): Teams {
   const name = (g: Espera['guesses'][number]) => (g.mine ? me : g.name || (g.author_role === 'mae' ? 'Mãe' : g.author_role === 'pai' ? 'Pai' : 'Família'));
   const team = (s: Sex) => [
@@ -100,7 +117,7 @@ export function teamsOf(e: Espera, me = 'Você'): Teams {
     ...e.guesses.filter(g => g.author_role === 'familia' && g.guess === s).map(name),
     ...(e.publicVotes ?? []).filter(v => v.guess === s).map(v => v.name),
   ];
-  return { menina: team('menina'), menino: team('menino') };
+  return Object.fromEntries(optionsFor(isTwins(e)).map(o => [o, team(o)]));
 }
 
 /** O palpite mais recente ("Léo entrou para o Time Menino"). */
@@ -132,3 +149,21 @@ export function shares(menina: number, menino: number) {
   const m = total ? Math.round((menina / total) * 100) : 50;
   return { menina: m, menino: 100 - m, total };
 }
+
+/** As porcentagens de cada opção (iguais sem palpites; a soma dá 100). */
+export function percents(values: number[]): number[] {
+  const total = values.reduce((a, b) => a + b, 0);
+  if (!total) return values.map((_, i) => (i === 0 ? 100 - Math.floor(100 / values.length) * (values.length - 1) : Math.floor(100 / values.length)));
+  const raw = values.map(v => Math.round((v / total) * 100));
+  raw[raw.indexOf(Math.max(...raw))] += 100 - raw.reduce((a, b) => a + b, 0);
+  return raw;
+}
+
+/** As cores de cada time (classes do Tailwind), iguais em todas as telas. */
+export const TEAM_TONE: Record<Sex, { text: string; chip: string; bar: string }> = {
+  menina: { text: 'text-rosa-strong', chip: 'bg-rosa-soft text-rosa-strong', bar: 'bg-rosa' },
+  meninas: { text: 'text-rosa-strong', chip: 'bg-rosa-soft text-rosa-strong', bar: 'bg-rosa' },
+  menino: { text: 'text-azul-strong', chip: 'bg-azul-soft text-azul-strong', bar: 'bg-azul' },
+  meninos: { text: 'text-azul-strong', chip: 'bg-azul-soft text-azul-strong', bar: 'bg-azul' },
+  casal: { text: 'text-lilas-strong', chip: 'bg-lilas-soft text-lilas-strong', bar: 'bg-lilas' },
+};

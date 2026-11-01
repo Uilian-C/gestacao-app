@@ -6,8 +6,47 @@ import { HttpError } from './http.js';
 // o resultado (que pode ficar guardado como surpresa para a outra pessoa), e o
 // bolão de palpites do casal e da família.
 
-export type Sex = 'menina' | 'menino';
+/** O resultado (e o palpite): menina ou menino; para gêmeos, duas meninas, dois meninos ou um casal (migração 037). */
+export type Sex = 'menina' | 'menino' | 'meninas' | 'meninos' | 'casal';
 export type SexPlan = 'descobrir' | 'surpresa';
+export const SINGLE: Sex[] = ['menina', 'menino'];
+/** Como cada resultado se diz: "é menina", "são duas meninas"… e o palpite ("duas meninas"). */
+export const SEX_SAY: Record<Sex, { it: string; guess: string; emoji: string }> = {
+  menina: { it: 'é menina', guess: 'menina', emoji: '💗' },
+  menino: { it: 'é menino', guess: 'menino', emoji: '💙' },
+  meninas: { it: 'são duas meninas', guess: 'duas meninas', emoji: '💗💗' },
+  meninos: { it: 'são dois meninos', guess: 'dois meninos', emoji: '💙💙' },
+  casal: { it: 'é um casal', guess: 'um casal', emoji: '💗💙' },
+};
+export const TWINS: Sex[] = ['meninas', 'casal', 'meninos'];
+/** As opções que valem para quantos bebês o casal espera. */
+export const optionsFor = (babies: number): Sex[] => (babies === 2 ? TWINS : SINGLE);
+
+/** Quantos bebês (1 ou 2; antes da migração 037, sempre 1). */
+export async function babiesOf(fid: string): Promise<number> {
+  const [f] = await query<{ n: string | null }>(`SELECT to_jsonb(f) ->> 'babies' AS n FROM families f WHERE id = $1`, [fid]).catch(() => []);
+  return Number(f?.n) === 2 ? 2 : 1;
+}
+
+/** Um bebê ou gêmeos. Mudar apaga os palpites (as opções do bolão mudam) e o resultado, se houver. */
+export async function setBabies(fid: string, babies: 1 | 2) {
+  const before = await babiesOf(fid);
+  await query('UPDATE families SET babies = $2 WHERE id = $1', [fid, babies]).catch(err => {
+    if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'Gêmeos ainda não estão ligados no servidor. Rode a migração db/migrations/037_gemeos.sql no Neon.');
+    throw err;
+  });
+  if (before === babies) return;
+  const valid = optionsFor(babies);
+  await query('DELETE FROM sex_guesses WHERE family_id = $1 AND NOT (guess = ANY($2))', [fid, valid]).catch(() => undefined);
+  await query('DELETE FROM bolao_votes WHERE family_id = $1 AND NOT (guess = ANY($2))', [fid, valid]).catch(() => undefined);
+  await query(`UPDATE families SET baby_sex = NULL, sex_known_at = NULL, sex_secret_by = NULL, sex_sealed = false WHERE id = $1 AND NOT (baby_sex = ANY($2))`, [fid, valid]).catch(() => undefined);
+}
+
+/** O palpite ou o resultado precisa valer para quantos bebês são. */
+async function checkOption(fid: string, value: Sex) {
+  const babies = await babiesOf(fid);
+  if (!optionsFor(babies).includes(value)) throw new HttpError(400, babies === 2 ? 'Para gêmeos, as opções são duas meninas, dois meninos ou um casal.' : 'As opções são menina ou menino.');
+}
 
 export interface Espera {
   plan: SexPlan | null;
@@ -27,6 +66,8 @@ export interface Espera {
   envelopeToken?: string | null;
   /** Os palpites de quem votou pelo link (nome e palpite). */
   publicVotes?: Array<{ name: string; guess: Sex; at: string }>;
+  /** Quantos bebês: 1, ou 2 para gêmeos (migração 037). */
+  babies?: number;
 }
 
 export const ESPERA_MISSING = 'A espera (menino ou menina) ainda não está ligada no servidor. Rode a migração db/migrations/035_a_espera.sql no Neon.';
@@ -56,7 +97,7 @@ export async function fetchEspera(fid: string, userId: string): Promise<Espera |
     const secret = (!!f.secret_by && !!f.sex) || sealed;
     const secretMine = secret && !sealed && f.secret_by === userId;
     const hidden = secret && !secretMine;
-    return { plan: f.plan, testDate: f.test_date, sex: hidden ? null : f.sex, knownAt: hidden ? null : f.known_at, secret, secretMine, guesses, sealed, bolaoToken: f.bolao, envelopeToken: f.envelope, publicVotes };
+    return { plan: f.plan, testDate: f.test_date, sex: hidden ? null : f.sex, knownAt: hidden ? null : f.known_at, secret, secretMine, guesses, sealed, bolaoToken: f.bolao, envelopeToken: f.envelope, publicVotes, babies: await babiesOf(fid) };
   } catch {
     return null;
   }
@@ -68,6 +109,7 @@ export async function setSexPlan(fid: string, plan: SexPlan | null, testDate: st
 
 /** Guarda o resultado (ou apaga, com nulo). Com `secret`, só quem guardou vê até a outra pessoa abrir. */
 export async function setSex(fid: string, userId: string, sex: Sex | null, secret: boolean) {
+  if (sex) await checkOption(fid, sex);
   await query(
     `UPDATE families SET baby_sex = $2::varchar, sex_known_at = CASE WHEN $2::varchar IS NULL THEN NULL ELSE NOW() END,
             sex_secret_by = CASE WHEN $3::boolean AND $2::varchar IS NOT NULL THEN $4::text ELSE NULL END,
@@ -114,6 +156,7 @@ export async function guessSex(fid: string, userId: string, role: 'mae' | 'pai' 
     await query('DELETE FROM sex_guesses WHERE family_id = $1 AND user_id = $2', [fid, userId]);
     return;
   }
+  await checkOption(fid, guess);
   await query(
     `INSERT INTO sex_guesses (family_id, user_id, author_role, guess) VALUES ($1, $2, $3, $4)
      ON CONFLICT (family_id, user_id) DO UPDATE SET guess = EXCLUDED.guess, created_at = NOW()`,
