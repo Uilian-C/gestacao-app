@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agoText, daysToTest, esperaStage, latestVote, namesFor, rightCount, rightGuesses, shares, tally, teamsOf, type Espera } from './espera';
+import { agoText, daysToTest, esperaStage, latestVote, namesFor, OPTION, percents, questionFor, rightCount, rightGuesses, shares, tally, teamsOf, type Espera } from './espera';
 
 const base: Espera = { plan: null, testDate: null, sex: null, knownAt: null, secret: false, secretMine: false, guesses: [] };
 const g = (author_role: 'mae' | 'pai' | 'familia', guess: 'menina' | 'menino', mine = false) => ({ user_id: `${author_role}-${guess}`, author_role, guess, mine });
@@ -62,5 +62,33 @@ describe('o placar do bolão', () => {
     const now = Date.parse('2026-11-01T11:05:00Z');
     expect(agoText('2026-11-01 11:00:00+00', now)).toBe('há 5 min');
     expect(agoText('2026-10-31 11:00:00+00', now)).toBe('ontem');
+  });
+});
+
+describe('gêmeos', () => {
+  const twins: Espera = {
+    plan: 'descobrir', testDate: null, sex: null, knownAt: null, secret: false, secretMine: false, babies: 2,
+    guesses: [{ user_id: 'a', author_role: 'mae', guess: 'casal', mine: true, name: 'Ana' }],
+    publicVotes: [{ name: 'Bia', guess: 'meninas' }, { name: 'Léo', guess: 'casal' }],
+  };
+  it('três times: duas meninas, um casal, dois meninos', () => {
+    const t = tally(twins);
+    expect(t.options).toEqual(['meninas', 'casal', 'meninos']);
+    expect(t.counts).toEqual({ meninas: 1, casal: 2, meninos: 0 });
+    expect(teamsOf(twins)).toEqual({ meninas: ['Bia'], casal: ['Você', 'Léo'], meninos: [] });
+    expect(rightCount({ ...twins, sex: 'casal' })).toBe(2);
+  });
+  it('as porcentagens somam 100', () => {
+    expect(percents([1, 2, 0])).toEqual([33, 67, 0]);
+    expect(percents([0, 0, 0]).reduce((a, b) => a + b, 0)).toBe(100);
+  });
+  it('os nomes que valem para os gêmeos', () => {
+    const ideas = [{ n: 'Helena', for_sex: 'menina' as const }, { n: 'Theo', for_sex: 'menino' as const }, { n: 'Ariel', for_sex: 'ambos' as const }];
+    expect(namesFor(ideas, 'meninas').map(i => i.n)).toEqual(['Helena', 'Ariel']);
+    expect(namesFor(ideas, 'casal')).toHaveLength(3);
+  });
+  it('as perguntas e os títulos', () => {
+    expect(questionFor(true)).toBe('Meninas, meninos ou um casal?');
+    expect(OPTION.casal.title).toBe('É um casal');
   });
 });

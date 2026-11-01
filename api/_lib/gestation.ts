@@ -17,7 +17,7 @@ export async function fetchAll(fid: string, userId: string) {
     query(
       `SELECT f.dum_date::text AS dum_date, f.pre_pregnancy_weight_kg::text AS pre_weight, f.height_cm::text AS height,
               f.mother_name, f.mother_birth_date::text AS mother_birth_date, f.blood_type, f.gestations, f.births,
-              f.abortions, f.cesareans, f.allergies, f.medications, f.conditions, to_jsonb(f) ->> 'baby_tone' AS baby_tone, to_jsonb(f) ->> 'baby_name' AS baby_name, to_jsonb(f) ->> 'baby_name_at' AS baby_name_at, to_jsonb(f) ->> 'care_since' AS care_since,
+              f.abortions, f.cesareans, f.allergies, f.medications, f.conditions, to_jsonb(f) ->> 'baby_tone' AS baby_tone, to_jsonb(f) ->> 'baby_name' AS baby_name, to_jsonb(f) ->> 'baby2_name' AS baby2_name, to_jsonb(f) ->> 'baby_name_at' AS baby_name_at, to_jsonb(f) ->> 'care_since' AS care_since,
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'consultations' AND column_name = 'attendees') AS attendees_ready,
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'partner_tasks' AND column_name = 'remind_on') AS task_reminders_ready,
               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'journal_entries' AND column_name = 'remind_at') AS timed_reminders_ready,
@@ -213,6 +213,8 @@ export async function fetchAll(fid: string, userId: string) {
     babyName: text('baby_name'),
     /** Quando o nome foi escolhido (migração 027). */
     babyNameAt: text('baby_name_at'),
+    /** Gêmeos (migração 037): o nome do segundo bebê. */
+    baby2Name: text('baby2_name'),
     /** Modo cuidado (migração 029): o dia em que foi ligado; null desligado. */
     careSince: text('care_since'),
     /** Ideias de nome do bebê (migração 026); null antes da migração. */
@@ -236,7 +238,7 @@ export async function fetchFamilyView(fid: string, userId: string) {
   const nameIdeas = fetchNameIdeas(fid, userId);
   const espera = fetchEspera(fid, userId);
   const [family, journal, photos, social] = await Promise.all([
-    query(`SELECT dum_date::text AS dum_date, to_jsonb(f) ->> 'baby_tone' AS baby_tone, to_jsonb(f) ->> 'baby_name' AS baby_name, to_jsonb(f) ->> 'baby_name_at' AS baby_name_at, to_jsonb(f) ->> 'care_since' AS care_since FROM families f WHERE id = $1`, [fid]),
+    query(`SELECT dum_date::text AS dum_date, to_jsonb(f) ->> 'baby_tone' AS baby_tone, to_jsonb(f) ->> 'baby_name' AS baby_name, to_jsonb(f) ->> 'baby2_name' AS baby2_name, to_jsonb(f) ->> 'baby_name_at' AS baby_name_at, to_jsonb(f) ->> 'care_since' AS care_since FROM families f WHERE id = $1`, [fid]),
     query(
       `SELECT id, entry_date::text AS entry_date, body, visibility, author_role, false AS mine, created_at::text AS created_at,
               COALESCE(to_jsonb(j) ->> 'folder', 'momento') AS folder,
@@ -269,6 +271,7 @@ export async function fetchFamilyView(fid: string, userId: string) {
     babyTone: (family[0]?.baby_tone as string | null | undefined) ?? null,
     babyName: (family[0]?.baby_name as string | null | undefined) ?? null,
     babyNameAt: (family[0]?.baby_name_at as string | null | undefined) ?? null,
+    baby2Name: (family[0]?.baby2_name as string | null | undefined) ?? null,
     careSince: (family[0]?.care_since as string | null | undefined) ?? null,
     nameIdeas: await nameIdeas,
     espera: await espera,

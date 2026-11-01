@@ -62,6 +62,8 @@ export interface GestationData {
   babyTone?: BabyTone | null;
   /** Nome do bebê (migração 025) e quando foi escolhido (migração 027). */
   babyName?: string | null;
+  /** Gêmeos (migração 037): o nome do segundo bebê. */
+  baby2Name?: string | null;
   babyNameAt?: string | null;
   /** Celebrações (migração 028); null antes da migração. */
   celebrations?: Celebration[] | null;

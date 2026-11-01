@@ -125,8 +125,9 @@ export const GET = endpoint(async request => {
         `SELECT f.id::text AS family_id,
                 (SELECT COUNT(*)::int FROM bolao_votes v WHERE v.family_id = f.id AND v.created_at > NOW() - INTERVAL '24 hours')
                   + (SELECT COUNT(*)::int FROM sex_guesses g WHERE g.family_id = f.id AND g.author_role = 'familia' AND g.created_at > NOW() - INTERVAL '24 hours') AS fresh,
-                (SELECT COUNT(*)::int FROM bolao_votes v WHERE v.family_id = f.id AND v.guess = 'menina') + (SELECT COUNT(*)::int FROM sex_guesses g WHERE g.family_id = f.id AND g.guess = 'menina') AS menina,
-                (SELECT COUNT(*)::int FROM bolao_votes v WHERE v.family_id = f.id AND v.guess = 'menino') + (SELECT COUNT(*)::int FROM sex_guesses g WHERE g.family_id = f.id AND g.guess = 'menino') AS menino
+                (SELECT json_object_agg(x.guess, x.n) FROM (
+                   SELECT guess, COUNT(*)::int AS n FROM (SELECT guess FROM bolao_votes WHERE family_id = f.id UNION ALL SELECT guess FROM sex_guesses WHERE family_id = f.id) a GROUP BY guess) x) AS counts,
+                COALESCE((to_jsonb(f) ->> 'babies')::int, 1) = 2 AS twins
          FROM families f WHERE f.bolao_token IS NOT NULL AND (f.baby_sex IS NULL OR f.sex_sealed OR f.sex_secret_by IS NOT NULL)`,
       ).catch(() => [] as BolaoDay[])
     : [];

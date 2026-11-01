@@ -40,7 +40,7 @@ describe('cartões para compartilhar', () => {
   });
 
   it('o cartão do placar: a data vai para a linha de baixo, não para o título pequeno', () => {
-    const c = placarCard({ menina: 2, menino: 0, teams: { menina: ['Uil', 'Pai'], menino: [] }, testDate: '11 de novembro' });
+    const c = placarCard({ options: ['menina', 'menino'], counts: { menina: 2, menino: 0 }, teams: { menina: ['Uil', 'Pai'], menino: [] }, testDate: '11 de novembro' });
     expect(c.kicker).toBe('O bolão');
     expect(c.sub).toBe('A gente descobre em 11 de novembro. Menina: Uil, Pai');
   });

@@ -235,8 +235,23 @@ export interface BolaoDay {
   family_id: string;
   /** Palpites novos nas últimas 24 horas (sem contar os do casal). */
   fresh: number;
-  menina: number;
-  menino: number;
+  /** O placar: quantos palpites em cada opção ("menina", "menino" ou, para gêmeos, "meninas", "casal", "meninos"). */
+  counts: Record<string, number> | null;
+  /** Gêmeos (migração 037). */
+  twins: boolean;
+}
+
+const TEAM: Record<string, string> = { menina: 'Time Menina', menino: 'Time Menino', meninas: 'Time Meninas', meninos: 'Time Meninos', casal: 'Time Casal' };
+
+/** "Time Menina 8 × 5 Time Menino. O Time Menina está na frente." (ou o placar dos três times de gêmeos). */
+export function bolaoScore(counts: Record<string, number>, twins: boolean): string {
+  const options = twins ? ['meninas', 'casal', 'meninos'] : ['menina', 'menino'];
+  const n = (o: string) => counts[o] ?? 0;
+  const top = Math.max(...options.map(n));
+  const leaders = options.filter(o => n(o) === top);
+  const lead = leaders.length > 1 ? 'Empate!' : `O ${TEAM[leaders[0]]} está na frente.`;
+  const score = twins ? options.map(o => `${TEAM[o]} ${n(o)}`).join(' · ') : `Time Menina ${n('menina')} × ${n('menino')} Time Menino`;
+  return `${score}. ${lead}`;
 }
 
 /**
@@ -247,7 +262,6 @@ export function planBolao(today: string, families: FamilyRow[], days: BolaoDay[]
   return days.flatMap(d => {
     const f = families.find(x => x.id === d.family_id);
     if (!f || f.care || d.fresh <= 0 || f.members.length === 0) return [];
-    const lead = d.menina === d.menino ? 'Empate!' : d.menina > d.menino ? 'O Time Menina está na frente.' : 'O Time Menino está na frente.';
     return [
       {
         userIds: f.members,
@@ -255,7 +269,7 @@ export function planBolao(today: string, families: FamilyRow[], days: BolaoDay[]
         key: `bolao:${today}:${f.id}`,
         payload: {
           title: d.fresh === 1 ? '1 palpite novo no bolão hoje' : `${d.fresh} palpites novos no bolão hoje`,
-          body: `Time Menina ${d.menina} × ${d.menino} Time Menino. ${lead}`,
+          body: bolaoScore(d.counts ?? {}, d.twins),
           url: '/?espera=1',
           tag: 'bolao',
         },

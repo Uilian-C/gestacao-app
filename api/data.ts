@@ -3,7 +3,7 @@ import { query, transaction } from './_lib/db.js';
 import { fetchAll, fetchFamilyView } from './_lib/gestation.js';
 import { COUPLE_ONLY, HttpError, endpoint, isCouple, json, readJson, type Member, requireSpace, type SpaceMember } from './_lib/http.js';
 import { mentioned } from './_lib/mentions.js';
-import { bolaoLink, envelopeLink, guessSex, openSex, setSex, setSexPlan, tagNameIdea } from './_lib/espera.js';
+import { bolaoLink, envelopeLink, guessSex, openSex, SEX_SAY, setBabies, setSex, setSexPlan, tagNameIdea } from './_lib/espera.js';
 import { notify, type PushPayload } from './_lib/push.js';
 import { VISIBLE_TARGET } from './_lib/social.js';
 import { deleteFiles } from './_lib/storage.js';
@@ -174,13 +174,14 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('addCelebrationItem'), celebrationId: uuid, kind: z.enum(['tarefa', 'fornecedor', 'convidado', 'ideia']), ...celebrationItemFields }),
   z.object({ op: z.literal('updateCelebrationItem'), id: uuid, ...celebrationItemFields }),
   z.object({ op: z.literal('deleteCelebrationItem'), id: uuid }),
-  z.object({ op: z.literal('setBabyName'), name: z.string().trim().max(40).nullable() }),
+  z.object({ op: z.literal('setBabyName'), name: z.string().trim().max(40).nullable(), which: z.union([z.literal(1), z.literal(2)]).optional() }),
   z.object({ op: z.literal('setSexPlan'), plan: z.enum(['descobrir', 'surpresa']).nullable(), testDate: isoDate.nullable() }),
-  z.object({ op: z.literal('setSex'), sex: z.enum(['menina', 'menino']).nullable(), secret: z.boolean() }),
+  z.object({ op: z.literal('setSex'), sex: z.enum(['menina', 'menino', 'meninas', 'meninos', 'casal']).nullable(), secret: z.boolean() }),
+  z.object({ op: z.literal('setBabies'), babies: z.union([z.literal(1), z.literal(2)]) }),
   z.object({ op: z.literal('openSex') }),
   z.object({ op: z.literal('bolaoLink') }),
   z.object({ op: z.literal('envelopeLink') }),
-  z.object({ op: z.literal('guessSex'), guess: z.enum(['menina', 'menino']).nullable() }),
+  z.object({ op: z.literal('guessSex'), guess: z.enum(['menina', 'menino', 'meninas', 'meninos', 'casal']).nullable() }),
   z.object({ op: z.literal('tagNameIdea'), id: uuid, forSex: z.enum(['menina', 'menino', 'ambos']).optional(), finalist: z.boolean().optional() }),
   z.object({ op: z.literal('setCareMode'), on: z.boolean() }),
   z.object({ op: z.literal('visitFeedback'), id, status: z.enum(['bem', 'duvida', 'novidade']) }),
@@ -574,6 +575,8 @@ async function apply(m: Member, o: Op) {
       return setSexPlan(fid, o.plan, o.testDate);
     case 'setSex':
       return setSex(fid, m.userId, o.sex, o.secret);
+    case 'setBabies':
+      return setBabies(fid, o.babies);
     case 'openSex':
       return openSex(fid, m.userId);
     case 'bolaoLink':
@@ -619,7 +622,7 @@ async function apply(m: Member, o: Op) {
     case 'deleteCelebrationItem':
       return deleteCelebrationItem(fid, o.id);
     case 'setBabyName':
-      return setBabyName(fid, o.name ? o.name : null).catch(err => {
+      return setBabyName(fid, o.name ? o.name : null, o.which ?? 1).catch(err => {
         if ((err as { code?: string }).code === '42703') throw new HttpError(503, 'O nome do bebê ainda não está ligado no servidor. Rode a migração db/migrations/025_nome_do_bebe.sql no Neon.');
         throw err;
       });
@@ -734,11 +737,11 @@ function partnerMessage(o: Op, createdId?: string): Omit<PushPayload, 'title'> &
       if (!o.sex) return null;
       return o.secret
         ? { action: 'guardou uma revelação para você 💌', body: 'Menino ou menina? Toque para abrir.', url: '/?revelar=1', tag: 'revelacao' }
-        : { action: `contou: é ${o.sex}! ${o.sex === 'menina' ? '💗' : '💙'}`, body: 'Toque para ver quem acertou o palpite.', url: '/?espera=1', tag: 'revelacao' };
+        : { action: `contou: ${SEX_SAY[o.sex].it}! ${SEX_SAY[o.sex].emoji}`, body: 'Toque para ver quem acertou o palpite.', url: '/?espera=1', tag: 'revelacao' };
     case 'openSex':
       return { action: 'abriu a revelação 💌', body: 'Agora vocês dois sabem.', url: '/?espera=1', tag: 'revelacao' };
     case 'guessSex':
-      return o.guess ? { action: `deu o palpite: ${o.guess}`, body: 'E o seu? Toque para ver o bolão.', url: '/?espera=1', tag: 'bolao' } : null;
+      return o.guess ? { action: `deu o palpite: ${SEX_SAY[o.guess].guess}`, body: 'E o seu? Toque para ver o bolão.', url: '/?espera=1', tag: 'bolao' } : null;
     case 'hug':
       return { action: 'mandou um abraço', body: 'Toque para ver como vocês estão hoje.', url: '/', tag: 'abraco' };
     case 'checkin':
@@ -891,7 +894,7 @@ const relativeOps = z.discriminatedUnion('op', [
   z.object({ op: z.literal('noteNameIdea'), id: uuid, note: z.string().trim().max(300).nullable() }),
   z.object({ op: z.literal('commentNameIdea'), id: uuid, body: z.string().trim().min(1).max(500) }),
   z.object({ op: z.literal('deleteNameComment'), id: uuid }),
-  z.object({ op: z.literal('guessSex'), guess: z.enum(['menina', 'menino']).nullable() }),
+  z.object({ op: z.literal('guessSex'), guess: z.enum(['menina', 'menino', 'meninas', 'meninos', 'casal']).nullable() }),
 ]);
 
 const REACTION_FOR_FAMILY = { abraco: 'mandou um abraço', forca: 'mandou força', aqui: 'disse: estou aqui', festa: 'comemorou com vocês' } as const;
@@ -911,7 +914,7 @@ async function applyRelative(m: SpaceMember, body: unknown) {
     if (!o.guess) return;
     const rows = await peopleOf(m);
     const who = rows.find(r => r.me)?.first || 'Alguém da família';
-    await notify(rows.filter(r => r.role !== 'familia').map(r => r.user_id), 'parceiro', { title: `${who} deu um palpite: ${o.guess}`, body: 'Toque para ver o bolão.', url: '/?espera=1', tag: 'bolao' }).catch(err => console.error('Aviso de palpite não enviado', err));
+    await notify(rows.filter(r => r.role !== 'familia').map(r => r.user_id), 'parceiro', { title: `${who} deu um palpite: ${SEX_SAY[o.guess].guess}`, body: 'Toque para ver o bolão.', url: '/?espera=1', tag: 'bolao' }).catch(err => console.error('Aviso de palpite não enviado', err));
     return;
   }
   if (o.op === 'commentNameIdea') {

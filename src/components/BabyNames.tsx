@@ -50,14 +50,16 @@ function usePerson() {
 const TABS = ['bg-rosa', 'bg-lilas', 'bg-azul', 'bg-verde', 'bg-coral'];
 
 /** O caderno de nomes, em tela cheia (como uma seção própria do app). */
-export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions, onClose, onReveal, onShare, onShareFinalists, espera }: { ideas: NameIdea[]; tone: BabyTone; week: number; couple: boolean; chosenAt?: string | null; actions: NameActions; onClose: () => void; onReveal: (name: string) => void; onShare?: () => void; onShareFinalists?: (names: string[]) => void; espera?: Espera | null }) {
+export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions, onClose, onReveal, onShare, onShareFinalists, espera, secondPending = null }: { ideas: NameIdea[]; tone: BabyTone; week: number; couple: boolean; chosenAt?: string | null; actions: NameActions; onClose: () => void; onReveal: (name: string) => void; onShare?: () => void; onShareFinalists?: (names: string[]) => void; espera?: Espera | null; secondPending?: string | null }) {
   useScrollLock();
   const chosen = useContext(BabyNameContext);
   const person = usePerson();
   const [changing, setChanging] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
-  const deciding = !chosen || changing;
+  // Gêmeos: com o primeiro nome escolhido, o caderno continua aberto para o segundo.
+  const deciding = !chosen || changing || !!secondPending;
+  const chosenNames = new Set((chosen ?? '').toLowerCase().split(' e ').filter(Boolean));
   // Já sabem o sexo: o caderno mostra só os nomes que valem. Ainda não: um filtro.
   const sex = espera && !espera.secret ? espera.sex : null;
   const tags = !!espera && !!actions.onTag;
@@ -94,17 +96,18 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
 
       <div className="mx-auto max-w-[560px] px-4 pb-16 space-y-5">
         {open ? (
-          <IdeaFicha idea={open} couple={couple} deciding={deciding} chosen={chosen?.toLowerCase() === open.name.toLowerCase()} actions={actions} onChoose={choose} onDeleted={() => setOpenId(null)} tagSex={tags && !sex} />
+          <IdeaFicha idea={open} couple={couple} deciding={deciding} chosen={chosenNames.has(open.name.toLowerCase())} actions={actions} onChoose={choose} onDeleted={() => setOpenId(null)} tagSex={tags && (!sex || sex === 'casal')} />
         ) : (
           <>
             {deciding ? (
               <section className="rounded-[28px] bg-gradient-to-b from-rosa-soft via-lilas-soft to-surface px-5 pt-6 pb-5 text-center">
                 <BabyArt week={Math.min(40, Math.max(4, week))} beat tone={tone} className="w-28 h-28 mx-auto" />
-                <h2 className="font-display text-[1.7rem] leading-tight text-ink mt-1">Qual vai ser o nome?</h2>
+                <h2 className="font-display text-[1.7rem] leading-tight text-ink mt-1">{secondPending ? `${secondPending} e…?` : 'Qual vai ser o nome?'}</h2>
+                {secondPending && <p className="text-[13.5px] font-bold text-lilas-strong">Gêmeos: agora, o nome do segundo bebê</p>}
                 <p className="text-[14px] text-ink-soft mt-1 max-w-[400px] mx-auto">
                   {couple ? 'Sem pressa: muitos casais só decidem perto do parto. Cada nome ganha uma página, com o porquê, quem curtiu e a conversa. A família pode dar palpite.' : 'Anote os nomes de que você gosta, conte o porquê e converse com o casal. Quem escolhe são eles.'}
                 </p>
-                <AddIdea onAdd={actions.onAdd} sexes={tags && !sex ? true : false} fixed={sex} />
+                <AddIdea onAdd={actions.onAdd} sexes={tags && (!sex || sex === 'casal') ? true : false} fixed={sex === 'menina' || sex === 'meninas' ? 'menina' : sex === 'menino' || sex === 'meninos' ? 'menino' : null} />
                 {couple && actions.onChoose && (
                   <div className="mt-3">
                     {registering ? (
@@ -166,7 +169,7 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
               </section>
             )}
 
-            {deciding && tags && !sex && ideas.length > 0 && (
+            {deciding && tags && (!sex || sex === 'casal') && ideas.length > 0 && (
               <div role="group" aria-label="Mostrar nomes para" className="flex gap-1.5">
                 {(['ambos', 'menina', 'menino'] as const).map(v => (
                   <button key={v} type="button" aria-pressed={only === v} onClick={() => setOnly(v)} className={`rounded-full px-3.5 py-1.5 text-[13px] font-bold transition ${only === v ? 'bg-ink text-canvas' : 'bg-surface text-ink-soft shadow-soft'}`}>
@@ -182,7 +185,7 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Páginas do caderno">
                   {ranked.map((idea, i) => {
                     const by = person(idea.author_id);
-                    const isChosen = chosen?.toLowerCase() === idea.name.toLowerCase();
+                    const isChosen = chosenNames.has(idea.name.toLowerCase());
                     const talks = idea.comments?.length ?? 0;
                     return (
                       <li key={idea.id} className="relative">
@@ -203,7 +206,7 @@ export default function NameSpace({ ideas, tone, week, couple, chosenAt, actions
                             <span className="font-display text-[1.45rem] leading-tight text-ink truncate">{idea.name}</span>
                             {i === 0 && idea.likes.length > 1 && deciding && <span className="shrink-0 text-[10.5px] font-extrabold uppercase text-rosa">favorito</span>}
                             {isChosen && <span className="shrink-0 text-[10.5px] font-extrabold uppercase text-rosa">o escolhido</span>}
-                            {tags && !sex && idea.for_sex && idea.for_sex !== 'ambos' && <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-extrabold uppercase ${idea.for_sex === 'menina' ? 'bg-rosa-soft text-rosa-strong' : 'bg-azul-soft text-azul-strong'}`}>{idea.for_sex}</span>}
+                            {tags && (!sex || sex === 'casal') && idea.for_sex && idea.for_sex !== 'ambos' && <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-extrabold uppercase ${idea.for_sex === 'menina' ? 'bg-rosa-soft text-rosa-strong' : 'bg-azul-soft text-azul-strong'}`}>{idea.for_sex}</span>}
                           </span>
                           {idea.note && <span className="block text-[13.5px] italic text-ink-soft line-clamp-1">“{idea.note}”</span>}
                           <span className="mt-1.5 flex items-center gap-3 text-[12px] text-ink-mute">
@@ -530,7 +533,7 @@ export function NameReveal({ name, tone, week, onShare, onDone }: { name: string
       </div>
       <p className="tt-revelacao-texto mt-4 text-[12px] font-extrabold uppercase tracking-[0.25em] text-rosa">Escolhido com amor</p>
       <p className="tt-revelacao-nome font-display text-[3.4rem] leading-none text-ink mt-2">{name}</p>
-      <p className="tt-revelacao-texto mt-3 text-[15px] text-ink-soft max-w-[340px]">Agora {name} está na capa do livro, ganhou uma página só dela e aparece em cada cantinho do app.</p>
+      <p className="tt-revelacao-texto mt-3 text-[15px] text-ink-soft max-w-[340px]">{name.includes(' e ') ? `Agora ${name} estão na capa do livro, ganharam uma página só deles e aparecem em cada cantinho do app.` : `Agora ${name} está na capa do livro, ganhou uma página só dela e aparece em cada cantinho do app.`}</p>
       <div className="tt-revelacao-texto mt-6 flex flex-col gap-2 w-full max-w-[320px]">
         {onShare && (
           <button
