@@ -77,6 +77,7 @@ await shot(pai, '08-pai-home');
 // pai registra sintoma (Cuidados)
 await openCare(pai);
 await pai.getByRole('button', { name: 'Registrar', exact: true }).click();
+await pai.getByRole('button', { name: /^Sintoma:/ }).click();
 await pai.getByPlaceholder('O que ela está sentindo?').fill('Inchaço nos pés');
 check(await pai.getByRole('button', { name: 'Escolha a intensidade' }).isDisabled(), 'sem intensidade, o botão pede para escolher');
 await pai.getByRole('button', { name: '3: Moderado' }).click();

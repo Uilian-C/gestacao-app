@@ -18,7 +18,9 @@ const dlg = mae.getByRole('dialog');
 
 // ---- O Registrar do Início abre no momento (afeto primeiro) ----
 await mae.getByRole('button', { name: 'Registrar', exact: true }).click();
-check((await dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button', { name: 'Diário' }).getAttribute('aria-pressed')) === 'true', 'no Início, o Registrar abre no Diário (momento), não em Sintoma');
+const first = dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button').first();
+check((await first.getAttribute('aria-label')).startsWith('Diário'), 'no Início, o Registrar oferece primeiro o momento (afeto primeiro)');
+await first.click();
 
 // ---- Guardar: "Entrou no livro" no lugar de um "Salvo" ----
 await dlg.getByLabel('O que aconteceu?').fill('Ouvimos o coração pela primeira vez!');
@@ -48,6 +50,7 @@ await post(mae, '/api/data', { op: 'createSymptom', week: 22, date: await iso(-2
 await mae.reload();
 await mae.getByRole('button', { name: /^Cuidados/ }).first().click();
 await mae.getByRole('button', { name: 'Registrar', exact: true }).click();
+await dlg.getByRole('button', { name: /^Sintoma:/ }).click();
 await dlg.getByPlaceholder(/sentindo/).fill('Azia');
 await dlg.getByRole('button', { name: /^3:/ }).click();
 await dlg.getByRole('button', { name: /^Salvar sintoma/ }).click();

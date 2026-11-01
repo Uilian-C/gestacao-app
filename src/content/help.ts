@@ -24,7 +24,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       { q: 'Errei a DUM. Como corrijo?', a: 'No Início, no cartão do bebê, toque no lápis ao lado de "faltam X dias" e escolha a data certa. Tudo se ajusta sozinho: semanas, jornada, calendário e livro.' },
       { q: 'Como convido meu parceiro ou minha parceira?', a: 'Toque nas fotinhas no alto da tela (Nosso espaço) e em "Convidar". O convite vale 7 dias e pode ser usado uma vez. Vocês dois veem e editam tudo.', go: { target: 'espaco', label: 'Abrir Nosso espaço' } },
       { q: 'Dá para instalar no celular, como um app?', a: 'Sim. No iPhone, abra no Safari, toque em Compartilhar e em "Adicionar à Tela de Início". No Android, o Chrome oferece "Instalar app" (ou use o menu ⋮ → "Adicionar à tela inicial").' },
-      { q: 'O que é o botão "Registrar"?', a: 'É o atalho para guardar algo de onde você estiver. Ele segue a aba: no Início, abre no Diário (um momento, uma foto, uma carta); em Cuidados, sintoma, peso e resultado; na Agenda, agendar e tarefa. Voltando de uma consulta no mesmo dia, ele já abre em "Resultado".' },
+      { q: 'O que é o botão "Registrar"?', a: 'É o atalho para guardar algo de onde você estiver. Ele começa perguntando "O que vocês querem guardar?": escreva do seu jeito ("estou enjoada", "ouvimos o coração", "marquei o ultrassom dia 12") e o Tumtum sugere onde guardar, ou toque num dos tipos, cada um explicado em uma linha. O que você escreveu já vai junto para o formulário, e "Trocar o tipo" volta para a pergunta. Em cada aba ele mostra os tipos daquela aba; no Diário, abre direto no registro.' },
     ],
   },
   {

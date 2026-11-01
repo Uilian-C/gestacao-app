@@ -27,7 +27,7 @@ check(await hero.getByText(/^Próxima consulta · em 4 dias$/).isVisible() && (a
 const registros = p.locator('section[aria-labelledby="registros-titulo"]');
 check(await registros.getByRole('button', { name: /^Sintomas 1 registro/ }).isVisible() && (await registros.getByRole('button', { name: /^Peso e pressão 66,2 kg 112\/72/ }).isVisible()), 'os registros num relance: sintomas e peso e pressão');
 await p.getByRole('button', { name: 'Registrar', exact: true }).click();
-check((await dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button').allTextContents()).join(',') === 'Sintoma,Peso e pressão,Resultado', '"Registrar" oferece sintoma, peso e pressão e resultado');
+check((await dlg.getByRole('group', { name: 'Tipo de registro' }).getByRole('button').evaluateAll(bs => bs.map(b => b.getAttribute('aria-label').split(':')[0]))).join(',') === 'Sintoma,Peso e pressão,Resultado', '"Registrar" oferece sintoma, peso e pressão e resultado');
 await p.keyboard.press('Escape');
 await p.screenshot({ path: `${OUT}cuidados.png`, fullPage: true });
 
