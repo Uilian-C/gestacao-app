@@ -27,7 +27,7 @@ const folha = mae.getByRole('dialog', { name: 'A espera' });
 await folha.getByRole('button', { name: 'Abrir o bolão para a família e os amigos' }).click();
 await mae.waitForFunction(() => window.__shared.length > 0);
 const texto = await mae.evaluate(() => window.__shared[0]);
-const link = texto.match(/https?:\/\/\S+\/palpite\/[\w-]+/)?.[0];
+const link = texto.match(/https?:\/\/\S+\/\?palpite=[\w-]+/)?.[0];
 check(!!link && texto.startsWith('Menino ou menina?'), 'o casal abre o bolão e o link sai pelo compartilhar do celular');
 
 // ---- Quem não tem o app vota ----
@@ -53,8 +53,8 @@ await mae.screenshot({ path: `${OUT}bolao-folha.png` });
 // ---- O envelope do chá ----
 await folha.getByRole('button', { name: /Já descobriram\?/ }).click();
 await folha.getByRole('button', { name: 'Enviar o envelope do chá' }).click();
-await mae.waitForFunction(() => window.__shared.some(t => t.includes('/envelope/')));
-const envelope = (await mae.evaluate(() => window.__shared.find(t => t.includes('/envelope/')))).match(/https?:\/\/\S+\/envelope\/[\w-]+/)?.[0];
+await mae.waitForFunction(() => window.__shared.some(t => t.includes('envelope=')));
+const envelope = (await mae.evaluate(() => window.__shared.find(t => t.includes('envelope=')))).match(/https?:\/\/\S+\/\?envelope=[\w-]+/)?.[0];
 check(!!envelope, 'o link do envelope sai para quem vai guardar o segredo');
 const madrinha = await phone(b);
 await madrinha.goto(envelope.replace(/^https?:\/\/[^/]+/, BASE));
@@ -84,6 +84,12 @@ await globalThis.bia.getByText('Tia Bia, você acertou o palpite! 🎉').waitFor
 await globalThis.bia.waitForTimeout(2800);
 await globalThis.bia.screenshot({ path: `${OUT}bolao-acertou.png`, fullPage: true });
 check(true, 'a Tia Bia abre o link de novo e vê que acertou');
+
+// O formato antigo do link (/palpite/…) também abre.
+const antigo = await phone(b);
+await antigo.goto(`${BASE}/palpite/${link.split('palpite=')[1]}`);
+await antigo.getByRole('heading', { name: 'É menina!' }).waitFor();
+check(true, 'o link no formato /palpite/… também abre');
 
 await b.close();
 finish();

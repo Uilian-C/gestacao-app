@@ -26,6 +26,12 @@ async function loadMe(userId: string) {
 
 /** As páginas abertas (sem login): o bolão e o envelope do chá. */
 function publicPage() {
+  // Os links saem como /?palpite=… (funcionam em qualquer hospedagem); /palpite/… também abre.
+  const q = new URLSearchParams(window.location.search);
+  for (const kind of ['palpite', 'envelope'] as const) {
+    const t = q.get(kind);
+    if (t && /^[A-Za-z0-9_-]{8,32}$/.test(t)) return { kind, token: t };
+  }
   const m = window.location.pathname.match(/^\/(palpite|envelope)\/([A-Za-z0-9_-]{8,32})\/?$/);
   return m ? { kind: m[1] as 'palpite' | 'envelope', token: m[2] } : null;
 }
