@@ -3,6 +3,7 @@ import { query, transaction } from './_lib/db.js';
 import { fetchAll, fetchFamilyView } from './_lib/gestation.js';
 import { COUPLE_ONLY, HttpError, endpoint, isCouple, json, readJson, type Member, requireSpace, type SpaceMember } from './_lib/http.js';
 import { mentioned } from './_lib/mentions.js';
+import { cancelBook, giftBook, reserveBook } from './_lib/bookOrder.js';
 import { bolaoLink, envelopeLink, guessSex, openSex, SEX_SAY, setBabies, setSex, setSexPlan, tagNameIdea } from './_lib/espera.js';
 import { notify, type PushPayload } from './_lib/push.js';
 import { VISIBLE_TARGET } from './_lib/social.js';
@@ -178,6 +179,19 @@ const ops = z.discriminatedUnion('op', [
   z.object({ op: z.literal('setSexPlan'), plan: z.enum(['descobrir', 'surpresa']).nullable(), testDate: isoDate.nullable() }),
   z.object({ op: z.literal('setSex'), sex: z.enum(['menina', 'menino', 'meninas', 'meninos', 'casal']).nullable(), secret: z.boolean() }),
   z.object({ op: z.literal('setBabies'), babies: z.union([z.literal(1), z.literal(2)]) }),
+  // O livro impresso em pré-venda (migração 038): nada é cobrado.
+  z.object({
+    op: z.literal('reserveBook'),
+    model: z.enum(['livreto', 'classico', 'caixa']),
+    period: z.enum(['tudo', 'trimestre1', 'trimestre2', 'trimestre3']),
+    include: z.record(z.enum(['cartas', 'barriga', 'primeiras', 'bolao', 'nomes', 'recados', 'humor']), z.boolean()),
+    coverTitle: z.string().trim().min(1).max(60),
+    coverTone: z.string().max(10).nullable(),
+    coverPhoto: uuid.nullable(),
+    dedication: z.string().trim().max(400).nullable(),
+    pages: z.number().int().min(1).max(400),
+  }),
+  z.object({ op: z.literal('cancelBook') }),
   z.object({ op: z.literal('openSex') }),
   z.object({ op: z.literal('bolaoLink') }),
   z.object({ op: z.literal('envelopeLink') }),
@@ -577,6 +591,10 @@ async function apply(m: Member, o: Op) {
       return setSex(fid, m.userId, o.sex, o.secret);
     case 'setBabies':
       return setBabies(fid, o.babies);
+    case 'reserveBook':
+      return reserveBook(fid, m.userId, { ...o, dedication: o.dedication || null });
+    case 'cancelBook':
+      return cancelBook(fid);
     case 'openSex':
       return openSex(fid, m.userId);
     case 'bolaoLink':
@@ -700,6 +718,8 @@ async function apply(m: Member, o: Op) {
 // notificação aparece na tela bloqueada; o conteúdo fica dentro do app.
 function partnerMessage(o: Op, createdId?: string): Omit<PushPayload, 'title'> & { action: string } | null {
   switch (o.op) {
+    case 'reserveBook':
+      return { action: 'reservou o livro de vocês, impresso 📖', body: 'Toque para ver o modelo, a capa e quantas páginas ele já tem.', url: '/?aba=livro', tag: 'livro-impresso' };
     case 'createSymptom':
       return { action: 'registrou um sintoma', body: 'Toque para ver e deixar um carinho.', url: '/?aba=saude', tag: 'parceiro-diario' };
     case 'createMetric':
@@ -895,6 +915,7 @@ const relativeOps = z.discriminatedUnion('op', [
   z.object({ op: z.literal('commentNameIdea'), id: uuid, body: z.string().trim().min(1).max(500) }),
   z.object({ op: z.literal('deleteNameComment'), id: uuid }),
   z.object({ op: z.literal('guessSex'), guess: z.enum(['menina', 'menino', 'meninas', 'meninos', 'casal']).nullable() }),
+  z.object({ op: z.literal('giftBook'), on: z.boolean() }),
 ]);
 
 const REACTION_FOR_FAMILY = { abraco: 'mandou um abraço', forca: 'mandou força', aqui: 'disse: estou aqui', festa: 'comemorou com vocês' } as const;
@@ -906,6 +927,14 @@ async function applyRelative(m: SpaceMember, body: unknown) {
   const fid = m.familyId;
   // Nomes do bebê: a família também sugere e curte (e avisa o casal da sugestão).
   if (o.op === 'likeNameIdea') return likeNameIdea(fid, m.userId, 'familia', o.id, o.on);
+  // Presentear o livro: o casal recebe um aviso (uma vez).
+  if (o.op === 'giftBook') {
+    if (!(await giftBook(fid, m.userId, o.on))) return;
+    const rows = await peopleOf(m);
+    const who = rows.find(r => r.me)?.first || 'Alguém da família';
+    await notify(rows.filter(r => r.role !== 'familia').map(r => r.user_id), 'parceiro', { title: `${who} quer presentear o livro de vocês 💝`, body: 'Toque para montar o livro impresso.', url: '/?aba=livro', tag: 'livro-presente' }).catch(err => console.error('Aviso do presente não enviado', err));
+    return;
+  }
   if (o.op === 'deleteNameIdea') return deleteNameIdea(fid, m.userId, o.id, false);
   if (o.op === 'noteNameIdea') return noteNameIdea(fid, m.userId, o.id, o.note || null, false);
   if (o.op === 'deleteNameComment') return deleteNameComment(fid, m.userId, o.id);

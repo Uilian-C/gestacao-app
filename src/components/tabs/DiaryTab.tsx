@@ -66,6 +66,8 @@ interface Props {
   onOpenNames?: () => void;
   /** "Quero o livro impresso": conta o interesse. */
   onWantPrinted?: () => void;
+  /** O cartão do livro impresso (pré-venda). */
+  printed?: React.ReactNode;
 }
 
 export default function DiaryTab(props: Props) {
@@ -125,6 +127,7 @@ export default function DiaryTab(props: Props) {
           onWrite={props.journalAvailable ? () => props.onWrite() : undefined}
           onNames={props.onOpenNames}
           onWantPrinted={props.onWantPrinted}
+          printedCard={props.printed}
         />
       ) : props.view === 'celebracoes' ? (
         <SubPage title="Celebrações" hint="Os encontros que vão fazer parte da história de vocês" onBack={back}>
