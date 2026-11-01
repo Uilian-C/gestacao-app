@@ -20,17 +20,19 @@ check((await mae.getByRole('button', { name: /Dados( da gestação)?$/ }).count(
 check((await hoje.getByRole('listitem').count()) <= 3, '"Para hoje" mostra no máximo 3 linhas');
 check(await hoje.getByText(/^Primeiros 7 dias · \d de 7$/).isVisible(), 'conta nova: a missão dos primeiros dias entra no "Para hoje"');
 const semanaCards = mae.locator('section[aria-labelledby="nesta-semana"]');
-check((await semanaCards.getByRole('button', { name: /^Próximo marco em [56] semanas.*: Começa o 3º trimestre/ }).count()) === 1, 'próximo marco no carrossel: o 3º trimestre, daqui a umas 6 semanas');
-await semanaCards.getByRole('button', { name: /Seu corpo/ }).click();
+check((await semanaCards.getByRole('button', { name: /^Próximo marco em [56] semanas.*: Começa o 3º trimestre/ }).count()) === 1, '"O que vem aí": um cartão só, o próximo marco (o 3º trimestre, daqui a umas 6 semanas)');
+check((await mae.getByRole('list').filter({ has: mae.getByText('Seu corpo') }).count()) === 0, 'sem carrossel: a semana cabe numa folha');
+await semanaCards.getByRole('button', { name: /^A semana \d+: o bebê, seu corpo e o pai/ }).click();
 const folha = mae.getByRole('dialog');
 await folha.waitFor();
-check(((await folha.locator('p').last().textContent()) ?? '').length > 30, 'cartão compacto: o texto inteiro abre num toque');
+check((await folha.getByText('Seu corpo', { exact: true }).isVisible()) && (await folha.getByText('Para o pai', { exact: true }).isVisible()) && ((await folha.textContent()) ?? '').length > 120, 'a folha da semana traz o bebê, o corpo e a dica para o pai, por inteiro');
 await mae.keyboard.press('Escape');
 check((await mae.getByText('Quando procurar a maternidade').count()) === 0, 'sem alerta, os sinais de alerta não ocupam o Início');
 check((await mae.getByText('Saúde rápida').count()) === 0, 'a saúde rápida saiu do Início (o botão Registrar cobre)');
 check(await mae.getByRole('heading', { name: 'Como você está hoje?' }).isVisible(), 'sem parceiro, o check-in pergunta só por ela');
-const ordem = await mae.evaluate(() => ['[aria-label="Semana da gestação"]', '[aria-labelledby="checkin-titulo"]', '[aria-labelledby="hoje-titulo"]', '#nesta-semana'].map(s => document.querySelector(s).getBoundingClientRect().top));
-check(ordem.every((y, i) => i === 0 || y > ordem[i - 1]), 'a ordem: o bebê, como você está, para hoje e nesta semana');
+const ordem = await mae.evaluate(() => ['[aria-label="Semana da gestação"]', '[aria-labelledby="checkin-titulo"]', '[aria-labelledby="hoje-titulo"]', '#nesta-semana', '#voces-titulo'].map(s => document.querySelector(s).getBoundingClientRect().top));
+check(ordem.every((y, i) => i === 0 || y > ordem[i - 1]), 'quatro tempos: o bebê, o agora (como você está e para hoje), o que vem aí e vocês');
+check((await mae.getByRole('region', { name: 'Esta semana no calendário' }).count()) === 0 && (await mae.getByRole('button', { name: 'Próxima semana' }).count()) === 0, 'sem a faixa de 7 dias nem as setas: o calendário mora na Agenda, as semanas na jornada do bebê');
 await mae.screenshot({ path: `${OUT}inicio-novo.png`, fullPage: true });
 
 // ---- Parceiro, agenda, tarefas e diário ----
@@ -76,7 +78,7 @@ await mae.keyboard.press('Escape');
 
 const juntos = mae.locator('section[aria-labelledby="checkin-titulo"]');
 check((await juntos.getByText(/Senti você mexer/).count()) === 0 && (await juntos.getByRole('button', { name: 'Ver o mural' }).count()) === 0, '"Vocês dois" fica só com o check-in e o abraço (os posts vivem no Diário)');
-check(await semanaCards.getByText('Para o pai', { exact: true }).isVisible() && (await semanaCards.getByText('Seu corpo', { exact: true }).isVisible()), 'cartões da semana: corpo e dica para o pai');
+check((await mae.locator('section[aria-labelledby="voces-titulo"]').getByRole('button', { name: /^A última lembrança: Senti você mexer/ }).count()) === 1, '"Vocês" traz a última lembrança do Mural');
 
 // ---- Vocês dois hoje ----
 const card = mae.locator('section[aria-labelledby="checkin-titulo"]');
