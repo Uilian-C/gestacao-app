@@ -107,9 +107,10 @@ export const GET = endpoint(async request => {
 });
 
 const ops = z.discriminatedUnion('op', [
-  z.object({ op: z.literal('vote'), t: z.string(), name: z.string().trim().min(1).max(40), guess: z.enum(['menina', 'menino']) }),
+  z.object({ op: z.literal('vote'), t: z.string(), name: z.string().trim().min(2).max(40), guess: z.enum(['menina', 'menino']) }),
   z.object({ op: z.literal('seal'), envelope: z.string(), sex: z.enum(['menina', 'menino']) }),
   z.object({ op: z.literal('conhecer'), t: z.string() }),
+  z.object({ op: z.literal('unvote'), t: z.string() }),
 ]);
 
 export const POST = endpoint(async request => {
@@ -135,6 +136,12 @@ export const POST = endpoint(async request => {
   if (o.op === 'conhecer') {
     await track(f.id, 'bolao_conhecer');
     return json({ ok: true });
+  }
+  if (o.op === 'unvote') {
+    // Sair do bolão: apaga o palpite deste aparelho (e o nome sai do placar).
+    const voter = voterOf(request);
+    if (voter) await query('DELETE FROM bolao_votes WHERE family_id = $1 AND voter = $2', [f.id, voter]);
+    return json(await bolaoView(f, voter));
   }
   if (f.sex && !f.secret_by && !f.sealed) throw new HttpError(409, 'O bolão já fechou: eles já descobriram!');
   let voter = voterOf(request);

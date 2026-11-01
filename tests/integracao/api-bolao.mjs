@@ -28,11 +28,18 @@ check(v.couple === 'Ana e Caio' && v.tally.menina === 1 && v.revealed === null, 
 check(!JSON.stringify(v).includes('Souza') && !JSON.stringify(v).includes('@'), 'a página não mostra sobrenome nem e-mail');
 check((await estranho.call('/api/palpite?t=naoexiste123')).status === 404, 'link errado não abre nada');
 
+check((await bia.call('/api/palpite', { op: 'vote', t: token, name: ' ', guess: 'menina' })).status === 400, 'sem nome, o voto não entra');
 v = (await bia.call('/api/palpite', { op: 'vote', t: token, name: 'Tia Bia', guess: 'menina' })).data;
 check(v.mine?.guess === 'menina' && v.tally.menina === 2, 'Bia vota sem conta: menina');
 v = (await bia.call('/api/palpite', { op: 'vote', t: token, name: 'Tia Bia', guess: 'menino' })).data;
 check(v.tally.menina === 1 && v.tally.menino === 1, 'no mesmo aparelho, votar de novo troca o palpite (não duplica)');
 await leo.call('/api/palpite', { op: 'vote', t: token, name: 'Léo', guess: 'menina' });
+// Sair do bolão: o palpite some do placar (e dá para voltar depois).
+const sai = client();
+await sai.call('/api/palpite', { op: 'vote', t: token, name: 'Visita', guess: 'menino' });
+v = (await sai.call('/api/palpite', { op: 'unvote', t: token })).data;
+check(v.mine === null && !v.teams.menino.includes('Visita'), 'quem quiser sai do bolão, e o nome sai do placar');
+check((await estranho.call('/api/palpite', { op: 'unvote', t: token })).status === 200, 'sair sem ter votado não quebra nada');
 let espera = (await caio.call('/api/data')).data.espera;
 check(espera.publicVotes.length === 2 && espera.publicVotes.some(p => p.name === 'Léo' && p.guess === 'menina'), 'o casal vê os palpites de quem votou pelo link');
 

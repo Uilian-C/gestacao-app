@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Heart, Loader2, Lock, Share2, Sparkles } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Check, Heart, Loader2, Lock, Share2, Sparkles } from 'lucide-react';
 import BrandMark from '../BrandMark';
 import Placar, { PlacarBar } from '../espera/Placar';
 import { tumtum } from '../../lib/feel';
@@ -28,6 +28,7 @@ const TONE: Record<Sex, { soft: string; strong: string; bg: string; bar: string 
   menino: { soft: 'bg-azul-soft', strong: 'text-azul-strong', bg: 'bg-azul', bar: 'bg-azul' },
 };
 const LABEL: Record<Sex, string> = { menina: 'Menina', menino: 'Menino' };
+const NAME_KEY = 'tumtum:palpite-nome';
 
 async function call<T>(method: 'GET' | 'POST', query: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api/palpite${query}`, { method, credentials: 'same-origin', headers: body ? { 'content-type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
@@ -77,9 +78,24 @@ function Loading({ error }: { error: string | null }) {
 export function BolaoPage({ token }: { token: string }) {
   const [view, setView] = useState<BolaoView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => {
+    try {
+      return localStorage.getItem(NAME_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  });
   const [busy, setBusy] = useState(false);
   const [changing, setChanging] = useState(false);
+  // O nome é obrigatório: sem ele, o campo chama a atenção (treme e mostra o aviso logo embaixo).
+  const [nameMissing, setNameMissing] = useState(0);
+  const [justVoted, setJustVoted] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const doneRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (justVoted) doneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [justVoted]);
   useEffect(() => {
     document.title = 'Menino ou menina? · Bolão no Tumtum';
     call<BolaoView>('GET', `?t=${encodeURIComponent(token)}`)
@@ -92,13 +108,38 @@ export function BolaoPage({ token }: { token: string }) {
   if (!view) return <Loading error={error} />;
 
   const vote = async (guess: Sex) => {
-    if (!name.trim()) return setError('Escreva seu nome para o casal saber quem palpitou.');
+    if (name.trim().length < 2) {
+      setNameMissing(n => n + 1);
+      nameRef.current?.focus();
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       setView(await call<BolaoView>('POST', '', { op: 'vote', t: token, name: name.trim(), guess }));
       setChanging(false);
+      setJustVoted(true);
+      try {
+        localStorage.setItem(NAME_KEY, name.trim());
+      } catch {
+        /* sem armazenamento: só não lembra */
+      }
       tumtum();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  /** Sair do bolão: apaga o palpite (o nome sai do placar). */
+  const leave = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setView(await call<BolaoView>('POST', '', { op: 'unvote', t: token }));
+      setLeaving(false);
+      setJustVoted(false);
+      setChanging(false);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -135,42 +176,95 @@ export function BolaoPage({ token }: { token: string }) {
         )}
       </section>
 
+      {!r &&
+        (voted ? (
+          <section ref={doneRef} className={`tt-carimbo rounded-[24px] px-5 py-5 text-center shadow-soft ${TONE[view.mine!.guess].soft}`} role="status" aria-label="Palpite registrado">
+            <span className={`mx-auto mb-2 flex w-12 h-12 items-center justify-center rounded-full ${TONE[view.mine!.guess].bg} text-white shadow-soft`} aria-hidden>
+              <Check className="w-6 h-6" strokeWidth={3} />
+            </span>
+            <p className={`text-[12px] font-extrabold uppercase tracking-[0.2em] ${TONE[view.mine!.guess].strong}`}>Palpite registrado</p>
+            <p className="font-display text-[1.45rem] leading-snug text-ink">
+              {view.mine!.name}, você é do <span className={TONE[view.mine!.guess].strong}>Time {LABEL[view.mine!.guess]}</span>!
+            </p>
+            <p className="text-[13.5px] text-ink-soft">Seu nome já está no placar. Quando eles descobrirem, é só abrir este link de novo para ver se você acertou.</p>
+            <div className="mt-3 flex justify-center gap-2">
+              <button type="button" onClick={share} className={`inline-flex items-center gap-1.5 rounded-full ${TONE[view.mine!.guess].bg} px-4 py-2 text-[13.5px] font-extrabold text-white shadow-soft`}>
+                <Share2 className="w-4 h-4" /> Chamar gente para o seu time
+              </button>
+              <button type="button" onClick={() => (setChanging(true), setJustVoted(false))} className="rounded-full px-3 py-2 text-[13px] font-bold text-ink-soft">
+                Mudar
+              </button>
+            </div>
+            {leaving ? (
+              <div className="mt-3 rounded-2xl bg-surface/80 px-4 py-3 space-y-2" role="group" aria-label="Sair do bolão">
+                <p className="text-[13.5px] text-ink">Tirar o seu palpite? Seu nome sai do placar.</p>
+                <div className="flex justify-center gap-2">
+                  <button type="button" disabled={busy} onClick={() => void leave()} className="rounded-full bg-alert px-4 py-1.5 text-[13px] font-extrabold text-white disabled:opacity-60">
+                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sim, sair do bolão'}
+                  </button>
+                  <button type="button" onClick={() => setLeaving(false)} className="rounded-full px-4 py-1.5 text-[13px] font-bold text-ink-soft">
+                    Ficar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setLeaving(true)} className="mt-2 text-[12.5px] font-bold text-ink-mute underline-offset-2 hover:underline">
+                Sair do bolão
+              </button>
+            )}
+          </section>
+        ) : (
+          <section aria-labelledby="seu-palpite" className="rounded-[24px] bg-surface/90 px-5 py-5 shadow-soft space-y-4">
+            <h2 id="seu-palpite" className="font-display text-[1.3rem] text-ink">
+              Dê o seu palpite
+            </h2>
+            <div className="space-y-1.5">
+              <label htmlFor="palpite-nome" className="block text-[13.5px] font-extrabold text-ink">
+                1. Seu nome <span className="font-bold text-ink-mute">(obrigatório)</span>
+              </label>
+              <input
+                id="palpite-nome"
+                ref={nameRef}
+                key={nameMissing}
+                aria-label="Seu nome"
+                aria-invalid={nameMissing > 0 && name.trim().length < 2}
+                aria-describedby="palpite-nome-aviso"
+                placeholder="Como o casal te chama (tia Bia, vovó Rosa…)"
+                value={name}
+                maxLength={40}
+                onChange={e => setName(e.target.value)}
+                className={`w-full rounded-full bg-surface-2 px-4 py-3 text-[15px] text-ink placeholder:text-ink-mute outline-none focus:ring-2 focus:ring-lilas/50 ${nameMissing > 0 && name.trim().length < 2 ? 'tt-tremer ring-2 ring-alert' : ''}`}
+              />
+              {nameMissing > 0 && name.trim().length < 2 && (
+                <p id="palpite-nome-aviso" role="alert" className="px-2 text-[13px] font-bold text-alert">
+                  Escreva seu nome primeiro, para o casal saber que o palpite é seu.
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-[13.5px] font-extrabold text-ink">2. Escolha o seu time</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(['menina', 'menino'] as const).map(s => (
+                  <button
+                    key={s}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void vote(s)}
+                    className={`rounded-[20px] ${TONE[s].bg} px-4 py-4 font-display text-[1.3rem] text-white shadow-soft transition active:scale-95 disabled:opacity-60 ${name.trim().length < 2 ? 'opacity-45' : ''}`}
+                  >
+                    {busy ? <Loader2 className="w-5 h-5 mx-auto animate-spin" /> : `Time ${LABEL[s]}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        ))}
+
       {/* O placar: o mesmo do app, Time Menina × Time Menino. */}
       <section aria-label="O placar" className="rounded-[24px] bg-surface/85 px-5 py-4 shadow-soft">
         {view.teams ? <Placar teams={view.teams} latest={view.latest} highlight={view.mine?.name ?? null} /> : <PlacarBar menina={view.tally.menina} menino={view.tally.menino} />}
       </section>
 
-      {!r &&
-        (voted ? (
-          <section className={`rounded-[24px] px-5 py-4 text-center ${TONE[view.mine!.guess].soft}`} role="status">
-            <p className="font-display text-[1.45rem] text-ink">
-              Você é do <span className={TONE[view.mine!.guess].strong}>Time {LABEL[view.mine!.guess]}</span>!
-            </p>
-            <p className="text-[13.5px] text-ink-soft">Quando eles descobrirem, é só abrir este link de novo para ver se você acertou.</p>
-            <div className="mt-3 flex justify-center gap-2">
-              <button type="button" onClick={share} className={`inline-flex items-center gap-1.5 rounded-full ${TONE[view.mine!.guess].bg} px-4 py-2 text-[13.5px] font-extrabold text-white shadow-soft`}>
-                <Share2 className="w-4 h-4" /> Chamar gente para o seu time
-              </button>
-              <button type="button" onClick={() => setChanging(true)} className="rounded-full px-3 py-2 text-[13px] font-bold text-ink-soft">
-                Mudar
-              </button>
-            </div>
-          </section>
-        ) : (
-          <section aria-labelledby="seu-palpite" className="rounded-[24px] bg-surface/85 px-5 py-4 shadow-soft space-y-3">
-            <h2 id="seu-palpite" className="font-display text-[1.2rem] text-ink">
-              Seu palpite
-            </h2>
-            <input aria-label="Seu nome" placeholder="Seu nome (tia Bia, vovó Rosa…)" value={name} maxLength={40} onChange={e => setName(e.target.value)} className="w-full rounded-full bg-surface-2 px-4 py-3 text-[15px] text-ink placeholder:text-ink-mute outline-none focus:ring-2 focus:ring-lilas/50" />
-            <div className="grid grid-cols-2 gap-2">
-              {(['menina', 'menino'] as const).map(s => (
-                <button key={s} type="button" disabled={busy} onClick={() => void vote(s)} className={`rounded-[20px] ${TONE[s].bg} px-4 py-4 font-display text-[1.3rem] text-white shadow-soft transition active:scale-95 disabled:opacity-60`}>
-                  {LABEL[s]}
-                </button>
-              ))}
-            </div>
-          </section>
-        ))}
       {error && (
         <p role="alert" className="rounded-2xl bg-alert-soft px-4 py-2.5 text-center text-sm text-alert">
           {error}

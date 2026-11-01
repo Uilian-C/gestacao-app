@@ -615,6 +615,11 @@
   .tt-revelacao-eco { display: none; }
 }
 
+/* Um campo obrigatório esquecido treme de leve. */
+@keyframes tt-tremer { 0%, 100% { transform: none; } 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+.tt-tremer { animation: tt-tremer 360ms ease-in-out; }
+@media (prefers-reduced-motion: reduce) { .tt-tremer { animation: none; } }
+
 /* A espera: o envelope da revelação pulsa no ritmo do tum-tum (duas batidas e uma pausa). */
 @keyframes tt-envelope { 0%, 30%, 100% { transform: scale(1) rotate(0); } 8% { transform: scale(1.08) rotate(-2deg); } 15% { transform: scale(1) rotate(0); } 22% { transform: scale(1.05) rotate(1.5deg); } }
 .tt-envelope { display: inline-block; animation: tt-envelope 1.6s ease-in-out infinite; }
