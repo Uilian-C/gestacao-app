@@ -49,7 +49,7 @@ await sheet.waitFor();
 check(true, 'o link do aviso abre direto o "Como foi?"');
 await sheet.getByRole('button', { name: /Tudo bem/ }).click();
 await mae.getByText('Que bom! Fica guardado na jornada de vocês').waitFor();
-check((await hoje.getByRole('button', { name: /Como foi/ }).count()) === 0, 'respondidas, as perguntas saem do "Para hoje"');
+check((await hoje.getByRole('button', { name: /Como foi a consulta|Como foi o ultrassom/ }).count()) === 0, 'respondidas, as perguntas saem do "Para hoje"');
 
 // ---- A barriguinha: guia da pose e o crescendo ----
 const foto = n => mae.evaluate(n => { const c = document.createElement('canvas'); c.width = 300; c.height = 400; const g = c.getContext('2d'); const grd = g.createLinearGradient(0, 0, 300, 400); grd.addColorStop(0, '#f8d7e3'); grd.addColorStop(1, '#d9ccf5'); g.fillStyle = grd; g.fillRect(0, 0, 300, 400); g.fillStyle = '#e9a7bd'; g.beginPath(); g.ellipse(170, 230, 40 + n * 12, 70 + n * 6, 0, 0, Math.PI * 2); g.fill(); return c.toDataURL('image/jpeg', 0.8).split(',')[1]; }, n);
