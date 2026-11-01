@@ -1,10 +1,18 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CloudRain, Sprout } from 'lucide-react';
-import QuickRecord, { type QuickMode } from './components/QuickRecord';
+import type { QuickMode } from './components/QuickRecord';
 import Skeleton from './components/Skeleton';
+import TasksTab from './components/tabs/TasksTab';
+import UpcomingTab from './components/tabs/UpcomingTab';
+import DiaryTab from './components/tabs/DiaryTab';
+import SpaceSheet from './components/auth/SpaceSheet';
+import DayClose from './components/home/DayClose';
+import ShareSheet from './components/ShareSheet';
 import DetailSheet from './components/Details';
-import NameSpace, { NameReveal, type NameActions } from './components/BabyNames';
-import { CelebrationSpace, type CelebrationActions } from './components/Celebrations';
+import QuickRecord from './components/QuickRecord';
+
+import type { NameActions } from './components/BabyNames';
+import type { CelebrationActions } from './components/Celebrations';
 import type { Celebration, CelebrationItem } from './lib/celebrations';
 import { resolveDetail, type Detail, type DetailTarget } from './lib/details';
 import type { Folder, JournalEntry, ListItem, Mood, ThreadComment } from './hooks/useGestationData';
@@ -15,17 +23,17 @@ import { finalistsCard, nameCard, placarCard, revealCard, surpriseCard, teaserCa
 import { EsperaSheet, SexReveal } from './components/espera/Espera';
 import { bolaoUrl, envelopeUrl, isTwins, percents, questionFor, rightCount, SEX_WORD, tally, teamsOf, type Sex, type SexPlan } from './lib/espera';
 import { entryShare } from './lib/shareEntry';
-import ShareSheet, { type ShareRequest } from './components/ShareSheet';
+import type { ShareRequest } from './components/ShareSheet';
 import { authorOf, firstName } from './lib/people';
-import DayClose from './components/home/DayClose';
+
 import { uploadVideo } from './lib/videos';
 import { api, ApiError, photoUrl, type CoupleFamilyState, type FamilyState, type Me } from './api';
-import SpaceSheet from './components/auth/SpaceSheet';
-import CareModeHome from './components/home/CareModeHome';
+
+
 import type { VisitStatus } from './components/home/VisitFeedback';
 import { firstTimeOf, type FirstTimeId } from './content/firstTimes';
 import Header from './components/Header';
-import HelpCenter from './components/HelpCenter';
+
 import type { HelpTarget } from './content/help';
 import type { FichaInput } from './components/FichaBar';
 import Nav from './components/Nav';
@@ -37,19 +45,29 @@ import type { BabyTone } from './content/babyTones';
 import { FreshEntryContext } from './lib/people';
 import type { BirthPlan } from './lib/birthPlan';
 import HomeTab, { type HomeTarget } from './components/tabs/HomeTab';
-import DiaryTab from './components/tabs/DiaryTab';
+
 import type { NewSymptom } from './components/forms/RecordForms';
-import RecordList from './components/care/RecordList';
+
 import CareHome from './components/care/CareHome';
 import CarePage from './components/care/CarePage';
-import UpcomingTab from './components/tabs/UpcomingTab';
+
 import type { NewEntry } from './components/forms/EntryForm';
 import type { NewConsultation, ReportRequest } from './components/tabs/ConsultationsTab';
 // Exames vêm junto com o botão "+" (que tem o formulário de exame).
-import ExamsTab, { type SaveExam } from './components/tabs/ExamsTab';
-import TasksTab, { type NewTask } from './components/tabs/TasksTab';
+import type { SaveExam } from './components/tabs/ExamsTab';
+import type { NewTask } from './components/tabs/TasksTab';
 
 // Abas com gráficos, relatório e calendário carregam só quando abertas: o app abre mais rápido no celular.
+// Carregadas só quando abertas: o que é mais raro e pesado (nomes, celebrações,
+// ajuda, modo cuidado, resultados e saúde). O que se usa toda hora (registrar,
+// detalhes, compartilhar, Diário, Agenda) vem junto, para abrir na hora.
+const NameSpace = lazy(() => import('./components/BabyNames'));
+const NameReveal = lazy(() => import('./components/BabyNames').then(m => ({ default: m.NameReveal })));
+const CelebrationSpace = lazy(() => import('./components/Celebrations').then(m => ({ default: m.CelebrationSpace })));
+const CareModeHome = lazy(() => import('./components/home/CareModeHome'));
+const HelpCenter = lazy(() => import('./components/HelpCenter'));
+const RecordList = lazy(() => import('./components/care/RecordList'));
+const ExamsTab = lazy(() => import('./components/tabs/ExamsTab'));
 const DashboardTab = lazy(() => import('./components/tabs/DashboardTab'));
 const ConsultationsTab = lazy(() => import('./components/tabs/ConsultationsTab'));
 const CalendarTab = lazy(() => import('./components/tabs/CalendarTab'));
@@ -288,11 +306,34 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
    * Com `done`, confirma com um aviso curto ("Sintoma registrado"); no erro, o
    * aviso fica até a pessoa fechar, com "Tentar de novo".
    */
+  // Depois que o Início aparece, as partes sob demanda já vêm em segundo plano,
+  // para estarem prontas no primeiro toque (sem pesar na abertura).
+  useEffect(() => {
+    const warm = () => {
+      for (const load of [() => import('./components/BabyNames'), () => import('./components/Celebrations'), () => import('./components/tabs/ExamsTab'), () => import('./components/care/RecordList')]) load().catch(() => undefined);
+    };
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    const id = idle ? idle(warm) : window.setTimeout(warm, 1200);
+    return () => {
+      if (!idle) window.clearTimeout(id);
+    };
+  }, []);
+  // Depois de toques leves, uma sincronização só, em segundo plano, para vários toques seguidos.
+  const syncTimer = useRef<number | null>(null);
+  const syncSoon = () => {
+    if (syncTimer.current) window.clearTimeout(syncTimer.current);
+    syncTimer.current = window.setTimeout(() => {
+      syncTimer.current = null;
+      refresh().catch(() => undefined);
+    }, 2500);
+  };
   const run = async (action: () => Promise<unknown>, errorText = 'Não foi possível salvar. Verifique a conexão e tente de novo.', done?: string): Promise<boolean> => {
     setBusy(true);
     try {
-      const result = (await action()) as { data?: unknown } | undefined;
+      const result = (await action()) as { lite?: boolean; data?: unknown } | undefined;
       if (result?.data) replace(result.data);
+      // Toque leve: a tela já mostra a mudança; sincroniza depois, sem esperar.
+      else if (result?.lite) syncSoon();
       else await refresh();
       if (done) showToast({ text: done, tone: 'success' });
       return true;
@@ -628,7 +669,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     return run(() => api.mutate('setCareMode', { on }), 'Não foi possível mudar o modo cuidado. Se for a primeira vez, rode a migração db/migrations/029_modo_cuidado.sql no Neon.');
   };
   const spaceSheet = (
-    <>
+    <Suspense fallback={null}>
       {spaceOpen && (
         <SpaceSheet
           me={me}
@@ -642,7 +683,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onHelp={() => (setSpaceOpen(false), setHelpOpen(true))}
         />
       )}
-    </>
+    </Suspense>
   );
 
   if (!dumDate || !age) {
@@ -1403,11 +1444,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       </main>
 
       {celebrationOpen && data.celebrations?.some(c => c.id === celebrationOpen) && (
-        <CelebrationSpace celebration={data.celebrations.find(c => c.id === celebrationOpen)!} actions={celebrationActions} onClose={() => setCelebrationOpen(null)} />
+        <Suspense fallback={null}><CelebrationSpace celebration={data.celebrations.find(c => c.id === celebrationOpen)!} actions={celebrationActions} onClose={() => setCelebrationOpen(null)} /></Suspense>
       )}
-      {namesOpen && <NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} onShare={shareName} onShareFinalists={shareFinalists} espera={data.espera ?? null} secondPending={isTwins(data.espera) && data.babyName && !data.baby2Name ? data.babyName : null} />}
+      {namesOpen && <Suspense fallback={null}><NameSpace ideas={data.nameIdeas ?? []} tone={data.babyTone ?? 'tumtum'} week={currentWeek} couple chosenAt={data.babyNameAt} actions={nameActions} onClose={() => setNamesOpen(false)} onReveal={setReveal} onShare={shareName} onShareFinalists={shareFinalists} espera={data.espera ?? null} secondPending={isTwins(data.espera) && data.babyName && !data.baby2Name ? data.babyName : null} /></Suspense>}
       {reveal && (
-        <NameReveal
+        <Suspense fallback={null}><NameReveal
           name={reveal}
           tone={data.babyTone ?? 'tumtum'}
           week={currentWeek}
@@ -1417,10 +1458,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             setRevealSeen(reveal);
             setReveal(null);
           }}
-        />
+        /></Suspense>
       )}
       {recording && (
-        <QuickRecord
+        <Suspense fallback={null}><QuickRecord
           modes={recording}
           initial={recordStart && recording.includes(recordStart) ? recordStart : recording[0]}
           direct={!!recordStart && recording.includes(recordStart)}
@@ -1449,11 +1490,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           bloodType={data.profile.bloodType}
           examsAvailable={data.examsAvailable ?? false}
           onSaveExam={saveExam}
-        />
+        /></Suspense>
       )}
 
       {openDetail && (
-        <DetailSheet
+        <Suspense fallback={null}><DetailSheet
           key={`${openDetail.kind}:${openDetail.item.id}`}
           detail={openDetail}
           onClose={() => setDetail(null)}
@@ -1487,7 +1528,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           onDeleteThread={deleteThread}
           onVoice={setVoice}
           onShareEntry={shareEntry}
-        />
+        /></Suspense>
       )}
 
       {esperaOpen && data.espera && !care && (
@@ -1515,7 +1556,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       {/* Por cima de tudo, até das revelações (que ficam em z-60). */}
       {shareReq && (
         <div className="relative z-[70]">
-        <ShareSheet
+        <Suspense fallback={null}><ShareSheet
           request={shareReq}
           onClose={() => setShareReq(null)}
           onDone={(kind, how) => {
@@ -1523,7 +1564,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             setShareReq(null);
             if (how === 'downloaded') showToast({ text: 'Imagem salva. É só postar 💛', tone: 'success' });
           }}
-        />
+        /></Suspense>
         </div>
       )}
       <Toast toast={toast} onClose={() => setToast(null)} />
@@ -1539,7 +1580,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         />
       )}
       {ritualOpen && (
-        <DayClose
+        <Suspense fallback={null}><DayClose
           role={author}
           mood={(data.checkins ?? []).find(c => c.mine && c.day === today)?.mood ?? null}
           partnerName={partnerName}
@@ -1547,7 +1588,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
           busy={busy}
           onSave={closeDay}
           onClose={() => setRitualOpen(false)}
-        />
+        /></Suspense>
       )}
       {stamp && (
         <BookStamp
@@ -1563,7 +1604,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
       )}
       {spaceSheet}
       {helpOpen && (
-        <HelpCenter
+        <Suspense fallback={null}><HelpCenter
           onClose={() => setHelpOpen(false)}
           onGo={goHelp}
           onFirstDays={() => {
@@ -1571,7 +1612,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             setHelpOpen(false);
             openHome('missoes');
           }}
-        />
+        /></Suspense>
       )}
     </div>
     </TimedRemindersReady.Provider>
