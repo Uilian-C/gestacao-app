@@ -1184,7 +1184,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             babyTone={data.babyTone ?? 'tumtum'}
             onOpenNames={() => setNamesOpen(true)}
             onWantPrinted={() => track('livro_impresso')}
-            printed={data.book ? <PrintedBookCard pages={printedPages} order={data.book.order} gifts={data.book.gifts.map(g => g.name)} onOpen={() => setBookOpen(true)} /> : undefined}
+            printed={data.book ? <PrintedBookCard pages={printedPages} order={data.book.order} gifts={data.book.gifts.map(g => g.name)} onOpen={() => (data.book?.order || track('livro_impresso'), setBookOpen(true))} /> : undefined}
             celebrations={data.celebrations}
             celebrationActions={celebrationActions}
             onOpenCelebration={setCelebrationOpen}
