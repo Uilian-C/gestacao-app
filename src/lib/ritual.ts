@@ -19,14 +19,18 @@ export function markClosed(userId: string, day: string) {
 
 const wroteToday = (e: JournalEntry, day: string) => e.folder === 'dia' && (e.entry_date === day || (!!e.created_at && toISODate(parseTimestamp(e.created_at)) === day));
 
-/** Já fechei o dia? (neste aparelho, ou porque já escrevi no Dia a dia hoje) */
-export function dayClosed(userId: string, day: string, journal: JournalEntry[]): boolean {
+/**
+ * O dia já tem o meu registro? Fechei o dia (neste aparelho), escrevi no Dia a
+ * dia ou já contei como estou hoje: nesses casos o convite não aparece (o
+ * aviso das 21h segue a mesma regra no servidor).
+ */
+export function dayClosed(userId: string, day: string, journal: JournalEntry[], checkins: Checkin[]): boolean {
   try {
     if (localStorage.getItem(key(userId, day))) return true;
   } catch {
     /* sem armazenamento: vale o diário */
   }
-  return journal.some(e => e.mine && wroteToday(e, day));
+  return checkins.some(c => c.mine && c.day === day) || journal.some(e => e.mine && wroteToday(e, day));
 }
 
 /** O que a outra pessoa contou hoje: o humor e a frase do dia, se houver. */

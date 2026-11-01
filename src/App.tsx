@@ -1005,7 +1005,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onWrite={writeEntry}
             onVisitFeedback={visitFeedback}
             onShare={share}
-            ritual={data.journalAvailable ? { closed: dayClosed(me.user.id, today, data.journal ?? []), partner: partnerDay(data.checkins ?? [], data.journal ?? [], today), onOpen: () => setRitualOpen(true) } : undefined}
+            ritual={data.journalAvailable ? { closed: dayClosed(me.user.id, today, data.journal ?? [], data.checkins ?? []), partner: partnerDay(data.checkins ?? [], data.journal ?? [], today), onOpen: () => setRitualOpen(true) } : undefined}
             askVisit={askVisit}
             openQuestions={questions.filter(q => !q.doctor_answer).length}
           />
