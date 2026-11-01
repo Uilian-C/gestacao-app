@@ -110,10 +110,15 @@ export default function DashboardTab(props: Props) {
             </p>
           )}
 
-          {/* O mapa primeiro (a gestação de relance); o resto recolhe para não pesar. */}
-          {inPeriodEntries.length > 0 && (
-            <Fold icon={<Grid3x3 />} title="Mapa da gestação" summary="Intensidade por tipo de sintoma, semana a semana" defaultOpen>
-              <CategoryHeatmap cells={heatCells} categories={SYMPTOM_CATEGORIES} weekFrom={weekFrom} weekTo={weekTo} />
+          {/* Primeiro o que responde "está melhorando?": cada sintoma, quantas vezes e a tendência. */}
+          {stats.length > 0 && (
+            <Fold icon={<Activity />} title="Frequência e tendência" summary={`${stats.length} ${stats.length === 1 ? 'sintoma' : 'sintomas'} · toque num para ver a evolução`} defaultOpen>
+              <SymptomTable stats={stats} selectedKey={selectedKey} onSelect={setSelectedKey} />
+              {selected && (
+                <div className="mt-4">
+                  <SymptomDetail stats={selected} comments={comments} weekFrom={weekFrom} weekTo={weekTo} onClose={() => setSelectedKey(null)} />
+                </div>
+              )}
             </Fold>
           )}
 
@@ -123,14 +128,10 @@ export default function DashboardTab(props: Props) {
             </Fold>
           )}
 
-          {stats.length > 0 && (
-            <Fold icon={<Activity />} title="Frequência e tendência" summary={`${stats.length} ${stats.length === 1 ? 'sintoma' : 'sintomas'} · toque num para ver a evolução`} defaultOpen={!!selectedKey}>
-              <SymptomTable stats={stats} selectedKey={selectedKey} onSelect={setSelectedKey} />
-              {selected && (
-                <div className="mt-4">
-                  <SymptomDetail stats={selected} comments={comments} weekFrom={weekFrom} weekTo={weekTo} onClose={() => setSelectedKey(null)} />
-                </div>
-              )}
+          {/* O mapa da gestação inteira fica recolhido: abre para quem quer o panorama. */}
+          {inPeriodEntries.length > 0 && (
+            <Fold icon={<Grid3x3 />} title="Mapa da gestação" summary="Intensidade por tipo de sintoma, semana a semana">
+              <CategoryHeatmap cells={heatCells} categories={SYMPTOM_CATEGORIES} weekFrom={weekFrom} weekTo={weekTo} />
             </Fold>
           )}
 

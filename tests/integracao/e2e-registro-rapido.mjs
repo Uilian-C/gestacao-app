@@ -66,10 +66,15 @@ await p.getByRole('status').filter({ hasText: 'Enjoo · registrado' }).waitFor({
 await tab('Diário');
 check((await p.getByText('Enjoo').count()) === 0, 'sintoma não aparece no Diário');
 await p.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: /^Fichário/ }).click();
-await p.getByRole('button', { name: 'Abrir a pasta Ideias e planos' }).click();
+await p.getByRole('button', { name: 'Abrir a pasta Momentos especiais' }).click();
 await plus.click();
 check((await dlg.getByRole('group', { name: 'Tipo de registro' }).count()) === 0, 'Diário abre direto o registro do fichário');
-check((await dlg.getByRole('radio', { name: /Ideias/ }).getAttribute('aria-checked')) === 'true', 'registro abre na pasta que estava aberta');
+check((await dlg.getByRole('radio', { name: /Momentos/ }).getAttribute('aria-checked')) === 'true', 'registro abre na pasta que estava aberta');
+await p.keyboard.press('Escape');
+// Em Momentos moram também o dia a dia e as ideias: o filtro escolhe, e o "Guardar" da pasta segue o filtro.
+await p.getByRole('group', { name: 'Mostrar' }).getByRole('button', { name: 'Ideias' }).click();
+await p.getByRole('button', { name: 'Guardar', exact: true }).click();
+check((await dlg.getByRole('radio', { name: /Ideias/ }).getAttribute('aria-checked')) === 'true', 'com o filtro em Ideias, o Guardar abre em Ideias');
 await dlg.getByLabel('O que aconteceu?').fill('Nomes que gostamos: Helena, Theo');
 await dlg.getByRole('button', { name: 'Guardar ideia' }).click();
 await p.waitForTimeout(1200);

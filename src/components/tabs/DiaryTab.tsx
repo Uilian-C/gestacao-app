@@ -4,7 +4,7 @@ import { photoUrl, type FamilyMember } from '../../api';
 import type { Checkin, EntryPhoto, Folder, JournalEntry, Reaction, ThreadComment } from '../../hooks/useGestationData';
 import { formatBR, toISODate } from '../../lib/dates';
 import type { DetailTarget } from '../../lib/details';
-import { FOLDER, FOLDERS, TONE, bellyWeeks, groupEntries, shortDate, weekOn, type GroupBy } from '../../lib/folders';
+import { FOLDER, MOMENT_FOLDERS, TONE, bellyWeeks, groupEntries, shortDate, weekOn, type GroupBy } from '../../lib/folders';
 import type { Author, DiaryView } from '../../types';
 import AuthorBadge from '../AuthorBadge';
 import { MentionText } from '../Mentions';
@@ -68,7 +68,9 @@ interface Props {
 
 export default function DiaryTab(props: Props) {
   const entries = props.journal;
-  const count = (f: Folder) => entries.filter(e => e.folder === f).length;
+  // "Momentos" junta o dia a dia e as ideias (cada registro mantém a sua pasta, como etiqueta).
+  const inFolder = (e: JournalEntry, f: Folder) => (f === 'momento' ? MOMENT_FOLDERS.includes(e.folder) : e.folder === f);
+  const count = (f: Folder) => entries.filter(e => inFolder(e, f)).length;
   const social = (e: JournalEntry) => ({
     reactions: props.reactions.filter(r => r.target_type === 'entry' && r.target_id === e.id).length,
     comments: props.threads.filter(c => c.target_type === 'entry' && c.target_id === e.id).length,
@@ -132,7 +134,7 @@ export default function DiaryTab(props: Props) {
       ) : props.view === 'tudo' ? (
         <Fichario {...props} count={count} />
       ) : (
-        <FolderPage {...props} folder={props.view} entries={entries.filter(e => e.folder === props.view)} social={social} />
+        <FolderPage {...props} folder={props.view} entries={entries.filter(e => inFolder(e, props.view as Folder))} social={social} />
       )}
     </div>
   );
@@ -237,7 +239,7 @@ function Grouped({ folder, entries, dumDate, social, onOpen }: { folder: Folder;
             {isOpen && (
               <div className="space-y-2.5 px-3 pb-3">
                 {g.items.map(e => (
-                  <EntryCard key={e.id} entry={e} dumDate={dumDate} social={social(e)} onOpen={() => onOpen(e.id)} />
+                  <EntryCard key={e.id} entry={e} dumDate={dumDate} showFolder={folder === 'momento'} social={social(e)} onOpen={() => onOpen(e.id)} />
                 ))}
               </div>
             )}
@@ -252,7 +254,7 @@ function Grouped({ folder, entries, dumDate, social, onOpen }: { folder: Folder;
  * O Fichário: as pastas num relance, sem capa. As Celebrações e o Humor são
  * pastas especiais; a barriguinha mostra as últimas fotos. Um toque abre.
  */
-function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView, onWrite, onOpen, count, celebrations, checkins }: Props & { count: (f: Folder) => number }) {
+function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView, onWrite, onOpen, count, celebrations }: Props & { count: (f: Folder) => number }) {
   const babyName = useContext(BabyNameContext);
   const [album, setAlbum] = useState(false);
   const firsts = firstTimesAlbum(journal, babyName);
@@ -272,34 +274,46 @@ function Fichario({ journal, dumDate, photosAvailable, journalAvailable, onView,
         {journalAvailable && (
           <AlbumFolder wide label="Primeiras vezes" hint={`${firstsDone} de ${firsts.length}${nextFirst ? ` · próxima: ${nextFirst.ft.title.toLowerCase()}` : ' · o álbum completo!'}`} Icon={Sparkles} soft="bg-gradient-to-br from-rosa-soft to-lilas-soft" tab="bg-lilas-soft" text="text-lilas-strong" aria="Abrir o álbum das primeiras vezes" onClick={() => setAlbum(true)} />
         )}
-        {celebrations !== undefined && (
-          <AlbumFolder wide label="Celebrações" hint={nextHint} Icon={PartyPopper} soft="bg-gradient-to-br from-rosa-soft via-lilas-soft to-azul-soft" tab="bg-rosa-soft" text="text-rosa-strong" aria="Abrir a pasta Celebrações" onClick={() => onView('celebracoes')} />
-        )}
         {photosAvailable &&
-          FOLDERS.map(f => {
+          (['momento', 'carta', 'barriga'] as Folder[]).map(id => {
+            const f = FOLDER[id];
             const t = TONE[f.tone];
-            const n = count(f.id);
-            const photos = journal.filter(e => e.folder === f.id && e.photos.length > 0).slice(0, f.id === 'barriga' ? 4 : 2).map(e => e.photos[0]);
+            const n = count(id);
+            const photos = journal.filter(e => (id === 'momento' ? MOMENT_FOLDERS.includes(e.folder) : e.folder === id) && e.photos.length > 0).slice(0, id === 'barriga' ? 4 : 2).map(e => e.photos[0]);
             return (
               <AlbumFolder
-                key={f.id}
-                wide={f.id === 'barriga'}
+                key={id}
+                wide={id === 'barriga'}
                 label={f.label}
-                hint={n ? `${n} ${n === 1 ? 'registro' : 'registros'}` : f.id === 'barriga' ? 'Uma foto por semana' : 'Vazia, por enquanto'}
+                hint={n ? `${n} ${n === 1 ? 'registro' : 'registros'}` : id === 'barriga' ? 'Uma foto por semana' : 'Vazia, por enquanto'}
                 Icon={f.Icon}
                 soft={t.soft}
                 tab={t.soft}
                 text={t.text}
                 photos={photos}
                 aria={`Abrir a pasta ${f.title}`}
-                onClick={() => onView(f.id)}
+                onClick={() => onView(id)}
               />
             );
           })}
-        {photosAvailable && (
-          <AlbumFolder wide label="Humor" hint={checkins.length ? `A linha de como vocês estão, semana ${weekOn(dumDate, toISODate(new Date()))}` : 'Aparece quando vocês marcam como estão'} Icon={Smile} soft="bg-warm-soft" tab="bg-warm-soft" text="text-warm" aria="Abrir a pasta Humor" onClick={() => onView('humor')} />
-        )}
       </div>
+
+      {/* As pastas especiais, numa linha: as celebrações e o humor de vocês. */}
+      {(celebrations !== undefined || photosAvailable) && (
+        <div className="flex flex-wrap gap-2 px-1">
+          {celebrations !== undefined && (
+            <button type="button" onClick={() => onView('celebracoes')} aria-label="Abrir a pasta Celebrações" className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-rosa-soft px-3 py-1.5 text-[13px] font-bold text-rosa-strong">
+              <PartyPopper className="w-3.5 h-3.5 shrink-0" aria-hidden />
+              <span className="truncate">Celebrações{next ? ` · ${nextHint}` : ''}</span>
+            </button>
+          )}
+          {photosAvailable && (
+            <button type="button" onClick={() => onView('humor')} aria-label="Abrir a pasta Humor" className="inline-flex items-center gap-1.5 rounded-full bg-warm-soft px-3 py-1.5 text-[13px] font-bold text-warm">
+              <Smile className="w-3.5 h-3.5" aria-hidden /> Humor de vocês
+            </button>
+          )}
+        </div>
+      )}
 
       {album && (
         <Sheet title="Primeiras vezes" subtitle="O álbum dos marcos de vocês" onClose={() => setAlbum(false)}>
@@ -358,29 +372,47 @@ function AlbumFolder({ label, hint, Icon, soft, tab, text, photos = [], wide = f
 }
 
 /** Uma pasta aberta: o que ela guarda, o botão de escrever e os registros por mês. */
-function FolderPage({ folder, entries, dumDate, journalAvailable, onOpen, onWrite, onView, social }: Props & { folder: Folder; entries: JournalEntry[]; social: SocialOf }) {
-  const f = FOLDER[folder];
+function FolderPage({ folder, entries: all, dumDate, journalAvailable, onOpen, onWrite, onView, social }: Props & { folder: Folder; entries: JournalEntry[]; social: SocialOf }) {
+  // Em Momentos moram também o dia a dia e as ideias: um filtro mostra só um deles.
+  const moments = folder === 'momento';
+  const [only, setOnly] = useState<Folder | 'todos'>('todos');
+  const entries = moments && only !== 'todos' ? all.filter(e => e.folder === only) : all;
+  const writeIn: Folder = moments && only !== 'todos' ? only : folder;
+  const f = FOLDER[writeIn];
   const t = TONE[f.tone];
 
   return (
     <SubPage
-      title={f.title}
-      hint={f.hint}
+      title={moments ? 'Momentos' : f.title}
+      hint={moments ? 'Os momentos especiais, o dia a dia e as ideias de vocês.' : f.hint}
       onBack={() => onView('tudo')}
       action={
-        <button type="button" disabled={!journalAvailable} onClick={() => onWrite(folder)} className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13.5px] font-bold transition active:scale-[0.98] disabled:opacity-50 ${t.solid}`}>
+        <button type="button" disabled={!journalAvailable} onClick={() => onWrite(writeIn)} className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13.5px] font-bold transition active:scale-[0.98] disabled:opacity-50 ${t.solid}`}>
           {folder === 'barriga' ? <Images className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           {folder === 'barriga' ? 'Foto' : folder === 'carta' ? 'Escrever' : 'Guardar'}
         </button>
       }
     >
+      {moments && (
+        <Segmented
+          label="Mostrar"
+          size="sm"
+          full
+          value={only}
+          onChange={setOnly}
+          options={[
+            { value: 'todos', label: 'Tudo' },
+            ...MOMENT_FOLDERS.map(id => ({ value: id, label: FOLDER[id].label })),
+          ]}
+        />
+      )}
       {entries.length === 0 ? (
         <div className="rounded-[24px] bg-surface/80 p-5">
           <p className="font-bold text-ink">Pasta vazia, por enquanto.</p>
           <p className="text-sm text-ink-soft mt-1">Algumas ideias para começar:</p>
           <div className="flex flex-wrap gap-2 mt-3">
             {f.ideas.slice(0, 4).map(i => (
-              <button key={i} type="button" disabled={!journalAvailable} onClick={() => onWrite(folder, folder === 'barriga' ? undefined : i)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${t.soft} ${t.text}`}>
+              <button key={i} type="button" disabled={!journalAvailable} onClick={() => onWrite(writeIn, folder === 'barriga' ? undefined : i)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${t.soft} ${t.text}`}>
                 {i}
               </button>
             ))}
@@ -389,7 +421,7 @@ function FolderPage({ folder, entries, dumDate, journalAvailable, onOpen, onWrit
       ) : folder === 'barriga' ? (
         <BellyGrid entries={entries} dumDate={dumDate} onOpen={id => onOpen({ kind: 'entry', id })} />
       ) : (
-        <Grouped key={folder} folder={folder} entries={entries} dumDate={dumDate} social={social} onOpen={id => onOpen({ kind: 'entry', id })} />
+        <Grouped key={`${folder}-${only}`} folder={folder} entries={entries} dumDate={dumDate} social={social} onOpen={id => onOpen({ kind: 'entry', id })} />
       )}
     </SubPage>
   );

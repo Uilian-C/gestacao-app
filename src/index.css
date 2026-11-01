@@ -619,3 +619,13 @@
 @media print {
   body { position: static !important; overflow: visible !important; top: auto !important; }
 }
+
+/* Movimento com significado: a aba nova chega deslizando de leve; o esqueleto respira enquanto os dados chegam. */
+@keyframes tt-aba-chegar { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.tt-aba { animation: tt-aba-chegar 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+/* ("backwards", não "both": terminada a chegada, nada fica aplicado, e as janelas fixas lá dentro voltam a se posicionar pela tela.) */
+@keyframes tt-respirar { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.tt-esqueleto { background: var(--color-surface); animation: tt-respirar 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .tt-aba, .tt-esqueleto { animation: none; }
+}

@@ -35,8 +35,7 @@ check(saved?.symptom_name === 'Enjoo' && saved.notes === '"estou muito enjoada n
 // Em Sintomas, um gráfico só para o enjoo (os 3 registros), e a azia à parte.
 await openCare(p, 'Sintomas');
 const fold = p.getByRole('button', { name: /^Frequência e tendência/ });
-check((await fold.textContent()).includes('2 sintomas'), 'o resumo conta 2 sintomas (enjoo e azia), não 3');
-await fold.click();
+check((await fold.textContent()).includes('2 sintomas') && (await fold.getAttribute('aria-expanded')) === 'true', 'a tendência vem aberta e conta 2 sintomas (enjoo e azia), não 3');
 const rows = p.getByRole('button', { expanded: false }).filter({ hasText: /× · média/ });
 await rows.first().waitFor();
 const texts = await rows.allTextContents();

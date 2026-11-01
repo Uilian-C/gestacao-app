@@ -54,7 +54,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     id: 'diario',
     title: 'Diário e livro',
     items: [
-      { q: 'Qual a diferença entre Mural, Fichário e Livro?', a: 'O Mural é o dia a dia de vocês, como uma conversa, com abraço e comentários. O Fichário guarda tudo em pastas, como um álbum: primeiras vezes, momentos, dia a dia, ideias, cartas, barriguinha, humor e celebrações. O Livro conta a história, um capítulo por mês.', go: { target: 'mural', label: 'Abrir o Mural' } },
+      { q: 'Qual a diferença entre Mural, Fichário e Livro?', a: 'O Mural é o dia a dia de vocês, como uma conversa, com abraço e comentários. O Fichário guarda tudo em quatro pastas, como um álbum: primeiras vezes, momentos (com o dia a dia e as ideias dentro), cartas e barriguinha; logo abaixo, as celebrações e o humor de vocês. O Livro conta a história, um capítulo por mês.', go: { target: 'mural', label: 'Abrir o Mural' } },
       { q: 'O que são as "páginas a duas vozes"?', a: 'Quando um dos dois guarda um momento, o outro recebe o convite para completar com o que sentiu. A resposta fica no mesmo momento, embaixo da primeira, e aparece assim no Mural e no livro.', go: { target: 'mural', label: 'Abrir o Mural' } },
       { q: 'O que são as "Primeiras vezes"?', a: 'Um álbum no Fichário com os marcos da gestação: contar para a família, ouvir o coração, o primeiro chute, a primeira roupinha e outros. Alguns já se marcam sozinhos, como o nome escolhido e a primeira foto da barriga. Cada um guardado vira uma página especial do livro.', go: { target: 'fichario', label: 'Abrir o Fichário' } },
       { q: 'Quem vê o que eu escrevo?', a: 'Você escolhe em cada registro: "Só eu", "Nós dois" ou "Família". O que é "Só eu" fica só com você, inclusive no livro.' },

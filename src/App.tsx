@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CloudRain, Sprout } from 'lucide-react';
-import BrandMark from './components/BrandMark';
 import QuickRecord, { type QuickMode } from './components/QuickRecord';
+import Skeleton from './components/Skeleton';
 import DetailSheet from './components/Details';
 import NameSpace, { NameReveal, type NameActions } from './components/BabyNames';
 import { CelebrationSpace, type CelebrationActions } from './components/Celebrations';
@@ -577,10 +577,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     return (
       <Shell>
         {loadState === 'loading' ? (
-          <div className="py-24 text-center space-y-3" role="status">
-            <BrandMark animated className="w-16 h-16 mx-auto" />
-            <p className="text-ink-soft font-semibold">Carregando os dados de vocês...</p>
-          </div>
+          <Skeleton label="Carregando os dados de vocês" />
         ) : (
           <Card className="text-center space-y-3 mt-8">
             <CloudRain className="w-8 h-8 mx-auto text-ink-mute" />
@@ -909,12 +906,10 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
 
       <main className="max-w-5xl mx-auto px-4 md:px-6 pt-4 md:pt-6">
         <Suspense
-          fallback={
-            <div className="flex items-center justify-center py-16" role="status" aria-label="Abrindo">
-              <BrandMark animated className="w-12 h-12" />
-            </div>
-          }
+          fallback={<Skeleton label="Abrindo" />}
         >
+        {/* A aba nova chega deslizando de leve (a chave troca com a aba). */}
+        <div key={activeTab} className="tt-aba">
         {data.migrationPending && activeTab === 'inicio' && (
           <p className="no-print mb-4 text-sm text-warn bg-warn-soft rounded-2xl px-4 py-3">
             Atualização do banco pendente: rodem <code>db/migrations/002_consultas_e_padroes.sql</code> no Neon para liberar a agenda de consultas, o período do dia dos sintomas e a faixa de peso.
@@ -1232,6 +1227,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             onHideItem={(id, hidden) => hideItem('mala', id, hidden)}
           />
         )}
+        </div>
         </Suspense>
       </main>
 

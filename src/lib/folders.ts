@@ -88,6 +88,9 @@ export const FOLDERS: FolderInfo[] = [
   },
 ];
 
+/** As pastas que moram juntas em "Momentos" no Fichário (cada registro guarda a sua, como etiqueta). */
+export const MOMENT_FOLDERS: Folder[] = ['momento', 'dia', 'ideia'];
+
 export const FOLDER = Object.fromEntries(FOLDERS.map(f => [f.id, f])) as Record<Folder, FolderInfo>;
 
 /** Classes de cada tom (o Tailwind precisa dos nomes inteiros no código). */
