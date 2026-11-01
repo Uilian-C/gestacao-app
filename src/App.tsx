@@ -2,6 +2,9 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { CloudRain, Sprout } from 'lucide-react';
 import type { QuickMode } from './components/QuickRecord';
 import Skeleton from './components/Skeleton';
+import PrintedBookCard from './components/book/PrintedBookCard';
+import type { BookReservation } from './components/book/BookBuilder';
+import { bookStuff, coverPhotos, estimatePages, DEFAULT_INCLUDE } from './lib/bookProduct';
 import TasksTab from './components/tabs/TasksTab';
 import UpcomingTab from './components/tabs/UpcomingTab';
 import DiaryTab from './components/tabs/DiaryTab';
@@ -58,6 +61,7 @@ import type { SaveExam } from './components/tabs/ExamsTab';
 import type { NewTask } from './components/tabs/TasksTab';
 
 // Abas com gráficos, relatório e calendário carregam só quando abertas: o app abre mais rápido no celular.
+const BookBuilder = lazy(() => import('./components/book/BookBuilder'));
 // Carregadas só quando abertas: o que é mais raro e pesado (nomes, celebrações,
 // ajuda, modo cuidado, resultados e saúde). O que se usa toda hora (registrar,
 // detalhes, compartilhar, Diário, Agenda) vem junto, para abrir na hora.
@@ -177,7 +181,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const activeTab: Tab = care && tabState === 'parto' ? 'inicio' : tabState;
   const [pickedWeek, setPickedWeek] = useState<number | null>(null);
   const [report, setReport] = useState<ReportRequest | null>(null);
-  const [diaryView, setDiaryView] = useState<DiaryView>('livro');
+  const [diaryView, setDiaryView] = useState<DiaryView>(() => (takeViewFromUrl() === 'mural' ? 'mural' : 'livro'));
   const [laborReset, setLaborReset] = useState(0);
   // O dia que o atalho do Início pediu para abrir no calendário.
   const [calendarFocus, setCalendarFocus] = useState<string | null>(null);
@@ -213,6 +217,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
   const [entryStart, setEntryStart] = useState<{ folder?: Folder; idea?: string; firstTime?: FirstTimeId }>({});
   const [namesOpen, setNamesOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [bookOpen, setBookOpen] = useState(false);
   // "Primeiros 7 dias": quando começou (neste aparelho) e se o casal pediu para esconder.
   const [firstDaysPrefs, setFirstDaysPrefs] = useState<{ start: string; hidden: boolean }>(() => {
     try {
@@ -738,6 +743,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
     return n.entries.length + n.comments.length > 0;
   })();
   const book = buildBook({ dumDate, today: new Date(), journal, reactions: socialAvailable ? reactions : [], threads, hugs: data.hugs ?? [], consultations, exams, checkins: data.checkins ?? [], babyName: data.babyName, babyNameAt: data.babyNameAt, nameIdeas: data.nameIdeas, roles: family.members.flatMap(m => (m.role === 'mae' || m.role === 'pai' ? [m.role] : [])) });
+  // O livro impresso (pré-venda): o que ele já tem, quantas páginas teria e a reserva.
+  const printedStuff = bookStuff({ book, journal, dumDate, espera: data.espera, finalists: (data.nameIdeas ?? []).filter(i => i.finalist).length, babyName: data.babyName ?? null, threads, checkins: data.checkins ?? [] });
+  const printedPages = estimatePages(printedStuff, 'tudo', DEFAULT_INCLUDE);
+  const reserveBook = (r: BookReservation) => run(() => api.mutate('reserveBook', { ...r }), 'Não foi possível reservar agora. Se for a primeira vez, rode a migração db/migrations/038_livro_impresso.sql no Neon.');
+  const cancelBook = () => run(() => api.mutate('cancelBook', {}), 'Não foi possível cancelar agora. Verifique a conexão.', 'Reserva cancelada');
   const prepareReport = (c: Consultation) => {
     setReport({ specialtyId: questionSpecialty(c.specialty), consultationId: c.id });
     setActiveTab('cuidados');
@@ -1215,6 +1225,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             babyTone={data.babyTone ?? 'tumtum'}
             onOpenNames={() => setNamesOpen(true)}
             onWantPrinted={() => track('livro_impresso')}
+            printed={data.book ? <PrintedBookCard pages={printedPages} order={data.book.order} gifts={data.book.gifts.map(g => g.name)} onOpen={() => (data.book?.order || track('livro_impresso'), setBookOpen(true))} /> : undefined}
             celebrations={data.celebrations}
             celebrationActions={celebrationActions}
             onOpenCelebration={setCelebrationOpen}
@@ -1603,6 +1614,11 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         />
       )}
       {spaceSheet}
+      {bookOpen && data.book && (
+        <Suspense fallback={null}>
+          <BookBuilder stuff={printedStuff} photos={coverPhotos(journal)} babyName={data.babyName ?? null} order={data.book.order} gifts={data.book.gifts.map(g => g.name)} onReserve={reserveBook} onCancel={cancelBook} onClose={() => setBookOpen(false)} />
+        </Suspense>
+      )}
       {helpOpen && (
         <Suspense fallback={null}><HelpCenter
           onClose={() => setHelpOpen(false)}

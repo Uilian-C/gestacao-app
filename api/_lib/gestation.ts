@@ -1,3 +1,4 @@
+import { fetchBook } from './bookOrder.js';
 import { query } from './db.js';
 import { visibleTargetSql } from './social.js';
 import { fetchNameIdeas } from './babyNames.js';
@@ -10,6 +11,7 @@ import { fetchEspera } from './espera.js';
 const toNumber = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
 
 export async function fetchAll(fid: string, userId: string) {
+  const book = fetchBook(fid, userId);
   const nameIdeas = fetchNameIdeas(fid, userId);
   const espera = fetchEspera(fid, userId);
   const celebrations = fetchCelebrations(fid);
@@ -223,6 +225,8 @@ export async function fetchAll(fid: string, userId: string) {
     espera: await espera,
     /** Celebrações (migração 028); null antes da migração. */
     celebrations: await celebrations,
+    /** O livro impresso em pré-venda (migração 038): a reserva e quem quer presentear; null antes da migração. */
+    book: await book,
     /** A migração 020 já rodou: anotação do combinado com a equipe. */
     planNotesAvailable: f.plan_notes_ready === true,
   };
@@ -235,6 +239,7 @@ export async function fetchAll(fid: string, userId: string) {
  * saúde, exames, agenda, tarefas, humor ou do resto do diário.
  */
 export async function fetchFamilyView(fid: string, userId: string) {
+  const book = fetchBook(fid, userId);
   const nameIdeas = fetchNameIdeas(fid, userId);
   const espera = fetchEspera(fid, userId);
   const [family, journal, photos, social] = await Promise.all([
@@ -275,6 +280,7 @@ export async function fetchFamilyView(fid: string, userId: string) {
     careSince: (family[0]?.care_since as string | null | undefined) ?? null,
     nameIdeas: await nameIdeas,
     espera: await espera,
+    book: await book,
     journal: journal.map(e => ({ ...e, photos: photos.filter(p => p.entry_id === e.id).map(p => ({ id: p.id, thumb: p.thumb, ...(p.video ? { video: true } : {}) })) })),
     reactions: social?.[0].reactions ?? [],
     threads: social?.[0].threads ?? [],

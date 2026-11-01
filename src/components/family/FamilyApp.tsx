@@ -46,6 +46,8 @@ export interface FamilyView {
   careSince?: string | null;
   /** A espera: o bolão de menino ou menina (migração 035). */
   espera?: Espera | null;
+  /** O livro impresso em pré-venda (migração 038): se o casal reservou e quem quer presentear. */
+  book?: { order: { model: string } | null; gifts: Array<{ name: string; mine: boolean }> } | null;
 }
 
 interface Props {
@@ -197,6 +199,8 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
             )}
             {reveal && <NameReveal name={reveal} tone={view.babyTone ?? 'tumtum'} week={babyWeek} onDone={closeReveal} />}
             {dumDate && !view.careSince && <Belly entries={view.journal} dumDate={dumDate} onOpen={setOpen} />}
+            {/* Presentear o livro impresso: o casal recebe um aviso. */}
+            {!view.careSince && view.book && <GiftBook couple={couple} babyName={view.babyName ?? null} book={view.book} busy={busy} onGift={on => mutate('giftBook', { on })} />}
             <PushPrompt relative />
             <section aria-labelledby="mural-familia" className="space-y-3">
               <h2 id="mural-familia" className="text-[1.2rem] text-ink">Mural da família</h2>
@@ -322,6 +326,36 @@ function Belly({ entries, dumDate, onOpen }: { entries: JournalEntry[]; dumDate:
           );
         })}
       </ol>
+    </section>
+  );
+}
+
+/** O livro do bebê, impresso: a família avisa que quer presentear (o casal recebe um aviso e monta o livro). */
+function GiftBook({ couple, babyName, book, busy, onGift }: { couple: string; babyName: string | null; book: NonNullable<FamilyView['book']>; busy: boolean; onGift: (on: boolean) => Promise<boolean> }) {
+  const mine = book.gifts.some(g => g.mine);
+  const others = book.gifts.filter(g => !g.mine).map(g => g.name);
+  return (
+    <section aria-labelledby="presente-livro" className="rounded-[24px] bg-gradient-to-br from-rosa-soft to-lilas-soft px-5 py-4 space-y-2">
+      <p className="text-[11px] font-extrabold uppercase tracking-wide text-rosa-strong">Um presente que fica</p>
+      <h2 id="presente-livro" className="font-display text-[1.2rem] leading-snug text-ink">
+        O livro {babyName ? `de ${babyName}` : 'do bebê'}, impresso
+      </h2>
+      <p className="text-[13.5px] leading-snug text-ink-soft">
+        Tudo o que {couple || 'o casal'} guarda aqui vira um livro de verdade: as semanas, as fotos, as cartas e os recados da família. {book.order ? 'Eles já reservaram o deles.' : ''}
+      </p>
+      {others.length > 0 && <p className="text-[13px] font-bold text-rosa-strong">💝 {others.join(' e ')} também {others.length === 1 ? 'quer' : 'querem'} presentear.</p>}
+      {mine ? (
+        <div className="flex flex-wrap items-center gap-3" role="status">
+          <span className="text-[13.5px] font-extrabold text-rosa-strong">Anotado! {couple || 'O casal'} já sabe que você quer presentear 💝</span>
+          <button type="button" disabled={busy} onClick={() => void onGift(false)} className="text-[12.5px] font-bold text-ink-mute">
+            Desfazer
+          </button>
+        </div>
+      ) : (
+        <button type="button" disabled={busy} onClick={() => void onGift(true)} className="inline-flex items-center gap-1.5 rounded-full bg-surface px-4 py-2 text-[13.5px] font-extrabold text-rosa-strong shadow-soft transition active:scale-95 disabled:opacity-60">
+          💝 Quero presentear o livro
+        </button>
+      )}
     </section>
   );
 }

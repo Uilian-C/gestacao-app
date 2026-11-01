@@ -77,22 +77,18 @@ await mae.getByText('Imagem salva. É só postar').waitFor();
 for (let i = 0; i < 20 && (await events('cartao_semana')) === before.semana; i++) await mae.waitForTimeout(200);
 check((await events('cartao_semana')) === before.semana + 1, 'o servidor conta o cartão compartilhado');
 
-// ---- O livro impresso: o interesse ----
+// ---- O livro impresso: abrir "Montar o livro" conta o interesse (a pré-venda tem o próprio teste) ----
 await mae.getByRole('button', { name: /^Diário/ }).first().click();
 await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: 'Livro' }).click();
-const quero = mae.getByRole('button', { name: 'Quero o livro impresso' });
-await quero.waitFor();
-await quero.scrollIntoViewIfNeeded();
+const montar = mae.getByRole('button', { name: 'Montar o livro' });
+await montar.waitFor();
+await montar.scrollIntoViewIfNeeded();
 await mae.locator('section[aria-labelledby="impresso-titulo"]').screenshot({ path: `${OUT}valor-livro-impresso.png` });
-await quero.click();
-await mae.getByText('Anotado! Vocês vão ser os primeiros a saber').waitFor();
+await montar.click();
+await mae.getByRole('dialog', { name: 'O livro impresso' }).waitFor();
 for (let i = 0; i < 20 && (await events('livro_impresso')) === before.livro; i++) await mae.waitForTimeout(200);
-check((await events('livro_impresso')) === before.livro + 1, '"Quero o livro impresso" conta o interesse');
-await mae.reload();
-await mae.getByRole('button', { name: /^Diário/ }).first().click();
-await mae.getByRole('navigation', { name: 'Pastas do diário' }).getByRole('button', { name: 'Livro' }).click();
-await mae.getByText('Anotado! Vocês vão ser os primeiros a saber').waitFor();
-check(true, 'e fica anotado neste aparelho');
+check((await events('livro_impresso')) === before.livro + 1, 'abrir "Montar o livro" conta o interesse no livro impresso');
+await mae.keyboard.press('Escape');
 
 // ---- O som do tum-tum pode ser desligado ----
 await mae.getByRole('button', { name: /^Abrir nosso espaço/ }).click();

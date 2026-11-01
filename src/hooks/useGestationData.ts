@@ -64,6 +64,8 @@ export interface GestationData {
   babyName?: string | null;
   /** Gêmeos (migração 037): o nome do segundo bebê. */
   baby2Name?: string | null;
+  /** O livro impresso em pré-venda (migração 038): a reserva e quem da família quer presentear; null antes da migração. */
+  book?: { order: BookOrder | null; gifts: Array<{ name: string; mine: boolean }> } | null;
   babyNameAt?: string | null;
   /** Celebrações (migração 028); null antes da migração. */
   celebrations?: Celebration[] | null;
@@ -182,6 +184,20 @@ export interface JournalEntry {
 export type Visibility = 'private' | 'shared' | 'family';
 
 export type Mood = 'otima' | 'bem' | 'cansada' | 'enjoada' | 'ansiosa';
+
+/** A reserva do livro impresso (nada é cobrado: é uma pré-venda). */
+export interface BookOrder {
+  model: 'livreto' | 'classico' | 'caixa';
+  period: 'tudo' | 'trimestre1' | 'trimestre2' | 'trimestre3';
+  include: Record<string, boolean>;
+  coverTitle: string;
+  coverTone: string | null;
+  coverPhoto: string | null;
+  dedication: string | null;
+  pages: number;
+  priceCents: number;
+  at: string;
+}
 
 export interface Checkin {
   day: string;

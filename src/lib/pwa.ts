@@ -20,6 +20,9 @@ const SUBTABS: Record<string, { tab: Tab; view: string }> = {
   saude: { tab: 'cuidados', view: 'inicio' },
   sintomas: { tab: 'cuidados', view: 'sintomas' },
   medidas: { tab: 'cuidados', view: 'medidas' },
+  // Diário: o Livro (o livro impresso, o presente da família) e o Mural.
+  livro: { tab: 'diario', view: 'livro' },
+  mural: { tab: 'diario', view: 'mural' },
 };
 
 let linkedTab: Tab | null | undefined;

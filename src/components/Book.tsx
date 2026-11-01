@@ -187,7 +187,7 @@ function store(key: string, value: unknown) {
 /** As páginas prontas que ainda não foram impressas (neste aparelho). */
 const newPages = (book: Chapter[], printed: Set<string>) => book.filter(c => !c.quiet && !c.open && !printed.has(signature(c)));
 
-export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, onWrite, onNames, onWantPrinted, folders }: { book: Chapter[]; tone: BabyTone; parents: string; fresh?: Chapter | null; onOpenEntry: (id: string) => void; onWrite?: () => void; onNames?: () => void; onWantPrinted?: () => void; /** As pastas do fichário, dentro do livro. */ folders?: React.ReactNode }) {
+export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, onWrite, onNames, onWantPrinted, folders, printedCard }: { book: Chapter[]; tone: BabyTone; parents: string; fresh?: Chapter | null; onOpenEntry: (id: string) => void; onWrite?: () => void; onNames?: () => void; onWantPrinted?: () => void; /** As pastas do fichário, dentro do livro. */ folders?: React.ReactNode; /** O livro impresso (pré-venda, migração 038); sem ele, o "Quero o livro impresso" de antes. */ printedCard?: React.ReactNode }) {
   const name = useContext(BabyNameContext);
   const months = useMemo(() => bookMonths(book), [book]);
   // Para o "Primeiros 7 dias": o livro já foi aberto neste aparelho.
@@ -306,7 +306,8 @@ export function BookView({ book, tone, parents, fresh: freshPage, onOpenEntry, o
       </div>
 
       {/* O livro impresso: ainda em preparo. O toque conta o interesse (só o número, sem conteúdo). */}
-      {onWantPrinted && written.length > 0 && (
+      {printedCard && written.length > 0 && printedCard}
+      {!printedCard && onWantPrinted && written.length > 0 && (
         <section aria-labelledby="impresso-titulo" className="rounded-[24px] bg-gradient-to-br from-rosa-soft to-lilas-soft px-5 py-4 space-y-2">
           <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-rosa-strong">
             <BookHeart className="w-3.5 h-3.5" aria-hidden /> Em breve

@@ -90,6 +90,25 @@ await folhaShare.getByRole('button', { name: 'Salvar' }).click();
 await (await dPlacar).saveAs(`${OUT}cartao-placar.png`);
 await folhaShare.waitFor({ state: 'hidden' });
 
+// ---- O placar nos stories do Instagram: o atalho no "O bolão", a imagem em stories e o link copiado ----
+await mae.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+await folha.getByRole('button', { name: 'Postar o placar nos stories' }).click();
+await folhaShare.getByRole('img', { name: 'Prévia do cartão para compartilhar' }).waitFor();
+await folhaShare.getByRole('group', { name: 'Formato' }).getByRole('button', { name: 'Post' }).click();
+await folhaShare.getByRole('button', { name: 'Preparar para os stories do Instagram' }).click();
+await folhaShare.getByRole('button', { name: 'Postar nos stories do Instagram' }).waitFor();
+check(await folhaShare.getByText(/Link do bolão copiado/).isVisible(), 'no post, o botão do Instagram troca para o formato de stories e já copia o link');
+check((await mae.evaluate(() => navigator.clipboard.readText())).includes('?palpite='), 'o link do bolão fica copiado para o adesivo "Link" dos stories');
+await mae.waitForTimeout(400);
+await mae.screenshot({ path: `${OUT}bolao-instagram.png` });
+const dIg = mae.waitForEvent('download');
+await folhaShare.getByRole('button', { name: 'Postar nos stories do Instagram' }).click();
+const ig = await dIg;
+check(ig.suggestedFilename().endsWith('-stories.png'), 'a imagem sai no formato dos stories');
+await ig.saveAs(`${OUT}cartao-placar-stories.png`);
+await mae.keyboard.press('Escape').catch(() => {});
+await folhaShare.waitFor({ state: 'hidden' }).catch(() => {});
+
 // ---- O envelope do chá ----
 await folha.getByRole('button', { name: /Já descobriram\?/ }).click();
 await folha.getByRole('button', { name: 'Enviar o envelope do chá' }).click();

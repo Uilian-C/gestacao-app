@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, CalendarHeart, Check, ChevronRight, Heart, Loader2, Lock, NotebookPen, Send, Share2, Sparkles } from 'lucide-react';
+import { AlertTriangle, CalendarHeart, Camera, Check, ChevronRight, Heart, Loader2, Lock, NotebookPen, Send, Share2, Sparkles } from 'lucide-react';
 import { daysToTest, esperaStage, isTwins, latestVote, OPTION, questionFor, rightGuesses, SEX_WORD, tally, teamsOf, type Espera, type GuessRole, type Sex, type SexPlan } from '../../lib/espera';
 import { useScrollLock } from '../../hooks/useScrollLock';
 import BrandMark from '../BrandMark';
@@ -241,7 +241,15 @@ export function EsperaSheet({ espera, me, partnerName, today, busy, actions, onC
               <h3 id="espera-bolao" className="font-display text-[1.25rem] text-ink">
                 O bolão
               </h3>
-              {t.total > 0 && <span className="text-[12.5px] font-bold text-ink-mute">{t.total} {t.total === 1 ? 'palpite' : 'palpites'}</span>}
+              <span className="flex items-center gap-2">
+                {t.total > 0 && <span className="text-[12.5px] font-bold text-ink-mute">{t.total} {t.total === 1 ? 'palpite' : 'palpites'}</span>}
+                {/* O placar nos stories do Instagram (e no status do WhatsApp), com o link para votar. */}
+                {actions.onInvite && t.total > 0 && (
+                  <button type="button" onClick={actions.onInvite} aria-label="Postar o placar nos stories" className="w-9 h-9 rounded-full bg-rosa-soft text-rosa-strong flex items-center justify-center transition active:scale-90">
+                    <Camera className="w-4 h-4" />
+                  </button>
+                )}
+              </span>
             </div>
             <Placar teams={teamsOf(espera)} latest={latestVote(espera)} highlight="Você" />
             {/* O seu palpite: um toque entra para um time (de novo, sai). */}

@@ -96,6 +96,7 @@ const tests = [
   ['api-espera.mjs', false],
   ['api-bolao.mjs', false],
   ['api-gemeos.mjs', false],
+  ['api-livro-impresso.mjs', false],
   ['api-leveza.mjs', false],
   ['e2e-fluxo.mjs', true],
   ['e2e-momentos.mjs', false],
@@ -136,6 +137,7 @@ const tests = [
   ['e2e-compartilhar.mjs', false],
   ['e2e-espera.mjs', false],
   ['e2e-gemeos.mjs', false],
+  ['e2e-livro-impresso.mjs', false],
   ['e2e-respirar.mjs', false],
   ['e2e-bolao.mjs', false],
 ];

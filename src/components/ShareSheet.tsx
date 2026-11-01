@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, Link2, Loader2, Share2 } from 'lucide-react';
+import { Camera, Check, Download, Link2, Loader2, Share2 } from 'lucide-react';
 import { drawCard, shareImage, type CardContent, type CardFormat, type ShareKind } from '../lib/shareCard';
 import Sheet from './Sheet';
 import { Button, Segmented } from './ui';
@@ -33,6 +33,8 @@ export default function ShareSheet({ request, onClose, onDone }: { request: Shar
   const [image, setImage] = useState<{ format: CardFormat; blob: Blob; url: string } | null>(null);
   const [failed, setFailed] = useState(false);
   const [sending, setSending] = useState(false);
+  // Depois de mandar para o Instagram: o link ficou copiado para o adesivo "Link" dos stories.
+  const [igTip, setIgTip] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -73,6 +75,26 @@ export default function ShareSheet({ request, onClose, onDone }: { request: Shar
     }
   };
 
+  // Instagram: o site não posta direto nos stories. O caminho é o compartilhar do
+  // celular (o Instagram aparece lá) com a imagem em formato de stories, e o link
+  // já copiado para colar no adesivo "Link" (quem vê o story vota direto).
+  const toInstagram = async () => {
+    if (request.link) await navigator.clipboard?.writeText(request.link).catch(() => undefined);
+    setIgTip(!!request.link);
+    if (format !== 'story') {
+      pick('story');
+      return;
+    }
+    if (!ready) return;
+    setSending(true);
+    try {
+      const how = await shareImage(ready.blob, `${request.fileName}-stories`, false, request.link ? undefined : request.text);
+      if (how !== 'cancelled') onDone(request.kind, how);
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <Sheet title="Compartilhar" subtitle="Pronto para os stories, o status do WhatsApp ou o feed." icon={<Share2 />} onClose={onClose}>
       <div className="space-y-4">
@@ -104,6 +126,19 @@ export default function ShareSheet({ request, onClose, onDone }: { request: Shar
             <Download /> Salvar
           </Button>
         </div>
+        {request.link && (
+          <Button tone="soft" onClick={() => void toInstagram()} disabled={!ready || sending} className="w-full">
+            <Camera /> {format === 'story' ? 'Postar nos stories do Instagram' : 'Preparar para os stories do Instagram'}
+          </Button>
+        )}
+        {igTip && (
+          <p role="status" className="flex items-start gap-2 rounded-2xl bg-rosa-soft px-3.5 py-2.5 text-[13px] leading-snug text-ink">
+            <Check className="w-4 h-4 mt-0.5 shrink-0 text-rosa-strong" aria-hidden />
+            <span>
+              <strong>Link do bolão copiado.</strong> No Instagram, escolha Stories, toque no adesivo <strong>Link</strong> e cole: quem vê o story vota direto, sem baixar nada.
+            </span>
+          </p>
+        )}
         {request.link && (
           <button
             type="button"
