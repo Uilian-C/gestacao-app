@@ -1,3 +1,4 @@
+import { BOOK_PREORDER } from '../../lib/bookProduct';
 import { useEffect, useMemo, useState } from 'react';
 import VideoPlayer from '../VideoPlayer';
 import { ChevronRight, CloudRain, Loader2, Ruler, Scale } from 'lucide-react';
@@ -200,7 +201,7 @@ export default function FamilyApp({ me, family, onFamilyChange, onAccessLost, on
             {reveal && <NameReveal name={reveal} tone={view.babyTone ?? 'tumtum'} week={babyWeek} onDone={closeReveal} />}
             {dumDate && !view.careSince && <Belly entries={view.journal} dumDate={dumDate} onOpen={setOpen} />}
             {/* Presentear o livro impresso: o casal recebe um aviso. */}
-            {!view.careSince && view.book && <GiftBook couple={couple} babyName={view.babyName ?? null} book={view.book} busy={busy} onGift={on => mutate('giftBook', { on })} />}
+            {BOOK_PREORDER && !view.careSince && view.book && <GiftBook couple={couple} babyName={view.babyName ?? null} book={view.book} busy={busy} onGift={on => mutate('giftBook', { on })} />}
             <PushPrompt relative />
             <section aria-labelledby="mural-familia" className="space-y-3">
               <h2 id="mural-familia" className="text-[1.2rem] text-ink">Mural da família</h2>

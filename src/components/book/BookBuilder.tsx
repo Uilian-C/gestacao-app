@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, BookHeart, Check, Loader2 } from 'lucide-react';
 import { photoUrl } from '../../api';
 import type { BookOrder } from '../../hooks/useGestationData';
-import { BOOK_MODELS, DEFAULT_INCLUDE, INCLUDE_LABEL, PERIODS, brl, estimatePages, pagesFor, priceFor, type BookInclude, type BookModel, type BookPeriod, type BookStuff } from '../../lib/bookProduct';
+import { BOOK_MODELS, DEFAULT_INCLUDE, SHOW_PRICES, INCLUDE_LABEL, PERIODS, brl, estimatePages, pagesFor, priceFor, type BookInclude, type BookModel, type BookPeriod, type BookStuff } from '../../lib/bookProduct';
 import { COVER_TONES, isCoverTone, type CoverTone } from '../../lib/bookCover';
 import Sheet from '../Sheet';
 import { Button } from '../ui';
@@ -59,7 +59,7 @@ export default function BookBuilder({ stuff, photos, babyName, order, gifts, onR
           <BookCover model={model} title={title} subtitle={subtitle} tone={tone} photo={photo} width={200} />
           <p className="font-display text-[1.6rem] text-ink">Reservado! 📖</p>
           <p className="text-[14px] text-ink-soft">
-            {m.name} · {pages} páginas · {brl(priceFor(model, raw))} no preço de lançamento. Quando a gráfica abrir, vocês recebem um aviso para confirmar, e o livro sai com tudo o que guardarem até lá.
+            {m.name} · {pages} páginas{SHOW_PRICES ? ` · ${brl(priceFor(model, raw))} no preço de lançamento` : ''}. Quando a gráfica abrir, vocês recebem {SHOW_PRICES ? 'um aviso para confirmar' : 'o preço e um aviso para confirmar'}, e o livro sai com tudo o que guardarem até lá.
           </p>
           <Button onClick={onClose} className="w-full">
             Continuar
@@ -96,7 +96,7 @@ export default function BookBuilder({ stuff, photos, babyName, order, gifts, onR
                   <span className="flex-1 min-w-0">
                     <span className="flex items-baseline justify-between gap-2">
                       <span className="font-display text-[1.15rem] text-ink">{b.name}</span>
-                      <span className="text-[13px] font-extrabold text-rosa-strong tabular">{id === 'livreto' ? brl(b.base) : `a partir de ${brl(b.base)}`}</span>
+                      {SHOW_PRICES && <span className="text-[13px] font-extrabold text-rosa-strong tabular">{id === 'livreto' ? brl(b.base) : `a partir de ${brl(b.base)}`}</span>}
                     </span>
                     <span className="block text-[12.5px] text-ink-soft">
                       {b.cover} · {b.size} · {b.pages[0]} a {b.pages[1]} páginas
@@ -190,15 +190,17 @@ export default function BookBuilder({ stuff, photos, babyName, order, gifts, onR
                 <dt className="text-ink-soft">Período</dt>
                 <dd className="font-bold text-ink">{PERIODS[period].label}</dd>
               </div>
-              <div className="flex justify-between gap-3 pt-1.5 border-t border-line/60">
-                <dt className="text-ink-soft">Preço de lançamento</dt>
-                <dd className="font-display text-[1.25rem] text-rosa-strong tabular">{brl(price)}</dd>
-              </div>
+              {SHOW_PRICES && (
+                <div className="flex justify-between gap-3 pt-1.5 border-t border-line/60">
+                  <dt className="text-ink-soft">Preço de lançamento</dt>
+                  <dd className="font-display text-[1.25rem] text-rosa-strong tabular">{brl(price)}</dd>
+                </div>
+              )}
             </dl>
             {cut && <p className="text-[12.5px] text-ink-soft">O livreto escolhe os melhores momentos: {m.pages[1]} páginas das {raw} que vocês já têm.</p>}
             {raw < m.pages[0] && <p className="text-[12.5px] text-ink-soft">Por enquanto o livro tem {raw} páginas; ele vai crescendo com o que vocês guardarem até a gráfica abrir.</p>}
             {gifts.length > 0 && <p className="text-[13px] font-bold text-rosa-strong">💝 {gifts.join(' e ')} {gifts.length === 1 ? 'quer' : 'querem'} presentear o livro de vocês.</p>}
-            <p className="text-[12.5px] text-ink-mute">Nada é cobrado agora. Quando a gráfica abrir, vocês recebem um aviso para confirmar, com o preço de lançamento garantido.</p>
+            <p className="text-[12.5px] text-ink-mute">{SHOW_PRICES ? 'Nada é cobrado agora. Quando a gráfica abrir, vocês recebem um aviso para confirmar, com o preço de lançamento garantido.' : 'Nada é cobrado agora. A reserva garante o lugar de vocês: quando a gráfica abrir, vocês recebem o preço e um aviso para confirmar, sem compromisso.'}</p>
           </section>
         )}
 
@@ -214,7 +216,7 @@ export default function BookBuilder({ stuff, photos, babyName, order, gifts, onR
             </Button>
           ) : (
             <Button onClick={() => void reserve()} disabled={saving} className="flex-1">
-              {saving ? <Loader2 className="animate-spin" /> : <Check />} {order ? 'Atualizar a reserva' : 'Reservar meu livro'}
+              {saving ? <Loader2 className="animate-spin" /> : <Check />} {order ? 'Atualizar a reserva' : SHOW_PRICES ? 'Reservar meu livro' : 'Reservar sem compromisso'}
             </Button>
           )}
         </div>

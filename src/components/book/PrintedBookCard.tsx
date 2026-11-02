@@ -1,6 +1,6 @@
 import { BookHeart, ChevronRight } from 'lucide-react';
 import type { BookOrder } from '../../hooks/useGestationData';
-import { BOOK_MODELS, brl } from '../../lib/bookProduct';
+import { BOOK_MODELS, SHOW_PRICES, brl } from '../../lib/bookProduct';
 import { isCoverTone } from '../../lib/bookCover';
 import BookCover from './BookCover';
 
@@ -26,7 +26,7 @@ export default function PrintedBookCard({ pages, order, gifts, onOpen }: { pages
             <span id="impresso-titulo" className="block font-display text-[1.15rem] leading-snug text-ink">
               {BOOK_MODELS[order.model].name} · {order.pages} páginas
             </span>
-            <span className="block text-[13px] text-ink-soft">{brl(order.priceCents)} no preço de lançamento · ver ou mudar</span>
+            <span className="block text-[13px] text-ink-soft">{SHOW_PRICES ? `${brl(order.priceCents)} no preço de lançamento · ver ou mudar` : 'O preço chega antes de confirmar · ver ou mudar'}</span>
           </span>
           <ChevronRight className="w-4 h-4 shrink-0 text-ink-mute" aria-hidden />
         </button>

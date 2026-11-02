@@ -41,6 +41,8 @@ const serverEnv = {
   FILES_DIR,
   // Os avisos do dia saem a partir das 8h; nos testes, a qualquer hora.
   LEMBRETES_QUALQUER_HORA: '1',
+  // O livro impresso fica desligado em produção até a estrutura de receita; nos testes, ligado (o recurso continua testado).
+  VITE_LIVRO_IMPRESSO: process.env.VITE_LIVRO_IMPRESSO ?? '1',
 };
 // O servidor local não lê o .env.local aqui: os testes nunca usam as credenciais de verdade.
 for (const k of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'RESEND_API_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'BLOB_READ_WRITE_TOKEN', 'BLOB_STORE_ID']) delete serverEnv[k];
