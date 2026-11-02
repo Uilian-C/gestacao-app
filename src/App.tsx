@@ -4,7 +4,7 @@ import type { QuickMode } from './components/QuickRecord';
 import Skeleton from './components/Skeleton';
 import PrintedBookCard from './components/book/PrintedBookCard';
 import type { BookReservation } from './components/book/BookBuilder';
-import { bookStuff, coverPhotos, estimatePages, DEFAULT_INCLUDE } from './lib/bookProduct';
+import { BOOK_PREORDER, bookStuff, coverPhotos, estimatePages, DEFAULT_INCLUDE } from './lib/bookProduct';
 import TasksTab from './components/tabs/TasksTab';
 import UpcomingTab from './components/tabs/UpcomingTab';
 import DiaryTab from './components/tabs/DiaryTab';
@@ -1224,8 +1224,8 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
             book={book}
             babyTone={data.babyTone ?? 'tumtum'}
             onOpenNames={() => setNamesOpen(true)}
-            onWantPrinted={() => track('livro_impresso')}
-            printed={data.book ? <PrintedBookCard pages={printedPages} order={data.book.order} gifts={data.book.gifts.map(g => g.name)} onOpen={() => (data.book?.order || track('livro_impresso'), setBookOpen(true))} /> : undefined}
+            onWantPrinted={BOOK_PREORDER ? () => track('livro_impresso') : undefined}
+            printed={BOOK_PREORDER && data.book ? <PrintedBookCard pages={printedPages} order={data.book.order} gifts={data.book.gifts.map(g => g.name)} onOpen={() => (data.book?.order || track('livro_impresso'), setBookOpen(true))} /> : undefined}
             celebrations={data.celebrations}
             celebrationActions={celebrationActions}
             onOpenCelebration={setCelebrationOpen}
@@ -1614,7 +1614,7 @@ export default function App({ me, family, onFamilyChange, onAccessLost, onSignOu
         />
       )}
       {spaceSheet}
-      {bookOpen && data.book && (
+      {BOOK_PREORDER && bookOpen && data.book && (
         <Suspense fallback={null}>
           <BookBuilder stuff={printedStuff} photos={coverPhotos(journal)} babyName={data.babyName ?? null} order={data.book.order} gifts={data.book.gifts.map(g => g.name)} onReserve={reserveBook} onCancel={cancelBook} onClose={() => setBookOpen(false)} />
         </Suspense>

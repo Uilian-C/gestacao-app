@@ -27,6 +27,14 @@ export const BOOK_MODELS: Record<BookModel, { name: string; size: string; cover:
  */
 export const SHOW_PRICES = false;
 
+/**
+ * O livro impresso (montar, reservar, a família presentear) está ligado? Fica
+ * desligado até a estrutura de receita (impressão, logística, pagamento) estar
+ * pronta; enquanto isso, o Livro mantém só o "Imprimir para o fichário".
+ * Para ligar sem mexer no código: VITE_LIVRO_IMPRESSO=1 nas variáveis da Vercel.
+ */
+export const BOOK_PREORDER = import.meta.env.VITE_LIVRO_IMPRESSO === '1';
+
 /** Até quantas páginas o preço base cobre (depois, um valor por página a mais). */
 export const BASE_PAGES = 60;
 
