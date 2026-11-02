@@ -20,6 +20,13 @@ export const BOOK_MODELS: Record<BookModel, { name: string; size: string; cover:
   caixa: { name: 'Caixa memória', size: '21×21 cm + caixa', cover: 'Capa dura em caixa', pages: [24, 120], base: 34900, extra: 150, perks: ['O Clássico, numa caixa', 'As cartas impressas em envelopes', 'O ultrassom em papel fotográfico'] },
 };
 
+/**
+ * Os preços aparecem para o casal? Ainda não: faltam fechar logística e
+ * impressão. Enquanto isso, a reserva é uma lista de interesse (vocês recebem
+ * o preço antes de confirmar). A tabela abaixo segue como estimativa interna.
+ */
+export const SHOW_PRICES = false;
+
 /** Até quantas páginas o preço base cobre (depois, um valor por página a mais). */
 export const BASE_PAGES = 60;
 
